@@ -1,0 +1,18 @@
+Phase 5e ligand encoder packing — refactor-phase5e-ligand-encoder-20260506 (2026-05-06)
+
+Commands (repo root):
+  PYTHONPATH=src uv run pytest \
+    tests/sampling/test_sample.py \
+    tests/model/test_ligand_wave_parallel.py \
+    tests/sampling/test_state_vmap_exact_jit.py \
+    tests/sampling/test_sample_call_kw_contract.py \
+    tests/sampling/test_state_vmap_exact_routing.py \
+    tests/model/test_ligand_sidechain_context.py \
+    -q
+
+Summary:
+  43 passed, 24 warnings (~182 s local)
+
+EXIT: 0
+
+Full log: .agents/verification_logs/phase5e_ligand_encoder_20260506.full.txt

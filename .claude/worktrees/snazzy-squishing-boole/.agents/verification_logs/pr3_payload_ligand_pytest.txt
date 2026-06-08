@@ -1,0 +1,13 @@
+.................                                                        [100%]
+=============================== warnings summary ===============================
+../.venv/lib/python3.13/site-packages/e3nn_jax/_src/irreps.py:654
+  /home/marielle/projects/tev_design/.venv/lib/python3.13/site-packages/e3nn_jax/_src/irreps.py:654: DeprecationWarning: Creating NamedTuple classes using keyword arguments is deprecated and will be disallowed in Python 3.15. Use the class-based or functional syntax instead.
+    ) -> NamedTuple("Sort", irreps="Irreps", p=Tuple[int, ...], inv=Tuple[int, ...]):
+
+tests/sampling/test_state_vmap_payload_logits.py::test_ligand_payload_logits_matches_factory[unconditional]
+tests/sampling/test_state_vmap_payload_logits.py::test_ligand_payload_logits_matches_factory[conditional]
+  /home/marielle/projects/tev_design/prxteinmpnn/src/prxteinmpnn/model/mpnn.py:2274: UserWarning: A JAX array is being set as static! This can result in unexpected behavior and is usually a mistake to do.
+    self.features = ProteinFeaturesLigand(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+17 passed, 3 warnings in 30.84s

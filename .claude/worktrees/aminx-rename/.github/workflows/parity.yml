@@ -1,0 +1,148 @@
+name: LigandMPNN Heavy Parity
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  parity-heavy:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: 1
+      PRXTEIN_PARITY_TIER: parity_heavy
+    steps:
+      - name: Checkout Aminx repository
+        uses: actions/checkout@v4
+        with:
+          path: aminx
+
+      - name: Checkout Reference LigandMPNN
+        uses: actions/checkout@v4
+        with:
+          repository: dauparas/LigandMPNN
+          ref: 3870631
+          path: reference_ligandmpnn_clone
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          cd aminx
+          uv sync --extra cpu --extra dev --extra tests --group dev
+
+      - name: Parity preflight
+        env:
+          REFERENCE_PATH: ${{ github.workspace }}/reference_ligandmpnn_clone
+        run: |
+          cd aminx
+          uv run python scripts/check_parity_prereqs.py \
+            --reference-path "$REFERENCE_PATH" \
+            --project-root "." \
+            --tier parity_heavy
+
+      - name: Run Heavy Parity Tests
+        env:
+          REFERENCE_PATH: ${{ github.workspace }}/reference_ligandmpnn_clone
+        run: |
+          cd aminx
+          uv run python scripts/check_parity_assets.py --tier parity_heavy
+          uv run pytest tests/parity/ tests/model/test_ligandmpnn_equivalence.py \
+            -m "parity_heavy" --tb=short -v --junitxml=parity-heavy-report.xml
+
+      - name: Generate Heavy Parity Report
+        if: always()
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          root = Path("aminx")
+          matrix_manifest = root / "tests/parity/parity_matrix.json"
+          assets_manifest = root / "tests/parity/parity_assets.json"
+
+          matrix_payload = json.loads(matrix_manifest.read_text(encoding="utf-8"))
+          heavy_paths = [path for path in matrix_payload.get("paths", []) if path.get("tier") == "parity_heavy"]
+          (root / "parity-matrix-heavy.json").write_text(
+            json.dumps({"tier": "parity_heavy", "paths": heavy_paths}, indent=2) + "\n",
+            encoding="utf-8",
+          )
+
+          table_lines = [
+            "# Heavy Parity Matrix",
+            "",
+            f"Reference source: dauparas/LigandMPNN @ 3870631",
+            f"Total heavy paths: {len(heavy_paths)}",
+            "",
+            "| Path ID | Method | Acceptance |",
+            "| --- | --- | --- |",
+          ]
+          for path in heavy_paths:
+            acceptance = json.dumps(path.get("acceptance", {}), sort_keys=True)
+            table_lines.append(
+              f"| `{path.get('id', '')}` | {path.get('method', '')} | `{acceptance}` |",
+            )
+          (root / "parity-matrix-heavy.md").write_text("\n".join(table_lines) + "\n", encoding="utf-8")
+
+          asset_payload = json.loads(assets_manifest.read_text(encoding="utf-8"))
+          checksum_lines = []
+          for asset in asset_payload.get("assets", []):
+            if not isinstance(asset, dict):
+              continue
+            if "parity_heavy" not in asset.get("required_for", []):
+              continue
+            if asset.get("asset_kind") != "converted_checkpoint":
+              continue
+            rel_path = asset.get("path")
+            if not isinstance(rel_path, str):
+              continue
+            target = root / rel_path
+            if not target.exists():
+              continue
+            digest = hashlib.sha256(target.read_bytes()).hexdigest()
+            checksum_lines.append(f"{digest}  {rel_path}  ({asset.get('id', 'unknown')})")
+          (root / "parity-heavy-checksums.txt").write_text(
+            "\n".join(checksum_lines) + ("\n" if checksum_lines else ""),
+            encoding="utf-8",
+          )
+
+          summary = [
+            "# Heavy Parity Summary",
+            "",
+            "Reference source: dauparas/LigandMPNN @ 3870631",
+            f"Heavy paths covered: {len(heavy_paths)}",
+            "Ligand tied/multistate rollout policy: warn in parity_heavy, fail in parity_audit.",
+            "",
+            "- Test report: `parity-heavy-report.xml`",
+            "- Matrix JSON: `parity-matrix-heavy.json`",
+            "- Matrix markdown: `parity-matrix-heavy.md`",
+            "- Converted checksum snapshot: `parity-heavy-checksums.txt`",
+            "- Asset manifest: `tests/parity/parity_assets.json`",
+          ]
+          (root / "parity-heavy-summary.md").write_text("\n".join(summary) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload heavy parity artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-heavy-artifacts
+          retention-days: 14
+          path: |
+            aminx/parity-heavy-report.xml
+            aminx/parity-heavy-summary.md
+            aminx/parity-matrix-heavy.json
+            aminx/parity-matrix-heavy.md
+            aminx/parity-heavy-checksums.txt
+            aminx/tests/parity/parity_matrix.json
+            aminx/tests/parity/parity_assets.json

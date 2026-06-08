@@ -1,0 +1,27 @@
+# Standard Pre-commit Configuration for United Workspace
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # Optional: Project-specific uv hooks can be added below
+  # e.g., for type checking:
+  # - repo: local
+  #   hooks:
+  #     - id: ty-check
+  #       name: ty-check
+  #       entry: uv run ty check
+  #       language: system
+  #       types: [python]
+  #       pass_filenames: false

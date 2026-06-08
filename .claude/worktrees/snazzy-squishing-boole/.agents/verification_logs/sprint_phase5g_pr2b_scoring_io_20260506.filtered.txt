@@ -1,0 +1,25 @@
+Phase 5g PR2b — scoring structure-batch scalar io_callback + barrier before jnp.concatenate
+task_id: refactor-phase5-sprint-20260508
+
+pytest (2026-05-06):
+  uv run pytest tests/streaming/test_scoring_batch_io_callback.py \
+    tests/streaming/test_sampling_chunk_io_callback.py \
+    tests/streaming/test_io_callback_ordering.py \
+    tests/run/test_scoring.py tests/run/test_scoring_multistate.py \
+    tests/run/test_scoring_averaged.py -q
+  Result: 20 passed, 2 warnings (Haiku / e3nn_jax deprecations). Full log:
+  sprint_phase5g_pr2b_scoring_io_20260508.full.txt
+
+Contract checks:
+  - run/scoring.py: no ordered=True (grep)
+  - io_callback uses ordered=False; traced payload inside _compute after vs(...)
+  - jax.effects_barrier() immediately before jnp.concatenate(all_scores/all_logits) in score()
+  - _score_streaming: effects_barrier retained after _compute before HDF5 np.asarray writes
+
+ruff:
+  uv run ruff check src/prxteinmpnn/run/scoring.py → pre-existing TD003/FIX002 on io_callback
+  TODO lines and PLR0915 on _score_streaming (not introduced as merge gate for this slice).
+  New test file: clean.
+
+ty check:
+  Not expanded for this slice (repo-wide diagnostics unchanged policy).

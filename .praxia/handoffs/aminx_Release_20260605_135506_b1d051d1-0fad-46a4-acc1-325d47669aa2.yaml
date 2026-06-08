@@ -1,0 +1,59 @@
+---
+workspace: aminx
+session_id: e76d19f7-pypi-release-260605
+status: in_progress
+immediately_relevant:
+- file: src/aminx/io/weights.py
+  lines:
+  - 1
+  - 105
+  reason: HF Hub loader, _load_weight_bytes, HF_REPO_ID, latent topology bug at 77-84, LEGACY_ALIAS_MAP at 34-43.
+- file: tests/conftest.py
+  lines:
+  - 1
+  - 65
+  reason: requires_weights marker infrastructure — _local_weights_exist, _hf_hub_reachable, checkpoint_local_path fixture.
+- file: .github/workflows/release.yml
+  lines:
+  - 1
+  - 40
+  reason: 'PyPI publish workflow — triggers on release: [published]. Verify the queued run succeeded.'
+active_dispatches: []
+task_id: 260605_aminx_pypi_release
+phase: Release
+goal_statement: Publish aminx v0.1.0a1 to PyPI with weights distributed via Hugging Face Hub (maraxen/aminx).
+context_refs: []
+failed_attempts:
+- attempt_id: a1
+  description: Include colabdesign git+ URL in [project.optional-dependencies] benchmark extra
+  outcome: 'PyPI 400: Can''t have direct dependency'
+  reason_failed: PyPI rejects git+ URLs in published package metadata
+  do_not_retry: true
+  evidence_ref: null
+- attempt_id: a2
+  description: Bundle all 15 .eqx.zst weight files via package-data (109 MB wheel)
+  outcome: 'PyPI 400: File too large (100 MB limit)'
+  reason_failed: Neural network weights are high-entropy; zstd ratio ~1.08x. Cannot fit all checkpoints in one wheel.
+  do_not_retry: true
+  evidence_ref: null
+- attempt_id: a3
+  description: Exclude membrane+sc via exclude-package-data to get wheel under 100 MB
+  outcome: Would have worked at ~84.5 MB but user rejected
+  reason_failed: User decided HF Hub is the standard distribution path for all weights, not a size workaround
+  do_not_retry: true
+  evidence_ref: null
+open_questions:
+- Did the final PyPI workflow run succeed? (was queued at session end, not yet confirmed)
+- Should the 43 pre-existing uncommitted src/ changes be committed separately or stashed?
+deferred:
+- description: 'Fix get_topology_for_checkpoint latent bug (weights.py:77-84): atom_context_num only valid for ligand/packer model types'
+  rationale: Harmless now but logically wrong
+  recommended_phase: Tech debt sprint
+- description: Remove LEGACY_ALIAS_MAP and model_version/model_weights deprecated params
+  rationale: Dead code, untested
+  recommended_phase: Tech debt sprint
+- description: Archive maraxen/prxteinmpnn HF Hub repo with deprecation notice pointing to maraxen/aminx
+  rationale: Users may still find the old repo
+  recommended_phase: Immediately after PyPI publish confirmed
+lessons_refs: []
+---

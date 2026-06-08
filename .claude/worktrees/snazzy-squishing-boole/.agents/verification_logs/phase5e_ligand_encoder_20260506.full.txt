@@ -1,0 +1,32 @@
+...........................................                              [100%]
+=============================== warnings summary ===============================
+../.venv/lib/python3.13/site-packages/haiku/_src/jaxpr_info.py:45
+  /home/marielle/projects/tev_design/.venv/lib/python3.13/site-packages/haiku/_src/jaxpr_info.py:45: DeprecationWarning: jax.core.DropVar is deprecated. Use jax.extend.core.DropVar.
+    DropVar: TypeAlias = jax.core.DropVar
+
+../.venv/lib/python3.13/site-packages/e3nn_jax/_src/irreps.py:654
+  /home/marielle/projects/tev_design/.venv/lib/python3.13/site-packages/e3nn_jax/_src/irreps.py:654: DeprecationWarning: Creating NamedTuple classes using keyword arguments is deprecated and will be disallowed in Python 3.15. Use the class-based or functional syntax instead.
+    ) -> NamedTuple("Sort", irreps="Irreps", p=Tuple[int, ...], inv=Tuple[int, ...]):
+
+tests/sampling/test_sample.py::test_make_sample_sequences_temperature_jit
+tests/sampling/test_sample.py::test_make_sample_sequences_temperature_no_jit
+tests/sampling/test_sample.py::test_make_encoding_sampling_split_fn_jit
+tests/sampling/test_sample.py::test_make_encoding_sampling_split_fn_no_jit
+tests/sampling/test_sample.py::test_make_sample_sequences_straight_through_jit
+tests/sampling/test_sample.py::test_make_sample_sequences_straight_through_no_jit
+tests/sampling/test_sample.py::test_sample_convenience_function_jit
+tests/sampling/test_sample.py::test_sample_convenience_function_no_jit
+  /home/marielle/projects/tev_design/.venv/lib/python3.13/site-packages/chex/_src/asserts.py:831: DeprecationWarning: Implicit conversion of an array to a dtype is deprecated; rather than dtype=arr use dtype=arr.dtype. In the future this will result in an error.
+    dtype = np.result_type(x)
+
+tests/model/test_ligand_wave_parallel.py: 2 warnings
+tests/sampling/test_state_vmap_exact_jit.py: 2 warnings
+tests/sampling/test_sample_call_kw_contract.py: 2 warnings
+tests/sampling/test_state_vmap_exact_routing.py: 2 warnings
+tests/model/test_ligand_sidechain_context.py: 6 warnings
+  /home/marielle/projects/tev_design/prxteinmpnn/src/prxteinmpnn/model/mpnn.py:2296: UserWarning: A JAX array is being set as static! This can result in unexpected behavior and is usually a mistake to do.
+    self.features = ProteinFeaturesLigand(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+43 passed, 24 warnings in 182.26s (0:03:02)
+EXIT_CODE=0

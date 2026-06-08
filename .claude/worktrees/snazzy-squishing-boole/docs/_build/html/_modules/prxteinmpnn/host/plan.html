@@ -1,0 +1,997 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>prxteinmpnn.host.plan &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/style.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/host/plan';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/models.html">Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/inference.html">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/types.html">Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/sampling.html">Sampling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/scoring.html">Scoring</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/host.html">Host / Dispatch Layer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/run.html">Run / Specs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/utils.html">Utilities</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for prxteinmpnn.host.plan</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Batch planning and scheduling logic for sampling operations.</span>
+
+<span class="sd">Also includes InferencePlan and related components for unified inference dispatch.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">dataclasses</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">NamedTuple</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.tiling.axes</span><span class="w"> </span><span class="kn">import</span> <span class="n">N_NOISES</span><span class="p">,</span> <span class="n">N_SAMPLES</span><span class="p">,</span> <span class="n">N_STRUCTURES</span><span class="p">,</span> <span class="n">N_TEMPERATURES</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.tiling.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">TilingError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.tiling.planner</span><span class="w"> </span><span class="kn">import</span> <span class="n">BatchPlan</span><span class="p">,</span> <span class="n">BatchPlanner</span><span class="p">,</span> <span class="n">estimate_memory_theoretical</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PRNGKeyArray</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.inference.decode.protocols</span><span class="w"> </span><span class="kn">import</span> <span class="n">ARDecodeFn</span><span class="p">,</span> <span class="n">DecodeScoreFn</span><span class="p">,</span> <span class="n">STEDecodeFn</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.run.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingSpecification</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.types.arrays</span><span class="w"> </span><span class="kn">import</span> <span class="n">Logits</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.types.bundles</span><span class="w"> </span><span class="kn">import</span> <span class="n">InferenceBundle</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.types.configs</span><span class="w"> </span><span class="kn">import</span> <span class="n">InferenceConfig</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.types.encodings</span><span class="w"> </span><span class="kn">import</span> <span class="n">EncoderOutput</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.types.protocols</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelProtocol</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">_batch_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span> <span class="o">+</span> <span class="s2">&quot;.batch_plan&quot;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="PlanTopologyError">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.PlanTopologyError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PlanTopologyError</span><span class="p">(</span><span class="n">TilingError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Raised at make_inference_plan() time when plan topology is invalid.</span>
+
+<span class="sd">    This fires before any JAX compilation — topology errors are caught at</span>
+<span class="sd">    plan construction time, not at trace time or runtime.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+
+<span class="c1"># Axis name constants for batch planning</span>
+<div class="viewcode-block" id="AxisNames">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.AxisNames">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">AxisNames</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Named access to batch axes to avoid hardcoded strings.&quot;&quot;&quot;</span>
+    <span class="n">N_STRUCTURES</span> <span class="o">=</span> <span class="s2">&quot;n_structures&quot;</span>
+    <span class="n">N_SAMPLES</span> <span class="o">=</span> <span class="s2">&quot;n_samples&quot;</span>
+    <span class="n">N_TEMPERATURES</span> <span class="o">=</span> <span class="s2">&quot;n_temperatures&quot;</span>
+    <span class="n">N_NOISES</span> <span class="o">=</span> <span class="s2">&quot;n_noises&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="make_sampling_planner">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.make_sampling_planner">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_sampling_planner</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">SamplingSpecification</span><span class="p">,</span>
+    <span class="n">param_bytes</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">headroom</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.80</span><span class="p">,</span>
+    <span class="n">activation_multiplier</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.5</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BatchPlan</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a BatchPlan for _sample_batch dispatch with advisory logging.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    spec : SamplingSpecification</span>
+<span class="sd">        Sampling specification containing batch size and temperature/noise parameters.</span>
+<span class="sd">    param_bytes : float, optional</span>
+<span class="sd">        Estimated model parameter size in bytes. Default 0.0.</span>
+<span class="sd">    headroom : float, optional</span>
+<span class="sd">        Fraction of device memory to use. Default 0.80 (80% headroom).</span>
+<span class="sd">    activation_multiplier : float, optional</span>
+<span class="sd">        Multiplier for activation memory estimation. Default 2.5.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    BatchPlan</span>
+<span class="sd">        Batch size decisions for each sampling axis (structures, samples, temps, noises).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">limit</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">devices</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">memory_stats</span><span class="p">()[</span><span class="s2">&quot;bytes_limit&quot;</span><span class="p">]</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="n">limit</span> <span class="o">=</span> <span class="mi">4</span> <span class="o">*</span> <span class="mi">1024</span><span class="o">**</span><span class="mi">3</span>
+    <span class="n">budget</span> <span class="o">=</span> <span class="n">limit</span> <span class="o">*</span> <span class="n">headroom</span> <span class="o">-</span> <span class="n">param_bytes</span>
+    <span class="n">axes</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">dataclasses</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">N_STRUCTURES</span><span class="p">,</span> <span class="n">cardinality</span><span class="o">=</span><span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;batch_size&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">1</span><span class="p">)),</span>
+        <span class="n">dataclasses</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">N_SAMPLES</span><span class="p">,</span> <span class="n">cardinality</span><span class="o">=</span><span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;samples_batch_size&quot;</span><span class="p">,</span> <span class="mi">128</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">128</span><span class="p">)),</span>
+        <span class="n">dataclasses</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">N_TEMPERATURES</span><span class="p">,</span> <span class="n">cardinality</span><span class="o">=</span><span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;temperature&quot;</span><span class="p">,</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">])))),</span>
+        <span class="n">dataclasses</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">N_NOISES</span><span class="p">,</span> <span class="n">cardinality</span><span class="o">=</span><span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;backbone_noise&quot;</span><span class="p">,</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">])))),</span>
+    <span class="p">]</span>
+    <span class="k">return</span> <span class="n">BatchPlanner</span><span class="p">(</span>
+        <span class="n">axes</span><span class="o">=</span><span class="n">axes</span><span class="p">,</span>
+        <span class="n">budget_bytes</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span>
+        <span class="n">estimate_memory</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ds</span><span class="p">:</span> <span class="n">estimate_memory_theoretical</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">activation_multiplier</span><span class="p">),</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">plan</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="extract_batch_sizes">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.extract_batch_sizes">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_batch_sizes</span><span class="p">(</span><span class="n">plan</span><span class="p">:</span> <span class="n">BatchPlan</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract batch sizes for all sampling axes from a BatchPlan.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    plan : BatchPlan</span>
+<span class="sd">        Batch plan from make_sampling_planner.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple[int, int, int, int]</span>
+<span class="sd">        Tuple of (structures_bs, samples_bs, temps_bs, noises_bs).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">structures_bs</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">decision_for</span><span class="p">(</span><span class="n">AxisNames</span><span class="o">.</span><span class="n">N_STRUCTURES</span><span class="p">)</span><span class="o">.</span><span class="n">batch_size</span>
+    <span class="n">samples_bs</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">decision_for</span><span class="p">(</span><span class="n">AxisNames</span><span class="o">.</span><span class="n">N_SAMPLES</span><span class="p">)</span><span class="o">.</span><span class="n">batch_size</span>
+    <span class="n">temps_bs</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">decision_for</span><span class="p">(</span><span class="n">AxisNames</span><span class="o">.</span><span class="n">N_TEMPERATURES</span><span class="p">)</span><span class="o">.</span><span class="n">batch_size</span>
+    <span class="n">noises_bs</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">decision_for</span><span class="p">(</span><span class="n">AxisNames</span><span class="o">.</span><span class="n">N_NOISES</span><span class="p">)</span><span class="o">.</span><span class="n">batch_size</span>
+    <span class="k">return</span> <span class="n">structures_bs</span><span class="p">,</span> <span class="n">samples_bs</span><span class="p">,</span> <span class="n">temps_bs</span><span class="p">,</span> <span class="n">noises_bs</span></div>
+
+
+
+<div class="viewcode-block" id="compute_sample_keys">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.compute_sample_keys">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_sample_keys</span><span class="p">(</span>
+    <span class="n">base_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+    <span class="n">target_num_samples</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">chunk_sample_start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">grid_lineage_sample_start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute deterministic PRNG keys for all samples via fold_in.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    base_key : PRNGKeyArray</span>
+<span class="sd">        Base PRNG key for folding.</span>
+<span class="sd">    target_num_samples : int</span>
+<span class="sd">        Number of samples to generate keys for.</span>
+<span class="sd">    chunk_sample_start : int | None, optional</span>
+<span class="sd">        Explicit chunk start index. Default None.</span>
+<span class="sd">    grid_lineage_sample_start : int | None, optional</span>
+<span class="sd">        Grid lineage sample start index. Default None.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jax.Array</span>
+<span class="sd">        Array of shape ``(target_num_samples,)`` containing folded keys.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sample_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">target_num_samples</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">chunk_sample_start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">sample_indices</span> <span class="o">+=</span> <span class="nb">int</span><span class="p">(</span><span class="n">chunk_sample_start</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">grid_lineage_sample_start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">sample_indices</span> <span class="o">+=</span> <span class="nb">int</span><span class="p">(</span><span class="n">grid_lineage_sample_start</span><span class="p">)</span>
+
+    <span class="c1"># Generate keys for each sample via fold_in</span>
+    <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="k">lambda</span> <span class="n">idx</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">fold_in</span><span class="p">(</span><span class="n">base_key</span><span class="p">,</span> <span class="n">idx</span><span class="p">))(</span><span class="n">sample_indices</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="resolve_target_samples">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.resolve_target_samples">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_target_samples</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">SamplingSpecification</span><span class="p">,</span>
+    <span class="n">chunk_sample_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">grid_lineage</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the target number of samples for this batch.</span>
+
+<span class="sd">    Prioritizes explicit chunk_sample_count, then grid lineage sample_count,</span>
+<span class="sd">    then spec.num_samples as fallback.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    spec : SamplingSpecification</span>
+<span class="sd">        Sampling specification.</span>
+<span class="sd">    chunk_sample_count : int | None, optional</span>
+<span class="sd">        Explicit sample count for this chunk. Default None.</span>
+<span class="sd">    grid_lineage : dict[str, int | str] | None, optional</span>
+<span class="sd">        Grid lineage dict with &#39;sample_count&#39; key. Default None.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    int</span>
+<span class="sd">        Resolved target sample count (positive).</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If resolved sample count is not positive.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">chunk_sample_count</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">chunk_sample_count</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">grid_lineage</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">grid_lineage</span><span class="p">[</span><span class="s2">&quot;sample_count&quot;</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">num_samples</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">target</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;num_samples must be positive.&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">target</span></div>
+
+
+
+<div class="viewcode-block" id="resolve_chunk_size">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.resolve_chunk_size">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_chunk_size</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">SamplingSpecification</span><span class="p">,</span>
+    <span class="n">total_num_samples</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">grid_lineage</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the chunk size for streaming sample output.</span>
+
+<span class="sd">    Uses spec.samples_chunk_size if set, otherwise grid_lineage[&#39;sample_count&#39;]</span>
+<span class="sd">    if grid_lineage exists, otherwise total_num_samples.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    spec : SamplingSpecification</span>
+<span class="sd">        Sampling specification.</span>
+<span class="sd">    total_num_samples : int</span>
+<span class="sd">        Total number of samples to be generated.</span>
+<span class="sd">    grid_lineage : dict[str, int | str] | None, optional</span>
+<span class="sd">        Grid lineage dict. Default None.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    int</span>
+<span class="sd">        Chunk size (positive).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;samples_chunk_size&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">spec</span><span class="o">.</span><span class="n">samples_chunk_size</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">samples_chunk_size</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">grid_lineage</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">grid_lineage</span><span class="p">[</span><span class="s2">&quot;sample_count&quot;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">total_num_samples</span></div>
+
+
+
+<div class="viewcode-block" id="resolve_sample_start">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.resolve_sample_start">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_sample_start</span><span class="p">(</span>
+    <span class="n">grid_lineage</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the sample start index from grid lineage or default to 0.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    grid_lineage : dict[str, int | str] | None, optional</span>
+<span class="sd">        Grid lineage dict with &#39;sample_start&#39; key. Default None.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    int</span>
+<span class="sd">        Sample start index (0-based).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">grid_lineage</span><span class="p">[</span><span class="s2">&quot;sample_start&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="n">grid_lineage</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">0</span></div>
+
+
+
+<div class="viewcode-block" id="_validate_plan_topology">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan._validate_plan_topology">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_plan_topology</span><span class="p">(</span>
+    <span class="n">plan</span><span class="p">:</span> <span class="n">BatchPlan</span><span class="p">,</span>
+    <span class="n">stage_set</span><span class="p">:</span> <span class="s2">&quot;StageSet&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate plan topology at plan construction time.</span>
+
+<span class="sd">    Checks:</span>
+<span class="sd">    1. No Scan strategy on heterogeneous axes (jax.lax.scan requires static carry shape).</span>
+<span class="sd">    2. No ordered=True boundary op (Tap/Sink) on Vmap axes (vmap has no step ordering).</span>
+<span class="sd">    3. No STEDecode paired with UnconditionalDecodeStep (STE requires conditional scoring).</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        PlanTopologyError: on first violation found.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.tiling.strategy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Scan</span><span class="p">,</span> <span class="n">Vmap</span>
+
+    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">plan</span><span class="o">.</span><span class="n">decisions</span><span class="p">:</span>
+        <span class="c1"># Rule 1: Scan on heterogeneous axis is structurally impossible</span>
+        <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">heterogeneous</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span> <span class="n">Scan</span><span class="p">):</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;PlanTopologyError: axis &#39;</span><span class="si">{</span><span class="n">d</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; is heterogeneous &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;(element shapes vary) but has a Scan strategy. &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;jax.lax.scan requires static carry shape — heterogeneous axes &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;must use SafeMap. Use CarrySpec only on homogeneous axes.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="n">PlanTopologyError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="c1"># Rule 2: ordered boundary op on Vmap axis has no step-ordering guarantee</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span> <span class="n">Vmap</span><span class="p">):</span>
+            <span class="n">boundary</span> <span class="o">=</span> <span class="n">stage_set</span><span class="o">.</span><span class="n">axis_boundaries</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">boundary</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">boundary</span><span class="o">.</span><span class="n">tap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">boundary</span><span class="o">.</span><span class="n">tap</span><span class="p">,</span> <span class="s2">&quot;ordered&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+                    <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;PlanTopologyError: axis &#39;</span><span class="si">{</span><span class="n">d</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; has an ordered=True &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;Tap but uses Vmap strategy. vmap does not preserve step order. &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;Use SafeMap or Scan on axes with ordered boundary ops.&quot;</span>
+                    <span class="p">)</span>
+                    <span class="k">raise</span> <span class="n">PlanTopologyError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">boundary</span><span class="o">.</span><span class="n">sink</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">boundary</span><span class="o">.</span><span class="n">sink</span><span class="p">,</span> <span class="s2">&quot;ordered&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+                    <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;PlanTopologyError: axis &#39;</span><span class="si">{</span><span class="n">d</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; has an ordered=True &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;Sink but uses Vmap strategy. vmap does not preserve step order. &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;Use SafeMap or Scan on axes with ordered boundary ops.&quot;</span>
+                    <span class="p">)</span>
+                    <span class="k">raise</span> <span class="n">PlanTopologyError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="c1"># Rule 3: STEDecode requires ConditionalDecodeStep, not UnconditionalDecodeStep (Sprint 6)</span>
+    <span class="n">decode_fn</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">plan</span><span class="p">,</span> <span class="s2">&quot;decode_fn&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">decode_fn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Lazy import to avoid circular dependencies</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.inference.decode.ste</span><span class="w"> </span><span class="kn">import</span> <span class="n">STEDecode</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.types.stages</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnconditionalDecodeStep</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">decode_fn</span><span class="p">,</span> <span class="n">STEDecode</span><span class="p">):</span>
+            <span class="n">decode_step</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">stage_set</span><span class="p">,</span> <span class="s2">&quot;decode_step&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">decode_step</span><span class="p">,</span> <span class="n">UnconditionalDecodeStep</span><span class="p">):</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="s2">&quot;PlanTopologyError: STEDecode requires ConditionalDecodeStep on &quot;</span>
+                    <span class="s2">&quot;stage_set.decode_step; got UnconditionalDecodeStep. &quot;</span>
+                    <span class="s2">&quot;STE (straight-through estimator) requires conditional scoring via &quot;</span>
+                    <span class="s2">&quot;sequence context; unconditional decoding is incompatible.&quot;</span>
+                <span class="p">)</span>
+                <span class="k">raise</span> <span class="n">PlanTopologyError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># COMP-8: InferencePlan and related components for unified inference dispatch</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+
+<div class="viewcode-block" id="InferenceComponents">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.InferenceComponents">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">InferenceComponents</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolved inference components for encode-once/decode-many pipeline.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    encode_fn : Callable</span>
+<span class="sd">        Encoder forward pass. Signature:</span>
+<span class="sd">        ``(bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) → EncoderOutput``</span>
+<span class="sd">    driver : Callable</span>
+<span class="sd">        Decode driver. Signature:</span>
+<span class="sd">        ``(model, key, enc, conditioning, wave, config, stage_set) → result``</span>
+<span class="sd">        Routes to sample_autoregressive or score_conditional based on stage_set.</span>
+<span class="sd">    stage_set : Any</span>
+<span class="sd">        StageSet instance with all slots wired (logit_transform, ar_logit_transform,</span>
+<span class="sd">        decode_step, sample_step, tie_group_fuse). Ready for JIT.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+
+<span class="sd">    .. [LigandMPNN] Dauparas, J., et al. &quot;Atomic context-conditioned protein</span>
+<span class="sd">       sequence design using LigandMPNN.&quot; *Nature Methods* 22(4):717-723 (2025).</span>
+<span class="sd">       https://doi.org/10.1038/s41592-025-02626-1</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">encode_fn</span><span class="p">:</span> <span class="n">Callable</span>
+    <span class="n">driver</span><span class="p">:</span> <span class="n">Callable</span>
+    <span class="n">stage_set</span><span class="p">:</span> <span class="n">Any</span>  <span class="c1"># StageSet</span></div>
+
+
+
+<div class="viewcode-block" id="InferencePlan">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.InferencePlan">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InferencePlan</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolved inference plan with encode-once/decode-many pattern.</span>
+
+<span class="sd">    Encodes geometry and ligand context once, then reuses encoder output for</span>
+<span class="sd">    multiple decode passes (sampling or scoring) with different stage_set instances.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model : Any</span>
+<span class="sd">        Parameterized protein/ligand model (carries JAX arrays).</span>
+<span class="sd">    components : InferenceComponents</span>
+<span class="sd">        Resolved components: encode_fn, driver, stage_set.</span>
+<span class="sd">    decode_fn : DecodeScoreFn | ARDecodeFn | STEDecodeFn</span>
+<span class="sd">        Resolved decode mode class instance (ConditionalDecode, UnconditionalDecode,</span>
+<span class="sd">        AutoregressiveDecode, or STEDecode). Wired once at plan construction time.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    `.sample()` and `.score()` invoke the same encode → decode pipeline but with</span>
+<span class="sd">    different stage_set configurations. The decode_step and sample_step fields in</span>
+<span class="sd">    stage_set determine the output (sampled sequence or logits).</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+
+<span class="sd">    .. [LigandMPNN] Dauparas, J., et al. &quot;Atomic context-conditioned protein</span>
+<span class="sd">       sequence design using LigandMPNN.&quot; *Nature Methods* 22(4):717-723 (2025).</span>
+<span class="sd">       https://doi.org/10.1038/s41592-025-02626-1</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">model</span><span class="p">:</span> <span class="n">Any</span>
+    <span class="n">components</span><span class="p">:</span> <span class="n">InferenceComponents</span>
+    <span class="n">decode_fn</span><span class="p">:</span> <span class="s2">&quot;DecodeScoreFn | ARDecodeFn | STEDecodeFn&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stage_set</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Access the wired StageSet directly.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">components</span><span class="o">.</span><span class="n">stage_set</span>
+
+<div class="viewcode-block" id="InferencePlan.encode">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.InferencePlan.encode">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">encode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bundle</span><span class="p">:</span> <span class="n">InferenceBundle</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">InferenceConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EncoderOutput</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Encode geometry and context into reusable encoder output.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        bundle : InferenceBundle</span>
+<span class="sd">            Input geometry, conditioning, ligand, and wave schedule.</span>
+<span class="sd">        key : PRNGKeyArray</span>
+<span class="sd">            PRNG key (passed to encoder; may be used for noise injection).</span>
+<span class="sd">        config : InferenceConfig</span>
+<span class="sd">            Inference configuration.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        EncoderOutput</span>
+<span class="sd">            Encoded node features, edge features, neighbor indices, and mask.</span>
+<span class="sd">            Reuse this output across multiple decode() calls for encode-once/decode-many.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">components</span><span class="o">.</span><span class="n">encode_fn</span><span class="p">(</span><span class="n">bundle</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="InferencePlan.decode">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.InferencePlan.decode">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">decode</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">enc</span><span class="p">:</span> <span class="n">EncoderOutput</span><span class="p">,</span>
+        <span class="n">bundle</span><span class="p">:</span> <span class="n">InferenceBundle</span><span class="p">,</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+        <span class="n">config</span><span class="p">:</span> <span class="n">InferenceConfig</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Decode pre-encoded features into logits or sampled sequences.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        enc : EncoderOutput</span>
+<span class="sd">            Pre-computed encoder output from encode(). May be reused across calls.</span>
+<span class="sd">        bundle : InferenceBundle</span>
+<span class="sd">            Input bundle providing conditioning and wave schedule for decoder.</span>
+<span class="sd">        key : PRNGKeyArray</span>
+<span class="sd">            PRNG key for any stochastic decoding.</span>
+<span class="sd">        config : InferenceConfig</span>
+<span class="sd">            Inference configuration.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Any</span>
+<span class="sd">            Logits (shape (L, 21)) when stage_set.decode_step is active.</span>
+<span class="sd">            SampleResult when stage_set.sample_step is active.</span>
+<span class="sd">            Return type is driver-dependent; typed Any to match driver: Callable precision.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.inference.sample_autoregressive</span><span class="w"> </span><span class="kn">import</span> <span class="n">SampleResult</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">components</span><span class="o">.</span><span class="n">driver</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">enc</span><span class="p">,</span> <span class="n">bundle</span><span class="o">.</span><span class="n">conditioning</span><span class="p">,</span> <span class="n">bundle</span><span class="o">.</span><span class="n">wave</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">components</span><span class="o">.</span><span class="n">stage_set</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="c1"># Normalize: if driver returned raw logits, wrap as SampleResult</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">SampleResult</span><span class="p">):</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">SampleResult</span><span class="p">(</span>
+                <span class="n">sequence</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span>
+                <span class="n">logits</span><span class="o">=</span><span class="n">result</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span></div>
+
+
+<div class="viewcode-block" id="InferencePlan.sample">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.InferencePlan.sample">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bundle</span><span class="p">:</span> <span class="n">InferenceBundle</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">InferenceConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Encode and sample from the pipeline.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        bundle : InferenceBundle</span>
+<span class="sd">            Input geometry, conditioning, ligand, and wave schedule.</span>
+<span class="sd">        key : PRNGKeyArray</span>
+<span class="sd">            PRNG key for sampling.</span>
+<span class="sd">        config : InferenceConfig</span>
+<span class="sd">            Inference configuration (batch, device, etc.).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Any</span>
+<span class="sd">            Sampled sequence (or auxiliary output from driver).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">enc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">bundle</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">enc</span><span class="p">,</span> <span class="n">bundle</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="InferencePlan.score">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.InferencePlan.score">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bundle</span><span class="p">:</span> <span class="n">InferenceBundle</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">InferenceConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Logits</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Encode and score the pipeline.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        bundle : InferenceBundle</span>
+<span class="sd">            Input geometry, conditioning, ligand, and wave schedule.</span>
+<span class="sd">        key : PRNGKeyArray</span>
+<span class="sd">            PRNG key for any stochastic operations.</span>
+<span class="sd">        config : InferenceConfig</span>
+<span class="sd">            Inference configuration (batch, device, etc.).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Logits</span>
+<span class="sd">            Logit scores per position per amino acid.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">enc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">bundle</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">enc</span><span class="p">,</span> <span class="n">bundle</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="make_inference_plan">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.plan.make_inference_plan">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_inference_plan</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">ModelProtocol</span><span class="p">,</span> <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InferencePlan</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Factory: resolve and create an InferencePlan from model and spec.</span>
+
+<span class="sd">    Assembles the inference pipeline by resolving encode_fn (from use_rolling_state),</span>
+<span class="sd">    wiring logit_transform (from multi_state_strategy), and instantiating stage_set</span>
+<span class="sd">    with ARLogitFuse and TieGroupProductOfExperts.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model : ModelProtocol</span>
+<span class="sd">        Parameterized model with decoder, encoder, and embeddings.</span>
+<span class="sd">    spec : Any</span>
+<span class="sd">        Specification with attributes: use_rolling_state, multi_state_strategy,</span>
+<span class="sd">        multi_state_temperature, state_weights.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    InferencePlan</span>
+<span class="sd">        Ready-to-use inference plan for sampling/scoring.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Resolution order:</span>
+
+<span class="sd">    1. ``encode_fn`` — uses ``make_encode_fn(model, use_rolling_state=use_rolling_state)``.</span>
+<span class="sd">       ``use_rolling_state=True`` selects scan-based multi-state encoding; False uses vmap.</span>
+<span class="sd">    2. ``logit_transform`` — instantiated from ``LOGIT_STRATEGIES[multi_state_strategy]``</span>
+<span class="sd">       with ``state_weights`` and ``multi_state_temperature``.</span>
+<span class="sd">    3. ``ar_logit_transform`` — always wired as ``ARLogitFuse()`` (arithmetic mean + bias</span>
+<span class="sd">       injection over states, identity when S=1).</span>
+<span class="sd">    4. ``tie_group_fuse`` — always wired as ``TieGroupProductOfExperts()`` (log-softmax sum</span>
+<span class="sd">       across tied positions).</span>
+<span class="sd">    5. ``decode_step`` and ``sample_step`` — for ``sampling_strategy=&quot;straight_through&quot;``,</span>
+<span class="sd">       ``decode_step`` is wired to ``ConditionalDecodeStep`` and ``sample_step`` remains</span>
+<span class="sd">       ``None`` (teacher-forced path). All other strategies leave both slots as ``None``;</span>
+<span class="sd">       driver selects topology at call time based on stage_set slot occupancy.</span>
+<span class="sd">    6. ``encoding_fusion`` — wired as ``ArithmeticMeanEncodingFusion`` when</span>
+<span class="sd">       ``spec.average_node_features=True``; otherwise left ``None``.</span>
+<span class="sd">    7. ``decode_fn`` — resolved via make_decode_fn(model, mode, strategy) and wired as</span>
+<span class="sd">       a top-level field on the plan.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+
+<span class="sd">    .. [LigandMPNN] Dauparas, J., et al. &quot;Atomic context-conditioned protein</span>
+<span class="sd">       sequence design using LigandMPNN.&quot; *Nature Methods* 22(4):717-723 (2025).</span>
+<span class="sd">       https://doi.org/10.1038/s41592-025-02626-1</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.inference</span><span class="w"> </span><span class="kn">import</span> <span class="n">driver</span> <span class="k">as</span> <span class="n">driver_module</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.inference.decode.factory</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_decode_fn</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.inference.decode.mode</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConditionalMode</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.inference.encode</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_encode_fn</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.inference.logits</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_stage_set</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.tiling.strategy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Vmap</span>
+
+    <span class="n">use_rolling_state</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;use_rolling_state&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="n">encode_fn</span> <span class="o">=</span> <span class="n">make_encode_fn</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">use_rolling_state</span><span class="o">=</span><span class="n">use_rolling_state</span><span class="p">)</span>
+
+    <span class="n">strategy_name</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;multi_state_strategy&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;arithmetic_mean&quot;</span>
+    <span class="n">strategy_temp</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;multi_state_temperature&quot;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span> <span class="ow">or</span> <span class="mf">1.0</span>
+    <span class="n">state_weights</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;state_weights&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="n">stage_set</span> <span class="o">=</span> <span class="n">make_stage_set</span><span class="p">(</span><span class="n">strategy_name</span><span class="p">,</span> <span class="n">strategy_temp</span><span class="p">,</span> <span class="n">state_weights</span><span class="p">)</span>
+
+    <span class="c1"># Wire encoding fusion for averaged mode</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;average_node_features&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">equinox</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">eqx</span>
+
+        <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host.averaging</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArithmeticMeanEncodingFusion</span>
+
+        <span class="n">stage_set</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">tree_at</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">encoding_fusion</span><span class="p">,</span>
+            <span class="n">stage_set</span><span class="p">,</span>
+            <span class="n">ArithmeticMeanEncodingFusion</span><span class="p">(),</span>
+            <span class="n">is_leaf</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Wire STE (straight-through estimator) decode topology</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;sampling_strategy&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;straight_through&quot;</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">equinox</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">eqx</span>
+
+        <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.types.stages</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConditionalDecodeStep</span>
+
+        <span class="n">conditional_decode_step</span> <span class="o">=</span> <span class="n">ConditionalDecodeStep</span><span class="p">(</span>
+            <span class="n">decoder</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">decoder</span><span class="p">,</span>
+            <span class="n">w_s_embed</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">w_s_embed</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">stage_set</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">tree_at</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">decode_step</span><span class="p">,</span>
+            <span class="n">stage_set</span><span class="p">,</span>
+            <span class="n">conditional_decode_step</span><span class="p">,</span>
+            <span class="n">is_leaf</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="c1"># sample_step stays None (already None from make_stage_set) — teacher-forced path</span>
+
+    <span class="c1"># Resolve decode_fn via make_decode_fn with default ConditionalMode and Vmap strategy</span>
+    <span class="c1"># (conservative defaults; caller can override via spec if needed)</span>
+    <span class="n">decode_mode</span> <span class="o">=</span> <span class="n">ConditionalMode</span><span class="p">()</span>
+    <span class="n">decode_strategy</span> <span class="o">=</span> <span class="n">Vmap</span><span class="p">()</span>
+    <span class="n">decode_fn</span> <span class="o">=</span> <span class="n">make_decode_fn</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">decode_mode</span><span class="p">,</span> <span class="n">strategy</span><span class="o">=</span><span class="n">decode_strategy</span><span class="p">)</span>
+
+    <span class="n">components</span> <span class="o">=</span> <span class="n">InferenceComponents</span><span class="p">(</span>
+        <span class="n">encode_fn</span><span class="o">=</span><span class="n">encode_fn</span><span class="p">,</span>
+        <span class="n">driver</span><span class="o">=</span><span class="n">driver_module</span><span class="o">.</span><span class="n">decode</span><span class="p">,</span>
+        <span class="n">stage_set</span><span class="o">=</span><span class="n">stage_set</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">InferencePlan</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">components</span><span class="o">=</span><span class="n">components</span><span class="p">,</span> <span class="n">decode_fn</span><span class="o">=</span><span class="n">decode_fn</span><span class="p">)</span></div>
+
+
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

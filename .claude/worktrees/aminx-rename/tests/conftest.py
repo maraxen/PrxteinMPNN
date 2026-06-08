@@ -1,0 +1,242 @@
+"""Shared test fixtures."""
+
+from pathlib import Path
+
+import jax
+import jax.numpy as jnp
+import pytest
+from jax import random
+
+from aminx.utils.data_structures import Protein
+from aminx.types.arrays import ModelParameters
+
+
+def _parse_first_structure(path: Path) -> Protein:
+    """Parse a single structure and skip test session if parser backend is unavailable."""
+    try:
+        from aminx.io.parsing import parse_input
+    except ModuleNotFoundError as exc:
+        pytest.skip(f"Skipping parsing-dependent tests: {exc}")
+    try:
+        return next(parse_input(str(path)))
+    except ModuleNotFoundError as exc:
+        pytest.skip(f"Skipping parsing-dependent tests: {exc}")
+
+
+@pytest.fixture(scope="session")
+def protein_structure() -> Protein:
+    """Load a sample protein structure from a PDB file."""
+    pdb_path = Path(__file__).parent / "data" / "1ubq.pdb"
+    return _parse_first_structure(pdb_path)
+
+
+@pytest.fixture(scope="session")
+def pqr_protein_tuple() -> Protein:
+    """Load a sample protein structure from a PQR file."""
+    pqr_path = Path(__file__).parent / "data" / "1a00.pqr"
+    return _parse_first_structure(pqr_path)
+
+
+@pytest.fixture(scope="session")
+def model_inputs(protein_structure: Protein) -> dict:
+    """Create model inputs from a protein structure."""
+    return {
+        "structure_coordinates": protein_structure.coordinates,
+        "mask": protein_structure.mask,
+        "residue_index": protein_structure.residue_index,
+        "chain_index": protein_structure.chain_index,
+        "sequence": protein_structure.aatype,
+    }
+
+
+@pytest.fixture
+def rng_key() -> random.PRNGKey:
+    """Create a new random key for testing."""
+    return random.PRNGKey(0)
+
+
+@pytest.fixture
+def mock_model_parameters() -> ModelParameters:
+  """Create a complete and structurally correct set of mock model parameters."""
+  # Model dimensions
+  C_V = 128  # Node feature dimension
+  C_E = 128  # Edge feature dimension
+  INITIAL_EDGE_FEATURES = 528
+  ENCODER_MLP_INPUT_DIM = C_V + C_V + C_E  # 384
+  # CORRECTED: Define the decoder's specific input dimension
+  DECODER_MLP_INPUT_DIM = C_V + ENCODER_MLP_INPUT_DIM # 128 + 384 = 512
+  NUM_AMINO_ACIDS = 21
+  MAXIMUM_RELATIVE_FEATURES = 32
+  pos_enc_dim = 2 * MAXIMUM_RELATIVE_FEATURES + 2
+
+  # Helper to create mock linear layer parameters
+  def _make_linear_params(d_in, d_out):
+    return {"w": jax.random.normal(jax.random.PRNGKey(0), (d_in, d_out)), "b": jax.random.normal(jax.random.PRNGKey(0), (d_out,))}
+
+  # Helper to create mock norm layer parameters
+  def _make_norm_params(dim=C_V):
+    return {"scale": jnp.ones((dim,)), "offset": jnp.zeros((dim,))}
+
+  params = {
+    # Feature extraction parameters
+    "protein_mpnn/~/protein_features/~/positional_encodings/~/embedding_linear": _make_linear_params(
+      pos_enc_dim, C_E,
+    ),
+    "protein_mpnn/~/protein_features/~/edge_embedding": _make_linear_params(
+      INITIAL_EDGE_FEATURES, C_E,
+    ),
+    "protein_mpnn/~/protein_features/~/norm_edges": _make_norm_params(dim=C_E),
+    # Main model parameters
+    "protein_mpnn/~/W_e": _make_linear_params(C_E, C_E),
+    "protein_mpnn/~/embed_token": {"W_s": jnp.ones((NUM_AMINO_ACIDS, C_V))},
+    "protein_mpnn/~/W_out": _make_linear_params(C_V, NUM_AMINO_ACIDS),
+  }
+
+  # Encoder and Decoder Layers
+  for i in range(3):
+    enc_l_name = f"enc{i}"
+    dec_l_name = f"dec{i}"
+    enc_prefix = "protein_mpnn/~/enc_layer"
+    if i > 0:
+        enc_prefix += f"_{i}"
+    dec_prefix = "protein_mpnn/~/dec_layer"
+    if i > 0:
+        dec_prefix += f"_{i}"
+
+    # Encoder
+    params.update(
+      {
+        f"{enc_prefix}/~/{enc_l_name}_norm1": _make_norm_params(),
+        f"{enc_prefix}/~/{enc_l_name}_norm2": _make_norm_params(),
+        f"{enc_prefix}/~/{enc_l_name}_norm3": _make_norm_params(),
+        f"{enc_prefix}/~/{enc_l_name}_W1": _make_linear_params(ENCODER_MLP_INPUT_DIM, C_V),
+        f"{enc_prefix}/~/{enc_l_name}_W2": _make_linear_params(C_V, C_V),
+        f"{enc_prefix}/~/{enc_l_name}_W3": _make_linear_params(C_V, C_V),
+        f"{enc_prefix}/~/{enc_l_name}_W11": _make_linear_params(ENCODER_MLP_INPUT_DIM, C_E),
+        f"{enc_prefix}/~/{enc_l_name}_W12": _make_linear_params(C_E, C_E),
+        f"{enc_prefix}/~/{enc_l_name}_W13": _make_linear_params(C_E, C_E),
+        f"{enc_prefix}/~/position_wise_feed_forward/~/{enc_l_name}_dense_W_in": _make_linear_params(
+          C_V, C_V,
+        ),
+        f"{enc_prefix}/~/position_wise_feed_forward/~/{enc_l_name}_dense_W_out": _make_linear_params(
+          C_V, C_V,
+        ),
+      },
+    )
+    # Decoder
+    params.update(
+      {
+        f"{dec_prefix}/~/{dec_l_name}_norm1": _make_norm_params(),
+        f"{dec_prefix}/~/{dec_l_name}_norm2": _make_norm_params(),
+        f"{dec_prefix}/~/{dec_l_name}_W1": _make_linear_params(DECODER_MLP_INPUT_DIM, C_V),
+        f"{dec_prefix}/~/{dec_l_name}_W2": _make_linear_params(C_V, C_V),
+        f"{dec_prefix}/~/{dec_l_name}_W3": _make_linear_params(C_V, C_V),
+        f"{dec_prefix}/~/position_wise_feed_forward/~/{dec_l_name}_dense_W_in": _make_linear_params(
+          C_V, C_V,
+        ),
+        f"{dec_prefix}/~/position_wise_feed_forward/~/{dec_l_name}_dense_W_out": _make_linear_params(
+          C_V, C_V,
+        ),
+      },
+    )
+
+  return params
+
+@pytest.fixture(params=[False, True], ids=["eager", "jit"])
+def apply_jit(request):
+    """Returns a function that conditionally JITs the input function."""
+    should_jit = request.param
+
+    def _wrapper(fn, **kwargs):
+        if should_jit:
+            return jax.jit(fn, **kwargs)
+        return fn
+
+    return _wrapper
+
+
+@pytest.fixture
+def minimal_bundle_fixture():
+    """Minimal InferenceBundle for smoke testing.
+
+    Returns a valid InferenceBundle with small but proper array shapes:
+    S=1 (one state), L=4 (sequence length), K=8 (neighbors), D=16 (embed dim).
+    """
+    from aminx.types.bundles import (
+        GeometryBundle,
+        ConditioningBundle,
+        LigandBundle,
+        WaveScheduleBundle,
+        InferenceBundle,
+    )
+
+    S, L, K, D = 1, 4, 8, 16
+    V = 21  # vocab size (amino acids)
+
+    # Minimal geometry
+    geometry = GeometryBundle(
+        coords=jnp.zeros((S, L, 4, 3)),  # S, L, 4 atoms, 3D
+        mask=jnp.ones((S, L)),
+        residue_index=jnp.arange(L)[None, :].astype(jnp.int32).repeat(S, axis=0),
+        chain_index=jnp.zeros((S, L), dtype=jnp.int32),
+        n_states=S,
+        n_canonical=20,
+        n_flat=L,
+    )
+
+    # Minimal conditioning
+    conditioning = ConditioningBundle(
+        fixed_mask=jnp.zeros(L),
+        fixed_tokens=jnp.zeros(L, dtype=jnp.int32),
+        bias=jnp.zeros((L, V)),
+        tie_group_map=jnp.zeros((S, L), dtype=jnp.int32),
+        state_weights=jnp.ones(S),
+        sequence_oh=jnp.zeros((L, V)),
+        ar_mask=jnp.ones((S, L, L)),
+    )
+
+    # Minimal ligand (empty)
+    ligand = LigandBundle(
+        ligand_coords=jnp.zeros((S, L, 1, 3)),
+        ligand_atom_types=jnp.zeros((S, L, 1), dtype=jnp.int32),
+        ligand_mask=jnp.zeros((S, L, 1)),
+    )
+
+    # Minimal wave schedule
+    wave = WaveScheduleBundle.empty(L)
+
+    # Construct the bundle
+    bundle = InferenceBundle(
+        geometry=geometry,
+        conditioning=conditioning,
+        ligand=ligand,
+        wave=wave,
+        backbone_noise=jnp.array(0.0),
+    )
+
+    return bundle
+
+
+@pytest.fixture
+def minimal_encode_fn_fixture():
+    """Minimal encode function fixture for testing.
+
+    Returns a tuple (encode_fn, config) where encode_fn is a callable that
+    accepts the minimal test arguments and returns an EncoderOutput.
+    """
+    from aminx.types.encodings import EncoderOutput
+    from aminx.types.configs import InferenceConfig
+
+    L, K, D = 4, 8, 16
+
+    def minimal_encode_fn(*args, **kwargs):
+        """Minimal encode function that returns a valid EncoderOutput."""
+        return EncoderOutput(
+            node_features=jnp.zeros((L, D)),
+            edge_features=jnp.zeros((L, K, D)),
+            neighbor_indices=jnp.zeros((L, K), dtype=jnp.int32),
+        )
+
+    # Return the function and a minimal config
+    config = InferenceConfig()
+    return (minimal_encode_fn, config)

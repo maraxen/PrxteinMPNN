@@ -1,0 +1,35 @@
+[experiment]
+hypothesis = "DedupGather achieves K-proportional throughput savings: at K=16, N=32, prxteinmpnn runtime is approximately 0.5x the K=32 homogeneous baseline"
+description = "Heterogeneous batching via DedupGather reduces inference cost when many structures in a batch are duplicates. This benchmark measures speedup by varying the dedup ratio K/N."
+task_id = "260603_bench-capability-s23"
+
+[outcomes.pass]
+condition = "speedup_vs_pytorch >= 1.5 at K=16, N=32"
+reasoning = "At 50% dedup ratio, prxteinmpnn should run approximately 2x fewer iterations than PyTorch baseline, yielding at least 1.5x speedup accounting for overhead"
+is_residual = false
+
+[outcomes.marginal]
+condition = "speedup_vs_pytorch >= 1.0 at all K (no regression)"
+reasoning = "Even with dedup overhead, the implementation should never regress vs PyTorch baseline across all K values tested"
+is_residual = false
+
+[outcomes.fail]
+condition = "any K shows speedup_vs_pytorch < 1.0 (dedup costs exceed savings)"
+reasoning = "If dedup overhead outweighs iteration savings at any K, the implementation is not ready for production use"
+is_residual = true
+
+[result_schema]
+fields = [
+  "k",
+  "n",
+  "dedup_ratio",
+  "prxteinmpnn_latency_ms",
+  "colabdesign_latency_ms",
+  "pytorch_latency_ms",
+  "speedup_vs_pytorch"
+]
+
+[result_schema.provenance]
+script_commit = "git log --oneline -1"
+input_pdb_fixture = "tests/data/1ubq.pdb"
+hardware_targets = ["H200", "A100", "L40s", "Blackwell"]

@@ -1,0 +1,21 @@
+Phase 5a (encoder orchestration helpers) — verification excerpt
+task_id: refactor-phase5a-encoder-20260506
+date: 2026-05-06
+
+Commands (repo root prxteinmpnn):
+  PYTHONPATH=src uv run pytest \
+    tests/sampling/test_sample.py \
+    tests/model/test_ligand_wave_parallel.py \
+    tests/sampling/test_state_vmap_exact_jit.py \
+    tests/sampling/test_sample_call_kw_contract.py \
+    tests/sampling/test_state_vmap_exact_routing.py \
+    tests/sampling/spikes/test_state_vmap_exact_spike.py \
+    tests/model/test_mpnn.py \
+    -q
+
+Outcome:
+  36 passed, 1 skipped, 40 warnings in ~162s
+  EXIT:0
+
+Notes:
+  Full stdout/stderr: phase5a_encoder_helpers_20260506.full.txt (same directory).

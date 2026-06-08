@@ -1,0 +1,17 @@
+Phase 5f narrow: sample() → SamplingDriver.build_sampler_fn (2026-05-06)
+=====================================================================
+
+Change: run/sampling.sample() obtains JIT sampler via SamplingDriver(spec).build_sampler_fn(...);
+same kwargs as prior make_sample_sequences call. Run-layer tests patch
+`prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn` (replacing
+`make_sample_sequences` patch target).
+
+Command:
+  cd prxteinmpnn && PYTHONPATH=src uv run pytest \
+    tests/run/test_sampling.py \
+    tests/run/test_sampling_grid.py \
+    tests/run/test_sampling_tied_positions.py \
+    tests/run/test_multistate_runtime_plumbing.py \
+    tests/test_samplers_registry.py -q
+
+Result: 34 passed (~20s)

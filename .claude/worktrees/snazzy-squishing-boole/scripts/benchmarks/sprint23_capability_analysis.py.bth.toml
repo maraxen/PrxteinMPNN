@@ -1,0 +1,43 @@
+[experiment]
+name = "sprint23_capability_analysis"
+hypothesis = "All three Sprint 23 capability benchmarks (temperature-array, dedup-hetero, mixed-length) completed successfully on H200/A100/L40s/Blackwell; prxteinmpnn shows >10× speedup vs PyTorch on dedup and >100× on mixed-length padded."
+tags = ["sprint23", "capability", "analysis", "report"]
+
+[outcomes.pass]
+condition = "All 4 hardware targets have dedup + mixed-length data; temperature files found for ≥3 hardware targets; report written without errors"
+reasoning = "Confirms Sprint 23 benchmark coverage is complete and results are usable"
+is_residual = false
+
+[outcomes.marginal]
+condition = "1–2 hardware targets missing from one capability type, but dedup and mixed-length present for H200+A100"
+reasoning = "Core comparison (H200/A100) still valid; Blackwell/L40s gaps are non-blocking"
+is_residual = false
+
+[outcomes.fail]
+condition = "Unable to load any capability files, or fewer than 2 hardware targets have complete data"
+reasoning = "Cannot generate a meaningful report; rsync or job failure"
+is_residual = true
+
+[result_schema]
+type = "object"
+required = ["report_path", "hardware_targets_covered", "capabilities_covered"]
+
+[result_schema.properties.report_path]
+type = "string"
+description = "Path to the generated Markdown report"
+
+[result_schema.properties.hardware_targets_covered]
+type = "array"
+items = { type = "string" }
+description = "Hardware targets with at least dedup data"
+
+[result_schema.properties.capabilities_covered]
+type = "array"
+items = { type = "string" }
+description = "Capability types represented in the report (temperature, dedup, mixed_length)"
+
+[result_schema.provenance]
+script = "scripts/benchmarks/sprint23_capability_analysis.py"
+input_dirs = ["outputs/results/benchmarks/"]
+generated_date = "2026-06-04"
+sprint = "Sprint 23"

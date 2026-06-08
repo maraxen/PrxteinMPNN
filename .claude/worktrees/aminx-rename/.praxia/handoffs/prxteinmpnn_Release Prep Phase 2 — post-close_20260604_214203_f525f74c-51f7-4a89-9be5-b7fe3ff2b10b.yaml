@@ -1,0 +1,65 @@
+---
+workspace: prxteinmpnn
+session_id: 8876d4ca-4782-4495-8a30-40a8585f877b
+status: in_progress
+immediately_relevant:
+- file: examples/colab_inference_demo.ipynb
+  lines:
+  - 1
+  - 999
+  reason: 'Colab demo notebook — Cell 4 (ipywidgets form inputs) needs rewrite to #@param annotations. Cell 5 (Button trigger) is correct — ipywidgets.Button is pre-installed in Colab and is the right pattern.'
+- file: .praxia/docs/specs/260604_release-preparedness-epic-for-prxteinmpn.md
+  lines:
+  - 65
+  - 68
+  reason: 'DOCS-006 done-when criteria: notebook runs cell-by-cell on Colab free tier, uses current API, widgets functional'
+- file: .praxia/docs/INDEX.md
+  lines:
+  - 1
+  - 44
+  reason: Full index of Phase 1+2 outputs — all ADRs, archives, misc docs listed here. Verify if INDEX.md needs updating after backlog 1120 fixer.
+- file: src/prxteinmpnn/__init__.py
+  lines:
+  - 1
+  - 30
+  reason: 'Verified exports: sample, score, SamplingSpecification, ScoringSpecification, RunSpecification, configure_multiprocessing — all 6 used in notebook Cell 4 imports.'
+active_dispatches: []
+task_id: 260604_release-prep-epic-dag
+phase: Release Prep Phase 2 — post-close
+goal_statement: 'Complete Release Preparedness epic for prxteinmpnn: CI modernization, repo cleanup, dep audit, docs rewrite, v0.1.0a1 tag. One fixup item (DOCS-006 Colab notebook widget rewrite) deferred to next session.'
+context_refs:
+- phase: Phase 1A (CI modernization)
+  task_id: 260604_release-prep-sprint-compose
+  summary: 'CI-001..005 complete: Python 3.12, uv run idiom, parity path audit, ty/ruff deferral ADR, remove CI gates'
+- phase: Phase 1B (repo cleanup + dep audit)
+  task_id: 260604_release-prep-epic-dag
+  summary: 'CLEAN-001..014 complete: all archives created, stale files removed, deps audited+pinned, flax→eqx migration, uv.lock clean'
+failed_attempts:
+- attempt_id: colab-ipywidgets-form
+  description: Used ipywidgets.Text, ipywidgets.FloatSlider, ipywidgets.Dropdown for the Colab inference form cell
+  outcome: 'Technically works but is wrong approach — not native Colab form UI, misses the #@param annotation system'
+  reason_failed: 'Native Colab UI uses #@param annotations (e.g., `sequence = '''' # @param {type:''string''}`), not ipywidgets form widgets. These render as proper Colab form fields in the sidebar, not inline widgets.'
+  do_not_retry: true
+  evidence_ref: examples/colab_inference_demo.ipynb (current state, pre-fix)
+- attempt_id: colab-run-auto
+  description: run:'auto' annotation on inference cells
+  outcome: Would fire on every keystroke in text fields — catastrophically wrong for inference cells with free-text protein sequence input
+  reason_failed: run:'auto' triggers re-execution on any param change including typing. NEVER use on cells with string/text inputs.
+  do_not_retry: true
+  evidence_ref: null
+open_questions:
+- 'After #@param form rewrite: how to handle long protein sequences (>100 chars) in a single-line Colab text input? Suggest truncation comment or multi-cell approach.'
+- Is PyPI publication target timeframe decided? Release notes and notebook install cell are pending-publication markers.
+deferred:
+- description: 'DOCS-006 fixup (backlog 1120): rewrite Colab notebook widget layer — #@param native form annotations for sequence/temperature/mode inputs; ipywidgets.Button for trigger; ipywidgets.Output for results display. Do NOT use run:''auto'' on any cell (fires on every keystroke for text inputs).'
+  rationale: 'Notebook was created by Phase 2 workflow but used ipywidgets.Text/FloatSlider/Dropdown (wrong approach). User confirmed native Colab #@param annotations are the correct pattern. Note: native Colab forms have single-line limitation for protein sequence input — no native textarea widget (upstream issue open since 2018); document in notebook comment.'
+  recommended_phase: Next session — first dispatch
+- description: git push origin v0.1.0a1 — tag exists locally only
+  rationale: User must run this manually when ready to publish. Requires PyPI upload to follow.
+  recommended_phase: User action after backlog 1120 fixer complete
+- description: TRAIN-EPIC (backlog ID 1036) — High-Performance Training with Composability Primitives
+  rationale: Placeholder registered; full epic brainstorm gated on Release Prep epic reaching Phase 2 complete. Now unblocked.
+  recommended_phase: New dedicated brainstorm session after v0.1.0a1 published
+lessons_refs:
+- .praxia/lessons.jsonl
+---

@@ -1,0 +1,806 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>prxteinmpnn.host.kernel_dispatch &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/style.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/host/kernel_dispatch';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/models.html">Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/inference.html">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/types.html">Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/sampling.html">Sampling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/scoring.html">Scoring</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/host.html">Host / Dispatch Layer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/run.html">Run / Specs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/utils.html">Utilities</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for prxteinmpnn.host.kernel_dispatch</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Kernel dispatch for sampling batch execution.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.experimental</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host._sampling_grid_lineage</span><span class="w"> </span><span class="kn">import</span> <span class="n">_base_sampling_key</span><span class="p">,</span> <span class="n">_resolve_grid_lineage</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host._sampling_helper</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">_broadcast_per_structure</span><span class="p">,</span>
+  <span class="n">_dispatch_sampling_tensor_batch_io</span><span class="p">,</span>
+  <span class="n">_noop_sampling_structure_batch_io</span><span class="p">,</span>
+  <span class="n">_prepare_fixed_controls</span><span class="p">,</span>
+  <span class="n">_prepare_ligand_context</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host.logit_aggregation</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_pseudo_perplexity</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host.plan</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">compute_sample_keys</span><span class="p">,</span>
+  <span class="n">extract_batch_sizes</span><span class="p">,</span>
+  <span class="n">make_sampling_planner</span><span class="p">,</span>
+  <span class="n">resolve_target_samples</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.inference.bundle_builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_inference_bundle</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.run.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingSpecification</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.safe_map</span><span class="w"> </span><span class="kn">import</span> <span class="n">safe_map</span> <span class="k">as</span> <span class="n">_safe_map</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host.plan</span><span class="w"> </span><span class="kn">import</span> <span class="n">InferencePlan</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.types.arrays</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Logits</span><span class="p">,</span>
+    <span class="n">ProteinSequence</span><span class="p">,</span>
+  <span class="p">)</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">Protein</span>
+
+
+<div class="viewcode-block" id="_dispatch_axis">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.kernel_dispatch._dispatch_axis">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">_dispatch_axis</span><span class="p">(</span><span class="n">strategy</span><span class="p">,</span> <span class="n">body</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">batch_size_fallback</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Dispatch iteration over an axis using the declared AxisStrategy.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">      strategy: AxisStrategy from BatchPlanner — Vmap, SafeMap, or Scan.</span>
+<span class="sd">      body: Function to apply at each element. For Vmap/SafeMap: body(x) -&gt; y.</span>
+<span class="sd">            For Scan: called as body(x) -&gt; y; carry is threaded around it.</span>
+<span class="sd">      xs: Input array or pytree to map over (leading axis = the mapped axis).</span>
+<span class="sd">      batch_size_fallback: Used only if strategy is not an AxisStrategy instance</span>
+<span class="sd">          (backward compat with callers that don&#39;t have the strategy field yet).</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">      Stacked results, same leading shape as xs.</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.tiling.strategy</span><span class="w"> </span><span class="kn">import</span> <span class="n">SafeMap</span><span class="p">,</span> <span class="n">Scan</span><span class="p">,</span> <span class="n">Vmap</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.safe_scan</span><span class="w"> </span><span class="kn">import</span> <span class="n">safe_scan</span>
+
+  <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">strategy</span><span class="p">,</span> <span class="n">Vmap</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">body</span><span class="p">)(</span><span class="n">xs</span><span class="p">)</span>
+  <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">strategy</span><span class="p">,</span> <span class="n">SafeMap</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">_safe_map</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="n">strategy</span><span class="o">.</span><span class="n">tile</span><span class="p">)</span>
+  <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">strategy</span><span class="p">,</span> <span class="n">Scan</span><span class="p">):</span>
+    <span class="c1"># Wrap body to be scan-compatible: body is (x -&gt; y), transition threads carry.</span>
+    <span class="c1"># For default case (init=None, no real carry), this is a carry-passthrough.</span>
+    <span class="n">init</span> <span class="o">=</span> <span class="n">strategy</span><span class="o">.</span><span class="n">init</span> <span class="k">if</span> <span class="n">strategy</span><span class="o">.</span><span class="n">init</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">scan_body</span><span class="p">(</span><span class="n">carry</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+      <span class="n">y</span> <span class="o">=</span> <span class="n">body</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+      <span class="k">return</span> <span class="n">carry</span><span class="p">,</span> <span class="n">y</span>  <span class="c1"># carry-passthrough: carry is not updated</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">ys</span> <span class="o">=</span> <span class="n">safe_scan</span><span class="p">(</span><span class="n">scan_body</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="n">init</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ys</span>
+  <span class="c1"># Fallback: treat as safe_map with batch_size_fallback</span>
+  <span class="k">return</span> <span class="n">_safe_map</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size_fallback</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_sample_batch</span><span class="p">(</span>
+  <span class="n">spec</span><span class="p">:</span> <span class="n">SamplingSpecification</span><span class="p">,</span>
+  <span class="n">batched_ensemble</span><span class="p">:</span> <span class="s2">&quot;Protein&quot;</span><span class="p">,</span>
+  <span class="n">plan</span><span class="p">:</span> <span class="s2">&quot;InferencePlan&quot;</span><span class="p">,</span>
+  <span class="o">*</span><span class="p">,</span>
+  <span class="n">canonical_structure_ids</span><span class="p">:</span> <span class="s2">&quot;Sequence[str] | None&quot;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">batch_structure_ids</span><span class="p">:</span> <span class="s2">&quot;Sequence[str] | None&quot;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">chunk_sample_start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">chunk_sample_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">batch_idx</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+  <span class="n">structure_batch_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+  <span class="n">emit_structure_batch_io</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;tuple[ProteinSequence, Logits, jax.Array | None]&quot;</span><span class="p">:</span>
+  <span class="c1"># 1. Plan batching</span>
+  <span class="n">batch_plan</span> <span class="o">=</span> <span class="n">make_sampling_planner</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+  <span class="n">batch_plan</span><span class="o">.</span><span class="n">log_summary</span><span class="p">()</span>
+
+  <span class="n">structures_bs</span><span class="p">,</span> <span class="n">samples_bs</span><span class="p">,</span> <span class="n">temps_bs</span><span class="p">,</span> <span class="n">noises_bs</span> <span class="o">=</span> <span class="n">extract_batch_sizes</span><span class="p">(</span><span class="n">batch_plan</span><span class="p">)</span>
+
+  <span class="c1"># 2. Resolve Grids</span>
+  <span class="n">grid_lineage</span> <span class="o">=</span> <span class="n">_resolve_grid_lineage</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+  <span class="n">base_key</span> <span class="o">=</span> <span class="n">_base_sampling_key</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">grid_lineage</span><span class="o">=</span><span class="n">grid_lineage</span><span class="p">)</span>
+  <span class="n">target_num_samples</span> <span class="o">=</span> <span class="n">resolve_target_samples</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">chunk_sample_count</span><span class="p">,</span> <span class="n">grid_lineage</span><span class="p">)</span>
+
+  <span class="n">noises</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">backbone_noise</span><span class="p">)</span>
+  <span class="n">temperatures</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">temperature</span><span class="p">)</span>
+
+  <span class="n">seq_len</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+  <span class="n">batch_size</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+  <span class="c1"># Ensure tie_group_map and mapping have batch dimensions for vmap.</span>
+  <span class="n">tie_map_for_vmap</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">tie_group_map</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">tie_map_for_vmap</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span>
+      <span class="n">jnp</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">tie_group_map</span><span class="p">),</span>
+      <span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="n">spec</span><span class="o">.</span><span class="n">tie_group_map</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+    <span class="p">)</span>
+
+  <span class="n">mapping_for_vmap</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">structure_mapping</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">structure_mapping</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="k">else</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">mapping</span>
+  <span class="p">)</span>
+  <span class="k">if</span> <span class="n">mapping_for_vmap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">mapping_for_vmap</span> <span class="o">=</span> <span class="n">_broadcast_per_structure</span><span class="p">(</span>
+      <span class="n">mapping_for_vmap</span><span class="p">,</span>
+      <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
+      <span class="n">expected_len</span><span class="o">=</span><span class="n">seq_len</span><span class="p">,</span>
+      <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
+      <span class="n">name</span><span class="o">=</span><span class="s2">&quot;structure_mapping&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+  <span class="n">fixed_mask_for_vmap</span><span class="p">,</span> <span class="n">fixed_tokens_for_vmap</span> <span class="o">=</span> <span class="n">_prepare_fixed_controls</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">,</span>
+    <span class="n">batched_ensemble</span><span class="o">=</span><span class="n">batched_ensemble</span><span class="p">,</span>
+  <span class="p">)</span>
+  <span class="n">ligand_context</span> <span class="o">=</span> <span class="n">_prepare_ligand_context</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">,</span>
+    <span class="n">batched_ensemble</span><span class="o">=</span><span class="n">batched_ensemble</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
+    <span class="n">seq_len</span><span class="o">=</span><span class="n">seq_len</span><span class="p">,</span>
+    <span class="n">canonical_structure_ids</span><span class="o">=</span><span class="n">canonical_structure_ids</span><span class="p">,</span>
+    <span class="n">batch_structure_ids</span><span class="o">=</span><span class="n">batch_structure_ids</span><span class="p">,</span>
+  <span class="p">)</span>
+  <span class="n">state_weights</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">state_weights</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">state_weights</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+  <span class="p">)</span>
+
+  <span class="c1"># 3. Compute deterministic sample keys</span>
+  <span class="n">sample_keys</span> <span class="o">=</span> <span class="n">compute_sample_keys</span><span class="p">(</span>
+      <span class="n">base_key</span><span class="p">,</span>
+      <span class="n">target_num_samples</span><span class="p">,</span>
+      <span class="n">chunk_sample_start</span><span class="o">=</span><span class="n">chunk_sample_start</span><span class="p">,</span>
+      <span class="n">grid_lineage_sample_start</span><span class="o">=</span><span class="n">grid_lineage</span><span class="p">[</span><span class="s2">&quot;sample_start&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="n">grid_lineage</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="p">)</span>
+
+  <span class="c1"># 4. Dispatch — two paths based on whether encoding_fusion is wired (Python-level static check)</span>
+  <span class="c1"># Check spec for unified driver flag (defaults to False — no behavior change)</span>
+  <span class="n">_use_unified</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;use_unified_driver&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+  <span class="k">if</span> <span class="n">_use_unified</span> <span class="ow">and</span> <span class="n">plan</span><span class="o">.</span><span class="n">stage_set</span><span class="o">.</span><span class="n">encoding_fusion</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="c1"># -------------------------------------------------------------------------</span>
+    <span class="c1"># Unified Path A: strategy-dispatched axis iteration using AxisDecision.strategy</span>
+    <span class="c1"># Reads strategy from batch_plan.decision_for(axis_name) instead of batch_size ints.</span>
+    <span class="c1"># -------------------------------------------------------------------------</span>
+    <span class="n">struct_decision</span> <span class="o">=</span> <span class="n">batch_plan</span><span class="o">.</span><span class="n">decision_for</span><span class="p">(</span><span class="s2">&quot;n_structures&quot;</span><span class="p">)</span>
+    <span class="n">noise_decision</span> <span class="o">=</span> <span class="n">batch_plan</span><span class="o">.</span><span class="n">decision_for</span><span class="p">(</span><span class="s2">&quot;n_noises&quot;</span><span class="p">)</span>
+    <span class="n">temp_decision</span> <span class="o">=</span> <span class="n">batch_plan</span><span class="o">.</span><span class="n">decision_for</span><span class="p">(</span><span class="s2">&quot;n_temperatures&quot;</span><span class="p">)</span>
+    <span class="n">sample_decision</span> <span class="o">=</span> <span class="n">batch_plan</span><span class="o">.</span><span class="n">decision_for</span><span class="p">(</span><span class="s2">&quot;n_samples&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_unified_call_kernel</span><span class="p">(</span><span class="n">key_samples</span><span class="p">,</span> <span class="n">structure_idx</span><span class="p">,</span> <span class="n">noise_val</span><span class="p">,</span> <span class="n">temp_val</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">ri</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">residue_index</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">ci</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">chain_index</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">fm</span> <span class="o">=</span> <span class="n">fixed_mask_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">ft</span> <span class="o">=</span> <span class="n">fixed_tokens_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+
+        <span class="n">bundle</span><span class="p">,</span> <span class="n">config</span> <span class="o">=</span> <span class="n">build_inference_bundle</span><span class="p">(</span>
+            <span class="n">coords</span><span class="o">=</span><span class="n">c</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">m</span><span class="p">,</span> <span class="n">residue_index</span><span class="o">=</span><span class="n">ri</span><span class="p">,</span> <span class="n">chain_index</span><span class="o">=</span><span class="n">ci</span><span class="p">,</span>
+            <span class="n">backbone_noise</span><span class="o">=</span><span class="n">noise_val</span><span class="p">,</span>
+            <span class="n">fixed_mask</span><span class="o">=</span><span class="n">fm</span><span class="p">,</span> <span class="n">fixed_tokens</span><span class="o">=</span><span class="n">ft</span><span class="p">,</span>
+            <span class="n">bias</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">bias</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">tie_group_map</span><span class="o">=</span><span class="n">tie_map_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">tie_map_for_vmap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">state_weights</span><span class="o">=</span><span class="n">state_weights</span><span class="p">,</span>
+            <span class="n">ligand_coords</span><span class="o">=</span><span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y&quot;</span><span class="p">][</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">ligand_atom_types</span><span class="o">=</span><span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_t&quot;</span><span class="p">][</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_t&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">ligand_mask</span><span class="o">=</span><span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_m&quot;</span><span class="p">][</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_m&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">structure_mapping</span><span class="o">=</span><span class="n">mapping_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">mapping_for_vmap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">temperature</span><span class="o">=</span><span class="n">temp_val</span><span class="p">,</span>
+            <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;sample_ar&quot;</span><span class="p">,</span>
+            <span class="n">inference</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">encode_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">fold_in</span><span class="p">(</span><span class="n">base_key</span><span class="p">,</span> <span class="n">structure_idx</span><span class="p">)</span>
+        <span class="n">enc</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">bundle</span><span class="p">,</span> <span class="n">encode_key</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">_sink</span> <span class="ow">in</span> <span class="n">plan</span><span class="o">.</span><span class="n">stage_set</span><span class="o">.</span><span class="n">encoder_sink</span><span class="p">:</span>
+            <span class="n">_sink</span><span class="p">(</span><span class="n">enc</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">batch_idx</span><span class="p">),</span> <span class="n">structure_idx</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_run_one_sample</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">enc</span><span class="p">,</span> <span class="n">bundle</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">res</span><span class="o">.</span><span class="n">sequence</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">logits</span>
+
+        <span class="k">return</span> <span class="n">_dispatch_axis</span><span class="p">(</span><span class="n">sample_decision</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span> <span class="n">_run_one_sample</span><span class="p">,</span> <span class="n">key_samples</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_unified_dispatch_structure</span><span class="p">(</span><span class="n">s_idx</span><span class="p">):</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">_dispatch_noise</span><span class="p">(</span><span class="n">n_val</span><span class="p">):</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">_dispatch_temp</span><span class="p">(</span><span class="n">t_val</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">_unified_call_kernel</span><span class="p">(</span><span class="n">sample_keys</span><span class="p">,</span> <span class="n">s_idx</span><span class="p">,</span> <span class="n">n_val</span><span class="p">,</span> <span class="n">t_val</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">_dispatch_axis</span><span class="p">(</span><span class="n">temp_decision</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span> <span class="n">_dispatch_temp</span><span class="p">,</span> <span class="n">temperatures</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_dispatch_axis</span><span class="p">(</span><span class="n">noise_decision</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span> <span class="n">_dispatch_noise</span><span class="p">,</span> <span class="n">noises</span><span class="p">)</span>
+
+    <span class="n">sampled_sequences</span><span class="p">,</span> <span class="n">sampled_logits</span> <span class="o">=</span> <span class="n">_dispatch_axis</span><span class="p">(</span>
+        <span class="n">struct_decision</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span> <span class="n">_unified_dispatch_structure</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">batch_size</span><span class="p">)</span>
+    <span class="p">)</span>
+
+  <span class="k">elif</span> <span class="n">_use_unified</span> <span class="ow">and</span> <span class="n">plan</span><span class="o">.</span><span class="n">stage_set</span><span class="o">.</span><span class="n">encoding_fusion</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="c1"># -------------------------------------------------------------------------</span>
+    <span class="c1"># Unified Path B: strategy-dispatched encoding fusion + decoding</span>
+    <span class="c1"># -------------------------------------------------------------------------</span>
+    <span class="n">struct_decision</span> <span class="o">=</span> <span class="n">batch_plan</span><span class="o">.</span><span class="n">decision_for</span><span class="p">(</span><span class="s2">&quot;n_structures&quot;</span><span class="p">)</span>
+    <span class="n">noise_decision</span> <span class="o">=</span> <span class="n">batch_plan</span><span class="o">.</span><span class="n">decision_for</span><span class="p">(</span><span class="s2">&quot;n_noises&quot;</span><span class="p">)</span>
+    <span class="n">temp_decision</span> <span class="o">=</span> <span class="n">batch_plan</span><span class="o">.</span><span class="n">decision_for</span><span class="p">(</span><span class="s2">&quot;n_temperatures&quot;</span><span class="p">)</span>
+    <span class="n">sample_decision</span> <span class="o">=</span> <span class="n">batch_plan</span><span class="o">.</span><span class="n">decision_for</span><span class="p">(</span><span class="s2">&quot;n_samples&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_unified_call_structure_fused</span><span class="p">(</span><span class="n">structure_idx</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">ri</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">residue_index</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">ci</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">chain_index</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">fm</span> <span class="o">=</span> <span class="n">fixed_mask_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">ft</span> <span class="o">=</span> <span class="n">fixed_tokens_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_build_bundle</span><span class="p">(</span><span class="n">noise_val</span><span class="p">,</span> <span class="n">temperature_val</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">build_inference_bundle</span><span class="p">(</span>
+                <span class="n">coords</span><span class="o">=</span><span class="n">c</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">m</span><span class="p">,</span> <span class="n">residue_index</span><span class="o">=</span><span class="n">ri</span><span class="p">,</span> <span class="n">chain_index</span><span class="o">=</span><span class="n">ci</span><span class="p">,</span>
+                <span class="n">backbone_noise</span><span class="o">=</span><span class="n">noise_val</span><span class="p">,</span>
+                <span class="n">fixed_mask</span><span class="o">=</span><span class="n">fm</span><span class="p">,</span> <span class="n">fixed_tokens</span><span class="o">=</span><span class="n">ft</span><span class="p">,</span>
+                <span class="n">bias</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">bias</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">tie_group_map</span><span class="o">=</span><span class="n">tie_map_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">tie_map_for_vmap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">state_weights</span><span class="o">=</span><span class="n">state_weights</span><span class="p">,</span>
+                <span class="n">ligand_coords</span><span class="o">=</span><span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y&quot;</span><span class="p">][</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">ligand_atom_types</span><span class="o">=</span><span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_t&quot;</span><span class="p">][</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_t&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">ligand_mask</span><span class="o">=</span><span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_m&quot;</span><span class="p">][</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_m&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">structure_mapping</span><span class="o">=</span><span class="n">mapping_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">mapping_for_vmap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">temperature</span><span class="o">=</span><span class="n">temperature_val</span><span class="p">,</span>
+                <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;sample_ar&quot;</span><span class="p">,</span>
+                    <span class="n">inference</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Step 1: encode at each noise level using the noise axis strategy</span>
+        <span class="n">noise_indices</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">backbone_noise</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_encode_at_noise</span><span class="p">(</span><span class="n">noise_and_idx</span><span class="p">):</span>
+            <span class="n">noise_val</span><span class="p">,</span> <span class="n">noise_idx</span> <span class="o">=</span> <span class="n">noise_and_idx</span>
+            <span class="n">bundle</span><span class="p">,</span> <span class="n">config</span> <span class="o">=</span> <span class="n">_build_bundle</span><span class="p">(</span><span class="n">noise_val</span><span class="p">)</span>
+            <span class="n">encode_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">fold_in</span><span class="p">(</span><span class="n">base_key</span><span class="p">,</span> <span class="n">structure_idx</span><span class="p">)</span>
+            <span class="n">enc</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">bundle</span><span class="p">,</span> <span class="n">encode_key</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">_sink</span> <span class="ow">in</span> <span class="n">plan</span><span class="o">.</span><span class="n">stage_set</span><span class="o">.</span><span class="n">encoder_sink</span><span class="p">:</span>
+                <span class="n">_sink</span><span class="p">(</span><span class="n">enc</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">batch_idx</span><span class="p">),</span> <span class="n">structure_idx</span><span class="p">,</span> <span class="n">noise_idx</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">enc</span>
+
+        <span class="n">stacked_enc</span> <span class="o">=</span> <span class="n">_dispatch_axis</span><span class="p">(</span>
+            <span class="n">noise_decision</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span> <span class="n">_encode_at_noise</span><span class="p">,</span> <span class="p">(</span><span class="n">noises</span><span class="p">,</span> <span class="n">noise_indices</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Step 2: fuse D encoded outputs → K</span>
+        <span class="n">fused_enc</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">stage_set</span><span class="o">.</span><span class="n">encoding_fusion</span><span class="p">(</span><span class="n">stacked_enc</span><span class="p">)</span>
+
+        <span class="c1"># Build decode bundle at noise=0 (fusion already handled noise variation)</span>
+        <span class="n">decode_bundle</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_build_bundle</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span>
+
+        <span class="c1"># Step 3: decode K times × temperatures × samples</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">_call_decode_one_enc</span><span class="p">(</span><span class="n">enc_k</span><span class="p">):</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">_dispatch_temp</span><span class="p">(</span><span class="n">temp_val</span><span class="p">):</span>
+                <span class="n">_</span><span class="p">,</span> <span class="n">t_config</span> <span class="o">=</span> <span class="n">_build_bundle</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="mf">0.0</span><span class="p">),</span> <span class="n">temperature_val</span><span class="o">=</span><span class="n">temp_val</span><span class="p">)</span>
+
+                <span class="k">def</span><span class="w"> </span><span class="nf">_run_one_sample</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+                    <span class="n">res</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">enc_k</span><span class="p">,</span> <span class="n">decode_bundle</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">t_config</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">res</span><span class="o">.</span><span class="n">sequence</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">logits</span>
+
+                <span class="k">return</span> <span class="n">_dispatch_axis</span><span class="p">(</span><span class="n">sample_decision</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span> <span class="n">_run_one_sample</span><span class="p">,</span> <span class="n">sample_keys</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">_dispatch_axis</span><span class="p">(</span><span class="n">temp_decision</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span> <span class="n">_dispatch_temp</span><span class="p">,</span> <span class="n">temperatures</span><span class="p">)</span>
+
+        <span class="c1"># Map decode over K fused encodings (use _safe_map for this axis as it has no AxisDecision)</span>
+        <span class="k">return</span> <span class="n">_safe_map</span><span class="p">(</span><span class="n">_call_decode_one_enc</span><span class="p">,</span> <span class="n">fused_enc</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+    <span class="n">sampled_sequences</span><span class="p">,</span> <span class="n">sampled_logits</span> <span class="o">=</span> <span class="n">_dispatch_axis</span><span class="p">(</span>
+        <span class="n">struct_decision</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span> <span class="n">_unified_call_structure_fused</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">batch_size</span><span class="p">)</span>
+    <span class="p">)</span>
+
+  <span class="k">elif</span> <span class="n">plan</span><span class="o">.</span><span class="n">stage_set</span><span class="o">.</span><span class="n">encoding_fusion</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="c1"># -------------------------------------------------------------------------</span>
+    <span class="c1"># Path A: no fusion — standard encode-per-(structure, noise, temp) topology</span>
+    <span class="c1"># -------------------------------------------------------------------------</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_call_kernel</span><span class="p">(</span><span class="n">key_samples</span><span class="p">,</span> <span class="n">structure_idx</span><span class="p">,</span> <span class="n">noise_val</span><span class="p">,</span> <span class="n">temp_val</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">ri</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">residue_index</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">ci</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">chain_index</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">fm</span> <span class="o">=</span> <span class="n">fixed_mask_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">ft</span> <span class="o">=</span> <span class="n">fixed_tokens_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+
+        <span class="n">bundle</span><span class="p">,</span> <span class="n">config</span> <span class="o">=</span> <span class="n">build_inference_bundle</span><span class="p">(</span>
+            <span class="n">coords</span><span class="o">=</span><span class="n">c</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">m</span><span class="p">,</span> <span class="n">residue_index</span><span class="o">=</span><span class="n">ri</span><span class="p">,</span> <span class="n">chain_index</span><span class="o">=</span><span class="n">ci</span><span class="p">,</span>
+            <span class="n">backbone_noise</span><span class="o">=</span><span class="n">noise_val</span><span class="p">,</span>
+            <span class="n">fixed_mask</span><span class="o">=</span><span class="n">fm</span><span class="p">,</span> <span class="n">fixed_tokens</span><span class="o">=</span><span class="n">ft</span><span class="p">,</span>
+            <span class="n">bias</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">bias</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">tie_group_map</span><span class="o">=</span><span class="n">tie_map_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">tie_map_for_vmap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">state_weights</span><span class="o">=</span><span class="n">state_weights</span><span class="p">,</span>
+            <span class="n">ligand_coords</span><span class="o">=</span><span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y&quot;</span><span class="p">][</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">ligand_atom_types</span><span class="o">=</span><span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_t&quot;</span><span class="p">][</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_t&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">ligand_mask</span><span class="o">=</span><span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_m&quot;</span><span class="p">][</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_m&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">structure_mapping</span><span class="o">=</span><span class="n">mapping_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">mapping_for_vmap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">temperature</span><span class="o">=</span><span class="n">temp_val</span><span class="p">,</span>
+            <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;sample_ar&quot;</span><span class="p">,</span>
+            <span class="n">inference</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">encode_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">fold_in</span><span class="p">(</span><span class="n">base_key</span><span class="p">,</span> <span class="n">structure_idx</span><span class="p">)</span>
+        <span class="n">enc</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">bundle</span><span class="p">,</span> <span class="n">encode_key</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">_sink</span> <span class="ow">in</span> <span class="n">plan</span><span class="o">.</span><span class="n">stage_set</span><span class="o">.</span><span class="n">encoder_sink</span><span class="p">:</span>
+            <span class="n">_sink</span><span class="p">(</span><span class="n">enc</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">batch_idx</span><span class="p">),</span> <span class="n">structure_idx</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_run_one_sample</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">enc</span><span class="p">,</span> <span class="n">bundle</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">res</span><span class="o">.</span><span class="n">sequence</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">logits</span>
+
+        <span class="k">return</span> <span class="n">_safe_map</span><span class="p">(</span><span class="n">_run_one_sample</span><span class="p">,</span> <span class="n">key_samples</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="n">samples_bs</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_dispatch_structure</span><span class="p">(</span><span class="n">s_idx</span><span class="p">):</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">_dispatch_noise</span><span class="p">(</span><span class="n">n_val</span><span class="p">):</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">_dispatch_temp</span><span class="p">(</span><span class="n">t_val</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">_call_kernel</span><span class="p">(</span><span class="n">sample_keys</span><span class="p">,</span> <span class="n">s_idx</span><span class="p">,</span> <span class="n">n_val</span><span class="p">,</span> <span class="n">t_val</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">_safe_map</span><span class="p">(</span><span class="n">_dispatch_temp</span><span class="p">,</span> <span class="n">temperatures</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="n">temps_bs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_safe_map</span><span class="p">(</span><span class="n">_dispatch_noise</span><span class="p">,</span> <span class="n">noises</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="n">noises_bs</span><span class="p">)</span>
+
+    <span class="c1"># shape: (B, D, T, N, L) and (B, D, T, N, L, 21)</span>
+    <span class="n">sampled_sequences</span><span class="p">,</span> <span class="n">sampled_logits</span> <span class="o">=</span> <span class="n">_safe_map</span><span class="p">(</span>
+        <span class="n">_dispatch_structure</span><span class="p">,</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">batch_size</span><span class="p">),</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="n">structures_bs</span><span class="p">,</span>
+    <span class="p">)</span>
+
+  <span class="k">else</span><span class="p">:</span>
+    <span class="c1"># -------------------------------------------------------------------------</span>
+    <span class="c1"># Path B: with fusion — encode D times per structure, fuse → K, decode K×T×N</span>
+    <span class="c1"># -------------------------------------------------------------------------</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_call_structure_fused</span><span class="p">(</span><span class="n">structure_idx</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">ri</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">residue_index</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">ci</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">chain_index</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">fm</span> <span class="o">=</span> <span class="n">fixed_mask_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+        <span class="n">ft</span> <span class="o">=</span> <span class="n">fixed_tokens_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_build_bundle</span><span class="p">(</span><span class="n">noise_val</span><span class="p">,</span> <span class="n">temperature_val</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">build_inference_bundle</span><span class="p">(</span>
+                <span class="n">coords</span><span class="o">=</span><span class="n">c</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">m</span><span class="p">,</span> <span class="n">residue_index</span><span class="o">=</span><span class="n">ri</span><span class="p">,</span> <span class="n">chain_index</span><span class="o">=</span><span class="n">ci</span><span class="p">,</span>
+                <span class="n">backbone_noise</span><span class="o">=</span><span class="n">noise_val</span><span class="p">,</span>
+                <span class="n">fixed_mask</span><span class="o">=</span><span class="n">fm</span><span class="p">,</span> <span class="n">fixed_tokens</span><span class="o">=</span><span class="n">ft</span><span class="p">,</span>
+                <span class="n">bias</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">bias</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">tie_group_map</span><span class="o">=</span><span class="n">tie_map_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">tie_map_for_vmap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">state_weights</span><span class="o">=</span><span class="n">state_weights</span><span class="p">,</span>
+                <span class="n">ligand_coords</span><span class="o">=</span><span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y&quot;</span><span class="p">][</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">ligand_atom_types</span><span class="o">=</span><span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_t&quot;</span><span class="p">][</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_t&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">ligand_mask</span><span class="o">=</span><span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_m&quot;</span><span class="p">][</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">ligand_context</span><span class="p">[</span><span class="s2">&quot;y_m&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">structure_mapping</span><span class="o">=</span><span class="n">mapping_for_vmap</span><span class="p">[</span><span class="n">structure_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">mapping_for_vmap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">temperature</span><span class="o">=</span><span class="n">temperature_val</span><span class="p">,</span>
+                <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;sample_ar&quot;</span><span class="p">,</span>
+                    <span class="n">inference</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Step 1: encode at each noise level</span>
+        <span class="n">noise_indices</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">backbone_noise</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">encode_at_noise</span><span class="p">(</span><span class="n">noise_and_idx</span><span class="p">):</span>
+            <span class="n">noise_val</span><span class="p">,</span> <span class="n">noise_idx</span> <span class="o">=</span> <span class="n">noise_and_idx</span>
+            <span class="n">bundle</span><span class="p">,</span> <span class="n">config</span> <span class="o">=</span> <span class="n">_build_bundle</span><span class="p">(</span><span class="n">noise_val</span><span class="p">)</span>
+            <span class="n">encode_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">fold_in</span><span class="p">(</span><span class="n">base_key</span><span class="p">,</span> <span class="n">structure_idx</span><span class="p">)</span>
+            <span class="n">enc</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">bundle</span><span class="p">,</span> <span class="n">encode_key</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">_sink</span> <span class="ow">in</span> <span class="n">plan</span><span class="o">.</span><span class="n">stage_set</span><span class="o">.</span><span class="n">encoder_sink</span><span class="p">:</span>
+                <span class="n">_sink</span><span class="p">(</span><span class="n">enc</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">batch_idx</span><span class="p">),</span> <span class="n">structure_idx</span><span class="p">,</span> <span class="n">noise_idx</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">enc</span>
+
+        <span class="n">stacked_enc</span> <span class="o">=</span> <span class="n">_safe_map</span><span class="p">(</span><span class="n">encode_at_noise</span><span class="p">,</span> <span class="p">(</span><span class="n">noises</span><span class="p">,</span> <span class="n">noise_indices</span><span class="p">),</span> <span class="n">batch_size</span><span class="o">=</span><span class="n">noises_bs</span><span class="p">)</span>
+
+        <span class="c1"># Step 2: fuse D encoded outputs → K</span>
+        <span class="n">fused_enc</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">stage_set</span><span class="o">.</span><span class="n">encoding_fusion</span><span class="p">(</span><span class="n">stacked_enc</span><span class="p">)</span>
+
+        <span class="c1"># Build decode bundle at noise=0 (fusion already handled noise variation)</span>
+        <span class="n">decode_bundle</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_build_bundle</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span>
+
+        <span class="c1"># Step 3: decode K times, then over temps, then over samples</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">_call_decode_one_enc</span><span class="p">(</span><span class="n">enc_k</span><span class="p">):</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">_dispatch_temp</span><span class="p">(</span><span class="n">temp_val</span><span class="p">):</span>
+                <span class="n">_</span><span class="p">,</span> <span class="n">t_config</span> <span class="o">=</span> <span class="n">_build_bundle</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="mf">0.0</span><span class="p">),</span> <span class="n">temperature_val</span><span class="o">=</span><span class="n">temp_val</span><span class="p">)</span>
+
+                <span class="k">def</span><span class="w"> </span><span class="nf">_run_one_sample</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+                    <span class="n">res</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">enc_k</span><span class="p">,</span> <span class="n">decode_bundle</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">t_config</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">res</span><span class="o">.</span><span class="n">sequence</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">logits</span>
+
+                <span class="k">return</span> <span class="n">_safe_map</span><span class="p">(</span><span class="n">_run_one_sample</span><span class="p">,</span> <span class="n">sample_keys</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="n">samples_bs</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">_safe_map</span><span class="p">(</span><span class="n">_dispatch_temp</span><span class="p">,</span> <span class="n">temperatures</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="n">temps_bs</span><span class="p">)</span>
+
+        <span class="c1"># Map decode over K fused encodings</span>
+        <span class="k">return</span> <span class="n">_safe_map</span><span class="p">(</span><span class="n">_call_decode_one_enc</span><span class="p">,</span> <span class="n">fused_enc</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+    <span class="c1"># shape: (B, K, T, N, L) and (B, K, T, N, L, 21)</span>
+    <span class="n">sampled_sequences</span><span class="p">,</span> <span class="n">sampled_logits</span> <span class="o">=</span> <span class="n">_safe_map</span><span class="p">(</span>
+        <span class="n">_call_structure_fused</span><span class="p">,</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">batch_size</span><span class="p">),</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="n">structures_bs</span><span class="p">,</span>
+    <span class="p">)</span>
+
+  <span class="c1"># 6. Post-process (transpose to expected output shape: [batch, samples, noise, temp, seq_len])</span>
+  <span class="c1"># current: [B, D, T, N, L] -&gt; desired: [B, N, D, T, L]</span>
+  <span class="n">sampled_sequences</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">sampled_sequences</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+  <span class="n">sampled_logits</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">sampled_logits</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+
+  <span class="c1"># 7. io_callback emission — stage tensors to active sink (if any)</span>
+  <span class="n">_effective_chunk_start</span> <span class="o">=</span> <span class="n">chunk_sample_start</span> <span class="k">if</span> <span class="n">chunk_sample_start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">0</span>
+
+  <span class="n">jax</span><span class="o">.</span><span class="n">experimental</span><span class="o">.</span><span class="n">io_callback</span><span class="p">(</span>
+      <span class="n">_dispatch_sampling_tensor_batch_io</span><span class="p">,</span>
+      <span class="kc">None</span><span class="p">,</span>
+      <span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">batch_idx</span><span class="p">),</span>
+      <span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">structure_batch_count</span><span class="p">),</span>
+      <span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">_effective_chunk_start</span><span class="p">),</span>
+      <span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">target_num_samples</span><span class="p">),</span>
+      <span class="n">sampled_sequences</span><span class="p">,</span>
+      <span class="n">sampled_logits</span><span class="p">,</span>
+      <span class="n">ordered</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+  <span class="p">)</span>
+
+  <span class="k">if</span> <span class="n">emit_structure_batch_io</span><span class="p">:</span>
+    <span class="n">jax</span><span class="o">.</span><span class="n">experimental</span><span class="o">.</span><span class="n">io_callback</span><span class="p">(</span>
+        <span class="n">_noop_sampling_structure_batch_io</span><span class="p">,</span>
+        <span class="kc">None</span><span class="p">,</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">batch_idx</span><span class="p">),</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">structure_batch_count</span><span class="p">),</span>
+        <span class="n">ordered</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+
+  <span class="c1"># 8. IO &amp; Metadata</span>
+  <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">compute_pseudo_perplexity</span><span class="p">:</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">mask</span>
+    <span class="k">if</span> <span class="n">mask</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">mask</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">pseudo_perplexity</span> <span class="o">=</span> <span class="n">compute_pseudo_perplexity</span><span class="p">(</span><span class="n">sampled_logits</span><span class="p">,</span> <span class="n">sampled_sequences</span><span class="p">,</span> <span class="n">mask</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">sampled_sequences</span><span class="p">,</span> <span class="n">sampled_logits</span><span class="p">,</span> <span class="n">pseudo_perplexity</span>
+
+  <span class="k">return</span> <span class="n">sampled_sequences</span><span class="p">,</span> <span class="n">sampled_logits</span><span class="p">,</span> <span class="kc">None</span>
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

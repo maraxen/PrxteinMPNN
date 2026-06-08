@@ -1,0 +1,16 @@
+# Phase 0a spike — parity_fast (filtered excerpt) — 2026-05-06
+# Command: PYTEST_ADDOPTS="-W default" PYTHONPATH=src uv run pytest \
+#   tests/sampling/spikes/test_state_vmap_exact_spike.py -m parity_fast -q
+# Full log: phase0a_spike_parity_fast_20260506.full.txt
+
+Result: 1 passed, 1 deselected (parity_heavy not run). Duration ~9.25s (local).
+
+HLO / IR proxy (UserWarning bodies; advisory — no HLO assertions in test):
+  spike_hlo_state_vmap_exact bytes=145368 newlines=2348 custom_call_markers=0
+  spike_hlo_explicit_vmap_ref bytes=145369 newlines=2348 custom_call_markers=0
+
+Notes:
+- Roadmap §230: both ``score_unconditional_state_vmap_exact`` and the explicit ``jax.vmap`` reference
+  stack now lower via ``export_hlo`` + the same UTF-8 / newline / ``custom-call`` substring metrics.
+- Synthetic payloads only; ``parity_heavy`` still opt-in via ``REFERENCE_PATH`` (see spike module docstring).
+- Unrelated deps may emit DeprecationWarning (haiku, e3nn_jax); filtered excerpt omits those.

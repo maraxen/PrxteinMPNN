@@ -1,0 +1,50 @@
+---
+workspace: prxteinmpnn
+session_id: a469d8c0-ac15-4298-9fd2-f888b996c753
+status: in_progress
+immediately_relevant:
+- file: .claude/workflows/release-prep-phase1.js
+  lines:
+  - 1
+  - 50
+  reason: The corrected implementation workflow — verified syntax-clean, correct agent()/parallel()/phase() patterns. Launch this directly.
+- file: .praxia/docs/specs/260604_release-preparedness-epic-for-prxteinmpn.md
+  lines:
+  - 1
+  - 60
+  reason: 'Full epic spec: 25-item DAG, acceptance criteria, DoD. Each fixer prompt references this file.'
+- file: .github/workflows/ci.yml
+  lines:
+  - 1
+  - 50
+  reason: 'Primary CI target for Phase 1A: Python 3.11→3.12, uv venv→uv run, ty/ruff removal.'
+active_dispatches: []
+task_id: 260604_release-prep-sprint-compose
+phase: Workflow Ready
+goal_statement: Execute Release Preparedness Phase 1A (CI Modernization) + Phase 1B (Repo Cleanup) — 16 P1 backlog items, Sprint 31.
+context_refs:
+- phase: Release Prep Planning
+  task_id: 260604_release-prep-epic-dag
+  summary: Contemplex brainstorm → 25-item backlog DAG registered (IDs 1083-1111), spec committed, ADR index in place
+failed_attempts:
+- attempt_id: wf-bad-api
+  description: Sprint-compose workflow generated release-prep-phase1.js using agent({role, prompt}) object syntax, Promise.all(), and export async function run() wrapper
+  outcome: File was syntactically valid but would fail at runtime — Workflow harness requires agent(prompt, opts) string-first signature and top-level execution
+  reason_failed: The fixer agent used generic JS patterns instead of the Workflow tool's specific API
+  do_not_retry: true
+  evidence_ref: null
+open_questions:
+- 'CI-003 parity audit may surface path issues that require follow-up fixes — verdict: blocked is possible'
+- 'CLEAN-013 flax migration: verify eqx.Module conversion is correct before uv lock (TrainingMetrics and EvaluationMetrics may have computed fields needing special handling in eqx)'
+deferred:
+- description: Release Prep Phase 2 (DOCS + release items, IDs 1103-1111) — gated on Phase 1 completion
+  rationale: Phase 2 depends on clean CI and stable code surface from Phase 1
+  recommended_phase: After Phase 1 workflow returns all passed
+- description: Training epic (ID 1036) — High-Performance Training with Composability Primitives
+  rationale: Placeholder; scope is large, depends on stable code surface
+  recommended_phase: Begin brainstorm when Phase 2 is underway
+- description: Sprint 4 Wave B (COMP-533) — Wire strategy resolution through InferencePlan
+  rationale: Paused during release prep; Wave A complete (ec09ecb8)
+  recommended_phase: After release prep Phase 1 complete
+lessons_refs: []
+---

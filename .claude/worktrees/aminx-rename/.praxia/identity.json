@@ -1,0 +1,78 @@
+{
+  "workspace_id": "8e59cb09-add1-4510-b335-bee739b7b801",
+  "schema_version": 1,
+  "preset": "web-service",
+  "worldview": {
+    "value": "[![Test Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen.svg)](https://github.com/maraxen/Aminx/actions/workflows/pytest.yml)",
+    "confidence": 0.6,
+    "deferred": false,
+    "sources": [
+      "readme_parsed"
+    ]
+  },
+  "owner": {
+    "value": "Marielle Russo <67157875+maraxen@users.noreply.github.com>",
+    "confidence": 0.75,
+    "deferred": false,
+    "sources": [
+      "git_history"
+    ]
+  },
+  "eidos": {
+    "value": null,
+    "confidence": 0.0,
+    "deferred": true,
+    "sources": []
+  },
+  "s5_policy": [],
+  "primary_function": {
+    "value": null,
+    "confidence": 0.0,
+    "deferred": true,
+    "sources": []
+  },
+  "operators": [
+    "developer",
+    "ci_pipeline",
+    "pytest_runner"
+  ],
+  "build_target": {
+    "value": null,
+    "confidence": 0.0,
+    "deferred": true,
+    "sources": []
+  },
+  "always_do": [
+    "ruff format before commit",
+    "pytest before merge"
+  ],
+  "ask_first": [
+    "delete files",
+    "push to remote"
+  ],
+  "never_do": [
+    "commit secrets",
+    "push to main without review"
+  ],
+  "consumers": {
+    "value": null,
+    "confidence": 0.0,
+    "deferred": true,
+    "sources": []
+  },
+  "scan_scope": [
+    ".",
+    "!target",
+    "!node_modules",
+    "!.git",
+    "!__pycache__"
+  ],
+  "horizon": "project",
+  "coordination_mechanisms": [
+    "github_actions",
+    "pre_commit"
+  ],
+  "quirks": [],
+  "quirks_initialized": false,
+  "pre_commit_level": null
+}

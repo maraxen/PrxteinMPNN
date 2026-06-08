@@ -1,0 +1,914 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>prxteinmpnn.run.specs &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/style.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/run/specs';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/models.html">Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/inference.html">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/types.html">Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/sampling.html">Sampling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/scoring.html">Scoring</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/host.html">Host / Dispatch Layer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/run.html">Run / Specs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/utils.html">Utilities</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for prxteinmpnn.run.specs</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Core user interface for the PrxteinMPNN package.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">MutableMapping</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">TextIO</span><span class="p">,</span> <span class="n">cast</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.versions</span><span class="w"> </span><span class="kn">import</span> <span class="n">MODEL_VERSION</span><span class="p">,</span> <span class="n">MODEL_WEIGHTS</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.spec</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunSpec</span><span class="p">,</span> <span class="n">build_run_spec</span>
+
+<span class="n">_DEPRECATED_SPEC_KWARGS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+  <span class="p">{</span>
+    <span class="s2">&quot;output_path&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;score_batch_size&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;average_logits&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;combine_noise_batch_size&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;gmm_min_iters&quot;</span><span class="p">,</span>
+  <span class="p">},</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="pop_deprecated_spec_kwargs">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.specs.pop_deprecated_spec_kwargs">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">pop_deprecated_spec_kwargs</span><span class="p">(</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Remove legacy serialized keys dropped from specification dataclasses.</span>
+
+<span class="sd">  Mutates ``kwargs`` in place. Emits :class:`DeprecationWarning` for each removed key.</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">_DEPRECATED_SPEC_KWARGS</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+      <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+      <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Specification kwarg </span><span class="si">{</span><span class="n">key</span><span class="si">!r}</span><span class="s2"> is deprecated and ignored.&quot;</span><span class="p">,</span>
+        <span class="ne">DeprecationWarning</span><span class="p">,</span>
+        <span class="n">stacklevel</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+      <span class="p">)</span></div>
+
+
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Protocol</span>
+
+  <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArrayLike</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">proxide.io.parsing.foldcomp</span><span class="w"> </span><span class="kn">import</span> <span class="n">FoldCompDatabase</span>
+
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.catjac</span><span class="w"> </span><span class="kn">import</span> <span class="n">CombineCatJacPairFn</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingOrderFn</span>
+
+<div class="viewcode-block" id="ConformationalStates">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.specs.ConformationalStates">[docs]</a>
+  <span class="k">class</span><span class="w"> </span><span class="nc">ConformationalStates</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Protocol for conformational state containers (see ensemble_tools.dbscan).&quot;&quot;&quot;</span>
+
+    <span class="n">n_states</span><span class="p">:</span> <span class="n">ArrayLike</span></div>
+
+
+<span class="c1"># Type aliases for convenience</span>
+<span class="n">ModelWeights</span> <span class="o">=</span> <span class="n">MODEL_WEIGHTS</span>
+<span class="n">ModelVersion</span> <span class="o">=</span> <span class="n">MODEL_VERSION</span>
+
+
+<span class="n">AlignmentStrategy</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;sequence&quot;</span><span class="p">,</span> <span class="s2">&quot;structure&quot;</span><span class="p">]</span>
+
+<span class="c1"># Type aliases for tied-position logit fusion configuration</span>
+<span class="n">TiedPositionMode</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;direct&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_loader_inputs</span><span class="p">(</span><span class="n">inputs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="n">TextIO</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">TextIO</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="n">TextIO</span><span class="p">]:</span>
+  <span class="n">out</span> <span class="o">=</span> <span class="p">(</span><span class="n">inputs</span><span class="p">,)</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">)</span> <span class="k">else</span> <span class="n">inputs</span>
+  <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="s2">&quot;Sequence[str | TextIO]&quot;</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+
+
+<span class="n">_WRAPPED_DEPRECATED_INIT</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">type</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="register_spec">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.specs.register_spec">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">register_spec</span><span class="p">(</span><span class="bp">cls</span><span class="p">:</span> <span class="nb">type</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Decorator to wrap spec __init__ with deprecated kwarg warnings.</span>
+
+<span class="sd">  Strips deprecated kwargs and emits DeprecationWarning for each removed key.</span>
+<span class="sd">  Safe to apply multiple times; idempotent via _WRAPPED_DEPRECATED_INIT tracking.</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">_WRAPPED_DEPRECATED_INIT</span><span class="p">:</span>
+    <span class="k">return</span> <span class="bp">cls</span>
+  <span class="n">_WRAPPED_DEPRECATED_INIT</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+  <span class="n">original_init</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="fm">__init__</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">patched_init</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;run_spec&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">kwargs</span><span class="p">):</span>
+      <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">_DEPRECATED_SPEC_KWARGS</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+          <span class="sa">f</span><span class="s2">&quot;Specification kwarg </span><span class="si">{</span><span class="n">key</span><span class="si">!r}</span><span class="s2"> is deprecated and ignored.&quot;</span><span class="p">,</span>
+          <span class="ne">DeprecationWarning</span><span class="p">,</span>
+          <span class="n">stacklevel</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="n">original_init</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+  <span class="nb">setattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s2">&quot;__init__&quot;</span><span class="p">,</span> <span class="n">patched_init</span><span class="p">)</span>  <span class="c1"># noqa: B010</span>
+  <span class="k">return</span> <span class="bp">cls</span></div>
+
+
+
+<div class="viewcode-block" id="RunSpecification">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.specs.RunSpecification">[docs]</a>
+<span class="nd">@register_spec</span>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RunSpecification</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Configuration for running the model.</span>
+
+<span class="sd">  Attributes:</span>
+<span class="sd">      inputs: A sequence of input file paths or text streams, or a single input.</span>
+<span class="sd">      model_weights: The model weights to use (default is &quot;original&quot;).</span>
+<span class="sd">      model_version: The model version to use (default is &quot;v_48_020.pkl&quot;).</span>
+<span class="sd">      batch_size: The batch size to use (default is 32).</span>
+<span class="sd">      backbone_noise: The backbone noise levels to use (default is (0.0,)).</span>
+<span class="sd">                      Can be a single float or a sequence of floats.</span>
+<span class="sd">      foldcomp_database: An optional path to a FoldComp database (default is None).</span>
+<span class="sd">      ar_mask: An optional array-like mask for autoregressive positions (default is None).</span>
+<span class="sd">      random_seed: The random seed to use (default is 42).</span>
+<span class="sd">      chain_id: An optional chain ID to use (default is None).</span>
+<span class="sd">      model: An optional model ID to use (default is None).</span>
+<span class="sd">      altloc: The alternate location to use (default is &quot;first&quot;).</span>
+<span class="sd">      decoding_order_fn: An optional function to generate the decoding order (default is None).</span>
+<span class="sd">      conformational_states: ConformationalStates (from ensemble_tools.dbscan) to use for coarse graining the inference.</span>
+<span class="sd">      max_length: Maximum sequence length for padding/truncation (default is 512).</span>
+<span class="sd">                  Set to None to disable padding. Controls memory usage - smaller values</span>
+<span class="sd">                  reduce memory but may cause recompilation for different sequence lengths.</span>
+<span class="sd">      truncation_strategy: Strategy for handling sequences longer than max_length.</span>
+<span class="sd">                          Options: &quot;none&quot; (default, no truncation), &quot;random_crop&quot;, &quot;center_crop&quot;.</span>
+<span class="sd">      host_resource_allocation_strategy: Strategy for host resource allocation (default is &quot;auto&quot;).</span>
+<span class="sd">      ram_budget_mb: Optional RAM budget for data loading in megabytes.</span>
+<span class="sd">      max_workers: Optional maximum number of data loading workers.</span>
+
+<span class="sd">  Note:</span>
+<span class="sd">      Use ``output_h5_path`` on task-specific subclasses for HDF5 output.</span>
+<span class="sd">      ``output_dir`` (when set) overrides inferred output roots from ``cache_path`` / HDF5 parents</span>
+<span class="sd">      in :func:`~prxteinmpnn.run.spec.build_run_spec`.</span>
+<span class="sd">      Legacy serialized ``output_path`` is ignored with a :class:`DeprecationWarning`.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">inputs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="n">TextIO</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">TextIO</span>
+  <span class="n">topology</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">model_weights</span><span class="p">:</span> <span class="n">ModelWeights</span> <span class="o">=</span> <span class="s2">&quot;original&quot;</span>
+  <span class="n">model_version</span><span class="p">:</span> <span class="n">ModelVersion</span> <span class="o">=</span> <span class="s2">&quot;v_48_020&quot;</span>
+  <span class="n">model_family</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;proteinmpnn&quot;</span><span class="p">,</span> <span class="s2">&quot;ligandmpnn&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;proteinmpnn&quot;</span>
+  <span class="n">checkpoint_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">model_local_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">checkpoint_registry_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">ligand_mpnn_use_side_chain_context</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32</span>
+  <span class="n">backbone_noise</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,)</span>
+  <span class="n">backbone_noise_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;direct&quot;</span><span class="p">,</span> <span class="s2">&quot;thermal&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;direct&quot;</span>
+  <span class="n">estat_noise</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">estat_noise_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;direct&quot;</span><span class="p">,</span> <span class="s2">&quot;thermal&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;direct&quot;</span>
+  <span class="n">vdw_noise</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">vdw_noise_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;direct&quot;</span><span class="p">,</span> <span class="s2">&quot;thermal&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;direct&quot;</span>
+  <span class="n">use_electrostatics</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">use_vdw</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">foldcomp_database</span><span class="p">:</span> <span class="n">FoldCompDatabase</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">ar_mask</span><span class="p">:</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">random_seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">42</span>
+  <span class="n">chain_id</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">model</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">altloc</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;first&quot;</span><span class="p">,</span> <span class="s2">&quot;all&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;first&quot;</span>
+  <span class="n">decoding_order_fn</span><span class="p">:</span> <span class="n">DecodingOrderFn</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">conformational_states</span><span class="p">:</span> <span class="n">ConformationalStates</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">cache_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">output_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Explicit host output root; preferred over ``cache_path`` / ``output_h5_path`` inference.&quot;&quot;&quot;</span>
+  <span class="n">max_buffer_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Optional dataset buffer cap (bytes); forwarded to proxide-style loaders when set.&quot;&quot;&quot;</span>
+  <span class="n">overwrite_cache</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">max_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="mi">512</span>
+  <span class="n">truncation_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;none&quot;</span><span class="p">,</span> <span class="s2">&quot;random_crop&quot;</span><span class="p">,</span> <span class="s2">&quot;center_crop&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;random_crop&quot;</span>
+
+  <span class="c1"># Host Resource Allocation</span>
+  <span class="n">host_resource_allocation_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;full&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;auto&quot;</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Strategy for host resource allocation.</span>
+
+<span class="sd">  - &quot;auto&quot;: Use defaults based on context (90% RAM for training, 50% for inference)</span>
+<span class="sd">  - &quot;full&quot;: Use maximum available resources as detected by automatic inspection</span>
+
+<span class="sd">  When manually specified values are provided (ram_budget_mb, max_workers),</span>
+<span class="sd">  they take precedence over inferred defaults.</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">ram_budget_mb</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;RAM budget for data loading in megabytes.</span>
+
+<span class="sd">  Priority order:</span>
+<span class="sd">  1. If &quot;full&quot; strategy: Use maximum available RAM</span>
+<span class="sd">  2. If explicitly set: Use this value</span>
+<span class="sd">  3. If None with &quot;auto&quot;: 90% of host RAM for training, 50% for inference</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">max_workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Maximum number of data loading workers.</span>
+
+<span class="sd">  Priority order:</span>
+<span class="sd">  1. If &quot;full&quot; strategy: Use all CPU cores</span>
+<span class="sd">  2. If explicitly set: Use this value</span>
+<span class="sd">  3. If None with &quot;auto&quot;: All cores for training, 50% for inference</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">n_devices</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Optional JAX device count override for :class:`~prxteinmpnn.run.spec.ResourceConfig`.</span>
+
+<span class="sd">  When ``None``, :func:`build_run_spec` uses ``jax.local_device_count()`` when JAX is importable.</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="c1"># Data/Sharding</span>
+  <span class="n">use_preprocessed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">preprocessed_index_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">split</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;inference&quot;</span>
+
+  <span class="c1"># Tied-position logit averaging fields</span>
+  <span class="n">tied_positions</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">|</span> <span class="n">TiedPositionMode</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">pass_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;inter&quot;</span><span class="p">,</span> <span class="s2">&quot;intra&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;intra&quot;</span>  <span class="c1"># noqa: S105</span>
+  <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">structure_mapping</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">multi_state_temperature</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+
+  <span class="n">run_spec</span><span class="p">:</span> <span class="n">RunSpec</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">repr</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">_sync_run_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;run_spec&quot;</span><span class="p">,</span> <span class="n">build_run_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing and validation for tied-position logit averaging.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">backbone_noise</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;backbone_noise&quot;</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">backbone_noise</span><span class="p">,))</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">estat_noise</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;estat_noise&quot;</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">estat_noise</span><span class="p">,))</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">estat_noise</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;use_electrostatics&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vdw_noise</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;vdw_noise&quot;</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vdw_noise</span><span class="p">,))</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">vdw_noise</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;use_vdw&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cache_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;cache_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cache_path</span><span class="p">))</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;output_dir&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">))</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_local_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_local_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;model_local_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_local_path</span><span class="p">))</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">checkpoint_registry_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">checkpoint_registry_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;checkpoint_registry_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">checkpoint_registry_path</span><span class="p">))</span>
+    <span class="c1"># Validation for tied_positions and pass_mode</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tied_positions</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;direct&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">pass_mode</span> <span class="o">!=</span> <span class="s2">&quot;inter&quot;</span><span class="p">:</span>  <span class="c1"># noqa: S105</span>
+      <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;If tied_positions is &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">tied_positions</span><span class="si">}</span><span class="s2">&#39;, pass_mode must be &#39;inter&#39;. &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;Got pass_mode=&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">pass_mode</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
+      <span class="p">)</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_sync_run_spec</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="ScoringSpecification">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.specs.ScoringSpecification">[docs]</a>
+<span class="nd">@register_spec</span>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ScoringSpecification</span><span class="p">(</span><span class="n">RunSpecification</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Configuration for scoring sequences.</span>
+
+<span class="sd">  Attributes:</span>
+<span class="sd">      sequences_to_score: A sequence of amino acid sequences to score.</span>
+<span class="sd">      temperature: The temperature for scoring (default is 1.0).</span>
+<span class="sd">      return_logits: Whether to return the raw logits (default is False).</span>
+<span class="sd">      return_decoding_orders: Whether to return decoding orders (default is False).</span>
+<span class="sd">      return_all_scores: Whether to return scores for all sequences (default is False).</span>
+<span class="sd">      output_h5_path: Optional path to an HDF5 file for streaming output.</span>
+<span class="sd">      average_node_features: Whether to average node features (default is False).</span>
+<span class="sd">      average_encoding_mode: Mode for averaging encodings (default is &quot;inputs_and_noise&quot;).</span>
+<span class="sd">      noise_batch_size: The batch size for noise levels (default is 4).</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">sequences_to_score</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+  <span class="n">temperature</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+  <span class="n">return_logits</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">return_decoding_orders</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">return_all_scores</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">output_h5_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">average_node_features</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">average_encoding_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;inputs&quot;</span><span class="p">,</span> <span class="s2">&quot;noise_levels&quot;</span><span class="p">,</span> <span class="s2">&quot;inputs_and_noise&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;inputs_and_noise&quot;</span>
+  <span class="n">noise_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span>
+  <span class="n">multi_state_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;arithmetic_mean&quot;</span><span class="p">,</span> <span class="s2">&quot;geometric_mean&quot;</span><span class="p">,</span> <span class="s2">&quot;product&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;arithmetic_mean&quot;</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">sequences_to_score</span><span class="p">:</span>
+      <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">&quot;No sequences provided for scoring.&quot;</span>
+        <span class="s2">&quot;`sequences_to_score` must be a non-empty list of strings.&quot;</span>
+      <span class="p">)</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;output_h5_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">))</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_sync_run_spec</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="SamplingSpecification">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.specs.SamplingSpecification">[docs]</a>
+<span class="nd">@register_spec</span>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SamplingSpecification</span><span class="p">(</span><span class="n">RunSpecification</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Configuration for sampling sequences.&quot;&quot;&quot;</span>
+
+  <span class="n">num_samples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+  <span class="n">sampling_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;temperature&quot;</span><span class="p">,</span> <span class="s2">&quot;straight_through&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;temperature&quot;</span>
+  <span class="n">temperature</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
+  <span class="n">use_unified_driver</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+  <span class="n">bias</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">fixed_positions</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">fixed_mask</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">fixed_tokens</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">learning_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">use_concrete</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">concrete_tau_start</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+  <span class="n">concrete_tau_end</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
+  <span class="n">output_h5_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">use_arrayrecord</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">return_logits</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+  <span class="n">samples_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span>
+  <span class="n">samples_chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">noise_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+  <span class="n">temperature_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+  <span class="n">average_node_features</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">average_encoding_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;inputs&quot;</span><span class="p">,</span> <span class="s2">&quot;noise_levels&quot;</span><span class="p">,</span> <span class="s2">&quot;inputs_and_noise&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;inputs_and_noise&quot;</span>
+  <span class="n">multi_state_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;arithmetic_mean&quot;</span><span class="p">,</span> <span class="s2">&quot;geometric_mean&quot;</span><span class="p">,</span> <span class="s2">&quot;product&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;arithmetic_mean&quot;</span>
+  <span class="n">compute_pseudo_perplexity</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">state_weights</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">ligand_conditioning</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">sidechain_conditioning</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">campaign_mode</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">allow_logits_in_campaign</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">logits_memory_budget_mb</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">ligand_context_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">grid_mode</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">job_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">chunk_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">sample_start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">sample_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">decode_fn</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;temperature&quot;</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature</span><span class="p">,))</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sampling_strategy</span> <span class="o">==</span> <span class="s2">&quot;straight_through&quot;</span> <span class="ow">and</span> <span class="p">(</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">iterations</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">learning_rate</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="p">):</span>
+      <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;For &#39;straight_through&#39; sampling, &#39;iterations&#39; and &#39;learning_rate&#39; must be provided.&quot;</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid_mode</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sampling_strategy</span> <span class="o">!=</span> <span class="s2">&quot;temperature&quot;</span><span class="p">:</span>
+      <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Grid mode only supports &#39;temperature&#39; sampling.&quot;</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid_mode</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">average_node_features</span><span class="p">:</span>
+      <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Grid mode does not support average_node_features=True.&quot;</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">return_logits</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_pseudo_perplexity</span><span class="p">:</span>
+      <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;compute_pseudo_perplexity requires return_logits=True.&quot;</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">logits_memory_budget_mb</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">logits_budget</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logits_memory_budget_mb</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">logits_budget</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;logits_memory_budget_mb must be positive when provided.&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;logits_memory_budget_mb&quot;</span><span class="p">,</span> <span class="n">logits_budget</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">campaign_mode</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">return_logits</span><span class="p">:</span>
+      <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">allow_logits_in_campaign</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;campaign_mode requires return_logits=False unless allow_logits_in_campaign=True.&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+      <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">logits_memory_budget_mb</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+          <span class="s2">&quot;campaign_mode with return_logits=True requires logits_memory_budget_mb &quot;</span>
+          <span class="s2">&quot;to be explicitly set.&quot;</span>
+        <span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">job_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">normalized_job_id</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">job_id</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+      <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid_mode</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">normalized_job_id</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;job_id cannot be empty when grid_mode=True.&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;job_id&quot;</span><span class="p">,</span> <span class="n">normalized_job_id</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">chunk_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">chunk_id</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">chunk_id</span><span class="p">)</span>
+      <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid_mode</span> <span class="ow">and</span> <span class="n">chunk_id</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;chunk_id must be non-negative when grid_mode=True.&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;chunk_id&quot;</span><span class="p">,</span> <span class="n">chunk_id</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">sample_start</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sample_start</span><span class="p">)</span>
+      <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid_mode</span> <span class="ow">and</span> <span class="n">sample_start</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;sample_start must be non-negative when grid_mode=True.&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;sample_start&quot;</span><span class="p">,</span> <span class="n">sample_start</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_count</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">sample_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sample_count</span><span class="p">)</span>
+      <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid_mode</span> <span class="ow">and</span> <span class="n">sample_count</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;sample_count must be positive when grid_mode=True.&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;sample_count&quot;</span><span class="p">,</span> <span class="n">sample_count</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;output_h5_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">))</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ligand_context_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ligand_context_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;ligand_context_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ligand_context_path</span><span class="p">))</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_sync_run_spec</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="JacobianSpecification">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.specs.JacobianSpecification">[docs]</a>
+<span class="nd">@register_spec</span>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">JacobianSpecification</span><span class="p">(</span><span class="n">RunSpecification</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Configuration for computing categorical Jacobians.&quot;&quot;&quot;</span>
+
+  <span class="n">noise_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+  <span class="n">jacobian_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span>
+  <span class="n">average_encodings</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+  <span class="n">average_encoding_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;inputs&quot;</span><span class="p">,</span> <span class="s2">&quot;noise_levels&quot;</span><span class="p">,</span> <span class="s2">&quot;inputs_and_noise&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;inputs_and_noise&quot;</span>
+  <span class="n">combine</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">combine_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span>
+  <span class="n">combine_weights</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">combine_fn</span><span class="p">:</span> <span class="n">CombineCatJacPairFn</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">combine_fn_kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">output_h5_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">compute_apc</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+  <span class="n">apc_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span>
+  <span class="n">apc_residue_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;output_h5_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">))</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_sync_run_spec</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="ConformationalInferenceSpecification">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.specs.ConformationalInferenceSpecification">[docs]</a>
+<span class="nd">@register_spec</span>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ConformationalInferenceSpecification</span><span class="p">(</span><span class="n">RunSpecification</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Configuration for deriving states from a protein ensemble.</span>
+
+<span class="sd">  Attributes:</span>
+<span class="sd">      output_h5_path: Optional path to an HDF5 file for streaming output.</span>
+<span class="sd">      batch_size: The batch size for processing proteins (default is 8).</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">output_h5_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span>
+  <span class="n">inference_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;unconditional&quot;</span><span class="p">,</span> <span class="s2">&quot;conditional&quot;</span><span class="p">,</span> <span class="s2">&quot;vmm&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;unconditional&quot;</span>
+  <span class="n">inference_features</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;logits&quot;</span><span class="p">,</span> <span class="s2">&quot;node_features&quot;</span><span class="p">,</span> <span class="s2">&quot;edge_features&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;logits&quot;</span><span class="p">,)</span>
+  <span class="n">mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;global&quot;</span><span class="p">,</span> <span class="s2">&quot;per&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;global&quot;</span>
+  <span class="n">covariance_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;full&quot;</span><span class="p">,</span> <span class="s2">&quot;diag&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;diag&quot;</span>
+  <span class="n">gmm_n_components</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span>
+  <span class="n">eps_std_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+  <span class="n">min_cluster_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>
+  <span class="n">preprocessing_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;pca&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">gmm_init</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;kmeans&quot;</span><span class="p">,</span> <span class="s2">&quot;random&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;kmeans&quot;</span>
+  <span class="n">gmm_max_iters</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span>
+  <span class="n">kmeans_max_iters</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span>
+  <span class="n">pca_n_components</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span>
+  <span class="n">pca_solver</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;full&quot;</span><span class="p">,</span> <span class="s2">&quot;randomized&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;full&quot;</span>
+  <span class="n">pca_rng_seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+  <span class="n">covariance_regularization</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-3</span>
+
+  <span class="n">reference_sequence</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;output_h5_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">))</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_sync_run_spec</span><span class="p">()</span></div>
+
+
+
+<span class="n">MIN_PAIR</span> <span class="o">=</span> <span class="mi">2</span>
+
+
+<div class="viewcode-block" id="InspectionSpecification">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.specs.InspectionSpecification">[docs]</a>
+<span class="nd">@register_spec</span>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InspectionSpecification</span><span class="p">(</span><span class="n">RunSpecification</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Configuration for inspecting model encodings and features.&quot;&quot;&quot;</span>
+
+  <span class="n">output_h5_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">inspection_features</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span>
+    <span class="n">Literal</span><span class="p">[</span>
+      <span class="s2">&quot;unconditional_logits&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;encoded_node_features&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;edge_features&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;decoded_node_features&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;conditional_logits&quot;</span><span class="p">,</span>
+    <span class="p">]</span>
+  <span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;unconditional_logits&quot;</span><span class="p">,)</span>
+  <span class="n">distance_matrix</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">distance_matrix_method</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;ca&quot;</span><span class="p">,</span> <span class="s2">&quot;cb&quot;</span><span class="p">,</span> <span class="s2">&quot;backbone_average&quot;</span><span class="p">,</span> <span class="s2">&quot;closest_atom&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;ca&quot;</span>
+  <span class="n">cross_input_similarity</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">similarity_metric</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span>
+    <span class="s2">&quot;rmsd&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;tm-score&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;gdt_ts&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;gdt_ha&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cosine&quot;</span><span class="p">,</span>
+  <span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;rmsd&quot;</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;output_h5_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">))</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cross_input_similarity</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">_loader_inputs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">))</span> <span class="o">&lt;</span> <span class="n">MIN_PAIR</span><span class="p">:</span>
+      <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Cross-input similarity requires at least </span><span class="si">{</span><span class="n">MIN_PAIR</span><span class="si">}</span><span class="s2"> input structures.&quot;</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_sync_run_spec</span><span class="p">()</span></div>
+
+
+
+<span class="n">Specs</span> <span class="o">=</span> <span class="p">(</span>
+  <span class="n">RunSpecification</span>
+  <span class="o">|</span> <span class="n">ScoringSpecification</span>
+  <span class="o">|</span> <span class="n">SamplingSpecification</span>
+  <span class="o">|</span> <span class="n">JacobianSpecification</span>
+  <span class="o">|</span> <span class="n">InspectionSpecification</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="apply_deprecated_spec_init_warnings">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.specs.apply_deprecated_spec_init_warnings">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_deprecated_spec_init_warnings</span><span class="p">(</span><span class="bp">cls</span><span class="p">:</span> <span class="nb">type</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Wrap ``cls.__init__`` like task specs: strip deprecated kwargs and warn.</span>
+
+<span class="sd">  Call once per extra subclass (e.g. :class:`~prxteinmpnn.training.specs.TrainingSpecification`)</span>
+<span class="sd">  defined outside this module.</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">register_spec</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span></div>
+
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

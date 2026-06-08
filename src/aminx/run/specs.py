@@ -436,43 +436,6 @@ class JacobianSpecification(RunSpecification):
     self._sync_run_spec()
 
 
-@register_spec
-@dataclass
-class ConformationalInferenceSpecification(RunSpecification):
-  """Configuration for deriving states from a protein ensemble.
-
-  Attributes:
-      output_h5_path: Optional path to an HDF5 file for streaming output.
-      batch_size: The batch size for processing proteins (default is 8).
-
-  """
-
-  output_h5_path: str | Path | None = None
-  batch_size: int = 8
-  inference_strategy: Literal["unconditional", "conditional", "vmm"] = "unconditional"
-  inference_features: Sequence[Literal["logits", "node_features", "edge_features"]] = ("logits",)
-  mode: Literal["global", "per"] = "global"
-  covariance_type: Literal["full", "diag"] = "diag"
-  gmm_n_components: int = 100
-  eps_std_scale: float = 1.0
-  min_cluster_weight: float = 0.01
-  preprocessing_mode: Literal["pca"] | None = None
-  gmm_init: Literal["kmeans", "random"] = "kmeans"
-  gmm_max_iters: int = 100
-  kmeans_max_iters: int = 200
-  pca_n_components: int = 20
-  pca_solver: Literal["full", "randomized"] = "full"
-  pca_rng_seed: int = 0
-  covariance_regularization: float = 1e-3
-
-  reference_sequence: str | None = None
-
-  def __post_init__(self) -> None:
-    """Post-initialization processing."""
-    super().__post_init__()
-    if self.output_h5_path and isinstance(self.output_h5_path, str):
-      object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
-    self._sync_run_spec()
 
 
 MIN_PAIR = 2
@@ -521,7 +484,6 @@ Specs = (
   | SamplingSpecification
   | JacobianSpecification
   | InspectionSpecification
-  | ConformationalInferenceSpecification
 )
 
 

@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 import pytest
 
 from aminx.run.specs import (
-    ConformationalInferenceSpecification,
     InspectionSpecification,
     JacobianSpecification,
     RunSpecification,
@@ -63,12 +62,6 @@ def minimal_sampling_kwargs(minimal_run_spec_kwargs: dict) -> dict:
 @pytest.fixture
 def minimal_jacobian_kwargs(minimal_run_spec_kwargs: dict) -> dict:
     """Minimal kwargs to construct a JacobianSpecification."""
-    return minimal_run_spec_kwargs.copy()
-
-
-@pytest.fixture
-def minimal_conformational_inference_kwargs(minimal_run_spec_kwargs: dict) -> dict:
-    """Minimal kwargs to construct a ConformationalInferenceSpecification."""
     return minimal_run_spec_kwargs.copy()
 
 
@@ -562,33 +555,6 @@ class TestJacobianSpecification:
         """Basic JacobianSpecification should construct successfully."""
         spec = JacobianSpecification(**minimal_jacobian_kwargs)
         assert spec.inputs == minimal_jacobian_kwargs["inputs"]
-
-
-# ============================================================================
-# ConformationalInferenceSpecification Tests
-# ============================================================================
-
-
-class TestConformationalInferenceSpecification:
-    """Tests for ConformationalInferenceSpecification.__post_init__."""
-
-    def test_output_h5_path_str_coercion(
-        self, minimal_conformational_inference_kwargs: dict
-    ) -> None:
-        """String output_h5_path should coerce to Path."""
-        spec = ConformationalInferenceSpecification(
-            **minimal_conformational_inference_kwargs,
-            output_h5_path="/tmp/conformational.h5",
-        )
-        assert isinstance(spec.output_h5_path, Path)
-        assert spec.output_h5_path == Path("/tmp/conformational.h5")
-
-    def test_conformational_inference_basic_construction(
-        self, minimal_conformational_inference_kwargs: dict
-    ) -> None:
-        """Basic ConformationalInferenceSpecification should construct successfully."""
-        spec = ConformationalInferenceSpecification(**minimal_conformational_inference_kwargs)
-        assert spec.inputs == minimal_conformational_inference_kwargs["inputs"]
 
 
 # ============================================================================

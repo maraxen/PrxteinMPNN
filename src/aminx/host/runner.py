@@ -1,4 +1,4 @@
-"""Core user interface for the Aminx package."""
+"""Core user interface for the Aminx package."""  # noqa: INP001
 
 # COMP-NEW (2026-05-25): non-streaming path now drains via streaming_tensor_sink_session (§14 resolved).
 
@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import jax
 import jax.numpy as jnp
 
 from aminx.host._sampling_grid_lineage import (
@@ -30,7 +31,6 @@ from aminx.host.output_sinks import (
   take_staging_sequences_logits,
 )
 from aminx.host.plan import (
-  InferencePlan,
   make_inference_plan,
   resolve_chunk_size,
   resolve_target_samples,
@@ -41,7 +41,12 @@ from aminx.host.streaming import (
   _sample_streaming,
 )
 from aminx.host.streaming_host import StreamingBatchHost
-from aminx.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
+from aminx.run.specs import (
+  InspectionSpecification,
+  SamplingSpecification,
+  ScoringSpecification,
+  pop_deprecated_spec_kwargs,
+)
 
 from .prep import prep_protein_stream_and_model
 
@@ -245,5 +250,344 @@ def sample(
       "grid_iteration_sample_start": iteration_starts.tolist(),
       "grid_iteration_sample_count": iteration_counts.tolist(),
     }
+
+  return results
+
+
+SCORING_SCHEMA_VERSION = "scoring_v1"
+INSPECTION_SCHEMA_VERSION = "inspection_v1"
+
+
+def score(  # noqa: PLR0915
+  spec: ScoringSpecification | None = None,
+  **kwargs: Any,  # noqa: ANN401
+) -> dict[str, Any]:
+  """Score sequences against input structures.
+
+  Loads structures via Grain iterator, prepares model, and computes negative
+  log-likelihood (NLL) scores for provided sequences. Optionally returns logits
+  and decoding orders.
+
+  Parameters
+  ----------
+  spec : ScoringSpecification, optional
+      ScoringSpecification object configuring inputs, sequences, and scoring options.
+      If None, a default specification is constructed from **kwargs.
+  **kwargs : Any
+      Keyword arguments for ScoringSpecification if spec is None.
+
+  Returns
+  -------
+  dict[str, Any]
+      Dictionary with keys:
+        scores : jax.Array
+            Negative log-likelihood scores. Shape: (num_structures, num_sequences).
+        mask : jax.Array
+            Structure validity mask (1 for valid, 0 for padding). Shape: (num_structures,).
+        schema_version : str
+            Schema version for results ('scoring_v1').
+        metadata : dict
+            Metadata including specification, structure_ids, and skipped_inputs.
+        logits : jax.Array, optional
+            Per-position logits if return_logits=True. Shape: (num_structures, num_sequences, L, 21).
+        decoding_orders : jax.Array, optional
+            Decoding orders if return_decoding_orders=True. Shape: (num_structures, num_sequences, L).
+
+  Raises
+  ------
+  NotImplementedError
+      If output_h5_path is set (HDF5 streaming not yet implemented for scoring).
+  ValueError
+      If sequence length doesn't match structure length.
+
+  """
+  if spec is None:
+    kw = dict(kwargs)
+    pop_deprecated_spec_kwargs(kw)
+    spec = ScoringSpecification(**kw)
+
+  if spec.output_h5_path:
+    msg = "score runner: HDF5 streaming output not yet implemented; omit --output-h5-path for in-memory results"
+    raise NotImplementedError(msg)
+
+  from aminx.scoring.score import make_score_fn  # noqa: PLC0415
+  from aminx.utils.aa_convert import string_to_protein_sequence  # noqa: PLC0415
+
+  protein_iterator, model = prep_protein_stream_and_model(spec)
+
+  # Build score function once
+  score_fn = make_score_fn(model)  # type: ignore[arg-type]
+
+  # Convert string sequences to integer indices
+  sequence_indices_list = []
+  for seq_str in spec.sequences_to_score:
+    seq_idx = string_to_protein_sequence(seq_str)
+    sequence_indices_list.append(seq_idx)
+
+  all_scores, all_logits, all_decoding_orders = [], None, None
+  if spec.return_logits:
+    all_logits = []
+  if spec.return_decoding_orders:
+    all_decoding_orders = []
+
+  canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
+  resolved_structure_ids: list[str] = []
+  structure_offset = 0
+
+  # Prepare random key
+  prng_key = jax.random.PRNGKey(spec.random_seed or 42)
+
+  for _batch_idx, batched_ensemble in enumerate(protein_iterator):
+    batch_size = batched_ensemble.coordinates.shape[0]
+    batch_structure_ids = _structure_ids_for_batch(
+      canonical_structure_ids,
+      structure_offset=structure_offset,
+      batch_size=batch_size,
+    )
+
+    batch_scores = []
+    batch_logits = [] if spec.return_logits else None
+    batch_decoding_orders = [] if spec.return_decoding_orders else None
+
+    for struct_idx in range(batch_size):
+      struct_coords = batched_ensemble.coordinates[struct_idx]
+      struct_mask = batched_ensemble.mask[struct_idx]
+      struct_residue_index = batched_ensemble.residue_index[struct_idx]
+      struct_chain_index = batched_ensemble.chain_index[struct_idx]
+
+      struct_len = struct_coords.shape[0]
+      struct_scores = []
+      struct_logits_list = [] if spec.return_logits else None
+      struct_decoding_orders_list = [] if spec.return_decoding_orders else None
+
+      for seq_idx in sequence_indices_list:
+        # Validate sequence length matches structure length
+        if seq_idx.shape[0] != struct_len:
+          msg = (
+            f"Sequence length mismatch for structure {batch_structure_ids[struct_idx]}: "
+            f"structure has {struct_len} residues, but sequence has {seq_idx.shape[0]} residues"
+          )
+          raise ValueError(msg)
+
+        # Generate deterministic key for this structure/sequence pair
+        prng_key, subkey = jax.random.split(prng_key)
+
+        # Score the sequence
+        nll, logits, decoding_order = score_fn(  # type: ignore[misc]
+          subkey,
+          seq_idx,
+          struct_coords,
+          struct_mask,
+          struct_residue_index,
+          struct_chain_index,
+          multi_state_strategy=spec.multi_state_strategy,
+        )
+
+        struct_scores.append(nll)
+        if spec.return_logits and struct_logits_list is not None:
+          struct_logits_list.append(logits)
+        if spec.return_decoding_orders and struct_decoding_orders_list is not None:
+          struct_decoding_orders_list.append(decoding_order)
+
+      batch_scores.append(jnp.stack(struct_scores))
+      if spec.return_logits and batch_logits is not None and struct_logits_list:
+        batch_logits.append(jnp.stack(struct_logits_list))
+      if spec.return_decoding_orders and batch_decoding_orders is not None and struct_decoding_orders_list:
+        batch_decoding_orders.append(jnp.stack(struct_decoding_orders_list))
+
+    all_scores.append(jnp.stack(batch_scores))
+    if spec.return_logits and all_logits is not None and batch_logits:
+      all_logits.append(jnp.stack(batch_logits))
+    if spec.return_decoding_orders and all_decoding_orders is not None and batch_decoding_orders:
+      all_decoding_orders.append(jnp.stack(batch_decoding_orders))
+
+    resolved_structure_ids.extend(batch_structure_ids)
+    structure_offset += batch_size
+
+  # Concatenate results: shape (num_structures, num_sequences)
+  scores_array = jnp.concatenate(all_scores, axis=0)
+
+  results = {
+    "scores": scores_array,
+    "mask": jnp.ones(scores_array.shape[0], dtype=jnp.int32),
+    "schema_version": SCORING_SCHEMA_VERSION,
+    "metadata": {
+      "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
+      "structure_ids": resolved_structure_ids,
+    },
+  }
+
+  if spec.return_logits and all_logits is not None:
+    # Shape: (num_structures, num_sequences, L, 21)
+    results["logits"] = jnp.concatenate(all_logits, axis=0)
+
+  if spec.return_decoding_orders and all_decoding_orders is not None:
+    # Shape: (num_structures, num_sequences, L)
+    results["decoding_orders"] = jnp.concatenate(all_decoding_orders, axis=0)
+
+  return results
+
+
+def inspect(  # noqa: PLR0915
+  spec: InspectionSpecification | None = None,
+  **kwargs: Any,  # noqa: ANN401
+) -> dict[str, Any]:
+  """Inspect model encodings and features for input structures.
+
+  Computes requested features (unconditional logits, encoded node features, etc.)
+  for each input structure. Features are collected per-structure in the result dict.
+
+  Parameters
+  ----------
+  spec : InspectionSpecification, optional
+      InspectionSpecification object configuring inputs and inspection options.
+      If None, a default specification is constructed from **kwargs.
+  **kwargs : Any
+      Keyword arguments for InspectionSpecification if spec is None.
+
+  Returns
+  -------
+  dict[str, Any]
+      Dictionary with keys:
+        {feature_name}: list or jax.Array
+            Per-feature results. Each feature is a list of arrays, one per structure.
+        mask : jax.Array
+            Structure validity mask. Shape: (num_structures,).
+        schema_version : str
+            Schema version for results ('inspection_v1').
+        metadata : dict
+            Metadata including specification, structure_ids, and skipped_inputs.
+
+  Raises
+  ------
+  NotImplementedError
+      If unsupported features are requested:
+      - 'decoded_node_features'
+      - distance_matrix or cross_input_similarity features
+
+  """
+  if spec is None:
+    kw = dict(kwargs)
+    pop_deprecated_spec_kwargs(kw)
+    spec = InspectionSpecification(**kw)
+
+  # Validate unsupported features early
+  if "decoded_node_features" in spec.inspection_features:
+    msg = "inspect: 'decoded_node_features' requires decoder intermediate outputs not yet exposed"
+    raise NotImplementedError(msg)
+  if spec.distance_matrix:
+    msg = "inspect: distance_matrix not yet implemented (calculate_*_distance_matrix are stubs)"
+    raise NotImplementedError(msg)
+  if spec.cross_input_similarity:
+    msg = "inspect: cross_input_similarity metrics not yet implemented"
+    raise NotImplementedError(msg)
+
+  from aminx.inference.bundle_builder import build_inference_bundle  # noqa: PLC0415
+  from aminx.inference.logits import make_stage_set  # noqa: PLC0415
+  from aminx.inference.score_unconditional import kernel as score_unconditional  # noqa: PLC0415
+  from aminx.sampling.conditional_logits import (  # noqa: PLC0415
+    make_conditional_logits_fn,
+    make_encoding_conditional_logits_split_fn,
+  )
+
+  protein_iterator, model = prep_protein_stream_and_model(spec)
+
+  results_per_feature = {feat: [] for feat in spec.inspection_features}
+
+  canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
+  resolved_structure_ids: list[str] = []
+  structure_offset = 0
+
+  # Prepare random key
+  prng_key = jax.random.PRNGKey(spec.random_seed or 42)
+
+  for _batch_idx, batched_ensemble in enumerate(protein_iterator):
+    batch_size = batched_ensemble.coordinates.shape[0]
+    batch_structure_ids = _structure_ids_for_batch(
+      canonical_structure_ids,
+      structure_offset=structure_offset,
+      batch_size=batch_size,
+    )
+
+    for struct_idx in range(batch_size):
+      struct_coords = batched_ensemble.coordinates[struct_idx]
+      struct_mask = batched_ensemble.mask[struct_idx]
+      struct_residue_index = batched_ensemble.residue_index[struct_idx]
+      struct_chain_index = batched_ensemble.chain_index[struct_idx]
+
+      prng_key, subkey = jax.random.split(prng_key)
+
+      for feature_name in spec.inspection_features:
+        if feature_name == "unconditional_logits":
+          # Build inference bundle and compute unconditional logits
+          bundle, config = build_inference_bundle(
+            coords=struct_coords,
+            mask=struct_mask,
+            residue_index=struct_residue_index,
+            chain_index=struct_chain_index,
+            sequence=None,  # Not needed for unconditional
+            backbone_noise=0.0,
+            ar_mask=None,
+            structure_mapping=None,
+            mode="score_unconditional",
+            inference=True,
+          )
+          stage_set = make_stage_set()
+          logits = score_unconditional(model, subkey, bundle, config, stage_set)  # type: ignore[arg-type]
+          results_per_feature[feature_name].append(logits)
+
+        elif feature_name == "conditional_logits":
+          # Use native sequence from parsed structure
+          if hasattr(batched_ensemble, "aatype") and batched_ensemble.aatype is not None:
+            native_seq = batched_ensemble.aatype[struct_idx]
+          else:
+            msg = "Structure does not contain sequence information; cannot compute conditional_logits"
+            raise ValueError(msg)
+
+          cond_logits_fn = make_conditional_logits_fn(model)
+          logits = cond_logits_fn(
+            subkey,
+            struct_coords,
+            struct_mask,
+            struct_residue_index,
+            struct_chain_index,
+            native_seq,
+          )
+          results_per_feature[feature_name].append(logits)
+
+        elif feature_name in ("encoded_node_features", "edge_features"):
+          # Use the split function to compute encoder output
+          encode_fn, _ = make_encoding_conditional_logits_split_fn(model)
+          enc_output = encode_fn(
+            struct_coords,
+            struct_mask,
+            struct_residue_index,
+            struct_chain_index,
+            backbone_noise=0.0,
+            prng_key=subkey,
+            structure_mapping=None,
+          )
+
+          if feature_name == "encoded_node_features":
+            results_per_feature[feature_name].append(enc_output.node_features)
+          else:  # edge_features
+            results_per_feature[feature_name].append(enc_output.edge_features)
+
+    resolved_structure_ids.extend(batch_structure_ids)
+    structure_offset += batch_size
+
+  results = {
+    "mask": jnp.ones(len(resolved_structure_ids), dtype=jnp.int32),
+    "schema_version": INSPECTION_SCHEMA_VERSION,
+    "metadata": {
+      "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
+      "structure_ids": resolved_structure_ids,
+    },
+  }
+
+  # Add feature results
+  results.update(results_per_feature)
 
   return results

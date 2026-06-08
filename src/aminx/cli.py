@@ -468,7 +468,10 @@ def run_score(
     typer.echo(f"Invalid specification: {exc}", err=True)
     raise typer.Exit(code=1) from exc
 
-  _emit_or_run(spec, emit_json, out, "score", runner_available=False)
+  _emit_or_run(spec, emit_json, out, "score", runner_available=True)
+  if not emit_json:
+    from aminx.host.runner import score  # noqa: PLC0415
+    score(spec)
 
 
 # ---------------------------------------------------------------------------
@@ -580,7 +583,10 @@ def run_inspect(
     typer.echo(f"Invalid specification: {exc}", err=True)
     raise typer.Exit(code=1) from exc
 
-  _emit_or_run(spec, emit_json, out, "inspect", runner_available=False)
+  _emit_or_run(spec, emit_json, out, "inspect", runner_available=True)
+  if not emit_json:
+    from aminx.host.runner import inspect  # noqa: PLC0415
+    inspect(spec)
 
 
 @spec_app.callback()

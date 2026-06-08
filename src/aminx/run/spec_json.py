@@ -18,7 +18,6 @@ from typing import Any
 import numpy as np
 
 from aminx.run.specs import (
-  ConformationalInferenceSpecification,
   InspectionSpecification,
   JacobianSpecification,
   RunSpecification,
@@ -31,7 +30,6 @@ _SPEC_CLASS_BY_NAME: dict[str, type[RunSpecification]] = {
   "ScoringSpecification": ScoringSpecification,
   "SamplingSpecification": SamplingSpecification,
   "JacobianSpecification": JacobianSpecification,
-  "ConformationalInferenceSpecification": ConformationalInferenceSpecification,
   "InspectionSpecification": InspectionSpecification,
 }
 

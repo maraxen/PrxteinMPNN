@@ -6,15 +6,18 @@ or any entrypoint that uses ``multiprocessing`` worker pools (the campaign CLI a
 does this); see ``aminx.runtime``.
 """
 
+from .io.parsing import parse_structure
+from .io.weights import load_model
 from .run.specs import (
+  InspectionSpecification,
   JacobianSpecification,
   RunSpecification,
   SamplingSpecification,
   ScoringSpecification,
 )
 from .runtime import configure_multiprocessing
-from .sampling import sample
-from .scoring import score
+from .sampling import make_conditional_logits_fn, make_sample_sequences, sample
+from .scoring import make_score_fn, score
 
 __version__ = "0.1.0"
 __author__ = "Marielle Russo"
@@ -25,11 +28,17 @@ __url__ = "https://github.com/maraxen/aminx"
 # TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §13 — repository hygiene (stale docs, dead code, CI warning budget).
 
 __all__ = [
+  "InspectionSpecification",
   "JacobianSpecification",
   "RunSpecification",
   "SamplingSpecification",
   "ScoringSpecification",
   "configure_multiprocessing",
+  "load_model",
+  "make_conditional_logits_fn",
+  "make_sample_sequences",
+  "make_score_fn",
+  "parse_structure",
   "sample",
   "score",
 ]

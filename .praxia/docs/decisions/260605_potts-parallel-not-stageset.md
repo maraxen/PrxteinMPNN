@@ -86,7 +86,7 @@ This is enforced via static analysis (#1304) and documented in module docstrings
 
 **Why rejected:**
 - **Currency incompatibility:** 
-  - MPNN pipeline output: logits (L, V) and greedy/sampled sequences
+  - MPNN pipeline output: logits (S, L, V) where S is samples, L is length, V is vocabulary size (20 amino acids)
   - Potts inference output: J tensor (N, N, 20, 20) and marginal probabilities
   
   There is no direct conversion: J is structure-dependent coupling strength; logits are position-wise preferences. They do not compose via simple element-wise product.

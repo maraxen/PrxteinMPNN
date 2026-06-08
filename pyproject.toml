@@ -198,6 +198,7 @@ pythonpath = ["src", "tests"]
 addopts = "-m 'not parity_heavy and not slow'"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "potts: marks aminx.potts module tests",
     "parity_fast: deterministic fast parity fixtures and checks",
     "parity_heavy: reference-backed parity tests that require external assets",
     "parity_targeted: small subset of parity_heavy failures for fast GPU repro (cluster)",

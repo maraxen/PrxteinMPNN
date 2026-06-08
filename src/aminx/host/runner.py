@@ -361,21 +361,35 @@ def score(  # noqa: PLR0915
       struct_decoding_orders_list = [] if spec.return_decoding_orders else None
 
       for seq_idx in sequence_indices_list:
-        # Validate sequence length matches structure length
-        if seq_idx.shape[0] != struct_len:
+        # The structure may be padded to max_length by the loader; the user
+        # sequence must fit within the (padded) structure length.
+        if seq_idx.shape[0] > struct_len:
           msg = (
-            f"Sequence length mismatch for structure {batch_structure_ids[struct_idx]}: "
+            f"Sequence too long for structure {batch_structure_ids[struct_idx]}: "
             f"structure has {struct_len} residues, but sequence has {seq_idx.shape[0]} residues"
           )
           raise ValueError(msg)
 
+        # Pad the sequence to the structure length with X (index 20). Padded
+        # positions contribute 0 to the NLL because scoring excludes the X column
+        # (``[..., :20]``); the structure mask already excludes them from encoding.
+        seq_padded = seq_idx
+        if seq_idx.shape[0] < struct_len:
+          pad = jnp.full((struct_len - seq_idx.shape[0],), 20, dtype=seq_idx.dtype)
+          seq_padded = jnp.concatenate([seq_idx, pad])
+
         # Generate deterministic key for this structure/sequence pair
         prng_key, subkey = jax.random.split(prng_key)
+
+        # score_sequence computes NLL as -(one_hot * log_softmax).sum(-1), so it
+        # requires a one-hot (L, 21) sequence — passing integer indices silently
+        # mis-ranks sequences. Encode here before scoring.
+        seq_one_hot = jax.nn.one_hot(seq_padded, 21)
 
         # Score the sequence
         nll, logits, decoding_order = score_fn(  # type: ignore[misc]
           subkey,
-          seq_idx,
+          seq_one_hot,
           struct_coords,
           struct_mask,
           struct_residue_index,

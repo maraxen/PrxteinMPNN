@@ -85,6 +85,7 @@ def get_guarded_file_path(relative_path: str) -> Path:
     return project_root / relative_path
 
 
+@pytest.mark.potts
 class TestImportBoundaries:
     """Verify that potts modules respect import boundaries."""
 

@@ -176,14 +176,89 @@ class PottsModel(eqx.Module):
         - J: Pairwise potentials (N, N, num_aa, num_aa) with x2 scale factor
         - rho: Tree-reweighting parameters (N, N)
     """
-    # In the current minimal implementation, we skip the ProteinFeatures extraction
-    # and assume edge features are provided externally or computed from coords.
-    # This is a placeholder for the full implementation.
-    msg = (
-      "PottsModel.__call__ requires integration with ProteinFeatures "
-      "or external edge features. This is a placeholder."
+    # Ensure inputs are JAX arrays with correct dtype
+    coords = jnp.asarray(coords, dtype=jnp.float32)
+    mask = jnp.asarray(mask, dtype=jnp.float32)
+    residue_index = jnp.asarray(residue_index, dtype=jnp.int32)
+    chain_index = jnp.asarray(chain_index, dtype=jnp.int32)
+
+    # Extract k-NN edges and features via ProteinFeatures
+    from prxteinmpnn.model.features import ProteinFeatures  # noqa: PLC0415
+
+    features = ProteinFeatures(
+      node_features=128,
+      edge_features=128,
+      k_neighbors=self.k_neighbors,
+      key=key,
     )
-    raise NotImplementedError(msg)
+
+    edge_knn, nei, _node_features_out, _ = features(
+      key,
+      coords,
+      mask,
+      residue_index,
+      chain_index,
+      backbone_noise=None,
+    )
+
+    # Build symmetric adjacency and dense edge features
+    nei = jnp.asarray(nei, dtype=jnp.int32)
+    edge_knn = jnp.asarray(edge_knn, dtype=jnp.float32)
+    mask_arr = jnp.asarray(mask, dtype=jnp.float32)
+
+    n = edge_knn.shape[0]
+    row = jnp.arange(n, dtype=jnp.int32)[:, None]
+    col = nei.astype(jnp.int32)
+    valid = (mask_arr[row] > 0) & (mask_arr[col] > 0) & (col >= 0) & (col < n)
+    w_vals = jnp.where(valid, 1.0, 0.0)
+    w = jnp.zeros((n, n), dtype=edge_knn.dtype)
+    w = w.at[row, col].set(w_vals)
+    w = jnp.maximum(w, w.T)
+    w = w.at[jnp.arange(n), jnp.arange(n)].set(0.0)
+
+    # Dense edge features: (N, N, E)
+    e_dim = edge_knn.shape[-1]
+    edge_dense = jnp.zeros((n, n, e_dim), dtype=edge_knn.dtype)
+    edge_dense = edge_dense.at[row, col].set(jnp.where(valid[..., None], edge_knn, 0.0))
+    edge_dense = 0.5 * (edge_dense + jnp.swapaxes(edge_dense, 0, 1))
+
+    # Mean-pool edge features to node level
+    pooled = jnp.mean(edge_knn, axis=1)
+
+    # Node projection: [pooled_edges, aux_features] -> hidden
+    if self.aux_node_dim > 0:
+      if aux_node_features is None:
+        msg = "aux_node_features required when aux_node_dim > 0"
+        raise ValueError(msg)
+      aux = jnp.asarray(aux_node_features, dtype=pooled.dtype)
+      node_in = jnp.concatenate([pooled, aux], axis=-1)
+    else:
+      node_in = pooled
+
+    # Apply node linear projection with ReLU
+    node_h = jax.nn.relu(jax.vmap(self.node_lin)(node_in))
+
+    # Unary potentials
+    h = jax.vmap(self.project_h)(node_h)
+
+    # Pairwise potentials: concatenate [h_i, h_j, edge_features] -> J
+    hi = jnp.broadcast_to(node_h[:, None, :], (n, n, self.hidden_dim))
+    hj = jnp.broadcast_to(node_h[None, :, :], (n, n, self.hidden_dim))
+    pair = jnp.concatenate([hi, hj, edge_dense], axis=-1)
+    j_raw = jax.vmap(jax.vmap(self.project_j))(pair).reshape(n, n, self.num_aa, self.num_aa)
+
+    # Symmetrize J
+    j_sym = 0.5 * (j_raw + jnp.transpose(j_raw, (1, 0, 3, 2)))
+    j_sym = jnp.where(w[..., None, None] > 0, j_sym, 0.0)
+
+    # Suppress pairwise couplings if requested
+    if self.suppress_pairwise:
+      j_sym = jnp.zeros_like(j_sym)
+
+    # Run TRW inference
+    marginals, rho = self.trw(w, j_sym, h)
+
+    return marginals, h, j_sym, rho
 
   def infer_params(
     self,
@@ -196,6 +271,8 @@ class PottsModel(eqx.Module):
   ) -> PottsParams:
     """Infer Potts parameters and return as namedtuple.
 
+    Runs TRW inference on k-NN graph and computes adjacency matrix W.
+
     Args:
         key: JAX random key
         coords: Structure coordinates (N, 37, 3)
@@ -207,9 +284,59 @@ class PottsModel(eqx.Module):
     Returns:
         PottsParams namedtuple with marginals, h, J, rho, W.
     """
-    # Placeholder: integration with ProteinFeatures and graph construction pending.
-    msg = "infer_params: integration with ProteinFeatures pending"
-    raise NotImplementedError(msg)
+    marginals, h, j_sym, rho = self(
+      key,
+      coords,
+      mask,
+      residue_index,
+      chain_index,
+      aux_node_features=aux_node_features,
+    )
+
+    # Recompute W (adjacency) deterministically for consistency
+    coords_arr = jnp.asarray(coords, dtype=jnp.float32)
+    mask_arr = jnp.asarray(mask, dtype=jnp.float32)
+    residue_index_arr = jnp.asarray(residue_index, dtype=jnp.int32)
+    chain_index_arr = jnp.asarray(chain_index, dtype=jnp.int32)
+
+    from prxteinmpnn.model.features import ProteinFeatures  # noqa: PLC0415
+
+    features = ProteinFeatures(
+      node_features=128,
+      edge_features=128,
+      k_neighbors=self.k_neighbors,
+      key=key,
+    )
+
+    edge_knn, nei, _, _ = features(
+      key,
+      coords_arr,
+      mask_arr,
+      residue_index_arr,
+      chain_index_arr,
+      backbone_noise=None,
+    )
+
+    nei = jnp.asarray(nei, dtype=jnp.int32)
+    edge_knn = jnp.asarray(edge_knn, dtype=jnp.float32)
+
+    n = edge_knn.shape[0]
+    row = jnp.arange(n, dtype=jnp.int32)[:, None]
+    col = nei.astype(jnp.int32)
+    valid = (mask_arr[row] > 0) & (mask_arr[col] > 0) & (col >= 0) & (col < n)
+    w_vals = jnp.where(valid, 1.0, 0.0)
+    w = jnp.zeros((n, n), dtype=edge_knn.dtype)
+    w = w.at[row, col].set(w_vals)
+    w = jnp.maximum(w, w.T)
+    w = w.at[jnp.arange(n), jnp.arange(n)].set(0.0)
+
+    return PottsParams(
+      marginals=marginals,
+      h=h,
+      J=j_sym,
+      rho=rho,
+      W=w,
+    )
 
   @staticmethod
   def log_prob(

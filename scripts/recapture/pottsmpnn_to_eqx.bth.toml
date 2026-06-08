@@ -1,71 +1,38 @@
-# Bathos tracking sidecar for PottsMPNN → Equinox checkpoint conversion
-# Pre-registered hypotheses and outcome conditions for weight recapture verification.
+[run]
+script = "scripts/recapture/pottsmpnn_to_eqx.py"
+description = "Recapture PottsMPNN .pt checkpoint weights to aminx.eqx.zst format"
 
-[experiment]
-hypothesis = "etab_to_dense_h_j_w correctly converts PottsMPNN (etab, E_idx) to dense (h, J, W) with x2 scale, and k_neighbors is extracted from model config, and checkpoint round-trips via eqx.tree_serialise_leaves + zstandard"
+[metadata]
+# Experiment tracking metadata for reproducibility
+run_type = "recapture"
+domain = "potts-integration"
+task_id = "260605_multistate-potts"
+track = "C — P-01"
 
-[description]
-title = "PottsMPNN checkpoint to Equinox .eqx.zst conversion"
-summary = """
-Convert PottsMPNN PyTorch checkpoints to Equinox format (.eqx.zst) with metadata.
-Uses etab_to_dense_h_j_w from mistypotts to generate h, J, W tensors.
-Preserves x2 scale factor (directed-slot convention).
-k_neighbors read from loaded model config, not CLI args.
-Validates via synthetic 2-residue check against hand-crafted ground truth.
-"""
+[inputs]
+# Required CLI arguments for the recapture run
+checkpoint = "path/to/model.pt"
+pdb = "path/to/structure.pdb"
+pottsmpnn_root = "path/to/PottsMPNN"
 
-[outcomes.pass]
-condition = "h_max_abs_err < 1e-6 AND j_max_abs_err < 1e-6 AND k_neighbors_match = true AND checkpoint_roundtrip_ok = true"
-is_residual = false
+[outputs]
+# Output checkpoint saved as .eqx.zst
+checkpoint_path = "path/to/potts_<id>.eqx.zst"
 
-[outcomes.marginal]
-condition = "h_max_abs_err < 1e-5 AND j_max_abs_err < 1e-5 AND k_neighbors_match = true AND checkpoint_roundtrip_ok = true"
-is_residual = false
+[hypotheses]
+# Pre-registered hypotheses for validation
+hypothesis_1 = "h and J scale factors match etab_to_dense_h_j_w reference (x2 scale from directed-slot convention)"
+hypothesis_2 = "k_neighbors metadata is correctly extracted from loaded PottsMPNN model config and stored in checkpoint"
+hypothesis_3 = "Checkpoint deserialization via eqx.tree_deserialise_leaves loads all required fields without loss"
 
-[outcomes.fail]
-condition = "h_max_abs_err >= 1e-5 OR j_max_abs_err >= 1e-5 OR k_neighbors_match = false OR checkpoint_roundtrip_ok = false"
-is_residual = true
-
-[result_schema]
-h_max_abs_err = "float"
-j_max_abs_err = "float"
-k_neighbors_match = "bool"
-checkpoint_roundtrip_ok = "bool"
-vocab_size = "int"
-n_residues = "int"
-checkpoint_source = "str"
-
-[command_template]
-# Example invocation (user must fill in paths)
-example = """
-uv run scripts/recapture/pottsmpnn_to_eqx.py \\
-  --checkpoint /path/to/model.pt \\
-  --pdb /path/to/structure.pdb \\
-  --pottsmpnn-root /path/to/PottsMPNN \\
-  --out /path/to/output.eqx.zst \\
-  --num-edges 48 \\
-  --verbose
-"""
-
-[dependencies]
-torch = "For PottsMPNN checkpoint loading and inference"
-mistypotts = "For etab_to_dense_h_j_w and PottsMPNN utilities"
-equinox = "For Equinox Module serialization"
-jax = "JAX arrays for output tensors"
-zstandard = "Compression for .eqx.zst files"
-
-[artifacts]
-output_checkpoint = "*.eqx.zst (Equinox checkpoint with h, J, W, k_neighbors)"
-metadata = "*.json (Sidecar with k_neighbors, n_residues, vocab_size, source paths)"
-
-[validation]
-synthetic_test = "tests/potts/test_poe.py::test_synthetic_2residue_check (hand-crafted h,J vs etab)"
-checkpoint_format_test = "tests/potts/test_poe.py::test_save_potts_checkpoint_format"
-config_extraction_test = "tests/potts/test_poe.py::test_k_neighbors_from_model_config"
-all_tests = "uv run pytest tests/potts/ -v -k pottsmpnn"
+[measurement]
+# Validation and sanity checks
+sanity_check = "--sanity flag enables synthetic 2-residue energy validation"
+dry_run = "--dry-run flag validates paths without running inference"
 
 [notes]
-architecture_decision = "See .praxia/docs/decisions/260605_potts-parallel-not-stageset.md"
-adr_x2_scale = "x2 scale factor documented in ADR 260605_potts-parallel-not-stageset"
-scope = "Phase 1: Weight recapture from PottsMPNN checkpoints"
-next_steps = "Build PottsModel(eqx.Module) to consume these weights; integrate with PottsRunSpec"
+# Implementation notes
+x2_scale_note = "Directed-slot PottsMPNN convention: each pairwise edge counted twice in etab. h and J multiplied by 2.0 to match calc_eners energy calculation. See ADR 260605_potts-parallel-not-stageset."
+k_neighbors_note = "Read from loaded model configuration (model.k_neighbors), not CLI args. Baked into checkpoint metadata for reproducibility."
+torch_import_note = "torch import deferred to function body (load_etab_from_pottsmpnn_checkpoint) to avoid hard dependency at module load time."
+sanity_check_note = "Synthetic 2-residue check only executes when --sanity flag is explicitly passed. Default run must NOT execute JAX computation."

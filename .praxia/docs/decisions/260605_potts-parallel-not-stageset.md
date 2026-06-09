@@ -66,7 +66,7 @@ This is enforced via static analysis (#1304) and documented in module docstrings
 **Concept:** Extend `EncoderOutput` (bundles.py:359) to carry both MPNN logits and Potts parameters, making Potts visible downstream via the unified pipeline.
 
 **Why rejected:**
-- **Load-bearing stack:** `EncoderOutput` is consumed by:
+- **Blast radius:** The blast radius of widening `EncoderOutput` (bundles.py:359) spans the full StageSet pipeline — every downstream consumer would require changes:
   - Inference pipeline (host.plan, types.stages)
   - Result aggregation and sinks
   - Serialization and benchmarking

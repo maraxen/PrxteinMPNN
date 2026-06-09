@@ -19,11 +19,12 @@ if str(_prxteinmpnn_path) not in sys.path:
   sys.path.insert(0, str(_prxteinmpnn_path))
 
 
+@pytest.mark.slow
 @pytest.mark.potts
 class TestTRWMarginalVsExact:
   """Group 1: TRW marginals vs exact bruteforce across various sizes."""
 
-  @pytest.mark.parametrize("n", [6, 8, 10, 12])
+  @pytest.mark.parametrize("n", [4, 6, 8])
   def test_trw_marginals_vs_exact(self, n: int):
     """Test that TRW marginals converge to exact marginals within tolerance.
 
@@ -35,8 +36,8 @@ class TestTRWMarginalVsExact:
     from mistypotts.exact_potts import exact_marginals_bruteforce
     from mistypotts.trw import DifferentiableTRW
 
-    # Fixed alphabet size
-    q = 20
+    # Fixed alphabet size — use q=4 to keep exact bruteforce tractable (4^8 = 65536 states)
+    q = 4
 
     # Create random key and generate random fields
     key = jr.PRNGKey(42 + n)

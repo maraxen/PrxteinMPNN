@@ -315,6 +315,7 @@ def gibbs_empirical_marginals(
   j: Float[Array, "n n q q"],
   w: Float[Array, "n n"],
   mask: Float[Array, " n"],
+  *,
   num_chains: int,
   num_sweeps: int,
   num_aa: int,

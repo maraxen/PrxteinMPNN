@@ -33,8 +33,10 @@ if len(POTTS_ALPHABET) != 21:
 
 # Permutation array mapping Potts indices to MPNN indices.
 # Since both use the same alphabet, this is the identity permutation.
+# dtype=jnp.int32 is required for cross-platform type stability (see ADR 260605_potts-alphabet-alignment:76-78)
 POTTS_TO_MPNN_ALPHABET_MAP = jnp.array(
   [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+  dtype=jnp.int32,
 )
 
 

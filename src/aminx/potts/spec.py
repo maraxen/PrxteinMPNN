@@ -15,31 +15,20 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-  from mistypotts.potts_trw_spec import PottsTRWRunSpec  # type: ignore[import-not-found]
-
-# Runtime import with fallback for when mistypotts is not installed
-try:
-  from mistypotts.potts_trw_spec import PottsTRWRunSpec  # type: ignore[import-not-found]
-except ImportError:
-  PottsTRWRunSpec = None  # type: ignore[assignment,misc]
+from aminx.potts._trw_spec import PottsTRWRunSpec
 
 
 def _get_potts_trw_run_spec_class() -> type:
-  """Lazy import of PottsTRWRunSpec to avoid hard dependency at import time.
+  """Return PottsTRWRunSpec class (already imported above).
 
   Returns:
-      PottsTRWRunSpec class from mistypotts.
+      PottsTRWRunSpec class from aminx.potts._trw_spec.
 
-  Raises:
-      ImportError: If mistypotts is not installed.
+  Note:
+    Type checkers cannot resolve attributes on the returned `type` object,
+    so callers must use # type: ignore for .default_dense(), .from_json_dict(), etc.
   """
-  from mistypotts.potts_trw_spec import (  # noqa: PLC0415
-    PottsTRWRunSpec,  # type: ignore[import-not-found]
-  )
-
   return PottsTRWRunSpec
 
 
@@ -66,21 +55,17 @@ class PottsRunSpec:
   n_backbones: int = 1
   weights_path: str = ""
   caliby_path: str | None = None
-  trw_spec: PottsTRWRunSpec | None = None  # type: ignore[name-defined,assignment]
+  trw_spec: PottsTRWRunSpec | None = None
   k_neighbors: int = 0
   training: bool = False
 
   def __post_init__(self) -> None:
     """Validate spec fields and enforce safety constraints."""
     if self.trw_spec is None:
-      try:
-        potts_trw_run_spec_cls = _get_potts_trw_run_spec_class()
-        object.__setattr__(self, "trw_spec", potts_trw_run_spec_cls.default_dense())  # type: ignore[attr-defined]
-      except ImportError:
-        # mistypotts not installed; allow trw_spec to remain None for spec-only usage
-        pass
+      potts_trw_run_spec_cls = _get_potts_trw_run_spec_class()
+      object.__setattr__(self, "trw_spec", potts_trw_run_spec_cls.default_dense())  # type: ignore[no-untyped-call]
 
-    if self.trw_spec is not None and self.training and self.trw_spec.trw_loop == "fori":  # type: ignore[attr-defined]
+    if self.trw_spec is not None and self.training and self.trw_spec.trw_loop == "fori":
       msg = (
         "trw_loop=fori is unsafe for training: materialises all TRW intermediate states "
         "under reverse-mode autodiff causing OOM. Use trw_loop=scan with checkpoint_trw_step=True."
@@ -94,7 +79,8 @@ class PottsRunSpec:
   def to_json(self) -> str:
     """Serialize to JSON string for checkpointing and config storage."""
     data = asdict(self)
-    data["trw_spec"] = self.trw_spec.to_json_dict()  # type: ignore[attr-defined]
+    if self.trw_spec is not None:
+      data["trw_spec"] = self.trw_spec.to_json_dict()  # type: ignore[attr-defined]
     return json.dumps(data)
 
   @classmethod
@@ -103,7 +89,7 @@ class PottsRunSpec:
     potts_trw_run_spec_cls = _get_potts_trw_run_spec_class()
     data = json.loads(s)
     trw_dict = data.pop("trw_spec", {})
-    trw_spec = potts_trw_run_spec_cls.from_json_dict(trw_dict)  # type: ignore[attr-defined]
+    trw_spec = potts_trw_run_spec_cls.from_json_dict(trw_dict) if trw_dict else None  # type: ignore[no-untyped-call]
     return cls(trw_spec=trw_spec, **data)
 
   @classmethod
@@ -123,7 +109,7 @@ class PottsRunSpec:
       n_backbones=1,
       weights_path=weights_path,
       caliby_path=None,
-      trw_spec=potts_trw_run_spec_cls.default_dense(),  # type: ignore[attr-defined]
+      trw_spec=potts_trw_run_spec_cls.default_dense(),  # type: ignore[no-untyped-call]
       k_neighbors=k_neighbors,
       training=False,
     )
@@ -152,7 +138,7 @@ class PottsRunSpec:
       n_backbones=1,
       weights_path=weights_path,
       caliby_path=caliby_path,
-      trw_spec=potts_trw_run_spec_cls(
+      trw_spec=potts_trw_run_spec_cls(  # type: ignore[call-arg]
         rho_backend="dense_pinv",
         message_backend="dense",
         tile_size=8,

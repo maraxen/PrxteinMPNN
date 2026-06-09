@@ -21,16 +21,14 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, Int, PRNGKeyArray
 
-try:
-  from mistypotts.potts_trw_spec import PottsTRWRunSpec
-  from mistypotts.trw import DifferentiableTRW
-except ImportError as e:
-  msg = "mistypotts is required for Potts inference. Install via: pip install mistypotts"
-  raise ImportError(msg) from e
+from aminx.potts._trw import DifferentiableTRW
+from aminx.potts._trw_spec import PottsTRWRunSpec
 
-# Canonical Potts amino acid alphabet (20 standard amino acids + X for gap/unknown).
-# This is identical to MPNN_ALPHABET from aminx.utils.aa_convert.
-POTTS_ALPHABET = "ACDEFGHIKLMNPQRSTVWYX"
+# Canonical Potts amino acid alphabet (20 standard amino acids + gap).
+# Standard ordering: A C D E F G H I K L M N P Q R S T V W Y -
+# q=21 total (gap represented as '-')
+POTTS_ALPHABET = "ACDEFGHIKLMNPQRSTVWY-"
+assert len(POTTS_ALPHABET) == 21, f"POTTS_ALPHABET must have length 21, got {len(POTTS_ALPHABET)}"
 
 # Permutation array mapping Potts indices to MPNN indices.
 # Since both use the same alphabet, this is the identity permutation.

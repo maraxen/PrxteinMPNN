@@ -15,18 +15,19 @@ from aminx.potts.calibration import (
   LearnedCalibration,
   load_calibration,
 )
-from aminx.potts.spec import PottsRunSpec, PottsTRWRunSpec
+from aminx.potts.model import (
+  POTTS_ALPHABET,
+  POTTS_TO_MPNN_ALPHABET_MAP,
+  PottsModel,
+  PottsParams,
+)
+from aminx.potts.spec import PottsRunSpec
+from aminx.potts._trw_spec import PottsTRWRunSpec
 
 try:
-  from aminx.potts.model import (
-    POTTS_ALPHABET,
-    POTTS_TO_MPNN_ALPHABET_MAP,
-    PottsModel,
-    PottsParams,
-  )
   from aminx.potts.poe import PoeModel, PoeParams
 except ImportError:
-  # mistypotts may not be available; spec can still be imported
+  # poe may not be available if prxteinmpnn or other deps are not installed
   pass
 
 __all__ = [

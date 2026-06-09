@@ -1204,7 +1204,7 @@ def campaign_ramp_evaluate(
 
 
 # Register potts sub-app
-from aminx.potts.cli import potts_app  # noqa: PLC0415, E402
+from aminx.potts.cli import potts_app
 
 app.add_typer(potts_app, name="potts")
 

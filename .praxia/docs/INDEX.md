@@ -26,6 +26,7 @@
 
 ## Decisions
 
+- [260605_potts-alphabet-alignment](decisions/260605_potts-alphabet-alignment.md) — Potts-MPNN alphabet comparison: indices 0-19 identical, index 20 (gap) semantically aligned. Identity permutation safe.
 - [260605_potts-parallel-not-stageset](decisions/260605_potts-parallel-not-stageset.md) — **Accepted 2026-06-05**: PottsModel is a parallel architecture, NOT a StageSet consumer. Boundary enforced by lint #1304
 - [260605_protein-features-shared-or-local](decisions/260605_protein-features-shared-or-local.md) — ProteinFeatures sourcing decision: mistypotts imports from aminx.model.features (with legacy prxteinmpnn vendored copy)
 

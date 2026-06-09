@@ -1,0 +1,26 @@
+[metadata]
+run_id = "poe_energy_sanity_v1"
+script = "scripts/validate/poe_energy_sanity.py"
+description = "Sanity check for PoE (Product of Experts) energy computation invariants"
+
+[hypotheses]
+identity_backbone = "PoeModel with two identical backbones should sum energies correctly: joint_energy([p, p]) ≈ 2*single_energy(p) within ±1e-5"
+x2_scale_factor = "Doubling h and J should linearly scale energy: energy(2*h, 2*J) ≈ 2*energy(h, J) within ±1e-6"
+
+[command]
+# Default dry-run validates args and imports only
+default = "uv run python scripts/validate/poe_energy_sanity.py --dry-run"
+
+# Full validation (JAX computation required)
+full = "uv run python scripts/validate/poe_energy_sanity.py --n-residues 6 --num-aa 20 --seed 0"
+
+[exit_codes]
+0 = "All assertions passed"
+1 = "One or more assertions failed, or NotImplementedError (model not yet complete)"
+
+[tags]
+- "potts-model"
+- "poe-energy"
+- "sanity-check"
+- "alphabet-validation"
+- "scale-factor"

@@ -79,7 +79,7 @@ def test_calculate_rmsd(sample_ca_coordinates):
   coords1 = sample_ca_coordinates
   coords2 = sample_ca_coordinates + 0.1
   rmsd = float(calculate_rmsd(coords1, coords2, align=False))
-  assert rmsd == pytest.approx(0.1, abs=1e-5)
+  assert rmsd == pytest.approx(0.173205, rel=1e-4)
 
 
 def test_calculate_rmsd_with_alignment(sample_ca_coordinates):

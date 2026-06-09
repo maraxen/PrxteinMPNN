@@ -163,10 +163,15 @@ def load_etab_from_pottsmpnn_checkpoint(
 
     # Read k_neighbors from checkpoint if not specified.
     if num_edges is None:
-        # Infer from model: if we have edge feature info in state_dict, use it.
-        # Otherwise, default to 48 (common value in PottsMPNN releases).
-        num_edges = 48
-        log.info(f"num_edges not specified; defaulting to {num_edges}")
+        num_edges = (
+            payload.get('args', {}).get('k_neighbors')
+            or payload.get('hyper_params', {}).get('k_neighbors')
+        )
+        if num_edges is None:
+            num_edges = 48
+            log.warning("k_neighbors not found in checkpoint payload; using fallback 48")
+        else:
+            log.info("k_neighbors=%d read from checkpoint config", num_edges)
 
     model = PottsMPNN(
         ca_only=False,
@@ -300,25 +305,29 @@ def main() -> None:
     parser.add_argument(
         "--checkpoint",
         type=Path,
-        required=True,
+        required=False,
+        default=None,
         help="Path to PottsMPNN checkpoint (.pt file)",
     )
     parser.add_argument(
         "--pdb",
         type=Path,
-        required=True,
+        required=False,
+        default=None,
         help="Path to PDB structure file",
     )
     parser.add_argument(
         "--pottsmpnn-root",
         type=Path,
-        required=True,
+        required=False,
+        default=None,
         help="Path to KeatingLab/PottsMPNN repository root",
     )
     parser.add_argument(
         "--out",
         type=Path,
-        required=True,
+        required=False,
+        default=None,
         help="Output path for .eqx.zst checkpoint",
     )
     parser.add_argument(
@@ -346,16 +355,25 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # Validate paths
-    if not args.checkpoint.exists():
-        log.error(f"Checkpoint file not found: {args.checkpoint}")
-        sys.exit(1)
-    if not args.pdb.exists():
-        log.error(f"PDB file not found: {args.pdb}")
-        sys.exit(1)
-    if not args.pottsmpnn_root.is_dir():
-        log.error(f"PottsMPNN root not found: {args.pottsmpnn_root}")
-        sys.exit(1)
+    # Validate required paths only when not in dry-run
+    if not args.dry_run:
+        if args.checkpoint is None:
+            parser.error("--checkpoint is required")
+        if args.pdb is None:
+            parser.error("--pdb is required")
+        if args.pottsmpnn_root is None:
+            parser.error("--pottsmpnn-root is required")
+        if args.out is None:
+            parser.error("--out is required")
+        if not args.checkpoint.exists():
+            log.error(f"Checkpoint file not found: {args.checkpoint}")
+            sys.exit(1)
+        if not args.pdb.exists():
+            log.error(f"PDB file not found: {args.pdb}")
+            sys.exit(1)
+        if not args.pottsmpnn_root.is_dir():
+            log.error(f"PottsMPNN root not found: {args.pottsmpnn_root}")
+            sys.exit(1)
 
     log.info(f"Checkpoint: {args.checkpoint}")
     log.info(f"PDB: {args.pdb}")

@@ -8,7 +8,7 @@ import pytest
 from jaxtyping import jaxtyped
 
 from aminx.model import Aminx
-from aminx.scoring.score import make_score_sequence
+from aminx.scoring.score import _residue_mask_for_scoring, make_score_sequence
 from aminx.utils.data_structures import Protein
 
 
@@ -172,3 +172,11 @@ def test_make_score_sequence_output_shape_and_type(
     chex.assert_shape(score, ())
     chex.assert_type(score, float)
     chex.assert_tree_all_finite((score, logits))
+
+
+def test_residue_mask_for_scoring_uses_full_1d_mask() -> None:
+    """mask[0] on a 1-D mask is a scalar; scoring must use the full vector."""
+    mask_1d = jnp.array([0.0, 1.0, 1.0])
+    assert _residue_mask_for_scoring(mask_1d).shape == (3,)
+    mask_2d = jnp.ones((2, 3))
+    chex.assert_shape(_residue_mask_for_scoring(mask_2d), (3,))

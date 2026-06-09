@@ -19,6 +19,13 @@ _DEFAULT_DECODING_ORDER_FN = cast("DecodingOrderFn", random_decoding_order)
 SCORE_EPS = 1e-8
 
 
+def _residue_mask_for_scoring(mask: jax.Array) -> jax.Array:
+  """Return per-residue mask (L,) for masked-average NLL scoring."""
+  if mask.ndim == 1:
+    return mask
+  return mask[0]
+
+
 def make_score_fn(
   model: ModelProtocol,
   decoding_order_fn: DecodingOrderFn = _DEFAULT_DECODING_ORDER_FN,
@@ -110,12 +117,10 @@ def make_score_fn(
     log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
     score = -(sequence[..., :20] * log_probability).sum(-1)
 
-    # Use average mask across states for scoring? Or just mask[0]?
-    # In modernized architecture, we usually score against the combined logits.
-    # We use the first state's mask as a proxy for the system mask.
-    mask_flat = mask[0]
+    # Use the first state's mask when batched (S, L); use full vector when 1-D (L,).
+    mask_flat = _residue_mask_for_scoring(mask)
     masked_score_sum = (score * mask_flat).sum(-1)
-    mask_sum = mask_flat.sum() + 1e-8  # epsilon guards the division below
+    mask_sum = mask_flat.sum() + SCORE_EPS
 
     return masked_score_sum / mask_sum, logits, decoding_order
 

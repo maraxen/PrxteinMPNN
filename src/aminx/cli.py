@@ -528,7 +528,10 @@ def run_jacobian(
     typer.echo(f"Invalid specification: {exc}", err=True)
     raise typer.Exit(code=1) from exc
 
-  _emit_or_run(spec, emit_json, out, "jacobian", runner_available=False)
+  _emit_or_run(spec, emit_json, out, "jacobian", runner_available=True)
+  if not emit_json:
+    from aminx.host.runner import jacobian  # noqa: PLC0415
+    jacobian(spec)
 
 
 # ---------------------------------------------------------------------------

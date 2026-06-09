@@ -11,6 +11,9 @@ Usage:
     - joint_log_prob(seq, params_list): returns log unnormalized joint probability.
     - Embedded sanity check: for two identical backbones, joint_energy ≈ 2*single_energy ±1e-5.
 
+Identity-backbone invariant: joint_energy(seq, [p, p]) == 2*single_energy(seq, p);
+validated by scripts/validate/poe_energy_sanity.py.
+
 No imports from aminx.inference.*, host.*, types.stages, or inference.logits.
 """
 
@@ -32,6 +35,7 @@ class PoeParams(NamedTuple):
 
   Attributes:
       params_list: Tuple of PottsParams, one per backbone.
+
   """
 
   params_list: tuple[PottsParams, ...]
@@ -61,6 +65,7 @@ class PoeModel(eqx.Module):
 
     Raises:
         ValueError: If backbones have mismatched static config.
+
     """
     if len(backbones) == 0:
       msg = "At least one backbone is required"
@@ -125,6 +130,7 @@ class PoeModel(eqx.Module):
         Scalar energy (sum of per-backbone log unnormalized probabilities).
         Note: h and J already carry the x2 scale factor from PottsMPNN.
               No additional x2 factor is applied.
+
     """
     if len(params_list) != self.n_backbones:
       msg = f"Expected {self.n_backbones} parameter sets, got {len(params_list)}"
@@ -164,6 +170,7 @@ class PoeModel(eqx.Module):
 
     Raises:
         ValueError: If coords_stack.shape[0] != n_backbones.
+
     """
     if coords_stack.shape[0] != self.n_backbones:
       msg = (
@@ -219,6 +226,7 @@ class PoeModel(eqx.Module):
 
     Returns:
         Scalar log unnormalized joint probability.
+
     """
     return self.joint_energy(seq, params_list)
 
@@ -226,6 +234,9 @@ class PoeModel(eqx.Module):
 # Embedded sanity check: validate PoE invariant
 def _sanity_check_poe_invariant() -> None:
   """Verify PoE design invariant: joint_energy ≈ 2*single_energy for identical backbones.
+
+  Implements the identity-backbone invariant; see scripts/validate/poe_energy_sanity.py
+  for the full validation suite.
 
   This function is called at module import time to catch configuration errors early.
   Runs only in debug builds (not stripped).

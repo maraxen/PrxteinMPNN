@@ -47,6 +47,9 @@ campaign_app = typer.Typer(
 )
 app.add_typer(campaign_app, name="campaign")
 
+# potts sub-app registered at end of file (after other imports)
+
+
 
 class LockBackend(StrEnum):
   """Lock backend choices for campaign worker/run commands."""
@@ -1198,6 +1201,12 @@ def campaign_ramp_evaluate(
   _emit_json(summary, str(summary_path) if summary_path else None)
   if not summary["promote"]:
     raise typer.Exit(code=2)
+
+
+# Register potts sub-app
+from aminx.potts.cli import potts_app  # noqa: PLC0415, E402
+
+app.add_typer(potts_app, name="potts")
 
 
 def main() -> None:

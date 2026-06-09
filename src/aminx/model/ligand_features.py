@@ -383,10 +383,13 @@ class ProteinFeaturesLigand(eqx.Module):
     # Always select atom_context_num nearest atoms — must happen whether or not
     # use_side_chains is True.  Without this, A=155 flows into _y_edges_coords_to_embed
     # and pre-allocates (L, 155, 155, node_features) ≈ 20 GiB on flat-multistate inputs.
+    # Clamp k to actual atom count: dummy ligands (with_ligand=False) have A=1 which is
+    # smaller than atom_context_num=16, matching the pattern at line 303 for protein graph.
     cb_y_distances = jnp.sum((Cb[:, None, :] - ligand_coords) ** 2, axis=-1)
     mask_y = mask[:, None] * ligand_mask
     cb_y_distances_adjusted = cb_y_distances * mask_y + (1.0 - mask_y) * 10000.0
-    _, e_idx_y = jax.lax.top_k(-cb_y_distances_adjusted, self.atom_context_num)
+    k_y = min(self.atom_context_num, ligand_coords.shape[1])
+    _, e_idx_y = jax.lax.top_k(-cb_y_distances_adjusted, k_y)
 
     ligand_coords = jnp.take_along_axis(ligand_coords, e_idx_y[:, :, None], axis=1)
     ligand_atom_types = jnp.take_along_axis(ligand_atom_types, e_idx_y, axis=1)

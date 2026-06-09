@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.0a4 (2026-06-09)
+
+### Bug Fixes
+
+- **`ProteinFeaturesLigand`**: fix `top_k` crash when ligand atom count < `atom_context_num`
+  ([`src/aminx/model/ligand_features.py`](src/aminx/model/ligand_features.py))
+
+  The 0.1.0a3 fix moved `top_k` (A → `atom_context_num=16`) outside the `use_side_chains`
+  guard, but did not account for dummy ligand inputs (`with_ligand=False`) where A=1.
+  `jax.lax.top_k` raises `ValueError: k argument to top_k must be no larger than size along
+  axis` when k=16 > A=1.
+
+  Fix: clamp k to `min(atom_context_num, A)`, matching the existing pattern for the protein
+  graph at `k = min(self.k_neighbors, Ca.shape[0])` (line 303).
+
 ## 0.1.0a3 (2026-06-09)
 
 ### Bug Fixes

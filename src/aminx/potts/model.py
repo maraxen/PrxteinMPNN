@@ -8,8 +8,8 @@ h and J carry a factor-of-2 from the directed-slot PottsMPNN convention
 to maintain numerical consistency with weight recapture from mistypotts.
 See etab_to_dense_h_j_w for reference.
 
-Alphabet: Potts uses the canonical MPNN alphabet (identity binding with aminx.utils.aa_convert.MPNN_ALPHABET).
-See ADR 260605_potts-alphabet-alignment for alphabet comparison and permutation contract.
+Alphabet: Potts uses the canonical MPNN alphabet (q=21, identity mapping).
+See ADR 260605_potts-alphabet-alignment for alignment details.
 """
 
 from __future__ import annotations

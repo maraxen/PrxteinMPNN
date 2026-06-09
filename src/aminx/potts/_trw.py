@@ -102,9 +102,10 @@ def rho_from_edge_cg(
     L = laplacian_from_adjacency(Wsym)  # noqa: N806
     L_red = L[1:, 1:]  # noqa: N806
     n_red = n - 1
+    trace_factor = jnp.trace(L_red) / jnp.asarray(max(n_red, 1), dtype=L.dtype)
     eps = jnp.maximum(
         jnp.asarray(1e-8, dtype=L.dtype),
-        jnp.trace(L_red) / jnp.asarray(max(n_red, 1), dtype=L.dtype) * jnp.asarray(1e-6, dtype=L.dtype),
+        trace_factor * jnp.asarray(1e-6, dtype=L.dtype),
     )
 
     def matvec(v: Array) -> Array:
@@ -252,9 +253,11 @@ class DifferentiableTRW(eqx.Module):
             step = jax.checkpoint(trw_body)
 
         if spec.trw_loop == "scan":
-            m_final, _ = jax.lax.scan(lambda carry, _: (step(carry), None), m, None, length=self.trw_iters)
+            scan_fn = lambda carry, _: (step(carry), None)
+            m_final, _ = jax.lax.scan(scan_fn, m, None, length=self.trw_iters)
         else:
-            m_final = jax.lax.fori_loop(0, self.trw_iters, lambda _i, m_cur: step(m_cur), m)
+            fori_fn = lambda _i, m_cur: step(m_cur)
+            m_final = jax.lax.fori_loop(0, self.trw_iters, fori_fn, m)
 
         m_pow_final = jnp.power(m_final, rho[..., None])
         if spec.message_backend == "dense":

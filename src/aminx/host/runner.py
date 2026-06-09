@@ -43,6 +43,7 @@ from aminx.host.streaming import (
 from aminx.host.streaming_host import StreamingBatchHost
 from aminx.run.specs import (
   InspectionSpecification,
+  JacobianSpecification,
   SamplingSpecification,
   ScoringSpecification,
   pop_deprecated_spec_kwargs,
@@ -256,6 +257,7 @@ def sample(
 
 SCORING_SCHEMA_VERSION = "scoring_v1"
 INSPECTION_SCHEMA_VERSION = "inspection_v1"
+JACOBIAN_SCHEMA_VERSION = "jacobian_v1"
 
 
 def score(  # noqa: PLR0915
@@ -476,9 +478,9 @@ def inspect(  # noqa: PLR0915
   Raises
   ------
   NotImplementedError
-      If unsupported features are requested:
-      - 'decoded_node_features'
-      - distance_matrix or cross_input_similarity features
+      If output_h5_path is set (HDF5 streaming not yet implemented for inspect).
+  ValueError
+      If conditional_logits or decoded_node_features are requested without sequence data.
 
   """
   if spec is None:
@@ -486,15 +488,8 @@ def inspect(  # noqa: PLR0915
     pop_deprecated_spec_kwargs(kw)
     spec = InspectionSpecification(**kw)
 
-  # Validate unsupported features early
-  if "decoded_node_features" in spec.inspection_features:
-    msg = "inspect: 'decoded_node_features' requires decoder intermediate outputs not yet exposed"
-    raise NotImplementedError(msg)
-  if spec.distance_matrix:
-    msg = "inspect: distance_matrix not yet implemented (calculate_*_distance_matrix are stubs)"
-    raise NotImplementedError(msg)
-  if spec.cross_input_similarity:
-    msg = "inspect: cross_input_similarity metrics not yet implemented"
+  if spec.output_h5_path:
+    msg = "inspect runner: HDF5 streaming output not yet implemented; omit --output-h5-path for in-memory results"
     raise NotImplementedError(msg)
 
   from aminx.inference.bundle_builder import build_inference_bundle  # noqa: PLC0415
@@ -505,9 +500,21 @@ def inspect(  # noqa: PLR0915
     make_encoding_conditional_logits_split_fn,
   )
 
+  from aminx.utils.structure_metrics import (  # noqa: PLC0415
+    _extract_ca_coordinates,
+    calculate_ca_distance_matrix,
+    calculate_cb_distance_matrix,
+    calculate_closest_atom_distance_matrix,
+    calculate_cosine_similarity,
+    calculate_rmsd,
+    calculate_tm_score,
+  )
+
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
   results_per_feature = {feat: [] for feat in spec.inspection_features}
+  distance_matrices: list[jax.Array] = []
+  ca_coords_for_similarity: list[jax.Array] = []
 
   canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
   resolved_structure_ids: list[str] = []
@@ -570,6 +577,37 @@ def inspect(  # noqa: PLR0915
           )
           results_per_feature[feature_name].append(logits)
 
+        elif feature_name == "decoded_node_features":
+          if hasattr(batched_ensemble, "aatype") and batched_ensemble.aatype is not None:
+            native_seq = batched_ensemble.aatype[struct_idx]
+          else:
+            msg = "Structure does not contain sequence information; cannot compute decoded_node_features"
+            raise ValueError(msg)
+
+          encode_fn, _ = make_encoding_conditional_logits_split_fn(model)
+          encoding = encode_fn(
+            struct_coords,
+            struct_mask,
+            struct_residue_index,
+            struct_chain_index,
+            backbone_noise=0.0,
+            prng_key=subkey,
+            structure_mapping=None,
+          )
+          one_hot = jax.nn.one_hot(native_seq, 21)
+          length = one_hot.shape[0]
+          ar_mask = jnp.zeros((length, length), dtype=jnp.int32)
+          decoded = model.decoder.call_conditional(  # type: ignore[attr-defined]
+            encoding.node_features,
+            encoding.edge_features,
+            encoding.neighbor_indices,
+            encoding.mask,
+            ar_mask,
+            one_hot,
+            model.w_s_embed.weight,
+          )
+          results_per_feature[feature_name].append(decoded)
+
         elif feature_name in ("encoded_node_features", "edge_features"):
           # Use the split function to compute encoder output
           encode_fn, _ = make_encoding_conditional_logits_split_fn(model)
@@ -588,6 +626,27 @@ def inspect(  # noqa: PLR0915
           else:  # edge_features
             results_per_feature[feature_name].append(enc_output.edge_features)
 
+      if spec.distance_matrix:
+        if spec.distance_matrix_method == "ca":
+          distance_matrices.append(calculate_ca_distance_matrix(struct_coords))
+        elif spec.distance_matrix_method == "cb":
+          distance_matrices.append(calculate_cb_distance_matrix(struct_coords))
+        elif spec.distance_matrix_method == "closest_atom":
+          atom_mask = (
+            batched_ensemble.atom_mask[struct_idx]
+            if hasattr(batched_ensemble, "atom_mask") and batched_ensemble.atom_mask is not None
+            else jnp.ones(struct_coords.shape[:2])
+          )
+          distance_matrices.append(
+            calculate_closest_atom_distance_matrix(struct_coords, atom_mask),
+          )
+        else:
+          msg = f"Unsupported distance_matrix_method: {spec.distance_matrix_method!r}"
+          raise NotImplementedError(msg)
+
+      if spec.cross_input_similarity:
+        ca_coords_for_similarity.append(_extract_ca_coordinates(struct_coords))
+
     resolved_structure_ids.extend(batch_structure_ids)
     structure_offset += batch_size
 
@@ -603,5 +662,121 @@ def inspect(  # noqa: PLR0915
 
   # Add feature results
   results.update(results_per_feature)
+
+  if spec.distance_matrix:
+    results["distance_matrix"] = distance_matrices
+
+  if spec.cross_input_similarity and len(ca_coords_for_similarity) >= 2:
+    n_structures = len(ca_coords_for_similarity)
+    similarity = jnp.zeros((n_structures, n_structures))
+    for i in range(n_structures):
+      for j in range(n_structures):
+        ca_i = ca_coords_for_similarity[i]
+        ca_j = ca_coords_for_similarity[j]
+        min_len = min(ca_i.shape[0], ca_j.shape[0])
+        ca_i = ca_i[:min_len]
+        ca_j = ca_j[:min_len]
+        if spec.similarity_metric == "rmsd":
+          value = calculate_rmsd(ca_i, ca_j, align=True)
+        elif spec.similarity_metric == "tm-score":
+          value = calculate_tm_score(ca_i, ca_j, sequence_length=min_len)
+        elif spec.similarity_metric == "cosine":
+          value = calculate_cosine_similarity(ca_i.reshape(-1), ca_j.reshape(-1))
+        else:
+          msg = f"Unsupported similarity_metric: {spec.similarity_metric!r}"
+          raise NotImplementedError(msg)
+        similarity = similarity.at[i, j].set(value)
+    results["cross_input_similarity"] = similarity
+
+  return results
+
+
+def jacobian(  # noqa: PLR0915
+  spec: JacobianSpecification | None = None,
+  **kwargs: Any,  # noqa: ANN401
+) -> dict[str, Any]:
+  """Compute categorical Jacobians for input structures."""
+  if spec is None:
+    kw = dict(kwargs)
+    pop_deprecated_spec_kwargs(kw)
+    spec = JacobianSpecification(**kw)
+
+  if spec.combine:
+    msg = "jacobian runner: combine=True not yet implemented; use in-memory results"
+    raise NotImplementedError(msg)
+
+  from aminx.utils.apc import apc_corrected_frobenius_norm  # noqa: PLC0415
+  from aminx.utils.forward_jac import make_categorical_jacobian_fn  # noqa: PLC0415
+
+  protein_iterator, model = prep_protein_stream_and_model(spec)
+  jac_fn = make_categorical_jacobian_fn(model)  # type: ignore[arg-type]
+
+  all_jacobians: list[jax.Array] = []
+  apc_matrices: list[jax.Array] | None = [] if spec.compute_apc else None
+
+  canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
+  resolved_structure_ids: list[str] = []
+  structure_offset = 0
+  prng_key = jax.random.PRNGKey(spec.random_seed or 42)
+
+  for _batch_idx, batched_ensemble in enumerate(protein_iterator):
+    batch_size = batched_ensemble.coordinates.shape[0]
+    batch_structure_ids = _structure_ids_for_batch(
+      canonical_structure_ids,
+      structure_offset=structure_offset,
+      batch_size=batch_size,
+    )
+
+    for struct_idx in range(batch_size):
+      struct_coords = batched_ensemble.coordinates[struct_idx]
+      struct_mask = batched_ensemble.mask[struct_idx]
+      struct_residue_index = batched_ensemble.residue_index[struct_idx]
+      struct_chain_index = batched_ensemble.chain_index[struct_idx]
+
+      if hasattr(batched_ensemble, "aatype") and batched_ensemble.aatype is not None:
+        native_seq = batched_ensemble.aatype[struct_idx]
+      else:
+        msg = "Structure does not contain sequence information; cannot compute Jacobian"
+        raise ValueError(msg)
+
+      prng_key, subkey = jax.random.split(prng_key)
+      jac = jac_fn(
+        subkey,
+        struct_coords,
+        struct_mask,
+        struct_residue_index,
+        struct_chain_index,
+        native_seq,
+      )
+      all_jacobians.append(jac)
+      if apc_matrices is not None:
+        apc_matrices.append(
+          apc_corrected_frobenius_norm(jac, residue_batch_size=spec.apc_residue_batch_size),
+        )
+
+    resolved_structure_ids.extend(batch_structure_ids)
+    structure_offset += batch_size
+
+  results: dict[str, Any] = {
+    "categorical_jacobians": all_jacobians,
+    "mask": jnp.ones(len(all_jacobians), dtype=jnp.int32),
+    "schema_version": JACOBIAN_SCHEMA_VERSION,
+    "metadata": {
+      "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
+      "structure_ids": resolved_structure_ids,
+    },
+  }
+
+  if apc_matrices is not None:
+    results["apc_frobenius_norm"] = apc_matrices
+
+  if spec.output_h5_path:
+    import h5py  # noqa: PLC0415
+    import numpy as np  # noqa: PLC0415
+
+    stacked = jnp.stack(all_jacobians)
+    with h5py.File(spec.output_h5_path, "w") as h5_file:
+      h5_file.create_dataset("categorical_jacobians", data=np.asarray(stacked))
 
   return results

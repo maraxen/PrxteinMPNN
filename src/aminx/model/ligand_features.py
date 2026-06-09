@@ -380,14 +380,17 @@ class ProteinFeaturesLigand(eqx.Module):
         [r_t.astype(ligand_atom_types.dtype), ligand_atom_types], axis=1,
       )
 
-      cb_y_distances = jnp.sum((Cb[:, None, :] - ligand_coords) ** 2, axis=-1)
-      mask_y = mask[:, None] * ligand_mask
-      cb_y_distances_adjusted = cb_y_distances * mask_y + (1.0 - mask_y) * 10000.0
-      _, e_idx_y = jax.lax.top_k(-cb_y_distances_adjusted, self.atom_context_num)
+    # Always select atom_context_num nearest atoms — must happen whether or not
+    # use_side_chains is True.  Without this, A=155 flows into _y_edges_coords_to_embed
+    # and pre-allocates (L, 155, 155, node_features) ≈ 20 GiB on flat-multistate inputs.
+    cb_y_distances = jnp.sum((Cb[:, None, :] - ligand_coords) ** 2, axis=-1)
+    mask_y = mask[:, None] * ligand_mask
+    cb_y_distances_adjusted = cb_y_distances * mask_y + (1.0 - mask_y) * 10000.0
+    _, e_idx_y = jax.lax.top_k(-cb_y_distances_adjusted, self.atom_context_num)
 
-      ligand_coords = jnp.take_along_axis(ligand_coords, e_idx_y[:, :, None], axis=1)
-      ligand_atom_types = jnp.take_along_axis(ligand_atom_types, e_idx_y, axis=1)
-      ligand_mask = jnp.take_along_axis(ligand_mask, e_idx_y, axis=1)
+    ligand_coords = jnp.take_along_axis(ligand_coords, e_idx_y[:, :, None], axis=1)
+    ligand_atom_types = jnp.take_along_axis(ligand_atom_types, e_idx_y, axis=1)
+    ligand_mask = jnp.take_along_axis(ligand_mask, e_idx_y, axis=1)
 
     # 2. Node/Ligand Features
     # type_1hot: (L, M, 147)

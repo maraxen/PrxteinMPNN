@@ -107,3 +107,66 @@ def potts_emit(
 
   # Emit JSON
   _emit_spec_json(spec, compact=False, out=out)
+
+
+@potts_app.command("run")
+def potts_run(
+  spec_path: Annotated[
+    Path,
+    _OPT(help="Path to PottsRunSpec JSON file (required)"),
+  ],
+  geometry_path: Annotated[
+    Path,
+    _OPT(help="Path to GeometryBundle (pickle or JSON format) (required)"),
+  ],
+  out: Annotated[
+    Path,
+    _OPT(help="Write PottsResult JSON to this file (required)"),
+  ],
+) -> None:
+  """Run Potts inference from a specification and geometry.
+
+  Loads a PottsRunSpec from JSON, loads geometry from file, executes
+  run_potts orchestration, and writes the result to JSON.
+
+  Args:
+      spec_path: Path to PottsRunSpec JSON specification.
+      geometry_path: Path to GeometryBundle file (pickle format).
+      out: Output file path for PottsResult JSON.
+
+  Raises:
+      typer.Exit: If spec or geometry cannot be loaded or run fails.
+  """
+  import jax
+  from aminx.potts.runner import run_potts  # noqa: PLC0415
+
+  try:
+    # Load specification
+    spec_json = spec_path.read_text(encoding="utf-8")
+    spec = PottsRunSpec.from_json(spec_json)
+
+    # Load geometry (pickle format expected)
+    import pickle  # noqa: PLC0415
+
+    with open(geometry_path, "rb") as f:
+      geometry = pickle.load(f)
+
+    # Run Potts inference
+    key = jax.random.PRNGKey(0)
+    result = run_potts(spec, geometry, key)
+
+    # Serialize result to JSON
+    result_dict = {
+      "marginals": result.marginals.tolist(),
+      "h": result.h.tolist(),
+      "J": result.J.tolist(),
+      "rho": result.rho.tolist(),
+      "calibrated_marginals": result.calibrated_marginals.tolist(),
+      "n_backbones": result.n_backbones,
+    }
+    result_json = json.dumps(result_dict, indent=2)
+    out.write_text(result_json, encoding="utf-8")
+
+  except (ValueError, TypeError, FileNotFoundError) as exc:
+    typer.echo(f"Error running Potts inference: {exc}", err=True)
+    raise typer.Exit(code=1) from exc

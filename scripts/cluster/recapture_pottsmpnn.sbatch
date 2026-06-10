@@ -44,7 +44,7 @@ if [[ "${_NODE}" == *node4007* ]] || [[ "${_NODE}" == *node4008* ]]; then
     export XLA_FLAGS="${XLA_FLAGS:+${XLA_FLAGS} }--xla_gpu_shard_autotuning=false"
 fi
 
-cd "${_PROJ}" && uv sync --quiet && uv run python "${_PROJ}/scripts/recapture/pottsmpnn_to_eqx.py" \
+export UV_LINK_MODE=copy && cd "${_PROJ}" && uv sync --quiet && uv run python "${_PROJ}/scripts/recapture/pottsmpnn_to_eqx.py" \
   --checkpoint "${CKPT}" \
   --pdb "${_PDB}" \
   --pottsmpnn-root "${_CKPT_ROOT}" \

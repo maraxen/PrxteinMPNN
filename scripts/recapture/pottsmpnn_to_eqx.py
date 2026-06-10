@@ -182,14 +182,6 @@ def load_etab_from_pottsmpnn_checkpoint(
 
     sys.path.insert(0, str(root))
     try:
-        # Stub plotting deps that run_utils imports at module level but only uses
-        # in visualisation functions (not get_etab); avoids seaborn/matplotlib on cluster
-        from unittest.mock import MagicMock
-        for _mod in ('seaborn', 'matplotlib', 'matplotlib.pyplot',
-                     'matplotlib.colors', 'matplotlib.patches',
-                     'matplotlib.collections'):
-            sys.modules.setdefault(_mod, MagicMock())
-        import run_utils
         from omegaconf import OmegaConf
         from potts_mpnn_utils import PottsMPNN, parse_PDB
     finally:
@@ -458,6 +450,7 @@ def main() -> None:
         pottsmpnn_root=args.pottsmpnn_root,
         num_edges=args.k_neighbors,
         device=args.device,
+        use_jax=True,
     )
 
     # Run sanity check if explicitly requested

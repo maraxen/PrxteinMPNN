@@ -55,6 +55,8 @@ class _VmapEncode(eqx.Module):
     noise_stack = jnp.broadcast_to(bundle.backbone_noise, (S,))
 
     phys = geo.physics_features  # None for soluble/ligand, (S, L, P) for membrane
+    xyz37 = geo.xyz_37  # None when side-chain conditioning disabled
+    xyz37_m = geo.xyz_37_m  # None when side-chain conditioning disabled
 
     def encode_one(
       coords: jax.Array,
@@ -67,6 +69,8 @@ class _VmapEncode(eqx.Module):
       structure_mapping: jax.Array | None,
       noise: jax.Array,
       pf: jax.Array | None,
+      sc_xyz: jax.Array | None,
+      sc_xyz_m: jax.Array | None,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
       """Encode a single state: features + encoder."""
       kwargs: dict[str, Any] = dict(
@@ -81,11 +85,18 @@ class _VmapEncode(eqx.Module):
       )
       if pf is not None:
         kwargs["initial_node_features"] = pf
+      if sc_xyz is not None and sc_xyz_m is not None:
+        # Gate side chains to fixed residues (1-designable_mask)
+        chain_mask = 1.0 - bundle.conditioning.fixed_mask
+        kwargs["xyz_37"] = sc_xyz
+        kwargs["xyz_37_m"] = sc_xyz_m
+        kwargs["chain_mask"] = chain_mask
       node_f, edge_f, edge_i = self.model(coords, mask, residue_index, chain_index, **kwargs)
       return node_f, edge_f, edge_i
 
     # Parallel vmap over S states; physics axis is 0 when present, None (broadcast) when absent.
-    in_axes = (0, 0, 0, 0, 0, 0, 0, 0, 0, None if phys is None else 0)
+    # xyz_37 and xyz_37_m: axis 0 when present, None (broadcast) when absent.
+    in_axes = (0, 0, 0, 0, 0, 0, 0, 0, 0, None if phys is None else 0, None if xyz37 is None else 0, None if xyz37_m is None else 0)
     node_f, edge_f, nei_f = jax.vmap(encode_one, in_axes=in_axes)(
       geo.coords,
       geo.mask,
@@ -97,6 +108,8 @@ class _VmapEncode(eqx.Module):
       geo.structure_mapping,
       noise_stack,
       phys,
+      xyz37,
+      xyz37_m,
     )
     return EncoderOutput(
       node_features=node_f,
@@ -127,6 +140,8 @@ class _ScanEncode(eqx.Module):
     noise_stack = jnp.broadcast_to(bundle.backbone_noise, (S,))
 
     phys = geo.physics_features  # None for soluble/ligand, (S, L, P) for membrane
+    xyz37 = geo.xyz_37  # None when side-chain conditioning disabled
+    xyz37_m = geo.xyz_37_m  # None when side-chain conditioning disabled
 
     def encode_one(
       coords: jax.Array,
@@ -139,6 +154,8 @@ class _ScanEncode(eqx.Module):
       structure_mapping: jax.Array | None,
       noise: jax.Array,
       pf: jax.Array | None,
+      sc_xyz: jax.Array | None,
+      sc_xyz_m: jax.Array | None,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
       """Encode a single state: features + encoder."""
       kwargs: dict[str, Any] = dict(
@@ -153,14 +170,20 @@ class _ScanEncode(eqx.Module):
       )
       if pf is not None:
         kwargs["initial_node_features"] = pf
+      if sc_xyz is not None and sc_xyz_m is not None:
+        # Gate side chains to fixed residues (1-designable_mask)
+        chain_mask = 1.0 - bundle.conditioning.fixed_mask
+        kwargs["xyz_37"] = sc_xyz
+        kwargs["xyz_37_m"] = sc_xyz_m
+        kwargs["chain_mask"] = chain_mask
       node_f, edge_f, edge_i = self.model(coords, mask, residue_index, chain_index, **kwargs)
       return node_f, edge_f, edge_i
 
-    if phys is not None:
+    if phys is not None or xyz37 is not None:
 
       def scan_body(carry: Any, per_state: Any) -> tuple[Any, EncoderOutput]:
-        c, m, ri, ci, l_coords, l_types, l_mask, sm, n, pf = per_state
-        node_f, edge_f, edge_i = encode_one(c, m, ri, ci, l_coords, l_types, l_mask, sm, n, pf)
+        c, m, ri, ci, l_coords, l_types, l_mask, sm, n, pf, sxyz, sxyz_m = per_state
+        node_f, edge_f, edge_i = encode_one(c, m, ri, ci, l_coords, l_types, l_mask, sm, n, pf, sxyz, sxyz_m)
         return carry, EncoderOutput(
           node_features=node_f, edge_features=edge_f, neighbor_indices=edge_i,
         )
@@ -176,12 +199,14 @@ class _ScanEncode(eqx.Module):
         geo.structure_mapping,
         noise_stack,
         phys,
+        xyz37,
+        xyz37_m,
       )
     else:
 
       def scan_body(carry: Any, per_state: Any) -> tuple[Any, EncoderOutput]:  # type: ignore[misc]
         c, m, ri, ci, l_coords, l_types, l_mask, sm, n = per_state
-        node_f, edge_f, edge_i = encode_one(c, m, ri, ci, l_coords, l_types, l_mask, sm, n, None)
+        node_f, edge_f, edge_i = encode_one(c, m, ri, ci, l_coords, l_types, l_mask, sm, n, None, None, None)
         return carry, EncoderOutput(
           node_features=node_f, edge_features=edge_f, neighbor_indices=edge_i,
         )

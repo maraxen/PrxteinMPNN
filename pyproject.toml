@@ -66,7 +66,8 @@ tests = [
     # Reference LigandMPNN `sc_utils` does `import tree` (DeepMind `dm-tree`).
     "dm-tree>=0.1.8",
     # Potts model inference and exact computations
-    "mistypotts @ file:///home/marielle/projects/mistypotts",
+    "mistypotts",
+    "omegaconf",
 ]
 dev = [
   "ruff",

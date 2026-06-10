@@ -10,7 +10,7 @@
 
 _PROJ="$HOME/projects/aminx"
 _MISTYPOTTS="${_PROJ}/../mistypotts"
-export PYTHONPATH="${_MISTYPOTTS}/src:${_MISTYPOTTS}/vendor/prxteinmpnn/src:${PYTHONPATH:-}"
+export PYTHONPATH="${_MISTYPOTTS}/src:${_MISTYPOTTS}/vendor/prxteinmpnn/src:${_MISTYPOTTS}/.tmp/PottsMPNN:${PYTHONPATH:-}"
 _PDB="${_MISTYPOTTS}/tests/data/pdb/1crn.pdb"
 _CKPT_ROOT="${_MISTYPOTTS}/.tmp/PottsMPNN"
 _OUT="${_PROJ}/outputs/weights/pottsmpnn"

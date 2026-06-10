@@ -232,6 +232,19 @@ def load_etab_from_pottsmpnn_checkpoint(
         raise ValueError(f"parse_PDB returned empty for {pdb_path}")
 
     if use_jax:
+        # run_utils (in PottsMPNN checkout) imports seaborn, matplotlib.*, and omegaconf
+        # at module level. These are not in the cluster venv. Stub them into sys.modules
+        # before run_utils is first imported (lazily, inside etab_from_checkpoint_prxtein_jax).
+        from unittest.mock import MagicMock
+        for _stub_mod in [
+            "seaborn",
+            "matplotlib", "matplotlib.pyplot", "matplotlib.colors",
+            "matplotlib.patches", "matplotlib.collections",
+            "omegaconf",
+        ]:
+            if _stub_mod not in sys.modules:
+                sys.modules[_stub_mod] = MagicMock()
+
         from mistypotts.pottsmpnn_prxtein_etab import etab_from_checkpoint_prxtein_jax
 
         etab, e_idx, wt_seq = etab_from_checkpoint_prxtein_jax(

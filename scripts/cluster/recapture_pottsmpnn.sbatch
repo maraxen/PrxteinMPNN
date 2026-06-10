@@ -6,7 +6,7 @@
 #SBATCH --time=01:30:00
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH --partition=short
+#SBATCH --partition=mit_normal
 
 _PROJ="$HOME/projects/aminx"
 _MISTYPOTTS="${_PROJ}/../mistypotts"

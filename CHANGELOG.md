@@ -31,6 +31,12 @@
   migrate the tied-autoregressive / multistate side-chain tests to the current bundle
   API (tie groups via `build_inference_bundle(tie_group_map=...)`; side-chain context
   packaged onto `GeometryBundle` rather than loose kernel kwargs).
+- Add `tests/model/test_unconditional_sidechain_bundle.py` covering the
+  `build_inference_bundle` → `score_unconditional.kernel` side-chain path: shape
+  normalization for 3-D and 4-D `atom_37` inputs, logits sensitivity to `atom_37` when
+  `use_side_chains=True` (requires `fixed_mask=1` so fixed residues contribute context),
+  logits invariance when `use_side_chains=False`, and `ValueError` guard for missing
+  `atom_37` with a side-chain model.
 
 ## 0.1.0a4 (2026-06-09)
 

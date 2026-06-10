@@ -34,8 +34,8 @@ def kernel(
   config: InferenceConfig,
   stage_set: StageSet,
   *,
-  xyz_37: Array | None = None,
-  xyz_37_m: Array | None = None,
+  atom_37: Array | None = None,
+  atom_37_mask: Array | None = None,
   chain_mask: Array | None = None,
 ) -> SampleResult:
   """Autoregressive sampling kernel.
@@ -53,11 +53,11 @@ def kernel(
   k_enc, k_dec = jax.random.split(prng_key)
 
   # Inject side-chain context into bundle if provided
-  if xyz_37 is not None or xyz_37_m is not None:
+  if atom_37 is not None or atom_37_mask is not None:
     bundle = eqx.tree_at(
-      lambda b: (b.geometry.xyz_37, b.geometry.xyz_37_m),
+      lambda b: (b.geometry.atom_37, b.geometry.atom_37_mask),
       bundle,
-      (xyz_37, xyz_37_m),
+      (atom_37, atom_37_mask),
       is_leaf=lambda x: x is None,
     )
 

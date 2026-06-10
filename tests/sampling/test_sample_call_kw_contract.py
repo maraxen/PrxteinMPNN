@@ -74,8 +74,8 @@ _PRXTEIN_LIGAND_CALL_NAMES = frozenset({
   "fixed_tokens",
   "backbone_noise",
   "inference",
-  "xyz_37",
-  "xyz_37_m",
+  "atom_37",
+  "atom_37_mask",
   "chain_mask",
   "tie_group_map",
   "group_indices_table",
@@ -132,15 +132,15 @@ def _kw_names_temperature_autoreg_flat() -> set[str]:
     "Y",
     "Y_t",
     "Y_m",
-    "xyz_37",
-    "xyz_37_m",
+    "atom_37",
+    "atom_37_mask",
     "chain_mask",
   }
   return common | protein_only
 
 
 def _ligand_autoreg_kw() -> set[str]:
-  return {"Y", "Y_t", "Y_m", "xyz_37", "xyz_37_m", "chain_mask"}
+  return {"Y", "Y_t", "Y_m", "atom_37", "atom_37_mask", "chain_mask"}
 
 
 def test_temperature_autoreg_call_kwargs_subset_aminx():

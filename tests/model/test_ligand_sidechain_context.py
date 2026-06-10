@@ -23,8 +23,8 @@ def _synthetic_inputs(*, seq_len: int = 8, ligand_atoms: int = 6) -> dict[str, j
     "y": jnp.asarray(rng.normal(size=(seq_len, ligand_atoms, 3)).astype(np.float32)),
     "y_t": jnp.asarray(rng.integers(1, 30, size=(seq_len, ligand_atoms), dtype=np.int32)),
     "y_m": jnp.ones((seq_len, ligand_atoms), dtype=jnp.float32),
-    "xyz_37": jnp.asarray(rng.normal(size=(seq_len, 37, 3)).astype(np.float32)),
-    "xyz_37_m": jnp.ones((seq_len, 37), dtype=jnp.float32),
+    "atom_37": jnp.asarray(rng.normal(size=(seq_len, 37, 3)).astype(np.float32)),
+    "atom_37_mask": jnp.ones((seq_len, 37), dtype=jnp.float32),
     "chain_mask": jnp.zeros((seq_len,), dtype=jnp.float32),
     "ar_mask": jnp.zeros((seq_len, seq_len), dtype=jnp.float32),
     "one_hot_sequence": jax.nn.one_hot(jnp.asarray(sequence), 21),
@@ -78,8 +78,8 @@ def _run_conditional(
   kwargs: dict[str, jax.Array] = {}
   if include_side_chain_inputs:
     kwargs = {
-      "xyz_37": inputs["xyz_37"][None, ...],
-      "xyz_37_m": inputs["xyz_37_m"][None, ...],
+      "atom_37": inputs["atom_37"][None, ...],
+      "atom_37_mask": inputs["atom_37_mask"][None, ...],
       "chain_mask": inputs["chain_mask"][None, ...],
     }
 
@@ -142,7 +142,7 @@ def test_ligand_side_chain_gate_on_executes_context_lane() -> None:
   )
   y_m = jnp.zeros_like(inputs["y_m"])
 
-  with pytest.raises(ValueError, match="xyz_37 and xyz_37_m"):
+  with pytest.raises(ValueError, match="atom_37 and atom_37_mask"):
     _run_conditional(
       model,
       inputs,
@@ -159,8 +159,8 @@ def test_ligand_side_chain_gate_on_executes_context_lane() -> None:
     inputs["y"],
     inputs["y_t"],
     y_m,
-    xyz_37=inputs["xyz_37"],
-    xyz_37_m=inputs["xyz_37_m"],
+    atom_37=inputs["atom_37"],
+    atom_37_mask=inputs["atom_37_mask"],
     chain_mask=inputs["chain_mask"],
   )
   assert float(jnp.sum(y_m_out)) > 0.0
@@ -247,7 +247,7 @@ def test_ligand_tied_autoregressive_support_with_sidechain_context() -> None:
   bias = np.zeros((10, 21), dtype=np.float32)
   bias[np.arange(10), forced_tokens] = 45.0
 
-  # Side-chain context (xyz_37/xyz_37_m) is packaged onto the GeometryBundle via
+  # Side-chain context (atom_37/atom_37_mask) is packaged onto the GeometryBundle via
   # build_inference_bundle, not injected as loose kernel kwargs; tying is wired
   # through tie_group_map (kernel/driver generates wave + ar_mask).
   bundle, config = build_inference_bundle(
@@ -258,8 +258,8 @@ def test_ligand_tied_autoregressive_support_with_sidechain_context() -> None:
     ligand_coords=inputs["y"][None, ...],
     ligand_atom_types=inputs["y_t"][None, ...],
     ligand_mask=inputs["y_m"][None, ...],
-    xyz_37=inputs["xyz_37"][None, ...],
-    xyz_37_m=inputs["xyz_37_m"][None, ...],
+    atom_37=inputs["atom_37"][None, ...],
+    atom_37_mask=inputs["atom_37_mask"][None, ...],
     tie_group_map=jnp.asarray(tie_group_map),
     bias=jnp.asarray(bias),
     temperature=1.0,

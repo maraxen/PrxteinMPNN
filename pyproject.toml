@@ -65,7 +65,8 @@ tests = [
     "biopython>=1.83",
     # Reference LigandMPNN `sc_utils` does `import tree` (DeepMind `dm-tree`).
     "dm-tree>=0.1.8",
-    "mistypotts",
+    # Potts model inference and exact computations
+    "mistypotts @ file:///home/marielle/projects/mistypotts",
 ]
 dev = [
   "ruff",
@@ -86,6 +87,8 @@ dev = [
   "chex",
   "foldcomp",
   "mdtraj",
+  # Potts model inference and exact computations
+  "mistypotts @ file:///home/marielle/projects/mistypotts",
 ]
 foldcomp = [
     "foldcomp",
@@ -130,12 +133,24 @@ ignore = [
 ]
 pylint.max-args = 15
 
+[tool.ruff.lint.flake8-tidy-imports]
+# Enforce import boundaries for aminx.potts module (ADR 260605_potts-parallel-not-stageset)
+# PottsModel is a parallel model family and must NOT import from the stageset/inference pipeline
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"aminx.inference.decode" = {msg = "PottsModel is parallel, not a stageset consumer. Use aminx.potts.model.PottsModel.infer_params() instead. See ADR 260605_potts-parallel-not-stageset.md"}
+"aminx.host.plan" = {msg = "PottsModel is parallel, not a stageset consumer. Use aminx.potts.model.PottsModel.infer_params() instead. See ADR 260605_potts-parallel-not-stageset.md"}
+"aminx.types.stages" = {msg = "PottsModel is parallel, not a stageset consumer. Use aminx.potts.model.PottsModel.infer_params() instead. See ADR 260605_potts-parallel-not-stageset.md"}
+"aminx.inference.logits" = {msg = "PottsModel is parallel, not a stageset consumer. Use aminx.potts.model.PottsModel.infer_params() instead. See ADR 260605_potts-parallel-not-stageset.md"}
+
 [tool.ruff.lint.per-file-ignores]
 "src/aminx/cli.py" = [
   "ANN401",  # Any used for spec in _emit_or_run
   "FBT001",  # Boolean positional args are unavoidable in Typer CLI helpers
   "FBT002",  # Boolean default args in Typer command signatures
   "S107",    # Hardcoded password/secret false positive (e.g. "intra" pass_mode)
+]
+"src/aminx/potts/designer.py" = [
+  "TID251",  # Exempt designer.py from banned-api (ADR 260605_potts-parallel-not-stageset: designer is exempt)
 ]
 "src/aminx/profiling/hlo_tools.py" = [
   "ANN201",
@@ -183,6 +198,8 @@ pythonpath = ["src", "tests"]
 addopts = "-m 'not parity_heavy and not slow'"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "potts: marks aminx.potts module tests",
+    "potts_slow: alias for potts+slow combined (deselect with slow)",
     "parity_fast: deterministic fast parity fixtures and checks",
     "parity_heavy: reference-backed parity tests that require external assets",
     "parity_targeted: small subset of parity_heavy failures for fast GPU repro (cluster)",

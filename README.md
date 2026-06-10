@@ -390,6 +390,21 @@ from aminx.run import run_specification_to_json
 json_str = run_specification_to_json(spec)
 ```
 
+## Potts Model Family (`aminx.potts`)
+
+The `aminx.potts` module provides a parallel model family integrating PottsMPNN with
+Tree-Reweighted belief propagation (TRW) for global sequence design.
+
+| Component | Description |
+|-----------|-------------|
+| `PottsModel` | Equinox module wrapping PottsMPNN + DifferentiableTRW |
+| `PoeModel` | N-backbone Product-of-Experts ensemble |
+| `MpnnPottsDesigner` | MPNN-seeded Gibbs sampling coordinator |
+
+**CLI:** `aminx potts run`, `aminx potts emit`
+**Weight recapture:** `scripts/recapture/pottsmpnn_to_eqx.py`
+**Architecture:** Parallel model family — see `.praxia/docs/decisions/260605_potts-parallel-not-stageset.md`
+
 ## Requirements
 
 - Python ≥ 3.12

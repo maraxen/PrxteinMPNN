@@ -1,0 +1,60 @@
+[metadata]
+title = "PottsMPNN Checkpoint Recapture to Equinox Format"
+created = "260605"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = """
+Three core hypotheses validate successful checkpoint recapture:
+1. h and J scale factors match etab_to_dense_h_j_w reference (x2 scale from directed-slot convention)
+2. k_neighbors metadata is correctly extracted from checkpoint config and stored in output
+3. Checkpoint deserialization via eqx.tree_deserialise_leaves loads all required fields without loss
+"""
+
+[outcomes.pass]
+condition = "All three hypotheses verified: h/J scale correct, k_neighbors preserved, round-trip deserialization successful"
+reasoning = """
+The recapture pipeline must preserve both numerical accuracy (h/J scale factor matching the directed-slot
+PottsMPNN convention) and metadata (k_neighbors configuration for reproducibility). Round-trip deserialization
+validates that no fields are lost during eqx.tree_serialise_leaves → zstandard compression → eqx.tree_deserialise_leaves.
+"""
+is_residual = false
+
+[outcomes.marginal]
+condition = "h/J scale and deserialization correct, but k_neighbors not recovered from checkpoint"
+reasoning = """
+If checkpoint lacks k_neighbors in 'args' or 'hyper_params', the fallback default (48) is used but this masks
+incomplete metadata capture. The script should warn; the run succeeds but checkpoint reproducibility is reduced.
+"""
+is_residual = false
+
+[outcomes.fail]
+condition = "Scale factor mismatch, deserialization loss, or script crashes on checkpoint load"
+reasoning = """
+h/J scale factor errors would propagate through energy calculations. Deserialization loss would corrupt the
+saved checkpoint. Checkpoint load failure indicates incompatibility with the input model format.
+"""
+is_residual = true
+
+[result_schema]
+h_shape = { type = "tuple[int, int]", doc = "Shape of h array: (n_res, q)" }
+j_shape = { type = "tuple[int, int, int, int]", doc = "Shape of J array: (n_res, n_res, q, q)" }
+w_shape = { type = "tuple[int, int]", doc = "Shape of W array: (n_res, n_res)" }
+k_neighbors = { type = "int", doc = "k_neighbors value recovered or defaulted" }
+checkpoint_bytes = { type = "int", doc = "Size of compressed .eqx.zst checkpoint (bytes)" }
+wt_seq_len = { type = "int", doc = "Wild-type sequence length" }
+
+[result_schema.provenance]
+input_checkpoint = { type = "str", doc = "Path to input PottsMPNN .pt checkpoint" }
+input_pdb = { type = "str", doc = "Path to input PDB structure file" }
+pottsmpnn_root = { type = "str", doc = "Path to KeatingLab/PottsMPNN repository root" }
+vocab_size = { type = "int", doc = "Vocabulary size (typically 22 for padding, sliced to 21)" }
+use_jax = { type = "bool", doc = "Whether JAX-based etab inference was used (default: false, torch-based)" }
+augment_eps = { type = "float", doc = "PDB augmentation epsilon (default 0.0)" }
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true, doc = "aminx commit SHA" }
+pottsmpnn_commit = { type = "string", required = false, doc = "KeatingLab/PottsMPNN commit or checkout version" }
+torch_version = { type = "string", required = false, doc = "PyTorch version used for checkpoint load" }
+equinox_version = { type = "string", required = false, doc = "Equinox version used for serialization" }
+zstandard_version = { type = "string", required = false, doc = "zstandard library version" }

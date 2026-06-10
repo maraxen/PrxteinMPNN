@@ -44,7 +44,7 @@ class PottsRunSpec:
       weights_path: Path to Potts model checkpoint (weights file).
       caliby_path: Optional path to learned calibration model. None = identity (valid).
       trw_spec: TRW numerics config (default: dense_pinv rho, dense messages, fori loop).
-      k_neighbors: Graph connectivity (from checkpoint metadata). No default; read-only.
+      k_neighbors: Number of nearest neighbours; must be > 0. Read from checkpoint metadata.
       training: If True, use training-safe TRW config (scan loop + checkpoint). Default False.
 
   Raises:
@@ -64,6 +64,13 @@ class PottsRunSpec:
     if self.trw_spec is None:
       potts_trw_run_spec_cls = _get_potts_trw_run_spec_class()
       object.__setattr__(self, "trw_spec", potts_trw_run_spec_cls.default_dense())  # type: ignore[no-untyped-call]
+
+    if self.k_neighbors <= 0:
+      msg = (
+        f"k_neighbors must be > 0; got {self.k_neighbors}. "
+        "Supply k_neighbors from checkpoint metadata (logged by pottsmpnn_to_eqx.py --dry-run)."
+      )
+      raise ValueError(msg)
 
     if self.trw_spec is not None and self.training and self.trw_spec.trw_loop == "fori":
       msg = (

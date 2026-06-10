@@ -70,8 +70,16 @@ def _load_potts_model(weights_path: str, spec: PottsRunSpec, key: PRNGKeyArray) 
 
   Raises:
       FileNotFoundError: If checkpoint does not exist.
-      ValueError: If model construction fails.
+      ValueError: If k_neighbors is invalid or model construction fails.
   """
+  # Validate k_neighbors before building skeleton
+  if spec.k_neighbors <= 0:
+    msg = (
+      f"PottsRunSpec.k_neighbors={spec.k_neighbors} is invalid. "
+      "Supply k_neighbors from checkpoint metadata (logged by pottsmpnn_to_eqx.py --dry-run)."
+    )
+    raise ValueError(msg)
+
   weights_path_obj = Path(weights_path)
   if not weights_path_obj.exists():
     msg = f"Weights checkpoint not found: {weights_path}"

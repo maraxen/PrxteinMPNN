@@ -12,6 +12,8 @@ import pytest
 import zstandard as zstd
 
 
+@pytest.mark.slow
+@pytest.mark.potts
 def test_etab_to_dense_h_j_w_synthetic_2residue():
   """Test etab_to_dense_h_j_w with synthetic 2-residue case.
 
@@ -91,33 +93,26 @@ def test_etab_to_dense_h_j_w_synthetic_2residue():
                              err_msg="w values do not match reference")
 
 
+@pytest.mark.slow
+@pytest.mark.potts
 def test_save_potts_checkpoint_format():
-  """Test that potts checkpoint is saved in .eqx.zst format with metadata."""
-  from scripts.recapture.pottsmpnn_to_eqx import save_potts_checkpoint
+  """Test that potts checkpoint is saved in .eqx.zst format."""
+  from scripts.recapture.pottsmpnn_to_eqx import save_checkpoint
 
   with tempfile.TemporaryDirectory() as tmpdir:
     outpath = Path(tmpdir) / "test.eqx.zst"
 
-    # Create a minimal test pytree
-    @dataclass
-    class SimplePottsModel(eqx.Module):
-      h: jnp.ndarray
-      j: jnp.ndarray
-      k_neighbors: int
-
-    model = SimplePottsModel(
-      h=jnp.ones((2, 22), dtype=jnp.float32),
-      j=jnp.ones((2, 2, 22, 22), dtype=jnp.float32),
-      k_neighbors=48,
-    )
-
-    metadata = {
+    # Create checkpoint data dict (as returned by load_etab_from_pottsmpnn_checkpoint)
+    checkpoint_data = {
+      "h": np.ones((2, 22), dtype=np.float32),
+      "j": np.ones((2, 2, 22, 22), dtype=np.float32),
+      "w": np.ones((2, 2), dtype=np.float32),
       "k_neighbors": 48,
       "n_residues": 2,
       "vocab_size": 22,
     }
 
-    save_potts_checkpoint(model, outpath, metadata)
+    save_checkpoint(checkpoint_data, outpath)
 
     # Verify file exists and is zstd compressed
     assert outpath.exists(), f"Checkpoint not created at {outpath}"
@@ -132,15 +127,22 @@ def test_save_potts_checkpoint_format():
       assert len(content) > 0, "Decompressed content is empty"
 
 
+@pytest.mark.slow
+@pytest.mark.potts
 def test_k_neighbors_from_model_config():
-  """Test that k_neighbors is read from loaded model config, not CLI args."""
-  # This will be a unit test for the parameter extraction logic
+  """Test that k_neighbors is read from checkpoint config dict."""
   from scripts.recapture.pottsmpnn_to_eqx import extract_k_neighbors_from_config
 
-  config = {"k_neighbors": 48}
-  k = extract_k_neighbors_from_config(config)
-  assert k == 48, f"Expected k_neighbors=48, got {k}"
+  # Test reading from 'args' key
+  payload_args = {"args": {"k_neighbors": 48}}
+  k = extract_k_neighbors_from_config(payload_args)
+  assert k == 48, f"Expected k_neighbors=48 from args, got {k}"
+
+  # Test reading from 'hyper_params' key
+  payload_hyper = {"hyper_params": {"k_neighbors": 32}}
+  k = extract_k_neighbors_from_config(payload_hyper)
+  assert k == 32, f"Expected k_neighbors=32 from hyper_params, got {k}"
 
   # Missing k_neighbors should raise
-  with pytest.raises(ValueError, match="k_neighbors"):
+  with pytest.raises(ValueError, match="k_neighbors not found"):
     extract_k_neighbors_from_config({})

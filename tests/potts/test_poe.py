@@ -266,6 +266,8 @@ class TestPoeModelConstruction:
 class TestPoeModelJointEnergy:
   """Test joint_energy: sum of per-backbone energies."""
 
+  @pytest.mark.slow
+  @pytest.mark.potts
   def test_joint_energy_single_backbone(self) -> None:
     """Test joint_energy with single backbone matches single-backbone energy."""
     from aminx.potts.poe import PoeModel
@@ -297,6 +299,8 @@ class TestPoeModelJointEnergy:
     # For single backbone with all-zero params, energy should be 0
     assert jnp.allclose(energy_joint, 0.0, atol=1e-5)
 
+  @pytest.mark.slow
+  @pytest.mark.potts
   def test_joint_energy_two_backbones_sums_correctly(self) -> None:
     """Test joint_energy sums per-backbone energies."""
     from aminx.potts.poe import PoeModel
@@ -335,6 +339,8 @@ class TestPoeModelJointEnergy:
     expected = 3.0 + 3.0  # E1 + E2
     assert jnp.allclose(energy_joint, expected, atol=1e-5)
 
+  @pytest.mark.slow
+  @pytest.mark.potts
   def test_joint_energy_no_x2_factor_added(self) -> None:
     """Test that joint_energy does NOT add extra x2 factor (already in h,J)."""
     from aminx.potts.poe import PoeModel
@@ -372,6 +378,8 @@ class TestPoeModelJointEnergy:
 class TestPoeModelInferAllParams:
   """Test infer_all_params: vmap over backbone stack."""
 
+  @pytest.mark.slow
+  @pytest.mark.potts
   def test_infer_all_params_single_backbone(self) -> None:
     """Test infer_all_params with single backbone."""
     from aminx.potts.poe import PoeModel
@@ -402,6 +410,8 @@ class TestPoeModelInferAllParams:
     # but we'll check the method exists and has correct signature
     assert hasattr(model, "infer_all_params")
 
+  @pytest.mark.slow
+  @pytest.mark.potts
   def test_infer_all_params_signature(self) -> None:
     """Test that infer_all_params has correct signature."""
     from aminx.potts.poe import PoeModel
@@ -436,6 +446,8 @@ class TestPoeModelInferAllParams:
 class TestPoeModelJointLogProb:
   """Test joint_log_prob: log unnormalized joint probability."""
 
+  @pytest.mark.slow
+  @pytest.mark.potts
   def test_joint_log_prob_single_backbone(self) -> None:
     """Test joint_log_prob with single backbone."""
     from aminx.potts.poe import PoeModel
@@ -467,6 +479,8 @@ class TestPoeModelJointLogProb:
     # With h=0.5 for all: unary = 2.5
     assert jnp.allclose(log_prob, 2.5, atol=1e-5)
 
+  @pytest.mark.slow
+  @pytest.mark.potts
   def test_joint_log_prob_two_backbones_sums(self) -> None:
     """Test joint_log_prob sums log probs from both backbones."""
     from aminx.potts.poe import PoeModel
@@ -506,6 +520,8 @@ class TestPoeModelJointLogProb:
 class TestPoeModelSanityCheck:
   """Test embedded sanity check: PoE invariant."""
 
+  @pytest.mark.slow
+  @pytest.mark.potts
   def test_poe_sanity_check_two_identical_backbones(self) -> None:
     """Test that two identical backbones give joint_energy ≈ 2 * single_energy."""
     from aminx.potts.poe import PoeModel

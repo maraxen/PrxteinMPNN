@@ -18,6 +18,22 @@ _prxteinmpnn_path = Path("/home/marielle/projects/mistypotts/vendor/prxteinmpnn/
 if str(_prxteinmpnn_path) not in sys.path:
   sys.path.insert(0, str(_prxteinmpnn_path))
 
+# These tests validate against the mistypotts reference implementation (exact Potts
+# marginals / TRW), which in turn pulls its vendored prxteinmpnn. mistypotts is an
+# optional local dev checkout, not a packaged dependency; skip the whole module cleanly
+# when the reference symbols aren't importable (e.g. CI, or any install without the
+# sibling checkout). The top-level `mistypotts` package may import while its submodules
+# still fail on the missing prxteinmpnn, so guard on the submodules the tests actually use.
+try:
+  import mistypotts.exact_potts  # noqa: F401
+  import mistypotts.trw  # noqa: F401
+except ImportError:
+  pytest.skip(
+    "mistypotts reference implementation (and its vendored prxteinmpnn) is not "
+    "installed; skipping Potts reference-validation tests.",
+    allow_module_level=True,
+  )
+
 
 @pytest.mark.slow
 @pytest.mark.potts

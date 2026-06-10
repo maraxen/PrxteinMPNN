@@ -110,9 +110,9 @@ def test_potts_alphabet_constant() -> None:
 def test_potts_model_training_guard_fori_raises(rng_key: PRNGKeyArray) -> None:
     """Test that PottsModel raises ValueError with trw_loop=fori and training=True."""
     try:
-        from mistypotts.potts_trw_spec import PottsTRWRunSpec
+        from aminx.potts._trw_spec import PottsTRWRunSpec
     except ImportError:
-        pytest.skip("mistypotts not installed")
+        pytest.skip("aminx not installed")
 
     fori_spec = PottsTRWRunSpec(
         trw_loop="fori",
@@ -138,9 +138,9 @@ def test_potts_model_training_guard_fori_raises(rng_key: PRNGKeyArray) -> None:
 def test_potts_model_training_guard_fori_inference_ok(rng_key: PRNGKeyArray) -> None:
     """Test that PottsModel allows fori loop when training=False (inference)."""
     try:
-        from mistypotts.potts_trw_spec import PottsTRWRunSpec
+        from aminx.potts._trw_spec import PottsTRWRunSpec
     except ImportError:
-        pytest.skip("mistypotts not installed")
+        pytest.skip("aminx not installed")
 
     fori_spec = PottsTRWRunSpec(
         trw_loop="fori",

@@ -110,6 +110,21 @@ def wt_sequence_to_mpnn_targets(wt_seq: str) -> np.ndarray:
     return np.asarray(out, dtype=np.int32)
 
 
+def extract_k_neighbors_from_config(payload: dict) -> int | None:
+    """Read k_neighbors from checkpoint payload dict; returns None if absent.
+
+    Searches in payload['args']['k_neighbors'] then payload['hyper_params']['k_neighbors'].
+    Raises ValueError if neither location contains a value.
+    """
+    k_neighbors = (
+        payload.get('args', {}).get('k_neighbors')
+        or payload.get('hyper_params', {}).get('k_neighbors')
+    )
+    if k_neighbors is None:
+        raise ValueError("k_neighbors not found in checkpoint config (args or hyper_params)")
+    return int(k_neighbors)
+
+
 def load_etab_from_pottsmpnn_checkpoint(
     *,
     checkpoint_path: Path,
@@ -163,15 +178,12 @@ def load_etab_from_pottsmpnn_checkpoint(
 
     # Read k_neighbors from checkpoint if not specified.
     if num_edges is None:
-        num_edges = (
-            payload.get('args', {}).get('k_neighbors')
-            or payload.get('hyper_params', {}).get('k_neighbors')
-        )
-        if num_edges is None:
+        try:
+            num_edges = extract_k_neighbors_from_config(payload)
+            log.info("k_neighbors=%d read from checkpoint config", num_edges)
+        except ValueError:
             num_edges = 48
             log.warning("k_neighbors not found in checkpoint payload; using fallback 48")
-        else:
-            log.info("k_neighbors=%d read from checkpoint config", num_edges)
 
     model = PottsMPNN(
         ca_only=False,

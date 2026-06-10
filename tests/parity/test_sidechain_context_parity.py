@@ -176,8 +176,8 @@ def _logits(*, use_sc: bool, chain_mask: np.ndarray) -> tuple[np.ndarray, np.nda
         mode="score_conditional",
     )
     if use_sc:
-        kw["xyz_37"] = jnp.asarray(s["xyz37"])
-        kw["xyz_37_m"] = jnp.asarray(s["xyz37_m"])
+        kw["atom_37"] = jnp.asarray(s["xyz37"])
+        kw["atom_37_mask"] = jnp.asarray(s["xyz37_m"])
     bundle, config = build_inference_bundle(**kw)
     jax_logits = score_conditional.kernel(
         _load_aminx_model(use_side_chain_context=use_sc),

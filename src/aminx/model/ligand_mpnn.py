@@ -272,8 +272,8 @@ class PrxteinLigandMPNN(eqx.Module):
     y: jax.Array | None = None,
     y_t: jax.Array | None = None,
     y_m: jax.Array | None = None,
-    xyz_37: jax.Array | None = None,
-    xyz_37_m: jax.Array | None = None,
+    atom_37: jax.Array | None = None,
+    atom_37_mask: jax.Array | None = None,
     chain_mask: jax.Array | None = None,
     inference: bool = True,
   ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
@@ -303,10 +303,10 @@ class PrxteinLigandMPNN(eqx.Module):
         Ligand atom type tokens. Shape ``(M, 4)`` or None. Default: None.
     y_m : jax.Array | None
         Ligand atom mask. Shape ``(M, 4)`` or None. Default: None.
-    xyz_37 : jax.Array | None
+    atom_37 : jax.Array | None
         Side-chain atom coordinates (full 37-atom set). Shape ``(L, 37, 3)`` or None.
         Only used when use_side_chains=True. Default: None.
-    xyz_37_m : jax.Array | None
+    atom_37_mask : jax.Array | None
         Side-chain atom validity mask. Shape ``(L, 37)`` or None.
         Only used when use_side_chains=True. Default: None.
     chain_mask : jax.Array | None
@@ -349,8 +349,8 @@ class PrxteinLigandMPNN(eqx.Module):
       ligand_mask=y_m,
       backbone_noise=backbone_noise,
       structure_mapping=structure_mapping,
-      xyz_37=xyz_37,
-      xyz_37_m=xyz_37_m,
+      atom_37=atom_37,
+      atom_37_mask=atom_37_mask,
       chain_mask=chain_mask,
     )
 

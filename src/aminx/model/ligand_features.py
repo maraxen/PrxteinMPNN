@@ -261,8 +261,8 @@ class ProteinFeaturesLigand(eqx.Module):
     backbone_noise: float = 0.0,
     structure_mapping: jnp.ndarray | None = None,
     *,
-    xyz_37: jnp.ndarray | None = None,
-    xyz_37_m: jnp.ndarray | None = None,
+    atom_37: jnp.ndarray | None = None,
+    atom_37_mask: jnp.ndarray | None = None,
     chain_mask: jnp.ndarray | None = None,
   ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     # 0. Noise Application
@@ -351,8 +351,8 @@ class ProteinFeaturesLigand(eqx.Module):
     E = jax.vmap(jax.vmap(self.w_e_proj))(E)
 
     if self.use_side_chains:
-      if xyz_37 is None or xyz_37_m is None:
-        msg = "xyz_37 and xyz_37_m must be provided when use_side_chains=True"
+      if atom_37 is None or atom_37_mask is None:
+        msg = "atom_37 and atom_37_mask must be provided when use_side_chains=True"
         raise ValueError(msg)
 
       chain_mask_in = (
@@ -362,9 +362,9 @@ class ProteinFeaturesLigand(eqx.Module):
       )
 
       e_idx_sub = E_idx[:, :16]
-      xyz_37_m = xyz_37_m * (1.0 - chain_mask_in[:, None])
-      r_m = xyz_37_m[:, 5:][e_idx_sub]
-      r = xyz_37[:, 5:, :][e_idx_sub]
+      atom_37_mask = atom_37_mask * (1.0 - chain_mask_in[:, None])
+      r_m = atom_37_mask[:, 5:][e_idx_sub]
+      r = atom_37[:, 5:, :][e_idx_sub]
       r_t = jnp.broadcast_to(
         SIDE_CHAIN_ATOM_TYPES[None, None, :],
         (mask.shape[0], e_idx_sub.shape[1], SIDE_CHAIN_ATOM_TYPES.shape[0]),

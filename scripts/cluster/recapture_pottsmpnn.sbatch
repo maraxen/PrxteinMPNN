@@ -8,7 +8,7 @@
 #SBATCH --mem=32G
 #SBATCH --partition=short
 
-_PROJ="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+_PROJ="$HOME/projects/aminx"
 _MISTYPOTTS="${_PROJ}/../mistypotts"
 _PDB="${_MISTYPOTTS}/tests/data/pdb/1crn.pdb"
 _CKPT_ROOT="${_MISTYPOTTS}/.tmp/PottsMPNN"

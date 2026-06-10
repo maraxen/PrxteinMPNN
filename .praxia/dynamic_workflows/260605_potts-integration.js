@@ -1,0 +1,271 @@
+// Sprint 1 runner — emitted by `praxia dw emit-sprint`
+// Source: .praxia/sprint_plans/sprint_plan.toml
+// Regenerate: praxia dw emit-sprint sprint_plan.toml
+// task_id: 260605_potts-integration   sprint_id: 1
+//
+// RACE SAFETY (memory: parallel fixers race on git-status scope checks in praxia):
+//   the writing chain (A,B,C,J,M,D,L,E,G,H,F,I,N,K,O) runs STRICTLY SEQUENTIAL —
+//   exactly one fixer touches the working tree at a time.
+
+export const meta = {
+  name: "260605_potts-integration",
+  description: "Integrate mistypotts (Potts MPNN + TRW head) into aminx as the aminx.potts parallel model family. Architecture: Approach A+D — PottsModel(eqx.Module) in aminx.potts, own PottsRunSpec/run-loop/CLI, separate eqx.zst weight files, PoeModel for N-backbone PoE, MpnnPottsDesigner coordinator.",
+  phases: [
+    { title: "Track A — P-00a: Recon — ProteinFeatures shared vs. mistypotts-local copy (#1302)" },
+    { title: "Track B — P-00b: ADR — Potts is a parallel model family, NOT a StageSet consumer (#1303)" },
+    { title: "Track C — P-01: Weight recapture — PottsMPNN .pt to potts_<id>.eqx.zst (bathos-tracked) (#1291)" },
+    { title: "Track J — P-02: caliby corrections — caliby_<id>.eqx.zst scaffold (#1298)" },
+    { title: "Track M — P-00c: Import boundary guardrail — ast-grep lint rule (#1304)" },
+    { title: "Track D — P-03: aminx.potts.model — PottsModel(eqx.Module) with DifferentiableTRW internal (#1292)" },
+    { title: "Track L — P-10: alphabet alignment decision (#1300)" },
+    { title: "Track E — P-04: aminx.potts.spec — PottsRunSpec frozen dataclass (#1293)" },
+    { title: "Track G — P-06: aminx.potts.sampling — Gibbs + parallel tempering as pure JAX functions (#1295)" },
+    { title: "Track H — P-05: aminx.potts.poe — PoeModel(eqx.Module) for N-backbone PoE (#1296)" },
+    { title: "Track F — P-09: Tests — TRW marginals vs brute-force + x2 scale ground-truth (#1294)" },
+    { title: "Track I — P-07: spec emit-* CLI for PottsRunSpec (aminx spec emit-potts) (#1297)" },
+    { title: "Track N — P-00d: PoE energy sanity check — BATHOS measurement pipeline verification (#1305)" },
+    { title: "Track K — P-08: aminx.potts run loop — end-to-end inference (#1299)" },
+    { title: "Track O — P-11: MpnnPottsDesigner(eqx.Module) — MPNN-guided Potts coordinator (#1301)" },
+  ],
+};
+
+const TASK_ID = "260605_potts-integration";
+const MAX_FIX_RETRIES = 1;
+
+function extractVerdict(text) {
+  const m = String(text ?? "").match(/verdict:\s*([a-z_]+)/i);
+  return m ? m[1].toLowerCase() : "advance";
+}
+
+const VERDICT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["item_id", "verdict", "summary"],
+  properties: {
+    item_id: { type: "string" },
+    verdict: { type: "string", enum: ["PASS", "NEEDS_WORK", "FAIL"] },
+    summary: { type: "string" },
+    issues: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["where", "problem", "fix"],
+        properties: {
+          where: { type: "string" },
+          problem: { type: "string" },
+          fix: { type: "string" },
+        },
+      },
+    },
+  },
+};
+
+// Shared context for the writing tracks (from recon, task 260605_potts-integration).
+const EMITTER_CTX = `task_id: 260605_multistate-potts | worktree: /home/marielle/projects/aminx/.claude/worktrees/multistate-potts | mistypotts: /home/marielle/projects/mistypotts | ARCH (LOCKED): PottsModel is PARALLEL, NOT StageSet consumer. aminx.potts.{model,poe,sampling} must NOT import aminx.inference.decode/host.plan/types.stages/inference.logits. Only aminx.potts.designer exempt. | RISKS: (1) alphabet idx20 collision X vs gap — static alphabet_map in designer; (2) x2 h/J scale directed-slot convention — synthetic check; (3) k baked into checkpoint — read-only from metadata; (4) fori OOM in training — enforce scan+checkpoint at spec construction; (5) caliby_path=None is identity default; (6) method names infer_params/sample/score not encode/decode | !!HARD RULE — NO COMPUTE TESTING!!: You MUST NOT run any command that executes JAX computations, loads model weights, runs neural network forward passes, or calls infer_params/gibbs_sweep/__call__ on any model. This session cannot survive JAX startup + compilation. Allowed verification commands: (a) uv run ruff check <file>, (b) uv run ty check <file>, (c) uv run pytest <test_file> --collect-only (never -x or without --collect-only on potts tests), (d) uv run <script>.py --dry-run only, (e) uv run <script>.py --help, (f) uv run python -c 'from aminx.potts.X import Y' bare import check only — NO function calls inside the -c string that invoke JAX. Any sanity/numerical verification scripts must have a --dry-run flag that skips all computation and just validates argument parsing and imports.`;
+
+// ---- per-track stage helpers ---------------------------------------------
+const fixer = (prompt, label, phaseName) =>
+  agent(`${prompt}\n\nWhen done, end your message with 'verdict: done' on its own line.`, {
+    agentType: "fixer",
+    label,
+    phase: phaseName,
+  });
+
+const reviewer = (itemId, prompt, label, phaseName) =>
+  agent(prompt, { agentType: "reviewer", label, phase: phaseName, schema: VERDICT_SCHEMA });
+
+// Sequential implement->review with bounded NEEDS_WORK repair cycles.
+async function track(itemId, phaseName, fixerPrompt, reviewerPrompt) {
+  log(`[${itemId}] implement`);
+  await fixer(fixerPrompt, `fix:${itemId}`, phaseName);
+  let verdict = await reviewer(itemId, reviewerPrompt, `review:${itemId}`, phaseName);
+  for (let retry = 0; retry < MAX_FIX_RETRIES && verdict && verdict.verdict === "NEEDS_WORK"; retry++) {
+    log(`[${itemId}] NEEDS_WORK — repair cycle ${retry + 1}/${MAX_FIX_RETRIES}`);
+    const issues = (verdict.issues || [])
+      .map((i) => `- ${i.where}: ${i.problem} -> ${i.fix}`)
+      .join("\n");
+    await fixer(
+      `${fixerPrompt}\n\nA reviewer found issues — fix exactly these, nothing else:\n${issues}`,
+      `fix:${itemId}:repair:${retry}`,
+      phaseName
+    );
+    verdict = await reviewer(itemId, reviewerPrompt, `review:${itemId}:re:${retry}`, phaseName);
+  }
+  return verdict;
+}
+
+// ===== TRACK A — Track A — P-00a: Recon — ProteinFeatures shared vs. mistypotts-local copy (#1302) =========================
+const trackA = () =>
+  track(
+    "1302",
+    "Track A — P-00a: Recon — ProteinFeatures shared vs. mistypotts-local copy (#1302)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | RESEARCH — decision record, no code changes. (1) Read src/aminx/model/features.py in full. (2) grep -r 'ProteinFeatures' /home/marielle/projects/mistypotts/src/ to find import source (NOTE: mistypotts imports from prxteinmpnn, not aminx — \`structure_potts.py:9\`); read the implementation in prxteinmpnn. (3) Three-way comparison: aminx.model.features vs prxteinmpnn.model.features vs vendored-in-mistypotts — identical, diverged, or independent? (4) Write .praxia/docs/decisions/260605_protein-features-shared-or-local.md with: Finding (file:line evidence from all three), Recommendation: (a) import aminx.model.features if same as aminx, (b) import prxteinmpnn.model.features if that is the live dep and is installable, (c) vendor a local copy if diverged or prxteinmpnn is not a stable dep, (d) extract shared leaf if warranted, Rationale. Boundary rule: may import aminx.model.features; must NOT import aminx.inference.decode/host.plan/types.stages/inference.logits.\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify .praxia/docs/decisions/260605_protein-features-shared-or-local.md: (1) Clear Finding with file:line evidence from all three sources (aminx, prxteinmpnn, mistypotts); (2) Concrete Recommendation covering all three options: (a) aminx import, (b) prxteinmpnn import (with rationale if live dep), (c) vendor copy; (3) Consistent with boundary rule; (4) If same as aminx: states import from aminx.model.features; (5) If live dep is prxteinmpnn: states option (b) and names prxteinmpnn as the import; (6) If diverged/unstable: states vendor copy. PASS if all 6 met with actual three-source evidence.`,
+  );
+
+// ===== TRACK B — Track B — P-00b: ADR — Potts is a parallel model family, NOT a StageSet consumer (#1303) =========================
+const trackB = () =>
+  track(
+    "1303",
+    "Track B — P-00b: ADR — Potts is a parallel model family, NOT a StageSet consumer (#1303)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | RESEARCH — write ADR at .praxia/docs/decisions/260605_potts-parallel-not-stageset.md. Sections: ## Status: Accepted 2026-06-05 ## Context: integration of PottsTRWStructureModel into aminx.potts.PottsModel ## Decision: parallel model family, NOT StageSet consumer ## Rejected Alternatives: Option II (decode_step adapter) — decode_step receives (node_f,edge_f,nei,mask)->logits(L,V); Potts needs raw coords -> (marginals,h,J,rho); currency AND phase mismatch (TRW is one-shot global, not per-position autoregressive scan). Option III (EncoderOutput widening) — EncoderOutput bundles.py:359 is load-bearing stack-wide. Option IV (ProductOfProbabilities for PoE) — operates on (S,L,V) logit currency; Potts J tensor (N,N,20,20) has no representation there. ## Enforcement: aminx.potts.{model,poe,sampling} forbidden from aminx.inference.decode/host.plan/types.stages/inference.logits; only designer exempt; enforced by #1304. Both model.py and designer.py must reference this ADR in module docstrings.\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify .praxia/docs/decisions/260605_potts-parallel-not-stageset.md: (1) All sections present; (2) Option II cites currency mismatch AND phase mismatch; (3) Option III cites EncoderOutput (bundles.py:359) blast radius; (4) Option IV cites J tensor (N,N,20,20) not in (S,L,V) currency; (5) Enforcement names exact forbidden imports and #1304, exempts designer. PASS if all 5 precise.`,
+  );
+
+// ===== TRACK C — Track C — P-01: Weight recapture — PottsMPNN .pt to potts_<id>.eqx.zst (bathos-tracked) (#1291) =========================
+const trackC = () =>
+  track(
+    "1291",
+    "Track C — P-01: Weight recapture — PottsMPNN .pt to potts_<id>.eqx.zst (bathos-tracked) (#1291)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | Port /home/marielle/projects/mistypotts/src/mistypotts/pottsmpnn_ckpt_export.py:65-249. Reuse (no fork) src/aminx/io/weights.py:102-148 for eqx.zst save. Create scripts/recapture/pottsmpnn_to_eqx.py: argparse+logging, --checkpoint/--pdb/--out/--dry-run/--sanity flags; import torch inside function; call etab_to_dense_h_j_w and PRESERVE x2 scale with comment 'x2 scale: directed-slot PottsMPNN convention; see ADR 260605_potts-parallel-not-stageset'; write k_neighbors to checkpoint metadata FROM LOADED MODEL CONFIG (not CLI args — k is baked in); save via equinox.tree_serialise_leaves+zstandard. Add --sanity flag: ONLY when --sanity is explicitly passed, run the synthetic 2-residue check (hand-crafted h,J with known log_unnormalized, assert saved values match within 1e-6). Default run (no --sanity) MUST NOT execute any JAX computation whatsoever. Create scripts/recapture/pottsmpnn_to_eqx.bth.toml (bathos sidecar: run_id, script, description, hypotheses).\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify: (1) argparse+logging+--dry-run+--sanity; (2) torch imported inside function; (3) x2 scale comment citing convention; (4) k_neighbors from loaded model config, NOT CLI args; (5) saves via equinox.tree_serialise_leaves+zstandard, no fork of weights.py; (6) 2-residue synthetic check code exists AND is gated behind --sanity flag (static code inspection only — do NOT run the script with --sanity); (7) bathos sidecar valid schema; (8) uv run python scripts/recapture/pottsmpnn_to_eqx.py --dry-run --out /dev/null exits 0. PASS if all 8 met.`,
+  );
+
+// ===== TRACK J — Track J — P-02: caliby corrections — caliby_<id>.eqx.zst scaffold (#1298) =========================
+const trackJ = () =>
+  track(
+    "1298",
+    "Track J — P-02: caliby corrections — caliby_<id>.eqx.zst scaffold (#1298)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | RESEARCH + SCAFFOLD — investigate caliby, design CalibrationModule, scaffold recapture script. Step 1: grep -r 'caliby' /home/marielle/projects/mistypotts/ to find what caliby is (learned eqx.Module? input/output signature? dataset location?). Step 2: Create src/aminx/potts/calibration.py — CalibrationModule protocol/ABC with __call__(marginals:Float[Array,'N num_aa'])->Float[Array,'N num_aa']; IdentityCalibration(eqx.Module) returns marginals unchanged; LearnedCalibration(eqx.Module) applies learned correction. Both compile under eqx.filter_jit; NO Python None-branch inside jit; select at load time not runtime. Step 3: Scaffold scripts/recapture/caliby_recapture.py (argparse+--dry-run, raises NotImplementedError if dataset absent). Step 4: Write .praxia/docs/research/260605_caliby-nature-and-dataset.md documenting what caliby is, dataset location, and cluster gates (L1/L2/L3 from CLUSTER.md if cluster-only).\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify: (1) src/aminx/potts/calibration.py with IdentityCalibration+LearnedCalibration, identical __call__ signatures; (2) IdentityCalibration returns marginals unchanged; (3) no runtime isinstance/None branch inside jit scope (type selected at load time); (4) scaffold script with --dry-run and dataset-absent guard; (5) research note documents caliby nature and dataset location; (6) uv run python scripts/recapture/caliby_recapture.py --dry-run exits 0. PASS if all 6 met.`,
+  );
+
+// ===== TRACK M — Track M — P-00c: Import boundary guardrail — ast-grep lint rule (#1304) =========================
+const trackM = () =>
+  track(
+    "1304",
+    "Track M — P-00c: Import boundary guardrail — ast-grep lint rule (#1304)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | Requires B(1303) ADR complete. Two tasks: (1) Register pytest markers in pyproject.toml: add to the [tool.pytest.ini_options] markers list — 'potts: marks aminx.potts module tests', 'potts_slow: alias for potts+slow combined (deselect with slow)'. The existing addopts line already reads -m 'not parity_heavy and not slow' so @pytest.mark.slow on any potts test is automatically excluded from default runs. (2) Mechanically enforce import boundary. Forbidden in aminx.potts.{model,poe,sampling}: aminx.inference.decode, aminx.host.plan, aminx.types.stages, aminx.inference.logits. aminx.potts.designer is EXEMPT. Implement Option A (ruff banned-api if supported in pyproject.toml), Option B (.ast-grep/rules/potts-import-boundary.yml if ast-grep available), and ALWAYS Option C: create tests/potts/test_import_boundaries.py — import ast,pathlib; FORBIDDEN=['aminx.inference.decode','aminx.host.plan','aminx.types.stages','aminx.inference.logits']; GUARDED=['src/aminx/potts/model.py','src/aminx/potts/poe.py','src/aminx/potts/sampling.py']; EXEMPT=['src/aminx/potts/designer.py']; for each guarded file: parse AST, assert no import from FORBIDDEN with message citing ADR. test_import_boundaries.py is @pytest.mark.potts only (NOT slow — AST parsing, no JAX). Wire into pytest: uv run pytest tests/potts/test_import_boundaries.py -x.\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify: (1) pyproject.toml [tool.pytest.ini_options] markers list now includes 'potts: marks aminx.potts module tests'; (2) at least one enforcement mechanism (ruff/ast-grep/import-test); (3) forbidden list covers all 4 modules; (4) designer.py explicitly EXCLUDED from guard; (5) uv run pytest tests/potts/test_import_boundaries.py -x passes on clean source (fast — AST only); (6) uv run pytest tests/potts/test_import_boundaries.py --collect-only -m 'not slow' shows the test collected (confirming it is NOT marked slow). PASS if all 6 met. FAIL if designer exemption missing or potts marker not registered.`,
+  );
+
+// ===== TRACK D — Track D — P-03: aminx.potts.model — PottsModel(eqx.Module) with DifferentiableTRW internal (#1292) =========================
+const trackD = () =>
+  track(
+    "1292",
+    "Track D — P-03: aminx.potts.model — PottsModel(eqx.Module) with DifferentiableTRW internal (#1292)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | Source: /home/marielle/projects/mistypotts/src/mistypotts/structure_potts.py:37-163 (PottsTRWStructureModel), trw.py:135-248 (DifferentiableTRW), potts_trw_spec.py:14-78 (PottsTRWRunSpec). Create src/aminx/potts/__init__.py and src/aminx/potts/model.py. PottsModel(eqx.Module) requirements: static fields (hidden_dim, num_aa, k_neighbors all eqx.field(static=True)); k_neighbors metadata source=checkpoint (never from user); DifferentiableTRW with all 3 rho backends + 2 loop backends via PottsTRWRunSpec; __call__(key, coords Float[Array,'N 37 3'], mask, residue_index, chain_index, aux_node_features=None) -> (marginals(N,num_aa), h(N,num_aa), J(N,N,num_aa,num_aa), rho(N,N)); infer_params method (NOT named encode()) returning PottsParams namedtuple(marginals,h,J,rho,W); log_prob(seq,h,J,W,mask)->scalar pure function (no TRW re-run); module comment 'h and J carry factor-of-2 from directed-slot PottsMPNN convention; see ADR 260605_potts-parallel-not-stageset'; POTTS_ALPHABET constant (q=21 ordering); training guard in DifferentiableTRW (trw_loop=fori + training=True -> ValueError naming OOM risk). HARD BOUNDARY: NO imports from aminx.inference.decode/host.plan/types.stages/inference.logits. Module docstring references ADR.\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify src/aminx/potts/model.py: (1) static fields with eqx.field(static=True); (2) DifferentiableTRW with all 3 rho backends + 2 loop backends; (3) __call__ returns correct shapes; (4) infer_params NOT named encode(); (5) log_prob pure (no TRW re-run); (6) x2 comment referencing ADR; (7) POTTS_ALPHABET constant; (8) training guard raises ValueError for fori+training=True; (9) NO forbidden imports; (10) module docstring references ADR; (11) uv run ty check src/aminx/potts/model.py exits 0. PASS if all 11 met.`,
+  );
+
+// ===== TRACK L — Track L — P-10: alphabet alignment decision (#1300) =========================
+const trackL = () =>
+  track(
+    "1300",
+    "Track L — P-10: alphabet alignment decision (#1300)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | RESEARCH — decision record + array literal. Oracle correction: aminx is q=21, Potts is q=21; risk is semantic collision at idx20 (X vs gap). Step 1: grep -r 'ALPHABET|vocab|aa_order|amino' /home/marielle/projects/mistypotts/src/mistypotts/ and vendor/ to find Potts amino acid ordering. Step 2: Compare with aminx MPNN_ALPHABET='ACDEFGHIKLMNPQRSTVWYX' (aa_convert.py:16; idx0=A...idx19=Y,idx20=X). Step 3: Write .praxia/docs/decisions/260605_potts-alphabet-alignment.md with: (a) full comparison table index 0-20 (aminx char | potts char | match); (b) whether 0-19 match (identity permutation) or not; (c) what potts idx20 is and recommended treatment (X vs gap in MpnnPottsDesigner); (d) concrete POTTS_TO_MPNN_ALPHABET_MAP=jnp.array([...]) literal (length-21 permutation); (e) if any mismatch in 0-19: flag as P1 risk, 'do not proceed to P-11 until resolved'. Step 4: Add POTTS_ALPHABET constant to src/aminx/potts/model.py.\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify .praxia/docs/decisions/260605_potts-alphabet-alignment.md: (1) complete comparison table 0-20 with ACTUAL characters (not speculative); (2) explicit statement on whether 0-19 match; (3) states potts idx20 and recommended treatment; (4) concrete POTTS_TO_MPNN_ALPHABET_MAP jnp.array literal; (5) if mismatch in 0-19: P1 risk flag with 'do not proceed to P-11'; (6) POTTS_ALPHABET constant in aminx.potts source. PASS if all 6 with actual character comparison. FAIL if table empty.`,
+  );
+
+// ===== TRACK E — Track E — P-04: aminx.potts.spec — PottsRunSpec frozen dataclass (#1293) =========================
+const trackE = () =>
+  track(
+    "1293",
+    "Track E — P-04: aminx.potts.spec — PottsRunSpec frozen dataclass (#1293)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | Source: /home/marielle/projects/mistypotts/src/mistypotts/potts_trw_spec.py:14-78 (adapt, don't copy). Create src/aminx/potts/spec.py. PottsRunSpec @dataclass(frozen=True) NOT eqx.Module. Fields: n_backbones:int=1, weights_path:str='', caliby_path:str|None=None (VALID as None — never raise on None; identity default), trw_spec:PottsTRWRunSpec=default_dense(), k_neighbors:int (no default; from checkpoint), training:bool=False. __post_init__ guards: (1) training=True + trw_spec.trw_loop=='fori' -> ValueError('trw_loop=fori is unsafe for training: materialises all TRW intermediate states under reverse-mode autodiff causing OOM. Use trw_loop=scan with checkpoint_trw_step=True.'); (2) n_backbones<1 -> ValueError; (3) caliby_path=None is VALID. to_json()->str and from_json(s)->PottsRunSpec round-trip. Classmethods: inference_default(weights_path,k_neighbors), training_default(...). PottsTRWRunSpec importable from this module.\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify src/aminx/potts/spec.py: (1) @dataclass(frozen=True) NOT eqx.Module; (2) caliby_path=None valid, no exception; (3) fori+training=True raises ValueError with OOM message; (4) n_backbones<1 raises ValueError; (5) from_json(spec.to_json())==spec; (6) no JAX arrays in any field; (7) PottsTRWRunSpec importable from module; (8) uv run python -c 'from aminx.potts.spec import PottsRunSpec; s=PottsRunSpec(n_backbones=1,weights_path="x",k_neighbors=6); print(s.to_json())' exits 0. PASS if all 8 met.`,
+  );
+
+// ===== TRACK G — Track G — P-06: aminx.potts.sampling — Gibbs + parallel tempering as pure JAX functions (#1295) =========================
+const trackG = () =>
+  track(
+    "1295",
+    "Track G — P-06: aminx.potts.sampling — Gibbs + parallel tempering as pure JAX functions (#1295)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | Sources: potts_gibbs.py:87-116 (gibbs_sweep), 195-235 (parallel_tempering_round), 294-323 (gibbs_empirical_row_marginals). Create src/aminx/potts/sampling.py. Module-level functions (not methods): gibbs_sweep(key,seq,h,J,W,mask,site_order=None,neighbor_scale=1.0,inverse_temp=1.0)->(seq,key); parallel_tempering_round(key,seqs,betas,h,J,W,mask)->(seqs,key,accept_rates) where seqs:(n_replicas,N), n_replicas STATIC from shape (no Python branch on count); gibbs_empirical_marginals(key,h,J,W,mask,num_chains,num_sweeps,num_aa)->(N,num_aa). CRITICAL: no Python-side conditionals on array values inside jit scope. These do NOT wire into StageSet.sample_step (that slot is (logits,key)->tokens; Potts sampling is full-chain Potts energy). HARD BOUNDARY: no imports from aminx.inference.*/aminx.host.*/aminx.types.stages.\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify src/aminx/potts/sampling.py: (1) three functions as module-level; (2) no Python-side conditionals on array values inside jit; (3) parallel_tempering n_replicas from static shape; (4) no imports from aminx.inference.*/host.*/types.stages; (5) uv run python -c 'from aminx.potts.sampling import gibbs_sweep, parallel_tempering_round, gibbs_empirical_marginals; print("imports ok")' exits 0 (bare import check — NO jax.jit() or any other JAX calls in the -c string); (6) uv run ruff check src/aminx/potts/sampling.py exits 0. PASS if all 6 met.`,
+  );
+
+// ===== TRACK H — Track H — P-05: aminx.potts.poe — PoeModel(eqx.Module) for N-backbone PoE (#1296) =========================
+const trackH = () =>
+  track(
+    "1296",
+    "Track H — P-05: aminx.potts.poe — PoeModel(eqx.Module) for N-backbone PoE (#1296)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | Source: /home/marielle/projects/mistypotts/src/mistypotts/poe_energy.py:41-69 (two-backbone joint_energy — extend to N). Create src/aminx/potts/poe.py. PoeModel(eqx.Module): backbones:tuple[PottsModel,...], n_backbones:int=eqx.field(static=True). Constructor invariant: assert all backbones share identical static config (hidden_dim,num_aa,k_neighbors,trw_spec); raise ValueError if not. joint_energy(seq,params_list)->scalar: E_total=sum_b[potts_log_unnormalized(h_b,J_b,W_b,seq,mask)] — do NOT add extra x2 factor (already in h,J from recapture). infer_all_params(key,coords_stack:(B,N,37,3),mask,residue_index,chain_index)->list[PottsParams]: use eqx.filter_vmap over stacked backbone pytree. joint_log_prob(seq,params_list)->scalar. Do NOT use ProductOfProbabilities from aminx.inference.logits — wrong currency. HARD BOUNDARY: no imports from aminx.inference.*/host.*/types.stages/inference.logits. Do NOT embed any executable PoE sanity code in poe.py itself — the sanity check lives in scripts/validate/poe_energy_sanity.py (Track N). Instead add a module-level docstring comment: 'Invariant: PoeModel with n identical backbones should give joint_energy approx n*single_energy (verified in scripts/validate/poe_energy_sanity.py).'.\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify src/aminx/potts/poe.py: (1) n_backbones eqx.field(static=True); (2) constructor raises ValueError on heterogeneous configs; (3) joint_energy sums N energies, no extra x2 introduced; (4) infer_all_params uses eqx.filter_vmap not Python for-loop inside jit; (5) no imports from aminx.inference.logits/ProductOfProbabilities; (6) module docstring/comment mentions identity-backbone invariant and references scripts/validate/poe_energy_sanity.py (do NOT run the sanity script — static check only); (7) uv run ty check src/aminx/potts/poe.py exits 0. PASS if all 7 met.`,
+  );
+
+// ===== TRACK F — Track F — P-09: Tests — TRW marginals vs brute-force + x2 scale ground-truth (#1294) =========================
+const trackF = () =>
+  track(
+    "1294",
+    "Track F — P-09: Tests — TRW marginals vs brute-force + x2 scale ground-truth (#1294)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | Source: /home/marielle/projects/mistypotts/src/mistypotts/exact_potts.py:98-118 (exact_marginals_bruteforce), potts_gibbs.py:12-50 (potts_log_unnormalized). Create tests/potts/test_potts_correctness.py. MARKER RULES (CRITICAL): pyproject.toml addopts already excludes 'slow' from default runs; all JAX-computation tests MUST be @pytest.mark.slow so they are never triggered by bare 'uv run pytest'. Group 1 — TRW vs bruteforce: @pytest.mark.slow @pytest.mark.potts @pytest.mark.parametrize('n',[4,6,8]) def test_trw_marginals_vs_exact(n): IMPORTANT — use num_aa=4 (not 20) so exact_marginals_bruteforce stays tractable (4^8=65536 states); build PottsModel with num_aa=4; run infer_params on random coords; run exact_marginals_bruteforce(h,J,W); assert jnp.max(jnp.abs(trw_marginals-exact_marginals))<0.05. Do NOT use n=10 or n=12 with num_aa=4 (4^12=16M — still slow); cap at n=8. Group 2 — x2 scale synthetic: @pytest.mark.potts (NOT slow — pure numpy/python, no JAX forward pass) def test_x2_scale_factor_two_residue(): construct known h(2,20),J(2,2,20,20) by hand using numpy; compute all 400 log_unnormalized analytically with jnp.logsumexp; for fixed seq assert PottsModel.log_prob(seq,h,J,W,mask) matches expected within 1e-5. This test uses JAX but only on 2 residues — acceptable, mark potts only. Group 3 — alphabet: @pytest.mark.potts (NOT slow — no JAX computation, pure string comparison) def test_potts_vs_mpnn_alphabet_ordering(): import MPNN_ALPHABET from aminx.utils.aa_convert; import POTTS_ALPHABET from aminx.potts.model; assert MPNN_ALPHABET[:20]==POTTS_ALPHABET[:20] else fail with diff table. Summary: Group 1 is @pytest.mark.slow AND @pytest.mark.potts; Groups 2+3 are @pytest.mark.potts only. Default 'uv run pytest' must NOT run Group 1.\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify tests/potts/test_potts_correctness.py: (1) Three groups present (TRW parametrized, x2 synthetic, alphabet); (2) Group 1 has BOTH @pytest.mark.slow AND @pytest.mark.potts; (3) Group 1 uses num_aa=4 and n=[4,6,8] — NOT num_aa=20, NOT n>=10; (4) Groups 2+3 have @pytest.mark.potts but NOT @pytest.mark.slow; (5) x2 test constructs h,J analytically, asserts 1e-5; (6) alphabet test fails with diff table if mismatch; (7) uv run pytest tests/potts/test_potts_correctness.py --collect-only -m 'not slow' exits 0 and shows Groups 2+3 only (2 tests); (8) uv run pytest tests/potts/test_potts_correctness.py --collect-only -m 'potts and slow' exits 0 and shows Group 1 (3 tests). PASS if all 8 met. FAIL if Group 1 missing @pytest.mark.slow or uses num_aa=20.`,
+  );
+
+// ===== TRACK I — Track I — P-07: spec emit-* CLI for PottsRunSpec (aminx spec emit-potts) (#1297) =========================
+const trackI = () =>
+  track(
+    "1297",
+    "Track I — P-07: spec emit-* CLI for PottsRunSpec (aminx spec emit-potts) (#1297)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | Find existing spec emit-* pattern: read src/aminx/cli.py lines 29-48 (app.add_typer pattern) and lines 689-785 (_emit_spec_json, spec_app, parent-callback model). Follow EXACT same pattern. Steps: (1) Create a potts_app = typer.Typer(...) in src/aminx/potts/cli.py; (2) Register with app.add_typer(potts_app, name='potts') in src/aminx/cli.py at lines 34-48 (same block as other sub-apps — DO NOT edit pyproject.toml, the 'aminx = aminx.cli:main' entry point is unchanged); (3) Add @spec_app.command('emit-potts') (or @potts_app.command('emit') depending on aminx CLI nesting structure) with: --out Path (required), --weights-path str (required), --n-backbones int (default 1), --caliby-path Optional[str] (default None — VALID), --k-neighbors int (required), --trw-backend str (default 'dense_pinv'), --trw-iters int (default 10). Validation: weights_path must be existing file (raise if not); caliby_path=None is VALID. Emit via _emit_spec_json(PottsRunSpec(...), compact, out) following exact pattern at cli.py:693+. Round-trip: PottsRunSpec.from_json(out.read_text()) must equal original spec.\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify: (1) aminx spec emit-potts --help (or aminx potts emit --help) exits 0, shows caliby-path as optional; (2) --weights-path /nonexistent exits non-zero with clear error; (3) --weights-path <existing> --k-neighbors 6 --out /tmp/test.json exits 0; (4) written JSON round-trips; (5) caliby-path omitted -> caliby_path null in JSON; (6) pyproject.toml NOT modified (entry point unchanged, subcommand registered via app.add_typer in cli.py); (7) ruff check on modified CLI file exits 0. PASS if all 7 met.`,
+  );
+
+// ===== TRACK N — Track N — P-00d: PoE energy sanity check — BATHOS measurement pipeline verification (#1305) =========================
+const trackN = () =>
+  track(
+    "1305",
+    "Track N — P-00d: PoE energy sanity check — BATHOS measurement pipeline verification (#1305)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | BATHOS rule: tracked script, not inline snippet. Create scripts/validate/poe_energy_sanity.py: argparse (--n-residues default 6, --num-aa default 20, --seed default 0, --out default /dev/null, --dry-run: skip ALL JAX computation and just validate args+imports then exit 0), logging. When NOT --dry-run: Construct random PottsModel (tiny n=6,num_aa=20,hidden_dim=16); run infer_params on random coords->PottsParams(h,J,W); fixed seq=jnp.zeros(6,dtype=int). ASSERTION 1: PoeModel(n_backbones=2,identical backbones).joint_energy(seq,[params,params]) - 2*potts_log_unnormalized(h,J,W,seq,mask) < 1e-5. ASSERTION 2: given h_raw,J_raw (before x2), verify potts_log_unnormalized(2*h_raw,2*J_raw,W,seq,mask) matches expected within 1e-6. Log pass/fail with exact values; exit 0 on pass, exit 1 on failure. If PoeModel not yet implemented: exit with NotImplementedError (not crash). When --dry-run: print 'dry-run: args OK' and exit 0 immediately without importing JAX or running any computation. Create scripts/validate/poe_energy_sanity.bth.toml (bathos sidecar with run_id,script,description,hypotheses).\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify: (1) both .py and .bth.toml exist; (2) Assertion 1 code present: joint_energy≈2*single_energy tolerance 1e-5; (3) Assertion 2 code present: x2 scale explicitly verified; (4) bathos sidecar valid schema; (5) uv run python scripts/validate/poe_energy_sanity.py --dry-run exits 0 (--dry-run skips ALL JAX computation — NEVER run without --dry-run to verify); (6) proper .py with argparse+--dry-run flag, not heredoc. PASS if all 6 met.`,
+  );
+
+// ===== TRACK K — Track K — P-08: aminx.potts run loop — end-to-end inference (#1299) =========================
+const trackK = () =>
+  track(
+    "1299",
+    "Track K — P-08: aminx.potts run loop — end-to-end inference (#1299)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | Requires D(1292),E(1293),G(1295),H(1296),I(1297),C(1291) complete. Create src/aminx/potts/runner.py: def run_potts(spec:PottsRunSpec, geometry:GeometryBundle, key, config=None)->PottsResult. Steps: (1) load PottsModel via aminx.io.weights machinery from spec.weights_path; (2) load CalibrationModule (IdentityCalibration if caliby_path=None); (3) extract (coords,mask,residue_index,chain_index) FROM geometry via GeometryBundle's existing accessor pattern (read src/aminx/types/bundles.py to find the accessor — do NOT hardcode field names); (4) model.infer_params(key,coords,mask,residue_index,chain_index)->PottsParams; (5) calibrated_marginals=calibration(params.marginals); (6) if n_backbones>1 use PoeModel; (7) return PottsResult(marginals,h,J,rho,calibrated_marginals). Method names: infer_params/sample/score NOT encode/decode. PottsResult: dataclass not eqx.Module. Register aminx potts run via app.add_typer in src/aminx/cli.py (DO NOT modify pyproject.toml). Smoke test at tests/potts/test_runner_smoke.py: MUST be @pytest.mark.slow AND @pytest.mark.potts (it runs a JAX forward pass); use tiny synthetic PottsModel (n=3 residues, num_aa=4, hidden_dim=8) constructed directly via eqx.tree_at or random init — do NOT require real weight files; verify geometry->coords extraction path and infer_params call complete without error. NO imports from aminx.inference.decode/host.plan/types.stages.\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify: (1) run_potts signature (spec,geometry:GeometryBundle,key,config)->PottsResult; (2) method names infer_params/sample/score, NOT encode/decode; (3) caliby_path=None loads IdentityCalibration, no crash, no None-branch inside jit; (4) PottsResult is dataclass with marginals,h,J,rho,calibrated_marginals; (5) aminx potts run --help exits 0; (6) tests/potts/test_runner_smoke.py has BOTH @pytest.mark.slow AND @pytest.mark.potts; (7) uv run pytest tests/potts/test_runner_smoke.py --collect-only -m 'potts and slow' exits 0 (test collected but NOT run); (8) no forbidden imports; (9) pyproject.toml NOT modified. PASS if all 9 met. FAIL if smoke test missing @pytest.mark.slow.`,
+  );
+
+// ===== TRACK O — Track O — P-11: MpnnPottsDesigner(eqx.Module) — MPNN-guided Potts coordinator (#1301) =========================
+const trackO = () =>
+  track(
+    "1301",
+    "Track O — P-11: MpnnPottsDesigner(eqx.Module) — MPNN-guided Potts coordinator (#1301)",
+    `task_id: ${TASK_ID}. task_id: 260605_multistate-potts | Requires D(1292),G(1295),L(1300) complete. DO NOT BEGIN until P-10 alphabet decision is resolved — use the POTTS_TO_MPNN_ALPHABET_MAP literal from that decision. Create src/aminx/potts/designer.py (ONLY file permitted to import from aminx inference surface). MpnnPottsDesigner(eqx.Module): mpnn:Aminx, potts:PottsModel, alphabet_map:Int[Array,'21'] (JAX array, static=False), seed_mode:Literal['unconditional','order_averaged']=eqx.field(static=True). __post_init__: assert len(alphabet_map)==21; warn loudly if any index 0-19 is non-identity. run_design(key,coords,mask,residue_index,chain_index,n_gibbs_sweeps=100)->DesignResult: (1) MPNN unconditional scoring -> per-position logits(L,21) — DEFAULT seed_mode='unconditional', no AR order bias; (2) apply alphabet_map: potts_logits=logits[:,alphabet_map] (gather, not Python loop); (3) initial seq from argmax or Gumbel; (4) infer_params->PottsParams; (5) gibbs_sweep for n_gibbs_sweeps; (6) return DesignResult(mpnn_logits,potts_marginals,gibbs_seq,sequence). DesignResult: dataclass. Module docstring: references ADR 260605_potts-parallel-not-stageset.md, notes this is single sanctioned coupling point.\n\n${EMITTER_CTX}`,
+    `task_id: ${TASK_ID}. Verify src/aminx/potts/designer.py: (1) fields: mpnn,potts,alphabet_map(JAX array),seed_mode(static Literal); (2) run_design uses UNCONDITIONAL logits by default; (3) alphabet_map applied as logits[:,alphabet_map] gather (not Python loop); (4) module docstring references ADR and notes sanctioned coupling; (5) __post_init__ asserts len==21 and warns on non-identity; (6) uv run ty check exits 0; (7) tests/potts/test_designer_smoke.py exists and is marked @pytest.mark.slow AND @pytest.mark.potts; (8) uv run pytest tests/potts/test_designer_smoke.py --collect-only -m 'potts and slow' exits 0 (collected but NOT run). PASS if all 8 met. FAIL if AR by default, assertion absent, or smoke test missing @pytest.mark.slow.`,
+  );
+
+// ---- orchestrate: writing chain (A -> B -> C -> J -> M -> D -> L -> E -> G -> H -> F -> I -> N -> K -> O, sequential) ----
+log("260605_potts-integration: writing chain (A -> B -> C -> J -> M -> D -> L -> E -> G -> H -> F -> I -> N -> K -> O, sequential)");
+const a = await trackA();
+const b = await trackB();
+const c = await trackC();
+const j = await trackJ();
+const m = await trackM();
+const d = await trackD();
+const l = await trackL();
+const e = await trackE();
+const g = await trackG();
+const h = await trackH();
+const f = await trackF();
+const i = await trackI();
+const n = await trackN();
+const k = await trackK();
+const o = await trackO();
+
+return {
+  task_id: TASK_ID,
+  sprint_id: 1,
+  verdicts: {
+    "1302": a,
+    "1303": b,
+    "1291": c,
+    "1298": j,
+    "1304": m,
+    "1292": d,
+    "1300": l,
+    "1293": e,
+    "1295": g,
+    "1296": h,
+    "1294": f,
+    "1297": i,
+    "1305": n,
+    "1299": k,
+    "1301": o
+  },
+};

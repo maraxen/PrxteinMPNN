@@ -4,6 +4,10 @@ Importing this package does not configure the multiprocessing start method. Call
 ``configure_multiprocessing()`` once at process start in notebooks, standalone scripts,
 or any entrypoint that uses ``multiprocessing`` worker pools (the campaign CLI already
 does this); see ``aminx.runtime``.
+
+Submodules:
+  - ``aminx.potts``: Potts model family with TRW inference and Gibbs sampling
+    (see ``aminx.potts.__init__.py`` for PottsModel, PoeModel, etc.)
 """
 
 from .io.parsing import parse_structure

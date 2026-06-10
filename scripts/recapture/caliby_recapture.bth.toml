@@ -1,0 +1,26 @@
+# Bathos sidecar for caliby_recapture.py
+# Tracks caliby checkpoint recapture from training data
+# See /using-bathos skill for full sidecar schema
+
+[run]
+run_id = "260605_caliby-recapture"
+script = "scripts/recapture/caliby_recapture.py"
+description = "Recapture learned caliby corrections (marginal post-hoc bias terms) from calibration dataset. Output: caliby_<id>.eqx.zst sidecar checkpoint."
+
+[hypotheses]
+h1 = "TRW marginals exhibit systematic bias away from native sequence distribution; learned correction (LearnedCalibration module) reduces this bias."
+h2 = "Caliby correction is independent of Potts backbone weights; can be updated without retraining PottsModel."
+h3 = "IdentityCalibration (caliby_path=None) is safe default for initial integration; LearnedCalibration optional enhancement."
+
+[gates]
+l1_dry_run = "uv run python scripts/recapture/caliby_recapture.py --dry-run --out /dev/null"
+l2_smoke = "TBD: awaiting caliby dataset format specification"
+l3_cluster = "TBD: awaiting caliby dataset availability on cluster"
+
+[metadata]
+task_id = "260605_multistate-potts"
+backlog_id = "1298"
+phase = "P-02: caliby corrections"
+created_date = "2026-06-05"
+status = "scaffolded"
+notes = "Full implementation deferred pending mistypotts caliby dataset specification and availability. See .praxia/docs/research/260605_caliby-nature-and-dataset.md for investigation findings."

@@ -11,7 +11,16 @@ Usage:
     - joint_log_prob(seq, params_list): returns log unnormalized joint probability.
     - Embedded sanity check: for two identical backbones, joint_energy ≈ 2*single_energy ±1e-5.
 
+Identity-backbone invariant: joint_energy(seq, [p, p]) == 2*single_energy(seq, p);
+validated by scripts/validate/poe_energy_sanity.py.
+
 No imports from aminx.inference.*, host.*, types.stages, or inference.logits.
+
+References
+----------
+.. [PoE] Hinton, G.E. (2002). "Training products of experts by minimizing
+   contrastive divergence." Neural Computation 14(8):1771-1800.
+   https://doi.org/10.1162/089976602760128018
 """
 
 from __future__ import annotations
@@ -32,6 +41,7 @@ class PoeParams(NamedTuple):
 
   Attributes:
       params_list: Tuple of PottsParams, one per backbone.
+
   """
 
   params_list: tuple[PottsParams, ...]
@@ -61,6 +71,7 @@ class PoeModel(eqx.Module):
 
     Raises:
         ValueError: If backbones have mismatched static config.
+
     """
     if len(backbones) == 0:
       msg = "At least one backbone is required"
@@ -125,6 +136,7 @@ class PoeModel(eqx.Module):
         Scalar energy (sum of per-backbone log unnormalized probabilities).
         Note: h and J already carry the x2 scale factor from PottsMPNN.
               No additional x2 factor is applied.
+
     """
     if len(params_list) != self.n_backbones:
       msg = f"Expected {self.n_backbones} parameter sets, got {len(params_list)}"
@@ -164,6 +176,7 @@ class PoeModel(eqx.Module):
 
     Raises:
         ValueError: If coords_stack.shape[0] != n_backbones.
+
     """
     if coords_stack.shape[0] != self.n_backbones:
       msg = (
@@ -219,16 +232,21 @@ class PoeModel(eqx.Module):
 
     Returns:
         Scalar log unnormalized joint probability.
+
     """
     return self.joint_energy(seq, params_list)
 
 
-# Embedded sanity check: validate PoE invariant
+# Design invariant validation: identity-backbone sanity check
+# Called from tests/potts/test_poe.py:525 (test_poe_sanity_check_two_identical_backbones)
+# and by scripts/validate/poe_energy_sanity.py — NOT at import time.
 def _sanity_check_poe_invariant() -> None:
   """Verify PoE design invariant: joint_energy ≈ 2*single_energy for identical backbones.
 
-  This function is called at module import time to catch configuration errors early.
-  Runs only in debug builds (not stripped).
+  Implements the identity-backbone invariant; see scripts/validate/poe_energy_sanity.py
+  for the full validation suite.
+
+  This function is defined for reference and testing only. Do not call at import time.
   """
   try:
     key = jax.random.PRNGKey(260605)
@@ -281,7 +299,3 @@ def _sanity_check_poe_invariant() -> None:
     # Silently skip sanity check if imports or construction fail
     # (e.g., in test environments where PottsModel is mocked)
     pass
-
-
-# Run sanity check on module import
-_sanity_check_poe_invariant()

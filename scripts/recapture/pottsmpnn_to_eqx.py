@@ -30,12 +30,35 @@ from pathlib import Path
 from typing import Any
 
 import equinox as eqx
+import jax.numpy as jnp
 import numpy as np
 import zstandard as zstd
+from jaxtyping import Array, Float
 
 # Configure logging
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(message)s")
+
+
+class PottsCheckpointData(eqx.Module):
+    """Checkpoint container for pre-computed Potts parameters from PottsMPNN extraction.
+
+    Holds unary potentials (h), pairwise potentials (J), adjacency (W), and metadata.
+    This structure serializes as an eqx.Module with correct pytree leaf layout.
+
+    Attributes:
+        h: Unary potentials (N, q) with x2 scale factor from PottsMPNN convention
+        j: Pairwise potentials (N, N, q, q) with x2 scale factor
+        w: Graph adjacency matrix (N, N)
+        mask: Residue mask (N,)
+        k_neighbors: Graph connectivity parameter (baked into checkpoint metadata)
+    """
+
+    h: Float[Array, "n q"]
+    j: Float[Array, "n n q q"]
+    w: Float[Array, "n n"]
+    mask: Float[Array, " n"]
+    k_neighbors: int = eqx.field(static=True)
 
 
 def etab_to_dense_h_j_w(
@@ -116,13 +139,12 @@ def extract_k_neighbors_from_config(payload: dict) -> int | None:
     Searches in payload['args']['k_neighbors'] then payload['hyper_params']['k_neighbors'].
     Raises ValueError if neither location contains a value.
     """
-    k_neighbors = (
-        payload.get('args', {}).get('k_neighbors')
-        or payload.get('hyper_params', {}).get('k_neighbors')
-    )
-    if k_neighbors is None:
+    v = payload.get('args', {}).get('k_neighbors')
+    if v is None:
+        v = payload.get('hyper_params', {}).get('k_neighbors')
+    if v is None:
         raise ValueError("k_neighbors not found in checkpoint config (args or hyper_params)")
-    return int(k_neighbors)
+    return int(v)
 
 
 def load_etab_from_pottsmpnn_checkpoint(
@@ -243,20 +265,45 @@ def load_etab_from_pottsmpnn_checkpoint(
 
 
 def save_checkpoint(checkpoint_data: dict[str, Any], output_path: Path) -> None:
-    """Save checkpoint dict to .eqx.zst using equinox and zstandard.
+    """Save Potts checkpoint to .eqx.zst using equinox and zstandard.
 
-    Reuses src/aminx/io/weights.py pattern: equinox.tree_serialise_leaves + zstandard.
+    Wraps pre-computed h, j, w, mask, k_neighbors in a PottsCheckpointData eqx.Module
+    for proper serialization. The module's pytree leaf layout is compatible with
+    eqx.tree_deserialise_leaves for loading into appropriately structured containers.
+
+    Args:
+        checkpoint_data: Dict with keys h, j, w, k_neighbors, and optionally mask
+                        (from load_etab_from_pottsmpnn_checkpoint)
+        output_path: Path to output .eqx.zst file
     """
     log.info(f"Saving checkpoint to {output_path}")
 
-    # Create a pytree from the checkpoint data (dict-based for now).
-    # In production, this would be wrapped in an eqx.Module.
-    pytree = checkpoint_data
+    # Wrap in PottsCheckpointData eqx.Module for proper pytree serialization
+    h = jnp.asarray(checkpoint_data["h"], dtype=jnp.float32)
+    j = jnp.asarray(checkpoint_data["j"], dtype=jnp.float32)
+    w = jnp.asarray(checkpoint_data["w"], dtype=jnp.float32)
+    k_neighbors = int(checkpoint_data["k_neighbors"])
+
+    # Mask defaults to all ones (all residues valid) if not provided
+    if "mask" in checkpoint_data:
+        mask = jnp.asarray(checkpoint_data["mask"], dtype=jnp.float32)
+    else:
+        # Create default mask: all residues are valid
+        n_residues = h.shape[0]
+        mask = jnp.ones(n_residues, dtype=jnp.float32)
+
+    potts_checkpoint = PottsCheckpointData(
+        h=h,
+        j=j,
+        w=w,
+        mask=mask,
+        k_neighbors=k_neighbors,
+    )
 
     # Serialize using equinox
-    buffer = io.BytesIO()
-    eqx.tree_serialise_leaves(buffer, pytree)
-    serialized_data = buffer.getvalue()
+    buffer = io.BytesIO()  # ty: ignore[unresolved-attribute]
+    eqx.tree_serialise_leaves(buffer, potts_checkpoint)
+    serialized_data = buffer.getvalue()  # ty: ignore[unresolved-attribute]
 
     # Compress using zstandard
     cctx = zstd.ZstdCompressor()

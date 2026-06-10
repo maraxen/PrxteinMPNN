@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.1.0a5 (2026-06-10)
+
+### Breaking Changes
+
+- **API rename**: `xyz_37` → `atom_37` and `xyz_37_m` → `atom_37_mask` across the
+  side-chain atom-context API — the public `GeometryBundle` fields,
+  `build_inference_bundle(...)` / kernel keyword arguments, and `model.features(...)`
+  parameters. The new names describe the 37-atom representation and its validity mask
+  clearly. No deprecated alias (pre-release clean break).
+
+### Bug Fixes
+
+- **`ProteinFeaturesLigand._make_angle_features`**: correct the residue-frame projection
+  einsum ([`src/aminx/model/ligand_features.py`](src/aminx/model/ligand_features.py))
+
+  The projection used `jnp.einsum("lqp, lym -> lyp", R_residue, diff)`. Because `q` and
+  `m` each appear in only one operand and not in the output, einsum summed both
+  independently — `(Σ_q R[l,q,p])·(Σ_m diff[l,y,m])`, an outer product of column-sums
+  rather than the frame projection `e_p·diff`. Corrected to `"lqp, lyq -> lyp"`.
+
+  This was the root cause of the side-chain-context cross-framework divergence (~0.85
+  Pearson vs ~0.9998 baseline vs the LigandMPNN reference). It only surfaced with side
+  chains ON: the no-side-chain baseline's dummy ligand is fully masked, so the corrupted
+  node features never contributed.
+
+### Tests
+
+- Add side-chain-context logits parity test vs the PyTorch LigandMPNN reference, and
+  migrate the tied-autoregressive / multistate side-chain tests to the current bundle
+  API (tie groups via `build_inference_bundle(tie_group_map=...)`; side-chain context
+  packaged onto `GeometryBundle` rather than loose kernel kwargs).
+
 ## 0.1.0a4 (2026-06-09)
 
 ### Bug Fixes

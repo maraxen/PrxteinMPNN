@@ -289,14 +289,18 @@ class PottsModel(eqx.Module):
     col = nei.astype(jnp.int32)
     valid = (mask_arr[row] > 0) & (mask_arr[col] > 0) & (col >= 0) & (col < n)
 
+    # Build adjacency matrix W from k-NN edges (reuse nei from ProteinFeatures)
+    w_vals = jnp.where(valid, 1.0, 0.0)
+    w = jnp.zeros((n, n), dtype=edge_knn.dtype)
+    w = w.at[row, col].set(w_vals)
+    w = jnp.maximum(w, w.T)
+    w = w.at[jnp.arange(n), jnp.arange(n)].set(0.0)
+
     # Dense edge features: (N, N, E)
     e_dim = edge_knn.shape[-1]
     edge_dense = jnp.zeros((n, n, e_dim), dtype=edge_knn.dtype)
     edge_dense = edge_dense.at[row, col].set(jnp.where(valid[..., None], edge_knn, 0.0))
     edge_dense = 0.5 * (edge_dense + jnp.swapaxes(edge_dense, 0, 1))
-
-    # Build adjacency matrix using helper (reused in infer_params)
-    w = self._build_adjacency(coords, mask, residue_index, chain_index, key)
 
     # Mean-pool edge features to node level
     pooled = jnp.mean(edge_knn, axis=1)
@@ -401,7 +405,9 @@ class PottsModel(eqx.Module):
         h: Unary potentials (N, q) with x2 scale factor from PottsMPNN
         j: Pairwise potentials (N, N, q, q) with x2 scale factor
         w: Graph adjacency (N, N) binary or weighted edge indicator
-        mask: Optional residue mask (N,)
+        mask: Optional residue mask (N,). Masked positions (mask=0) contribute 0 to
+              both unary and pairwise terms. Unmasked positions (mask>0) contribute
+              normally. Allows scoring partial sequences (e.g., chain breaks).
 
     Returns:
         Scalar log-probability (unnormalized).
@@ -409,11 +415,14 @@ class PottsModel(eqx.Module):
     n = seq.shape[0]
     q = h.shape[-1]
 
-    # Unary contribution
+    # Unary contribution with per-residue masking
     h_seq = jnp.take_along_axis(h, seq[..., None], axis=-1).squeeze(-1)
+    if mask is not None:
+      mask_arr = jnp.asarray(mask, dtype=h_seq.dtype)
+      h_seq = h_seq * mask_arr
     unary_energy = jnp.sum(h_seq)
 
-    # Pairwise contribution with x2 scale factor
+    # Pairwise contribution with per-position masking and x2 scale factor
     seq_i = seq[..., None, None]  # (n, 1, 1)
     seq_j = seq[None, ..., None]  # (1, n, 1)
     j_seq = jnp.take_along_axis(
@@ -421,13 +430,13 @@ class PottsModel(eqx.Module):
       (seq_i * q + seq_j).reshape(n, n, 1),
       axis=-1,
     ).reshape(n, n)
+
+    if mask is not None:
+      mask_arr = jnp.asarray(mask, dtype=j_seq.dtype)
+      mask_pair = jnp.outer(mask_arr, mask_arr)
+      j_seq = j_seq * mask_pair
+
     pairwise_energy = 0.5 * jnp.sum(w * j_seq)
 
     # Total energy (log unnormalized probability)
-    log_prob_val = unary_energy + pairwise_energy
-
-    # Apply mask if provided
-    if mask is not None:
-      log_prob_val = jnp.where(jnp.all(mask > 0), log_prob_val, -jnp.inf)
-
-    return log_prob_val
+    return unary_energy + pairwise_energy

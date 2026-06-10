@@ -15,6 +15,12 @@ Identity-backbone invariant: joint_energy(seq, [p, p]) == 2*single_energy(seq, p
 validated by scripts/validate/poe_energy_sanity.py.
 
 No imports from aminx.inference.*, host.*, types.stages, or inference.logits.
+
+References
+----------
+.. [PoE] Hinton, G.E. (2002). "Training products of experts by minimizing
+   contrastive divergence." Neural Computation 14(8):1771-1800.
+   https://doi.org/10.1162/089976602760128018
 """
 
 from __future__ import annotations

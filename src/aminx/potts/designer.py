@@ -16,6 +16,12 @@ Reference: ADR 260605_potts-parallel-not-stageset (MpnnPottsDesigner is Approach
 Risks:
   - alphabet_map index 20 collision (X/gap): mitigated by static identity map + warning
   - seed_mode 'unconditional' vs 'order_averaged': flag controls MPNN AR order bias
+
+References
+----------
+.. [PottsMPNN] Birnbaum and Keating. "Beyond native sequence recovery: Improved
+   modeling of the sequence-energy landscape of protein structures." bioRxiv, 2026.
+   https://doi.org/10.64898/2026.01.14.699067
 """
 
 from __future__ import annotations

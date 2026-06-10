@@ -1,4 +1,12 @@
-"""Differentiable tree-reweighted message passing on a dense Potts MRF."""
+"""Differentiable tree-reweighted message passing on a dense Potts MRF.
+
+References
+----------
+.. [TRW] Wainwright, M.J., Jaakkola, T.S., and Willsky, A.S. (2003).
+   "Tree-reweighted belief propagation algorithms and approximate ML estimation
+   by pseudo-moment matching." AISTATS 2003.
+   https://doi.org/10.7551/mitpress/3968.003.0085
+"""
 
 from __future__ import annotations
 

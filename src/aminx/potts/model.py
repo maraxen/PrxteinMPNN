@@ -10,6 +10,16 @@ See etab_to_dense_h_j_w for reference.
 
 Alphabet: Potts uses the canonical MPNN alphabet (q=21, identity mapping).
 See ADR 260605_potts-alphabet-alignment for alignment details.
+
+References
+----------
+.. [PottsMPNN] Birnbaum and Keating. "Beyond native sequence recovery: Improved
+   modeling of the sequence-energy landscape of protein structures." bioRxiv, 2026.
+   https://doi.org/10.64898/2026.01.14.699067
+.. [TRW] Wainwright, M.J., Jaakkola, T.S., and Willsky, A.S. (2003).
+   "Tree-reweighted belief propagation algorithms and approximate ML estimation
+   by pseudo-moment matching." AISTATS 2003.
+   https://doi.org/10.7551/mitpress/3968.003.0085
 """
 
 from __future__ import annotations

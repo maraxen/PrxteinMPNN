@@ -169,6 +169,65 @@ class PottsModel(eqx.Module):
       spec=self.trw_spec,
     )
 
+  def _build_adjacency(
+    self,
+    coords: Float[Array, "n 37 3"],
+    mask: Float[Array, " n"],
+    residue_index: Int[Array, " n"],
+    chain_index: Int[Array, " n"],
+    key: PRNGKeyArray,
+  ) -> Float[Array, "n n"]:
+    """Build k-NN adjacency matrix W from structure coordinates.
+
+    Extracts k-NN edges via ProteinFeatures, symmetrizes, and applies mask.
+    Reusable helper to avoid redundant ProteinFeatures calls.
+
+    Args:
+        coords: Structure coordinates (N, 37, 3)
+        mask: Residue mask (N,)
+        residue_index: Residue indices (N,)
+        chain_index: Chain assignment (N,)
+        key: JAX random key (required for ProteinFeatures initialization)
+
+    Returns:
+        Adjacency matrix W (N, N) with symmetric edges and zero diagonal.
+    """
+    coords_arr = jnp.asarray(coords, dtype=jnp.float32)
+    mask_arr = jnp.asarray(mask, dtype=jnp.float32)
+    residue_index_arr = jnp.asarray(residue_index, dtype=jnp.int32)
+    chain_index_arr = jnp.asarray(chain_index, dtype=jnp.int32)
+
+    from prxteinmpnn.model.features import ProteinFeatures  # noqa: PLC0415
+
+    features = ProteinFeatures(
+      node_features=128,
+      edge_features=128,
+      k_neighbors=self.k_neighbors,
+      key=key,
+    )
+
+    edge_knn, nei, _, _ = features(
+      key,
+      coords_arr,
+      mask_arr,
+      residue_index_arr,
+      chain_index_arr,
+      backbone_noise=None,
+    )
+
+    nei = jnp.asarray(nei, dtype=jnp.int32)
+    edge_knn = jnp.asarray(edge_knn, dtype=jnp.float32)
+
+    n = edge_knn.shape[0]
+    row = jnp.arange(n, dtype=jnp.int32)[:, None]
+    col = nei.astype(jnp.int32)
+    valid = (mask_arr[row] > 0) & (mask_arr[col] > 0) & (col >= 0) & (col < n)
+    w_vals = jnp.where(valid, 1.0, 0.0)
+    w = jnp.zeros((n, n), dtype=edge_knn.dtype)
+    w = w.at[row, col].set(w_vals)
+    w = jnp.maximum(w, w.T)
+    return w.at[jnp.arange(n), jnp.arange(n)].set(0.0)
+
   def __call__(
     self,
     key: PRNGKeyArray,
@@ -229,17 +288,15 @@ class PottsModel(eqx.Module):
     row = jnp.arange(n, dtype=jnp.int32)[:, None]
     col = nei.astype(jnp.int32)
     valid = (mask_arr[row] > 0) & (mask_arr[col] > 0) & (col >= 0) & (col < n)
-    w_vals = jnp.where(valid, 1.0, 0.0)
-    w = jnp.zeros((n, n), dtype=edge_knn.dtype)
-    w = w.at[row, col].set(w_vals)
-    w = jnp.maximum(w, w.T)
-    w = w.at[jnp.arange(n), jnp.arange(n)].set(0.0)
 
     # Dense edge features: (N, N, E)
     e_dim = edge_knn.shape[-1]
     edge_dense = jnp.zeros((n, n, e_dim), dtype=edge_knn.dtype)
     edge_dense = edge_dense.at[row, col].set(jnp.where(valid[..., None], edge_knn, 0.0))
     edge_dense = 0.5 * (edge_dense + jnp.swapaxes(edge_dense, 0, 1))
+
+    # Build adjacency matrix using helper (reused in infer_params)
+    w = self._build_adjacency(coords, mask, residue_index, chain_index, key)
 
     # Mean-pool edge features to node level
     pooled = jnp.mean(edge_knn, axis=1)
@@ -312,42 +369,8 @@ class PottsModel(eqx.Module):
       aux_node_features=aux_node_features,
     )
 
-    # Recompute W (adjacency) deterministically for consistency
-    coords_arr = jnp.asarray(coords, dtype=jnp.float32)
-    mask_arr = jnp.asarray(mask, dtype=jnp.float32)
-    residue_index_arr = jnp.asarray(residue_index, dtype=jnp.int32)
-    chain_index_arr = jnp.asarray(chain_index, dtype=jnp.int32)
-
-    from prxteinmpnn.model.features import ProteinFeatures  # noqa: PLC0415
-
-    features = ProteinFeatures(
-      node_features=128,
-      edge_features=128,
-      k_neighbors=self.k_neighbors,
-      key=key,
-    )
-
-    edge_knn, nei, _, _ = features(
-      key,
-      coords_arr,
-      mask_arr,
-      residue_index_arr,
-      chain_index_arr,
-      backbone_noise=None,
-    )
-
-    nei = jnp.asarray(nei, dtype=jnp.int32)
-    edge_knn = jnp.asarray(edge_knn, dtype=jnp.float32)
-
-    n = edge_knn.shape[0]
-    row = jnp.arange(n, dtype=jnp.int32)[:, None]
-    col = nei.astype(jnp.int32)
-    valid = (mask_arr[row] > 0) & (mask_arr[col] > 0) & (col >= 0) & (col < n)
-    w_vals = jnp.where(valid, 1.0, 0.0)
-    w = jnp.zeros((n, n), dtype=edge_knn.dtype)
-    w = w.at[row, col].set(w_vals)
-    w = jnp.maximum(w, w.T)
-    w = w.at[jnp.arange(n), jnp.arange(n)].set(0.0)
+    # Build W adjacency using shared helper (avoids redundant ProteinFeatures call)
+    w = self._build_adjacency(coords, mask, residue_index, chain_index, key)
 
     return PottsParams(
       marginals=marginals,

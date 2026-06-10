@@ -231,15 +231,16 @@ class PoeModel(eqx.Module):
     return self.joint_energy(seq, params_list)
 
 
-# Embedded sanity check: validate PoE invariant
+# Design invariant validation: identity-backbone sanity check
+# Called from tests/potts/test_poe.py:525 (test_poe_sanity_check_two_identical_backbones)
+# and by scripts/validate/poe_energy_sanity.py — NOT at import time.
 def _sanity_check_poe_invariant() -> None:
   """Verify PoE design invariant: joint_energy ≈ 2*single_energy for identical backbones.
 
   Implements the identity-backbone invariant; see scripts/validate/poe_energy_sanity.py
   for the full validation suite.
 
-  This function is called at module import time to catch configuration errors early.
-  Runs only in debug builds (not stripped).
+  This function is defined for reference and testing only. Do not call at import time.
   """
   try:
     key = jax.random.PRNGKey(260605)
@@ -292,7 +293,3 @@ def _sanity_check_poe_invariant() -> None:
     # Silently skip sanity check if imports or construction fail
     # (e.g., in test environments where PottsModel is mocked)
     pass
-
-
-# Run sanity check on module import
-_sanity_check_poe_invariant()

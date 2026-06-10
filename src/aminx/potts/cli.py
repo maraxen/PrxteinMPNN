@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 from typing import Annotated
 
+import equinox as eqx
+import jax.numpy as jnp
 import typer
+import zstandard as zstd
 
 from aminx.potts.spec import PottsRunSpec
+from aminx.types.bundles import GeometryBundle
 
 potts_app = typer.Typer(
   name="potts",
@@ -117,7 +122,7 @@ def potts_run(
   ],
   geometry_path: Annotated[
     Path,
-    _OPT(help="Path to GeometryBundle (pickle or JSON format) (required)"),
+    _OPT(help="Path to GeometryBundle (eqx or eqx.zst format) (required)"),
   ],
   out: Annotated[
     Path,
@@ -126,18 +131,19 @@ def potts_run(
 ) -> None:
   """Run Potts inference from a specification and geometry.
 
-  Loads a PottsRunSpec from JSON, loads geometry from file, executes
-  run_potts orchestration, and writes the result to JSON.
+  Loads a PottsRunSpec from JSON, loads geometry from equinox serialized file,
+  executes run_potts orchestration, and writes the result to JSON.
 
   Args:
       spec_path: Path to PottsRunSpec JSON specification.
-      geometry_path: Path to GeometryBundle file (pickle format).
+      geometry_path: Path to GeometryBundle file (.eqx or .eqx.zst format).
       out: Output file path for PottsResult JSON.
 
   Raises:
       typer.Exit: If spec or geometry cannot be loaded or run fails.
   """
-  import jax
+  import jax  # noqa: PLC0415
+
   from aminx.potts.runner import run_potts  # noqa: PLC0415
 
   try:
@@ -145,11 +151,42 @@ def potts_run(
     spec_json = spec_path.read_text(encoding="utf-8")
     spec = PottsRunSpec.from_json(spec_json)
 
-    # Load geometry (pickle format expected)
-    import pickle  # noqa: PLC0415
-
-    with open(geometry_path, "rb") as f:
-      geometry = pickle.load(f)
+    # Load geometry from equinox serialized file (eqx or eqx.zst format)
+    geometry_path_obj = Path(geometry_path)
+    with geometry_path_obj.open("rb") as f:
+      header = f.read(4)
+      f.seek(0)
+      if header == b"\x28\xb5\x2f\xfd":  # zstd magic number
+        # Decompress zstd and deserialize
+        dctx = zstd.ZstdDecompressor()
+        stream = io.BytesIO(dctx.decompress(f.read()))  # ty: ignore[unresolved-attribute]
+        # Create skeleton with correct shapes for GeometryBundle
+        skeleton = GeometryBundle(
+          coords=jnp.zeros((1, 1, 4, 3), dtype=jnp.float32),
+          mask=jnp.zeros((1, 1), dtype=jnp.float32),
+          residue_index=jnp.zeros((1, 1), dtype=jnp.int32),
+          chain_index=jnp.zeros((1, 1), dtype=jnp.int32),
+          n_states=1,
+          n_canonical=20,
+          n_flat=1,
+          structure_mapping=None,
+          physics_features=None,
+        )
+        geometry = eqx.tree_deserialise_leaves(stream, skeleton)
+      else:
+        # Direct eqx deserialization (uncompressed)
+        skeleton = GeometryBundle(
+          coords=jnp.zeros((1, 1, 4, 3), dtype=jnp.float32),
+          mask=jnp.zeros((1, 1), dtype=jnp.float32),
+          residue_index=jnp.zeros((1, 1), dtype=jnp.int32),
+          chain_index=jnp.zeros((1, 1), dtype=jnp.int32),
+          n_states=1,
+          n_canonical=20,
+          n_flat=1,
+          structure_mapping=None,
+          physics_features=None,
+        )
+        geometry = eqx.tree_deserialise_leaves(geometry_path_obj, skeleton)
 
     # Run Potts inference
     key = jax.random.PRNGKey(0)

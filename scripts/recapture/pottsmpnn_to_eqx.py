@@ -182,6 +182,14 @@ def load_etab_from_pottsmpnn_checkpoint(
 
     sys.path.insert(0, str(root))
     try:
+        # Stub plotting deps that run_utils imports at module level but only uses
+        # in visualisation functions (not get_etab); avoids seaborn/matplotlib on cluster
+        import types as _types
+        for _mod in ('seaborn', 'matplotlib', 'matplotlib.pyplot',
+                     'matplotlib.colors', 'matplotlib.patches',
+                     'matplotlib.collections'):
+            import sys as _sys
+            _sys.modules.setdefault(_mod, _types.ModuleType(_mod))
         import run_utils
         from omegaconf import OmegaConf
         from potts_mpnn_utils import PottsMPNN, parse_PDB

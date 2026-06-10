@@ -12,14 +12,15 @@ fixed residues in both frameworks.
 Results (ligandmpnn_v_32_010_25, 1ubq):
 - side chains OFF (all-designable):  Pearson ~0.9998   -> conventions/harness correct
 - side chains OFF (partial-fixed):   Pearson ~0.9998   -> fixed_mask mapping correct
-- side chains ON  (partial-fixed):   Pearson ~0.85     -> KNOWN DIVERGENCE (xfail)
+- side chains ON  (partial-fixed):   Pearson >=0.95    -> parity (was ~0.85; fixed)
 
-The side-chain-ON cross-framework parity is xfail(strict): aminx's side-chain
-*feature construction* in ProteinFeaturesLigand diverges from the reference (both
-respond with similar magnitude, ~5 max log-prob swing, but only ~0.85 correlated).
-This is a pre-existing model-math discrepancy, not the score-path wiring (the
-behavioral invariants below confirm the wiring delivers xyz_37 correctly). When the
-feature-construction parity is fixed, strict xfail will flag this test to tighten.
+The side-chain-ON divergence (previously ~0.85) was a bug in
+``ProteinFeaturesLigand._make_angle_features``: the residue-frame projection used the
+einsum subscript ``"lqp, lym -> lyp"``, which (because ``q`` and ``m`` each appear in
+only one operand) independently summed both axes -- an outer product of column-sums
+rather than the frame projection ``e_p . diff``. Corrected to ``"lqp, lyq -> lyp"``.
+The corruption only surfaced with side chains ON because the dummy ligand is fully
+masked in the OFF baseline, so the corrupted node features never contributed there.
 """
 
 from __future__ import annotations
@@ -223,18 +224,13 @@ def test_control_partial_fixed_no_sidechain_parity() -> None:
 
 @pytest.mark.requires_weights
 @pytest.mark.parity_heavy
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Known divergence: aminx's side-chain feature construction in "
-        "ProteinFeaturesLigand does not match the reference (~0.85 vs ~0.9998 "
-        "baseline). Pre-existing model-math bug, NOT the score-path wiring (the "
-        "behavioral tests confirm xyz_37 is delivered correctly). strict=True so "
-        "fixing the feature parity makes this XPASS and flags the assertion to tighten."
-    ),
-)
 def test_sidechain_context_logits_parity() -> None:
-    """Side chains ON, partial-fixed: aminx score-path logits vs reference."""
+    """Side chains ON, partial-fixed: aminx score-path logits vs reference.
+
+    Regression guard for the ``_make_angle_features`` einsum fix (see module
+    docstring): the side-chain-context logits must now match the reference to the
+    same ~0.95+ tolerance as the no-side-chain baseline.
+    """
     L = _structure()["aa"].shape[0]
     ref, jax_ = _logits(use_sc=True, chain_mask=_partial_fixed(L))
     assert _corr(ref, jax_) >= _PARITY_THRESHOLD

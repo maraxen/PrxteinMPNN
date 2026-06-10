@@ -168,7 +168,7 @@ class ProteinFeaturesLigand(eqx.Module):
     # local_vectors: relative position of ligand_atom_coords in residue frame
     # (L, M, 3)
     diff = ligand_atom_coords - atom_ca[:, None, :]
-    local_vectors = jnp.einsum("lqp, lym -> lyp", R_residue, diff)
+    local_vectors = jnp.einsum("lqp, lyq -> lyp", R_residue, diff)
 
     rxy = jnp.sqrt(local_vectors[..., 0] ** 2 + local_vectors[..., 1] ** 2 + 1e-8)
     f1 = local_vectors[..., 0] / rxy

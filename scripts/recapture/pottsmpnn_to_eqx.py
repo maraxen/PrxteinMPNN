@@ -26,6 +26,7 @@ import argparse
 import io
 import logging
 import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -182,7 +183,6 @@ def load_etab_from_pottsmpnn_checkpoint(
 
     sys.path.insert(0, str(root))
     try:
-        from omegaconf import OmegaConf
         from potts_mpnn_utils import PottsMPNN, parse_PDB
     finally:
         if sys.path[0] == str(root):
@@ -222,8 +222,10 @@ def load_etab_from_pottsmpnn_checkpoint(
     model.load_state_dict(state, strict=False)
     model.eval()
 
-    cfg_cpu = OmegaConf.create({"dev": "cpu", "model": {"vocab": vocab}})
-    cfg_run = OmegaConf.create({"dev": str(torch_device), "model": {"vocab": vocab}})
+    _model_cfg_cpu = types.SimpleNamespace(vocab=vocab)
+    cfg_cpu = types.SimpleNamespace(dev="cpu", model=_model_cfg_cpu)
+    _model_cfg_run = types.SimpleNamespace(vocab=vocab)
+    cfg_run = types.SimpleNamespace(dev=str(torch_device), model=_model_cfg_run)
 
     pdb_data = parse_PDB(str(pdb_path), input_chain_list=None, ca_only=False, skip_gaps=False)
     if not pdb_data:

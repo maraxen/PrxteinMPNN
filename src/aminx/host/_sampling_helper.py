@@ -257,8 +257,8 @@ def _prepare_ligand_context(
       "Y": None,
       "Y_t": None,
       "Y_m": None,
-      "xyz_37": None,
-      "xyz_37_m": None,
+      "atom_37": None,
+      "atom_37_mask": None,
       "chain_mask": None,
     }
 
@@ -317,26 +317,26 @@ def _prepare_ligand_context(
       "Y": Y,
       "Y_t": Y_t,
       "Y_m": Y_m,
-      "xyz_37": None,
-      "xyz_37_m": None,
+      "atom_37": None,
+      "atom_37_mask": None,
       "chain_mask": None,
     }
 
-  xyz_37 = jnp.asarray(batched_ensemble.coordinates, dtype=jnp.float32)
-  if xyz_37.ndim != 4 or xyz_37.shape[0] != batch_size or xyz_37.shape[1] != seq_len:
+  atom_37 = jnp.asarray(batched_ensemble.coordinates, dtype=jnp.float32)
+  if atom_37.ndim != 4 or atom_37.shape[0] != batch_size or atom_37.shape[1] != seq_len:
     msg = "coordinates must have shape (batch, residues, atoms, xyz) for sidechain conditioning."
     raise ValueError(msg)
 
-  xyz_37_m_source = (
+  atom_37_mask_source = (
     batched_ensemble.atom_mask
     if batched_ensemble.atom_mask is not None
     else batched_ensemble.full_atom_mask
   )
-  if xyz_37_m_source is None:
+  if atom_37_mask_source is None:
     msg = "sidechain_conditioning=True requires atom_mask or full_atom_mask."
     raise ValueError(msg)
-  xyz_37_m = jnp.asarray(xyz_37_m_source, dtype=jnp.float32)
-  if xyz_37_m.ndim != 3 or xyz_37_m.shape[0] != batch_size or xyz_37_m.shape[1] != seq_len:
+  atom_37_mask = jnp.asarray(atom_37_mask_source, dtype=jnp.float32)
+  if atom_37_mask.ndim != 3 or atom_37_mask.shape[0] != batch_size or atom_37_mask.shape[1] != seq_len:
     msg = "atom mask must have shape (batch, residues, atoms) for sidechain conditioning."
     raise ValueError(msg)
 
@@ -346,8 +346,8 @@ def _prepare_ligand_context(
     "Y": Y,
     "Y_t": Y_t,
     "Y_m": Y_m,
-    "xyz_37": xyz_37,
-    "xyz_37_m": xyz_37_m,
+    "atom_37": atom_37,
+    "atom_37_mask": atom_37_mask,
     "chain_mask": chain_mask,
   }
 

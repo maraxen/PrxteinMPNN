@@ -53,6 +53,8 @@ def build_inference_bundle(
   ligand_mask: jax.Array | None = None,
   structure_mapping: jax.Array | None = None,
   physics_features: jax.Array | None = None,
+  atom_37: jax.Array | None = None,
+  atom_37_mask: jax.Array | None = None,
   packer: PackerBundle | None = None,
   temperature: float = 1.0,
   mode: str = "score_conditional",
@@ -74,6 +76,10 @@ def build_inference_bundle(
       ligand_mask = ligand_mask[None, ...]
     if physics_features is not None and physics_features.ndim == 2:
       physics_features = physics_features[None, ...]
+    if atom_37 is not None and atom_37.ndim == 3:
+      atom_37 = atom_37[None, ...]
+    if atom_37_mask is not None and atom_37_mask.ndim == 2:
+      atom_37_mask = atom_37_mask[None, ...]
 
   # After normalization, all arrays must be 4D (or 2D for mask/indices when already batched)
   # Coords: always (S, L, 4, 3)
@@ -100,6 +106,8 @@ def build_inference_bundle(
     n_flat=seq_len,
     structure_mapping=structure_mapping,
     physics_features=physics_features,
+    atom_37=atom_37,
+    atom_37_mask=atom_37_mask,
   )
 
   # 3. Conditioning

@@ -195,11 +195,12 @@ def load_etab_from_pottsmpnn_checkpoint(
     from mistypotts.pottsmpnn_prxtein_etab import infer_vocab_from_state_dict
 
     vocab = infer_vocab_from_state_dict(state)
-    potts_dim = int(state["etab_out.weight"].shape[0])
-
     # CA-only models have a W_v projection layer absent in full-atom models.
     ca_only = "W_v.weight" in state
     log.info("ca_only=%s (detected from W_v.weight in state dict)", ca_only)
+    # CA-only checkpoints use W_out for the final projection; full-atom use etab_out.
+    _out_key = "etab_out.weight" if "etab_out.weight" in state else "W_out.weight"
+    potts_dim = int(state[_out_key].shape[0])
 
     # Read k_neighbors from checkpoint if not specified.
     if num_edges is None:

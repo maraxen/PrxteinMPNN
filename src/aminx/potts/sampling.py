@@ -1,4 +1,14 @@
-"""Single-site Gibbs updates and parallel tempering for pairwise Potts models on masked k-NN support."""
+"""Single-site Gibbs updates and parallel tempering for pairwise Potts models on masked k-NN support.
+
+References
+----------
+.. [Gibbs] Geman, S. and Geman, D. (1984). "Stochastic relaxation, Gibbs
+   distributions, and the Bayesian restoration of images." IEEE TPAMI 6(6):721-741.
+   https://doi.org/10.1109/TPAMI.1984.4767596
+.. [PT] Hukushima, K. and Nemoto, K. (1996). "Exchange Monte Carlo method and
+   application to spin glass simulations." J. Phys. Soc. Jpn. 65:1604-1608.
+   https://doi.org/10.1143/JPSJ.65.1604
+"""
 
 from __future__ import annotations
 

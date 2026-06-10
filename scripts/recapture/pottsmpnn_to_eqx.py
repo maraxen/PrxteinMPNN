@@ -197,6 +197,10 @@ def load_etab_from_pottsmpnn_checkpoint(
     vocab = infer_vocab_from_state_dict(state)
     potts_dim = int(state["etab_out.weight"].shape[0])
 
+    # CA-only models have a W_v projection layer absent in full-atom models.
+    ca_only = "W_v.weight" in state
+    log.info("ca_only=%s (detected from W_v.weight in state dict)", ca_only)
+
     # Read k_neighbors from checkpoint if not specified.
     if num_edges is None:
         try:
@@ -207,7 +211,7 @@ def load_etab_from_pottsmpnn_checkpoint(
             log.warning("k_neighbors not found in checkpoint payload; using fallback 48")
 
     model = PottsMPNN(
-        ca_only=False,
+        ca_only=ca_only,
         num_letters=vocab,
         vocab=vocab,
         node_features=128,
@@ -227,7 +231,7 @@ def load_etab_from_pottsmpnn_checkpoint(
     _model_cfg_run = types.SimpleNamespace(vocab=vocab)
     cfg_run = types.SimpleNamespace(dev=str(torch_device), model=_model_cfg_run)
 
-    pdb_data = parse_PDB(str(pdb_path), input_chain_list=None, ca_only=False, skip_gaps=False)
+    pdb_data = parse_PDB(str(pdb_path), input_chain_list=None, ca_only=ca_only, skip_gaps=False)
     if not pdb_data:
         raise ValueError(f"parse_PDB returned empty for {pdb_path}")
 
@@ -248,7 +252,7 @@ def load_etab_from_pottsmpnn_checkpoint(
         from mistypotts.pottsmpnn_prxtein_etab import etab_from_checkpoint_prxtein_jax
 
         etab, e_idx, wt_seq = etab_from_checkpoint_prxtein_jax(
-            model_torch=model, pdb_data=pdb_data, cfg=cfg_cpu
+            model_torch=model, pdb_data=pdb_data, cfg=cfg_cpu, ca_only=ca_only
         )
     else:
         model_d = model.to(torch_device)

@@ -133,6 +133,22 @@ class TestPottsRunSpecValidation:
     assert spec.training is False
     assert spec.trw_spec.trw_loop == "fori"
 
+  def test_k_neighbors_zero_raises(self) -> None:
+    """Test ValueError when k_neighbors <= 0."""
+    with pytest.raises(ValueError, match="k_neighbors must be > 0"):
+      PottsRunSpec(
+        weights_path="/path/to/weights",
+        k_neighbors=0,
+      )
+
+  def test_k_neighbors_negative_raises(self) -> None:
+    """Test ValueError when k_neighbors is negative."""
+    with pytest.raises(ValueError, match="k_neighbors must be > 0"):
+      PottsRunSpec(
+        weights_path="/path/to/weights",
+        k_neighbors=-5,
+      )
+
 
 class TestPottsRunSpecJSON:
   """Test JSON serialization round-trip."""

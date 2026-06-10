@@ -263,3 +263,14 @@ class TestPottsRunnerSmoke:
 
       # With identity calibration, calibrated_marginals == marginals
       assert jnp.allclose(result.calibrated_marginals, result.marginals)
+
+  def test_spec_rejects_zero_k_neighbors(self) -> None:
+    """Test that PottsRunSpec rejects k_neighbors <= 0 in __post_init__."""
+    # Should raise ValueError during construction
+    with pytest.raises(ValueError, match="k_neighbors.*must be > 0"):
+      PottsRunSpec(
+        n_backbones=1,
+        weights_path="/path/to/weights",
+        k_neighbors=0,  # Invalid
+        training=False,
+      )

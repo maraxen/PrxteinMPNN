@@ -1,5 +1,6 @@
 """Conditional scoring kernel using InferenceBundle."""
 
+import jax
 from jaxtyping import PRNGKeyArray
 
 from aminx.inference.decode.conditional import ConditionalDecode
@@ -18,11 +19,25 @@ def kernel(
   bundle: InferenceBundle,
   config: InferenceConfig,
   stage_set: StageSet,
+  *,
+  xyz_37: jax.Array | None = None,
+  xyz_37_m: jax.Array | None = None,
+  chain_mask: jax.Array | None = None,
 ) -> Logits:
   """Compute teacher-forced conditional logits."""
+  import equinox as eqx
   import jax
 
   k_enc, k_dec = jax.random.split(prng_key)
+
+  # Inject side-chain context into bundle if provided
+  if xyz_37 is not None or xyz_37_m is not None:
+    bundle = eqx.tree_at(
+      lambda b: (b.geometry.xyz_37, b.geometry.xyz_37_m),
+      bundle,
+      (xyz_37, xyz_37_m),
+      is_leaf=lambda x: x is None,
+    )
 
   # Encode using vmap strategy (parallel over S states)
   encode_fn = make_encode_fn(model, use_rolling_state=False)

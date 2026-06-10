@@ -66,6 +66,12 @@ class GeometryBundle(eqx.Module):
   # Membrane physics features: one-hot of per-residue labels, shape (S, L, P).
   # None for soluble/ligand models (no physics conditioning).
   physics_features: Float[Array, "S L P"] | None = None
+  # Side-chain atom coordinates (full 37-atom set): shape (S, L, 37, 3).
+  # None when side-chain context conditioning is disabled (no GPU transfer).
+  xyz_37: Float[Array, "S L 37 3"] | None = None
+  # Side-chain atom validity mask: shape (S, L, 37).
+  # None when side-chain context conditioning is disabled (no GPU transfer).
+  xyz_37_m: Float[Array, "S L 37"] | None = None
 
 
 class ConditioningBundle(eqx.Module):

@@ -33,6 +33,10 @@ def kernel(
   bundle: InferenceBundle,
   config: InferenceConfig,
   stage_set: StageSet,
+  *,
+  xyz_37: Array | None = None,
+  xyz_37_m: Array | None = None,
+  chain_mask: Array | None = None,
 ) -> SampleResult:
   """Autoregressive sampling kernel.
 
@@ -47,6 +51,15 @@ def kernel(
   from aminx.tiling.strategy import Vmap
 
   k_enc, k_dec = jax.random.split(prng_key)
+
+  # Inject side-chain context into bundle if provided
+  if xyz_37 is not None or xyz_37_m is not None:
+    bundle = eqx.tree_at(
+      lambda b: (b.geometry.xyz_37, b.geometry.xyz_37_m),
+      bundle,
+      (xyz_37, xyz_37_m),
+      is_leaf=lambda x: x is None,
+    )
 
   # Encode using make_encode_fn with rolling state disabled for AR
   encode_fn = make_encode_fn(model, use_rolling_state=False)

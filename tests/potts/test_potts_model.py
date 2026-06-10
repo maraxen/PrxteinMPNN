@@ -161,3 +161,95 @@ def test_potts_model_training_guard_fori_inference_ok(rng_key: PRNGKeyArray) -> 
 
     assert model.training is False
     assert model.trw_spec.trw_loop == "fori"
+
+
+def test_log_prob_with_partial_mask() -> None:
+    """Test that log_prob handles partial masks correctly (per-residue masking).
+
+    Unmasked residues should contribute to log_prob.
+    Masked residues (mask=0) should contribute 0 to unary and pairwise terms.
+    """
+    n, q = 5, 21
+
+    # Simple synthetic inputs
+    seq = jnp.array([0, 1, 2, 3, 4], dtype=jnp.int32)
+    h = jnp.ones((n, q))  # Unary potentials
+    j = jnp.zeros((n, n, q, q))  # No pairwise
+    w = jnp.eye(n)  # Only self-loops (will be zeroed by log_prob)
+
+    # Mask: residues 0,1,2 unmasked; 3,4 masked
+    mask = jnp.array([1.0, 1.0, 1.0, 0.0, 0.0])
+
+    log_prob_val = PottsModel.log_prob(seq, h, j, w, mask)
+
+    # Expected: only first 3 residues contribute unary terms
+    # h[0,seq[0]] + h[1,seq[1]] + h[2,seq[2]] = 1.0 + 1.0 + 1.0 = 3.0
+    # h[3,...] and h[4,...] should not contribute (masked)
+    expected = 3.0
+
+    assert jnp.isfinite(log_prob_val), "log_prob should be finite with partial mask"
+    assert jnp.allclose(log_prob_val, expected, atol=1e-5), \
+        f"Expected {expected}, got {log_prob_val}"
+
+
+def test_log_prob_full_mask_still_works() -> None:
+    """Test that log_prob with full mask=0 returns 0 (empty sum), not -inf."""
+    n, q = 5, 21
+
+    seq = jnp.array([0, 1, 2, 3, 4], dtype=jnp.int32)
+    h = jnp.ones((n, q))
+    j = jnp.zeros((n, n, q, q))
+    w = jnp.zeros((n, n))
+    mask = jnp.zeros(n)  # All masked
+
+    log_prob_val = PottsModel.log_prob(seq, h, j, w, mask)
+
+    # With all residues masked, unary and pairwise sums are 0
+    # So log_prob should be 0, not -inf
+    assert jnp.isfinite(log_prob_val), "log_prob with all masked should be 0, not -inf"
+    assert jnp.allclose(log_prob_val, 0.0, atol=1e-5), \
+        f"Expected 0.0, got {log_prob_val}"
+
+
+def test_infer_params_returns_correct_w(
+    rng_key: PRNGKeyArray,
+    model_inputs: dict,
+) -> None:
+    """Test that infer_params correctly returns W adjacency matrix.
+
+    Regression test for Finding #4: The fix should ensure that W returned
+    by infer_params is the same as would be computed by __call__, so that
+    W is available without redundant ProteinFeatures calls.
+    """
+    model = PottsModel(
+        hidden_dim=64,
+        num_aa=21,
+        k_neighbors=8,
+        edge_features_dim=128,
+        trw_iters=2,
+        key=rng_key,
+    )
+
+    params = model.infer_params(
+        key=rng_key,
+        coords=model_inputs["structure_coordinates"],
+        mask=model_inputs["mask"],
+        residue_index=model_inputs["residue_index"],
+        chain_index=model_inputs["chain_index"],
+    )
+
+    # Verify W is returned and has sensible properties
+    assert hasattr(params, "W")
+    n = int(model_inputs["mask"].sum())
+    assert params.W.shape == (n, n), f"Expected W shape ({n}, {n}), got {params.W.shape}"
+
+    # W should be symmetric (undirected graph)
+    assert jnp.allclose(params.W, params.W.T), "W should be symmetric"
+
+    # W diagonal should be zero (no self-loops)
+    diag = jnp.diag(params.W)
+    assert jnp.allclose(diag, 0.0), "W diagonal should be zero (no self-loops)"
+
+    # W should have binary or weighted values in [0, 1]
+    assert jnp.all(params.W >= 0.0) and jnp.all(params.W <= 1.0), \
+        "W values should be in [0, 1]"

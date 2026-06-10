@@ -24,6 +24,25 @@ potts_app = typer.Typer(
 _OPT = typer.Option
 
 
+def _geometry_skeleton() -> GeometryBundle:
+  """Create a skeleton GeometryBundle for deserialization.
+
+  The skeleton structure is used by eqx.tree_deserialise_leaves to restore
+  a serialized GeometryBundle with the correct shapes and dtypes.
+  """
+  return GeometryBundle(
+    coords=jnp.zeros((1, 1, 4, 3), dtype=jnp.float32),
+    mask=jnp.zeros((1, 1), dtype=jnp.float32),
+    residue_index=jnp.zeros((1, 1), dtype=jnp.int32),
+    chain_index=jnp.zeros((1, 1), dtype=jnp.int32),
+    n_states=1,
+    n_canonical=20,
+    n_flat=1,
+    structure_mapping=None,
+    physics_features=None,
+  )
+
+
 def _emit_spec_json(spec: PottsRunSpec, compact: bool, out: Path | None) -> None:  # noqa: FBT001
   """Serialize PottsRunSpec to JSON and write to out or stdout."""
   # PottsRunSpec has .to_json() which returns a JSON string
@@ -46,7 +65,15 @@ def potts_emit(
   ],
   k_neighbors: Annotated[
     int,
-    _OPT(help="Graph connectivity (required)"),
+    _OPT(
+      help=(
+        "Number of nearest neighbours used during training (required). "
+        "Must match the checkpoint exactly — value is logged during recapture "
+        "(search pottsmpnn_to_eqx.py logs for 'k_neighbors=NN'). "
+        "Wrong value produces incorrect graph topology. "
+        "Cannot be recovered from checkpoint file."
+      ),
+    ),
   ],
   out: Annotated[
     Path,
@@ -78,9 +105,13 @@ def potts_emit(
   default TRW configuration. The output JSON can be round-tripped via
   PottsRunSpec.from_json().
 
+  IMPORTANT: k_neighbors is a static hyperparameter not stored in the checkpoint.
+  The user must supply the correct value from pottsmpnn_to_eqx.py recapture logs.
+  Using the wrong value produces silent misconfiguration (incorrect graph topology).
+
   Args:
       weights_path: Path to Potts model checkpoint (must exist).
-      k_neighbors: Graph connectivity from checkpoint metadata.
+      k_neighbors: Graph connectivity from training (non-recoverable from checkpoint).
       out: Output JSON file path (required).
       n_backbones: Number of backbones (default 1, must be >= 1).
       caliby_path: Optional calibration model path (None is valid identity default).
@@ -153,6 +184,7 @@ def potts_run(
 
     # Load geometry from equinox serialized file (eqx or eqx.zst format)
     geometry_path_obj = Path(geometry_path)
+    skeleton = _geometry_skeleton()
     with geometry_path_obj.open("rb") as f:
       header = f.read(4)
       f.seek(0)
@@ -160,32 +192,9 @@ def potts_run(
         # Decompress zstd and deserialize
         dctx = zstd.ZstdDecompressor()
         stream = io.BytesIO(dctx.decompress(f.read()))  # ty: ignore[unresolved-attribute]
-        # Create skeleton with correct shapes for GeometryBundle
-        skeleton = GeometryBundle(
-          coords=jnp.zeros((1, 1, 4, 3), dtype=jnp.float32),
-          mask=jnp.zeros((1, 1), dtype=jnp.float32),
-          residue_index=jnp.zeros((1, 1), dtype=jnp.int32),
-          chain_index=jnp.zeros((1, 1), dtype=jnp.int32),
-          n_states=1,
-          n_canonical=20,
-          n_flat=1,
-          structure_mapping=None,
-          physics_features=None,
-        )
         geometry = eqx.tree_deserialise_leaves(stream, skeleton)
       else:
         # Direct eqx deserialization (uncompressed)
-        skeleton = GeometryBundle(
-          coords=jnp.zeros((1, 1, 4, 3), dtype=jnp.float32),
-          mask=jnp.zeros((1, 1), dtype=jnp.float32),
-          residue_index=jnp.zeros((1, 1), dtype=jnp.int32),
-          chain_index=jnp.zeros((1, 1), dtype=jnp.int32),
-          n_states=1,
-          n_canonical=20,
-          n_flat=1,
-          structure_mapping=None,
-          physics_features=None,
-        )
         geometry = eqx.tree_deserialise_leaves(geometry_path_obj, skeleton)
 
     # Run Potts inference
@@ -204,6 +213,6 @@ def potts_run(
     result_json = json.dumps(result_dict, indent=2)
     out.write_text(result_json, encoding="utf-8")
 
-  except (ValueError, TypeError, FileNotFoundError) as exc:
+  except (ValueError, TypeError, FileNotFoundError, zstd.ZstdError) as exc:
     typer.echo(f"Error running Potts inference: {exc}", err=True)
     raise typer.Exit(code=1) from exc

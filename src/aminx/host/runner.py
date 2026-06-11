@@ -31,6 +31,7 @@ from aminx.host.output_sinks import (
   take_staging_sequences_logits,
 )
 from aminx.host.plan import (
+  InferencePlan,
   make_inference_plan,
   resolve_chunk_size,
   resolve_target_samples,
@@ -158,7 +159,7 @@ def sample(
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
   # Construct inference plan once before routing to streaming or non-streaming path
-  plan = make_inference_plan(model, spec)
+  plan: InferencePlan = make_inference_plan(model, spec)
 
   if spec.output_h5_path:
     return _sample_streaming(spec, protein_iterator, plan, _sample_batch)
@@ -493,13 +494,11 @@ def inspect(  # noqa: PLR0915
     raise NotImplementedError(msg)
 
   from aminx.inference.bundle_builder import build_inference_bundle  # noqa: PLC0415
-  from aminx.inference.logits import make_stage_set  # noqa: PLC0415
   from aminx.inference.score_unconditional import kernel as score_unconditional  # noqa: PLC0415
   from aminx.sampling.conditional_logits import (  # noqa: PLC0415
     make_conditional_logits_fn,
     make_encoding_conditional_logits_split_fn,
   )
-
   from aminx.utils.structure_metrics import (  # noqa: PLC0415
     _extract_ca_coordinates,
     calculate_ca_distance_matrix,
@@ -511,6 +510,10 @@ def inspect(  # noqa: PLR0915
   )
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
+
+  # Stage set flows from the inference plan (single construction) rather than a
+  # direct make_stage_set import — keeps runner.py free of make_stage_set (COMP-534).
+  unconditional_stage_set = make_inference_plan(model, spec).stage_set
 
   results_per_feature = {feat: [] for feat in spec.inspection_features}
   distance_matrices: list[jax.Array] = []
@@ -554,8 +557,7 @@ def inspect(  # noqa: PLR0915
             mode="score_unconditional",
             inference=True,
           )
-          stage_set = make_stage_set()
-          logits = score_unconditional(model, subkey, bundle, config, stage_set)  # type: ignore[arg-type]
+          logits = score_unconditional(model, subkey, bundle, config, unconditional_stage_set)  # type: ignore[arg-type]
           results_per_feature[feature_name].append(logits)
 
         elif feature_name == "conditional_logits":
@@ -691,7 +693,7 @@ def inspect(  # noqa: PLR0915
   return results
 
 
-def jacobian(  # noqa: PLR0915
+def jacobian(
   spec: JacobianSpecification | None = None,
   **kwargs: Any,  # noqa: ANN401
 ) -> dict[str, Any]:

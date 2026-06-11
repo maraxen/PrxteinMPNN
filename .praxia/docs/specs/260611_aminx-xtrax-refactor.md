@@ -96,9 +96,9 @@ NEGOTIABLE:
 | --- | --- | --- | --- | --- | --- |
 | **T-R1-X** | What is the perf threshold **X%** for "throughput within X%" in the R1 tiling DoD and the Phase-4 inference gate? | Pass/fail bar of perf gates (16/17). | T2.GATE, T4.3 | user | Provisional X=5% (block flip above it). |
 | **T-R2** | Are there in-flight training runs worth preserving across the checkpoint cutover? | Checkpoint path: idea 14 (migration tool + round-trip golden) vs idea 15 (clean-break). | T1.3→T1.4 | user | Assume NO → idea 15 clean-break (cheaper, honest). |
-| **T-R3b** | Is there a committed/credible **second consumer** of xtrax tiling? | Whether the tiling move (Phase 2/3) is load-bearing or OPTIONAL/deferred. | gate on Phase 2 start | user/roadmap | Assume NO → tiling slice OPTIONAL; ship Phase 0+1 only (off-ramp idea 2/22). |
+| **T-R3b** | Is there a committed/credible **second consumer** of xtrax tiling? | Whether the tiling move (Phase 2/3) is load-bearing or OPTIONAL/deferred. | **DECIDE IN P1, before T2.1 starts** (gating the expensive xtrax upgrade, not Phase-2 mid-flight). | user/roadmap | Assume NO → tiling slice OPTIONAL; ship Phase 0+1 only (off-ramp idea 2/22). |
 | T-FLAG | Feature-flag mechanism (env var vs spec field vs config) for the tiling/runner facade. | T3.1/T4.2 implementation. | T3.1 | impl | env var `AMINX_XTRAX_TILING=1`. |
-| T-FACTORY-HOME | Does the unified `make_axis_dispatch` factory layer live in xtrax or in aminx (over xtrax's eager executor)? | T2.4 location. | T2.4 | impl | aminx-side factory over xtrax eager (keeps xtrax surface minimal). |
+| T-FACTORY-HOME | Where the unified `make_axis_dispatch` factory lives, AND the invariants the wrapper must preserve (see AC-2). | T2.4 location + contract. | T2.4 | impl | aminx-side factory (an `eqx.Module` iterator) over xtrax's eager executor; keeps xtrax surface minimal. **Wrapper MUST preserve:** (1) eqx.Module-ness (it is a traced PyTree field, ref `inference/decode/autoregressive.py:115,251`); (2) the `in_axes=` call kwarg; (3) the `ys` (MapIterator) vs `(final_carry, ys)` (ScanIterator) return-shape split (`tiling/iterator.py:75,160`); (4) the `DispatchRejected` guard for heterogeneous-axis Scan + DedupGather (`tiling/dispatch.py:61-75`), which xtrax's eager executor lacks. |
 
 ## Pre-mortem Record (6-months-failed narratives → countermeasures; full text in Decision Log entries)
 - **PM-a (perf silently regressed):** bit-for-bit parity conflated with compile/perf parity; idea-17 bench was one-shot on a benign shape. → R1 DoD requires all three signals; idea-17 is a **standing** gate on the production shape distribution; recompile tripwire fixture derived from the bundle's actual static fields; post-flip throughput canary before legacy deletion.
@@ -118,8 +118,13 @@ NEGOTIABLE:
 - **Given** T-R2 answered, **When** T1.4 lands, **Then** if idea-14: a migration CLI converts an old Composite ckpt and a round-trip golden asserts `old→migrate→resume` is bit-identical over N steps on optimizer moments + step + RNG vs a non-migrated control; if idea-15: the new single-PyTree format is adopted and the break is documented.
 
 **AC-2 xtrax tiling upgrade precondition (cross-repo, in xtrax)**
-- **Given** xtrax tiling lacks Scan.init/CarrySpec/CarryShape/rich DedupSpec, **When** T2.1–T2.6 land in xtrax, **Then** xtrax exposes `Scan.init`, `CarrySpec`, `CarryShape`, an enriched `DedupSpec`/`DedupGather`, a multi-phase `BatchPlanner`, a unified `make_axis_dispatch` (factory-over-eager per T-FACTORY-HOME), and a StageBundle that aminx's wrap-adapter (idea 13) satisfies without loosening xtrax's Optional[Callable] contract.
-- **R1 DoD GATE (T2.GATE):** **Given** the upgraded xtrax tiling, **Then** it reproduces aminx tiling **bit-for-bit** on the golden fixtures (AC via idea 18) **AND** produces an **identical JIT-recompile count** on a fixture exercising every static bundle field (idea 16) **AND** cluster throughput is **within X%** (T-R1-X) on the production shape distribution (idea 17). All three required; failure triggers the OFF-RAMP.
+- **Given** xtrax tiling lacks Scan.init/CarrySpec/CarryShape/rich DedupSpec, **When** T2.1–T2.5 land in xtrax, **Then** xtrax exposes `Scan.init`, `CarrySpec`, `CarryShape`, an enriched `DedupSpec`/`DedupGather`, and a multi-phase `BatchPlanner` whose axis specs and heterogeneous-axis set are **injected parameters, not hardcoded** (the axis-injection seam, T2.5b) so protein axis names (`axes.py`) and `carry.py`'s `{n_states, n_structures}` heterogeneous set stay in aminx and are passed in — xtrax tiling references no protein axis identifiers.
+- **Given** the unified dispatch (T2.4), **Then** `make_axis_dispatch` is reconciled per T-FACTORY-HOME and the aminx-side wrapper **preserves all four invariants** (eqx.Module-ness; `in_axes=` passthrough; `ys` vs `(final_carry, ys)` return-shape split; `DispatchRejected` re-homing). A test instantiates the wrapper as an `eqx.Module` field and asserts each invariant against the real caller shapes in `inference/decode/autoregressive.py`.
+- **Given** aminx `StageSet` has `tuple[Callable,...]`/`dict` static fields (`types/stages.py:344-347`), **When** T2.6 lands, **Then** the wrap-adapter (idea 13) **preserves N-sink multiplicity and firing order** — it does NOT collapse the tuple into a single callable; xtrax `StageBundle` stays strict (Optional[Callable] only) and is used only for genuinely single-callable stages, while the multiplicity-bearing sinks remain in an aminx-native container. A test asserts that all N sinks fire, in order, with identical io_callback side-effects vs legacy.
+- **R1 DoD GATE (T2.GATE):** **Given** the upgraded xtrax tiling, **Then** it reproduces aminx tiling **bit-for-bit** on the golden fixtures **AND** produces an **identical JIT-recompile count** on a fixture exercising every static bundle field **AND** cluster throughput is **within X%** (T-R1-X) on the production shape distribution — all measured per the **Gate Measurement Protocol** below (idea 18 + idea 16 + idea 17). All three required; failure triggers the OFF-RAMP.
+
+**AC-5 Production cutover (after all in-scope slices flip)**
+- **Given** the dev phase used the editable `../xtrax` pin, **When** the targeted xtrax changes (T2.x) are released, **Then** xtrax publishes a new version (CHANGELOG + tag), aminx repins `[tool.uv.sources]` from the editable path to the published version constraint, `uv lock` resolves on a clean checkout WITHOUT `../xtrax` present, and CI documents the editable-path requirement is gone (T-CUTOVER). Until then, CI must have `../xtrax` checked out adjacent.
 
 **AC-3 Tiling slice (flagged)**
 - **Given** the R1 DoD passes, **When** T3.1–T3.4 land, **Then** an aminx tiling facade behind feature flag `T-FLAG` runs the xtrax-backed path beside legacy in shadow under the parity guard; generic tiling modules are sourced from xtrax while protein axes/buckets/pad/carry remain local; the bit-for-bit golden + recompile tripwire are green.
@@ -132,44 +137,67 @@ NEGOTIABLE:
 **AC-OFF-RAMP**
 - **Given** the R1 DoD (T2.GATE) or the Phase-4 perf gate proves unachievable, **OR** T-R3b answers NO, **Then** the plan degrades gracefully to idea 2/22: ship Phase 0 + Phase 1 (+ any already-ahead non-tiling host adoption), leave tiling permanently in aminx, and mark the tiling slices deferred — never a forced flip. The already-ahead surfaces (training/optim/checkpoint/sparse) are never gated on T-R3b.
 
+## Gate Measurement Protocol (makes the gates fixer-executable)
+
+- **Bit-for-bit parity (idea 18):** Fixtures = the existing aminx parity golden set (`tests/parity/` 1ubq/1a00 + `minimal_bundle_fixture`) PLUS a production shape set enumerated from real run specs. Capture pre-refactor outputs (sequences, logits, scores, decoding_order) with a **fixed seed** (`jax.random.PRNGKey(0)`) on **CPU** with `JAX_ENABLE_X64` matching the path's dtype; assert exact array equality (`jnp.array_equal`, not tolerance) between legacy and xtrax-backed paths. CPU + fixed seed removes XLA/accelerator nondeterminism, so exact equality is achievable.
+- **JIT-recompile count (idea 16):** Measure via a trace counter — wrap the jitted callable so each retrace increments a Python counter (or read `jax.jit`'s `_cache_size`/AOT lowering count). The fixture MUST instantiate every `eqx.field(static=True)` field on the bundle/StageSet (e.g. `decoder_sink`, `axis_boundaries`) at ≥2 distinct values so a divergent static signature shows as a count delta. Assert legacy count == xtrax-backed count.
+- **Throughput within X% (idea 17, T-R1-X):** Op = end-to-end `sample`/`score` on the production shape distribution. Hardware = the target cluster node (record hostname); W warmup iters discarded (default W=3), S sampled iters (default S=20), report median ms/call. Pass iff `(xtrax_median - legacy_median)/legacy_median ≤ X%`. Bathos sidecar records jaxlib version, hostname, `XLA_FLAGS`-applied, W, S (per AS4/T0.3). Standing gate re-run on the production shape set, not one-shot.
+- **Checkpoint round-trip golden (T1.4, idea 14):** Two assertions, both deterministic (no XLA): (1) **state fidelity** — `old → migrate → load` yields arrays bit-identical (`jnp.array_equal`) to the source on optimizer moments + step + RNG key + params (pure serialization round-trip); (2) **trajectory** — resume and run **N=50** steps on **CPU with a fixed seed**, assert bit-identical to a non-migrated control resumed from the same source state. If T-R2=NO, this task is dropped (clean-break).
+
 ## Task DAG (backlog blueprint)
 
-Legend: `[flag]` = behind branch-by-abstraction feature flag; `(xtrax)` = work in the xtrax repo; gates in **bold**.
+Legend: `[flag]` = behind branch-by-abstraction feature flag; `(xtrax)` = work in the xtrax repo; gates in **bold**. Every task also carries the standing quality gates (`uv run ty check`, `uv run ruff check`, `uv run pytest`, jaxlint advisory) — a slice's gate is not green until these pass.
 
 ```
 P0 Foundations (no flag)
-  T0.1 bump aminx → py3.13 (requires-python + [tool.uv.environments])         deps: —
-  T0.2 add editable xtrax pin + dep                                            deps: T0.1
-  T0.3 L3 cluster smoke py3.13+JAX on SM120 (AS4/R3a)                          deps: T0.2
-  T0.4 boundary-lint (idea 20) — lands atomically w/ first xtrax import        deps: T0.2
+  T0.1 bump aminx → py3.13 (requires-python + both [tool.uv.environments] markers)   deps: —
+  T0.2 add editable xtrax pin (xtrax={path="../xtrax",editable=true}) + dep           deps: T0.1
+  T0.3 L3 cluster smoke py3.13+JAX on SM120 node4007/4008 (AS4/R3a) + bathos sidecar  deps: T0.2
+  T0.4 boundary-lint (idea 20) + ruff banned-api config edit for xtrax.* — lands
+       ATOMICALLY w/ first xtrax import; CI-fails on injected violation                deps: T0.2
 P1 Training slice (no flag — idea-2 free win)
-  T1.1 adopt ResumableState as training state                                  deps: T0.2,T0.4
-  T1.2 optimizer via xtrax adamw_with_schedule/make_optimizer                  deps: T1.1
-  T1.3 DECIDE T-R2 (runs worth preserving?)                                    deps: T0.2   [user TBD]
-  T1.4 checkpoint → xtrax orbax; metrics→extras; (14) migration CLI+golden | (15) clean-break  deps: T1.3
-  T1.5 (opt) grad-accum / SafetyTrainStep adoption                            deps: T1.1
-  **G1 training parity gate** (loss curve + ckpt round-trip golden)           deps: T1.2,T1.4
-P2 xtrax tiling upgrade — PRECONDITION (xtrax repo)            [gated by T-R3b]
-  T2.1 (xtrax) Scan.init                                                       deps: G1
-  T2.2 (xtrax) CarrySpec + CarryShape                                          deps: T2.1
-  T2.3 (xtrax) enrich DedupSpec/DedupGather                                    deps: T2.1
-  T2.4 (xtrax) unify make_axis_dispatch (factory-over-eager, T-FACTORY-HOME)   deps: T2.1
-  T2.5 (xtrax) multi-phase BatchPlanner (+axis_index/heterogeneous)            deps: T2.2,T2.3
-  T2.6 aminx StageBundle wrap-adapter (idea 13; xtrax stays strict)            deps: T2.4
-  **T2.GATE R1 DoD** (bit-for-bit + recompile-count + throughput≤X%)           deps: T2.5,T2.6,T0.3
+  T1.1 adopt ResumableState as training state (repoint imports + update tests)         deps: T0.2,T0.4
+  T1.2 optimizer via xtrax adamw_with_schedule/make_optimizer (+ test repoint)         deps: T1.1
+  T1.3 DECIDE T-R2 (runs worth preserving?)                                            deps: T0.2   [user TBD]
+  T1.3b DECIDE T-R3b (second consumer of xtrax tiling?) — gates whether P2+ run        deps: T0.2   [user TBD]
+  T1.4 checkpoint → xtrax orbax; metrics→extras; (14) migration CLI+round-trip golden
+       | (15) clean-break (per T-R2)                                                    deps: T1.3
+  T1.5 (opt) grad-accum / SafetyTrainStep adoption                                     deps: T1.1
+  **G1 training parity gate** (loss curve within tol + ckpt round-trip golden)         deps: T1.2,T1.4
+P2 xtrax tiling upgrade — PRECONDITION (xtrax repo)   [ENTER ONLY IF T1.3b ⇒ proceed]
+  T2.1 (xtrax) Scan.init                                                               deps: G1,T1.3b
+  T2.2 (xtrax) CarrySpec + CarryShape                                                  deps: T2.1
+  T2.3 (xtrax) enrich DedupSpec/DedupGather                                            deps: T2.1
+  T2.4 (xtrax) unify make_axis_dispatch + aminx wrapper preserving 4 invariants
+       (eqx.Module / in_axes= / ys-vs-(carry,ys) / DispatchRejected) — see AC-2        deps: T2.1
+  T2.5 (xtrax) multi-phase BatchPlanner (phases 0/0b/1/2/3)                            deps: T2.2,T2.3
+  T2.5b (xtrax) axis-injection seam: BatchPlanner takes AxisSpec list + heterogeneous
+       set as PARAMS (protein axes/carry.py set stay in aminx, passed in) — see B4     deps: T2.5
+  T2.6 aminx StageBundle wrap-adapter preserving N-sink multiplicity+order (idea 13)   deps: T2.4
+  **T2.GATE R1 DoD** (bit-for-bit + recompile-count + throughput≤X%, per Protocol)     deps: T2.5b,T2.6,T0.3
 P3 Tiling slice [flag] (only if T2.GATE passes)
-  T3.1 aminx tiling facade behind flag (T-FLAG)                                deps: T2.GATE
-  T3.2 xtrax-backed tiling path + shadow parity guard                          deps: T3.1
-  T3.3 source generic tiling from xtrax; keep protein axes/buckets/pad/carry   deps: T3.2
-  T3.4 golden bit-for-bit (18) + recompile tripwire (16)                       deps: T3.3
-  **G3 tiling parity gate** → flip flag + canary + delete legacy (T3.5)        deps: T3.4
+  T3.1 aminx tiling facade behind flag (T-FLAG)                                        deps: T2.GATE
+  T3.2 xtrax-backed tiling path + shadow parity guard                                  deps: T3.1
+  T3.3 source generic tiling from xtrax; keep protein axes/buckets/pad/carry;
+       repoint all aminx import sites (~tiling callers) + update tiling tests          deps: T3.2
+  T3.4 golden bit-for-bit (18) + recompile tripwire (16) per Protocol                  deps: T3.3
+  **G3 tiling parity gate** → flip flag + canary + delete legacy (T3.5)                deps: T3.4
 P4 Inference-runner / host-sinks slice [flag] (last, highest perf risk)
-  T4.1 move generic output_sinks/streaming_host/plan to xtrax; SPLIT runner    deps: G3
-  T4.2 runner facade + flag + shadow parity                                    deps: T4.1
-  T4.3 bathos cluster bench (17) STANDING gate + PR tripwire (16)              deps: T4.2,T0.3
-  **G4 perf gate** → flip + canary + delete legacy (T4.4)                      deps: T4.3
-OFF-RAMP (idea 2/22): if T2.GATE or G4 unachievable or T-R3b=NO →
-  ship P0+P1 (+ non-tiling host adoption), defer P2/P3/P4, tiling stays in aminx.
+  T4.1 move generic output_sinks/streaming_host/plan to xtrax; SPLIT runner;
+       reconcile aminx io_callback drain vs xtrax BoundedCallbackHandler; repoint
+       imports + update host/run tests                                                 deps: G3
+  T4.2 runner facade + flag + shadow parity                                            deps: T4.1
+  T4.3 bathos cluster bench (17) STANDING gate covering ALL 5 hotspots
+       (io_callback drain, planner, ArrayRecord+HDF5 read, JIT-recompile) + PR
+       tripwire (16) per Protocol                                                      deps: T4.2,T0.3
+  **G4 perf gate** → flip + canary + delete legacy (T4.4)                              deps: T4.3
+P5 Production cutover (after in-scope slices flip)
+  T5.1 (xtrax) release the targeted changes (CHANGELOG + version tag)                  deps: T2.GATE (and G3/G4 if reached)
+  T5.2 aminx repin [tool.uv.sources] editable→published; uv lock w/o ../xtrax present  deps: T5.1
+  **G5 cutover gate** (clean-checkout resolve; docs/CHANGELOG updated)                 deps: T5.2
+OFF-RAMP (idea 2/22): if T1.3b=NO, or T2.GATE / G4 unachievable →
+  ship P0+P1 (+ already-ahead non-tiling host adoption) + P5 repin of the P1-only xtrax
+  surface; defer P2/P3/P4; tiling stays in aminx. Already-ahead surfaces never gated on T-R3b.
 ```
 
-> Next step after adversarial spec review: promote to praxia backlog as a DAG (P0→P4 with the above `depends_on`), `praxia dw compose-sprint` the executable P0+P1 slice, fill the TOML, `praxia dw emit`, polish, await user review. The three user-owned TBDs (T-R1-X, T-R2, T-R3b) are the decisions to confirm at review.
+> Next step after adversarial spec review (this revision): promote to praxia backlog as a DAG (P0→P5 with the above `depends_on`), `praxia dw compose-sprint` the executable P0+P1 slice, fill the TOML, `praxia dw emit`, polish, await user review. The three user-owned TBDs (T-R1-X, T-R2, T-R3b) are the decisions to confirm at review — T-R3b especially, since it gates whether the expensive P2+ work runs at all.

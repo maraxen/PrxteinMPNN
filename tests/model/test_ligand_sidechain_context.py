@@ -274,20 +274,14 @@ def test_ligand_tied_autoregressive_support_with_sidechain_context() -> None:
 
 
 @pytest.mark.parity_heavy
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Conditional (teacher-forced) scoring does not fuse logits across tied "
-        "positions: tie_group_fuse (TieGroupProductOfExperts) is wired only into the "
-        "AR and STE decode paths (autoregressive.py, ste.py). ConditionalDecode fuses "
-        "across conformational STATES via logit_transform, not across tied POSITIONS. "
-        "So per-group-identical conditional logits is an unimplemented feature, not a "
-        "passing invariant. If conditional tie-group fusion is added, this XPASSes and "
-        "flags the test to assert it. See tech-debt: conditional-tie-group-fusion."
-    ),
-)
 def test_ligand_conditional_multistate_logits_are_group_shared() -> None:
-  """Conditional scoring would combine logits identically per tied group (unimplemented)."""
+  """Conditional scoring fuses logits identically across each tied group (#106).
+
+  ConditionalDecode now applies tie_group_fuse (TieGroupProductOfExperts) across
+  tied POSITIONS after fusing across conformational STATES, so positions sharing a
+  tie group receive the same logit distribution. Untied (singleton) positions are
+  left unchanged.
+  """
   from aminx.inference.bundle_builder import build_inference_bundle
   from aminx.inference.logits import make_stage_set
   from aminx.inference import score_conditional

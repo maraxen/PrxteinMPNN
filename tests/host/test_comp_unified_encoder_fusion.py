@@ -566,12 +566,9 @@ def test_deprecation_warning_legacy_fns():
         except Exception:
             pass
 
-    # 5. _sample_streaming_averaged
-    with pytest.warns(DeprecationWarning, match="_sample_streaming_averaged"):
-        try:
-            streaming_mod._sample_streaming_averaged(None, None, None, None)
-        except Exception:
-            pass
+    # 5. _sample_streaming_averaged (removed — must use unified _sample_streaming path)
+    with pytest.raises(NotImplementedError, match="_sample_streaming_averaged"):
+        streaming_mod._sample_streaming_averaged(None, None, None, None)
 
 
 # ---------------------------------------------------------------------------

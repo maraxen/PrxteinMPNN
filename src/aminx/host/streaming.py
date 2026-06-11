@@ -419,69 +419,16 @@ def _sample_streaming_arrayrecord(
   return results
 
 
-def _original_sample_streaming_averaged(
-  spec: SamplingSpecification,
-  protein_iterator: IterDataset,
-  model: Any,
-  sample_batch_averaged_fn: Callable[..., tuple[Any, Any, Any | None]],
-) -> dict[str, Any]:
-  """Sample new sequences with averaged encodings and stream results to an HDF5 file."""
-  with h5py.File(spec.output_h5_path, "w") as f:
-    f.attrs["schema_version"] = "sampling_averaged_v1"
-    f.attrs["model_family"] = spec.model_family
-    structure_idx = 0
-    structure_batch_count_avg = StreamingBatchHost.structure_batch_count(protein_iterator)
-
-    for batch_idx, batched_ensemble in enumerate(protein_iterator):
-      sampled_sequences, sampled_logits, pseudo_perplexity = sample_batch_averaged_fn(
-        spec,
-        batched_ensemble,
-        model,
-        batch_idx,
-        structure_batch_count_avg,
-      )
-      StreamingBatchHost.sink_barrier()
-      for i in range(sampled_sequences.shape[0]):
-        grp = f.create_group(f"structure_{structure_idx}")
-        grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")
-        grp.create_dataset("logits", data=sampled_logits[i], dtype="f4")
-        if pseudo_perplexity is not None:
-          grp.create_dataset("pseudo_perplexity", data=pseudo_perplexity[i], dtype="f4")
-        # Store metadata about the structure
-        grp.attrs["structure_index"] = structure_idx
-        grp.attrs["num_samples"] = sampled_sequences.shape[1]
-        grp.attrs["num_noise_levels"] = 1  # Averaged, so effectively 1 noise level
-        grp.attrs["num_temperatures"] = (
-          sampled_sequences.shape[2] if sampled_sequences.ndim == 4 else 1
-        )
-        grp.attrs["sequence_length"] = sampled_sequences.shape[-1]
-        structure_idx += 1
-
-      f.flush()
-
-  return {
-    "output_h5_path": str(spec.output_h5_path),
-    "schema_version": "sampling_averaged_v1",
-    "metadata": {
-      "specification": spec,
-      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
-    },
-  }
-
-
 def _sample_streaming_averaged(
   spec: SamplingSpecification,
   protein_iterator: IterDataset,
   model: Any,
   sample_batch_averaged_fn: Callable[..., tuple[Any, Any, Any | None]],
 ) -> dict[str, Any]:
-  """Deprecated: Use _sample_streaming with a plan that has ArithmeticMeanEncodingFusion wired."""
-  warnings.warn(
-    "_sample_streaming_averaged is deprecated. Use _sample_streaming with a plan "
-    "that has ArithmeticMeanEncodingFusion wired into stage_set.encoding_fusion.",
-    DeprecationWarning,
-    stacklevel=2,
+  """Removed: averaged streaming must use ``_sample_streaming`` + encoding fusion."""
+  del spec, protein_iterator, model, sample_batch_averaged_fn
+  msg = (
+    "_sample_streaming_averaged was removed. Use _sample_streaming with "
+    "ArithmeticMeanEncodingFusion wired into the inference plan."
   )
-  return _original_sample_streaming_averaged(
-    spec, protein_iterator, model, sample_batch_averaged_fn,
-  )
+  raise NotImplementedError(msg)

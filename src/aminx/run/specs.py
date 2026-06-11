@@ -427,6 +427,7 @@ class JacobianSpecification(RunSpecification):
   compute_apc: bool = True
   apc_batch_size: int = 8
   apc_residue_batch_size: int = 1000
+  jacobian_mode: Literal["categorical", "reverse"] = "categorical"
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

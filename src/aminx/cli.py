@@ -498,12 +498,19 @@ def run_jacobian(
   average_encoding_mode: Annotated[str, _OPT(help="Encoding averaging mode")] = "inputs_and_noise",
   combine: Annotated[bool, _OPT(help="Combine Jacobians")] = False,
   combine_batch_size: Annotated[int, _OPT(help="Combine batch size")] = 8,
-  output_h5_path: Annotated[Path | None, _OPT(help="HDF5 output path")] = None,
-  compute_apc: Annotated[bool, _OPT(help="Compute APC correction")] = True,
+  output_h5_path: Annotated[
+    Path | None,
+    _OPT(help="Large-tensor output path (.npz; .h5/.hdf5 suffix rewritten)"),
+  ] = None,
+  jacobian_mode: Annotated[
+    str,
+    _OPT(help="categorical: full CatJac (L,21,L,21); reverse: fast score gradient (L,21)"),
+  ] = "categorical",
+  compute_apc: Annotated[bool, _OPT(help="Compute APC correction (categorical mode only)")] = True,
   apc_batch_size: Annotated[int, _OPT(help="APC batch size")] = 8,
   apc_residue_batch_size: Annotated[int, _OPT(help="APC residue batch size")] = 1000,
 ) -> None:
-  """Compute categorical Jacobians (non-serializable fields: combine_weights, combine_fn)."""
+  """Compute Jacobians (categorical CatJac or reverse-mode score gradient)."""
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
@@ -523,6 +530,7 @@ def run_jacobian(
       combine=combine,
       combine_batch_size=combine_batch_size,
       output_h5_path=output_h5_path,
+      jacobian_mode=jacobian_mode,  # type: ignore[arg-type]
       compute_apc=compute_apc,
       apc_batch_size=apc_batch_size,
       apc_residue_batch_size=apc_residue_batch_size,
@@ -882,8 +890,15 @@ def spec_emit_jacobian(
   average_encoding_mode: Annotated[str, _OPT(help="Encoding averaging mode")] = "inputs_and_noise",
   combine: Annotated[bool, _OPT(help="Combine Jacobians")] = False,
   combine_batch_size: Annotated[int, _OPT(help="Combine batch size")] = 8,
-  output_h5_path: Annotated[Path | None, _OPT(help="HDF5 output path")] = None,
-  compute_apc: Annotated[bool, _OPT(help="Compute APC correction")] = True,
+  output_h5_path: Annotated[
+    Path | None,
+    _OPT(help="Large-tensor output path (.npz; .h5/.hdf5 suffix rewritten)"),
+  ] = None,
+  jacobian_mode: Annotated[
+    str,
+    _OPT(help="categorical: full CatJac (L,21,L,21); reverse: fast score gradient (L,21)"),
+  ] = "categorical",
+  compute_apc: Annotated[bool, _OPT(help="Compute APC correction (categorical mode only)")] = True,
   apc_batch_size: Annotated[int, _OPT(help="APC batch size")] = 8,
   apc_residue_batch_size: Annotated[int, _OPT(help="APC residue batch size")] = 1000,
 ) -> None:
@@ -907,6 +922,7 @@ def spec_emit_jacobian(
       combine=combine,
       combine_batch_size=combine_batch_size,
       output_h5_path=output_h5_path,
+      jacobian_mode=jacobian_mode,  # type: ignore[arg-type]
       compute_apc=compute_apc,
       apc_batch_size=apc_batch_size,
       apc_residue_batch_size=apc_residue_batch_size,

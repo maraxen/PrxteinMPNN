@@ -697,7 +697,15 @@ def jacobian(
   spec: JacobianSpecification | None = None,
   **kwargs: Any,  # noqa: ANN401
 ) -> dict[str, Any]:
-  """Compute categorical Jacobians for input structures."""
+  """Compute Jacobians for input structures.
+
+  ``jacobian_mode='categorical'`` (default): full forward-mode categorical Jacobian
+  (L, 21, L, 21) via ``jax.jacfwd``.
+
+  ``jacobian_mode='reverse'``: reverse-mode score gradient (L, 21) — one backward
+  pass; mutation effect approximated as ``grad[i, m] - grad[i, w]`` (see
+  ``aminx.utils.reverse_jac``).
+  """
   if spec is None:
     kw = dict(kwargs)
     pop_deprecated_spec_kwargs(kw)
@@ -707,11 +715,22 @@ def jacobian(
     msg = "jacobian runner: combine=True not yet implemented; use in-memory results"
     raise NotImplementedError(msg)
 
+  if spec.jacobian_mode == "reverse" and spec.compute_apc:
+    msg = "jacobian runner: compute_apc applies to categorical Jacobians only; use --no-compute-apc with reverse mode"
+    raise ValueError(msg)
+
+  from aminx.host.output_sinks import (  # noqa: PLC0415
+    jacobian_sink_session,
+    stage_jacobian_io,
+  )
+  from aminx.host.streaming_host import StreamingBatchHost  # noqa: PLC0415
   from aminx.utils.apc import apc_corrected_frobenius_norm  # noqa: PLC0415
   from aminx.utils.forward_jac import make_categorical_jacobian_fn  # noqa: PLC0415
+  from aminx.utils.reverse_jac import make_reverse_jacobian_score_fn  # noqa: PLC0415
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
-  jac_fn = make_categorical_jacobian_fn(model)  # type: ignore[arg-type]
+  cat_jac_fn = make_categorical_jacobian_fn(model)  # type: ignore[arg-type]
+  encode_fn, reverse_grad_fn = make_reverse_jacobian_score_fn(model)  # type: ignore[arg-type]
 
   all_jacobians: list[jax.Array] = []
   apc_matrices: list[jax.Array] | None = [] if spec.compute_apc else None
@@ -720,48 +739,90 @@ def jacobian(
   resolved_structure_ids: list[str] = []
   structure_offset = 0
   prng_key = jax.random.PRNGKey(spec.random_seed or 42)
+  use_io_sink = spec.output_h5_path is not None
+  stacked_host: list[Any] | None = None
 
-  for _batch_idx, batched_ensemble in enumerate(protein_iterator):
-    batch_size = batched_ensemble.coordinates.shape[0]
-    batch_structure_ids = _structure_ids_for_batch(
-      canonical_structure_ids,
-      structure_offset=structure_offset,
-      batch_size=batch_size,
-    )
+  def _run_structure_loop(*, stage_to_sink: bool) -> None:
+    nonlocal prng_key, structure_offset
 
-    for struct_idx in range(batch_size):
-      struct_coords = batched_ensemble.coordinates[struct_idx]
-      struct_mask = batched_ensemble.mask[struct_idx]
-      struct_residue_index = batched_ensemble.residue_index[struct_idx]
-      struct_chain_index = batched_ensemble.chain_index[struct_idx]
-
-      if hasattr(batched_ensemble, "aatype") and batched_ensemble.aatype is not None:
-        native_seq = batched_ensemble.aatype[struct_idx]
-      else:
-        msg = "Structure does not contain sequence information; cannot compute Jacobian"
-        raise ValueError(msg)
-
-      prng_key, subkey = jax.random.split(prng_key)
-      jac = jac_fn(
-        subkey,
-        struct_coords,
-        struct_mask,
-        struct_residue_index,
-        struct_chain_index,
-        native_seq,
+    global_idx = 0
+    for _batch_idx, batched_ensemble in enumerate(protein_iterator):
+      batch_size = batched_ensemble.coordinates.shape[0]
+      batch_structure_ids = _structure_ids_for_batch(
+        canonical_structure_ids,
+        structure_offset=structure_offset,
+        batch_size=batch_size,
       )
-      all_jacobians.append(jac)
-      if apc_matrices is not None:
-        apc_matrices.append(
-          apc_corrected_frobenius_norm(jac, residue_batch_size=spec.apc_residue_batch_size),
-        )
 
-    resolved_structure_ids.extend(batch_structure_ids)
-    structure_offset += batch_size
+      for struct_idx in range(batch_size):
+        struct_coords = batched_ensemble.coordinates[struct_idx]
+        struct_mask = batched_ensemble.mask[struct_idx]
+        struct_residue_index = batched_ensemble.residue_index[struct_idx]
+        struct_chain_index = batched_ensemble.chain_index[struct_idx]
 
+        if hasattr(batched_ensemble, "aatype") and batched_ensemble.aatype is not None:
+          native_seq = batched_ensemble.aatype[struct_idx]
+        else:
+          msg = "Structure does not contain sequence information; cannot compute Jacobian"
+          raise ValueError(msg)
+
+        prng_key, subkey = jax.random.split(prng_key)
+        if spec.jacobian_mode == "reverse":
+          encoding = encode_fn(
+            struct_coords,
+            struct_mask,
+            struct_residue_index,
+            struct_chain_index,
+            backbone_noise=0.0,
+            prng_key=subkey,
+            structure_mapping=None,
+          )
+          one_hot = jax.nn.one_hot(native_seq, 21)
+          length = one_hot.shape[0]
+          ar_mask = jnp.zeros((length, length), dtype=jnp.int32)
+          jac = reverse_grad_fn(encoding, one_hot, ar_mask)
+        else:
+          jac = cat_jac_fn(
+            subkey,
+            struct_coords,
+            struct_mask,
+            struct_residue_index,
+            struct_chain_index,
+            native_seq,
+          )
+
+        if apc_matrices is not None:
+          apc_matrices.append(
+            apc_corrected_frobenius_norm(jac, residue_batch_size=spec.apc_residue_batch_size),
+          )
+
+        if stage_to_sink:
+          _ = stage_jacobian_io(jnp.asarray(global_idx, dtype=jnp.int32), jac)
+          StreamingBatchHost.sink_barrier()
+        else:
+          all_jacobians.append(jac)
+        global_idx += 1
+
+      resolved_structure_ids.extend(batch_structure_ids)
+      structure_offset += batch_size
+
+  if use_io_sink:
+    with jacobian_sink_session() as sink:
+      _run_structure_loop(stage_to_sink=True)
+      stacked_host = sink.take_all()
+  else:
+    _run_structure_loop(stage_to_sink=False)
+
+  result_key = (
+    "score_gradients" if spec.jacobian_mode == "reverse" else "categorical_jacobians"
+  )
+  jacobian_payload: list[Any] = (
+    stacked_host if use_io_sink and stacked_host is not None else all_jacobians
+  )
   results: dict[str, Any] = {
-    "categorical_jacobians": all_jacobians,
-    "mask": jnp.ones(len(all_jacobians), dtype=jnp.int32),
+    result_key: jacobian_payload,
+    "jacobian_mode": spec.jacobian_mode,
+    "mask": jnp.ones(len(jacobian_payload), dtype=jnp.int32),
     "schema_version": JACOBIAN_SCHEMA_VERSION,
     "metadata": {
       "specification": spec,
@@ -773,12 +834,13 @@ def jacobian(
   if apc_matrices is not None:
     results["apc_frobenius_norm"] = apc_matrices
 
-  if spec.output_h5_path:
-    import h5py  # noqa: PLC0415
+  if use_io_sink and stacked_host is not None:
     import numpy as np  # noqa: PLC0415
 
-    stacked = jnp.stack(all_jacobians)
-    with h5py.File(spec.output_h5_path, "w") as h5_file:
-      h5_file.create_dataset("categorical_jacobians", data=np.asarray(stacked))
+    out_path = spec.output_h5_path
+    assert out_path is not None
+    npz_path = out_path.with_suffix(".npz") if out_path.suffix in {".h5", ".hdf5"} else out_path
+    np.savez_compressed(npz_path, **{result_key: np.stack(stacked_host, axis=0)})
+    results["output_path"] = str(npz_path)
 
   return results

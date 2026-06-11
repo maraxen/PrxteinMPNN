@@ -556,6 +556,14 @@ class TestJacobianSpecification:
         spec = JacobianSpecification(**minimal_jacobian_kwargs)
         assert spec.inputs == minimal_jacobian_kwargs["inputs"]
 
+    def test_jacobian_mode_default_categorical(self, minimal_jacobian_kwargs: dict) -> None:
+        spec = JacobianSpecification(**minimal_jacobian_kwargs)
+        assert spec.jacobian_mode == "categorical"
+
+    def test_jacobian_mode_reverse(self, minimal_jacobian_kwargs: dict) -> None:
+        spec = JacobianSpecification(**minimal_jacobian_kwargs, jacobian_mode="reverse")
+        assert spec.jacobian_mode == "reverse"
+
 
 # ============================================================================
 # InspectionSpecification Tests

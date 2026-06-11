@@ -268,6 +268,73 @@ class IoCallbackEncoderSink(eqx.Module):
     )
 
 
+class JacobianAccumulationSink:
+  """Accumulates Jacobian tensors on the host (runner drain or ``io_callback`` staging)."""
+
+  __slots__ = ("_pending",)
+
+  def __init__(self) -> None:
+    self._pending: list[np.ndarray] = []
+
+  def on_jacobian(self, _structure_idx: object, jacobian_host: object) -> None:
+    self._pending.append(np.asarray(jacobian_host))
+
+  def take_all(self) -> list[np.ndarray]:
+    return list(self._pending)
+
+
+_jacobian_sink_ctx: ContextVar[JacobianAccumulationSink | None] = ContextVar(
+  "_jacobian_sink_ctx",
+  default=None,
+)
+
+# io_callback host threads may not inherit ContextVar; session sets this fallback.
+_active_jacobian_sink_io: JacobianAccumulationSink | None = None
+
+
+@contextmanager
+def jacobian_sink_session() -> Iterator[JacobianAccumulationSink]:
+  """Activate accumulation sink for jacobian ``io_callback`` staging."""
+  global _active_jacobian_sink_io  # noqa: PLW0603
+  sink = JacobianAccumulationSink()
+  token: Token[JacobianAccumulationSink | None] = _jacobian_sink_ctx.set(sink)
+  _active_jacobian_sink_io = sink
+  try:
+    yield sink
+  finally:
+    _active_jacobian_sink_io = None
+    _jacobian_sink_ctx.reset(token)
+
+
+def active_jacobian_sink() -> JacobianAccumulationSink | None:
+  """Return the active jacobian accumulation sink, if any."""
+  sink = _jacobian_sink_ctx.get()
+  if sink is not None:
+    return sink
+  return _active_jacobian_sink_io
+
+
+def _dispatch_jacobian_io(structure_idx: object, jacobian_host: object) -> None:
+  """io_callback target: append Jacobian host array to active accumulation sink."""
+  sink = active_jacobian_sink()
+  if sink is None:
+    return
+  sink.on_jacobian(structure_idx, jacobian_host)
+
+
+@jax.jit
+def stage_jacobian_io(structure_idx: jax.Array, jacobian: jax.Array) -> jax.Array:
+  """Stage a Jacobian to the host sink inside a JIT boundary."""
+  jax.experimental.io_callback(
+    _dispatch_jacobian_io,
+    None,
+    structure_idx,
+    jacobian,
+    ordered=False,
+  )
+  return jacobian
+
+
 def _register_default_output_sinks() -> None:
   OUTPUT_SINKS.register("noop")(lambda: NoopDesignSink())
   OUTPUT_SINKS.register("streaming_tensor_staging")(lambda: StreamingTensorStagingSink())

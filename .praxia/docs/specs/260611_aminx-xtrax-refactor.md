@@ -157,7 +157,7 @@ extraction-ready) yields a CORE / OPTIONAL split. This refines P2 (esp. T2.4, T2
 
 **AC-4 Inference-runner / host-sinks slice (flagged, last)**
 - **Given** Phase 3 complete, **When** T4.1–T4.2 land, **Then** generic output_sinks/streaming_host/plan parts are sourced from xtrax (runner control flow SPLIT, kernels KEEP) behind the flag with shadow parity.
-- **PERF GATE (T4.3):** **Given** the flagged path, **Then** the bathos cluster bench (idea 17) is a **standing** blocking gate showing throughput within X% on the production shape distribution, and the every-PR recompile-count + io_callback-drain-correctness tripwire (idea 16) is green, before T4.4 flips + canaries + deletes legacy.
+- **PERF GATE (T4.3):** **Given** the flagged path, **Then** the bathos cluster bench (idea 17) is a **standing** blocking gate showing throughput regression ≤ 5% (T-R1-X; target 0%, same adjudication rule) on the production shape distribution, and the every-PR recompile-count + io_callback-drain-correctness tripwire (idea 16) is green, before T4.4 flips + canaries + deletes legacy.
 
 **AC-OFF-RAMP (fallback only — T-R3b=YES, so the tiling move is the planned path)**
 - **Given** the R1 DoD (T2.GATE) or the Phase-4 perf gate proves **unfixably** unachievable (a perf regression in (0%,5%] must be fixed, not off-ramped), **Then** the plan degrades gracefully to idea 2/22: keep tiling/sinks in aminx, leave the already-shipped Phase 0+1 surfaces in place — never a forced flip. This is now a safety fallback, not the default; the prolix second consumer makes the tiling move worth completing.

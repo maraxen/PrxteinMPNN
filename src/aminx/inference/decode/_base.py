@@ -11,6 +11,7 @@ import abc
 from typing import Any
 
 import equinox as eqx
+import jax
 import jax.numpy as jnp
 
 from aminx.types.bundles import EncoderOutput, InferenceBundle
@@ -108,3 +109,48 @@ class _ConditionalDecodeBase(eqx.Module, abc.ABC):
 
     # logit_transform signature: (S, L, V) + (L, V) -> (L, V)
     return stage_set.logit_transform(logits, bias=bias)
+
+  @staticmethod
+  def _apply_tie_group_fuse(
+    logits: jnp.ndarray,
+    stage_set: StageSet,
+    tie_group_map: jnp.ndarray,
+  ) -> jnp.ndarray:
+    """Fuse logits across tied positions so a tie group shares one distribution.
+
+    Positions that share a tie-group id are fused via ``stage_set.tie_group_fuse``
+    (product-of-experts: sum of log-softmax), matching the AR/STE tie semantics
+    (autoregressive.py, ste.py). Singleton positions — a group of size one, which
+    is the default when no tie groups are supplied (tie_group_map = arange) — pass
+    through unchanged so the untied path is value-preserving.
+
+    Parameters
+    ----------
+    logits : ndarray
+        Per-position logits after state fusion. Shape (L, V).
+    stage_set : StageSet
+        Contains tie_group_fuse (no-op when None).
+    tie_group_map : ndarray
+        Group id per position. Shape (L,).
+
+    Returns
+    -------
+    ndarray
+        Logits with tied groups fused. Shape (L, V).
+
+    """
+    if stage_set.tie_group_fuse is None:
+      return logits
+
+    # (L, L): same_group[i, j] is True when positions i and j share a tie group.
+    same_group = tie_group_map[:, None] == tie_group_map[None, :]
+    group_size = jnp.sum(same_group, axis=1)  # (L,)
+
+    # For each position i, fuse over its group members via the configured strategy.
+    fused = jax.vmap(lambda member_mask: stage_set.tie_group_fuse(logits, member_mask))(
+      same_group,
+    )  # (L, V)
+
+    # Only non-singleton groups are fused; singletons keep their raw logits.
+    is_tied = group_size > 1
+    return jnp.where(is_tied[:, None], fused, logits)

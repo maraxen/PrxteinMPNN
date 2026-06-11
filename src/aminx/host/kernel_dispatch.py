@@ -112,6 +112,14 @@ def _sample_batch(
   seq_len = batched_ensemble.coordinates.shape[1]
   batch_size = batched_ensemble.coordinates.shape[0]
 
+  # The unified driver indexes these per-structure arrays by a (possibly traced)
+  # structure index under vmap. Convert to JAX arrays so traced indexing lowers to a
+  # gather instead of triggering numpy's __array__ on a tracer (TracerArrayConversionError).
+  coords_for_vmap = jnp.asarray(batched_ensemble.coordinates)
+  mask_for_vmap = jnp.asarray(batched_ensemble.mask)
+  residue_index_for_vmap = jnp.asarray(batched_ensemble.residue_index)
+  chain_index_for_vmap = jnp.asarray(batched_ensemble.chain_index)
+
   # Ensure tie_group_map and mapping have batch dimensions for vmap.
   tie_map_for_vmap = None
   if spec.tie_group_map is not None:
@@ -159,7 +167,7 @@ def _sample_batch(
   )
 
   # 4. Dispatch — two paths based on whether encoding_fusion is wired (Python-level static check)
-  # Check spec for unified driver flag (defaults to False — no behavior change)
+  # Check spec for unified driver flag (defaults to True since S5-D10; legacy path kept as fallback)
   _use_unified = getattr(spec, "use_unified_driver", False)
 
   if _use_unified and plan.stage_set.encoding_fusion is None:
@@ -173,10 +181,10 @@ def _sample_batch(
     sample_decision = batch_plan.decision_for("n_samples")
 
     def _unified_call_kernel(key_samples, structure_idx, noise_val, temp_val):
-      c = batched_ensemble.coordinates[structure_idx]
-      m = batched_ensemble.mask[structure_idx]
-      ri = batched_ensemble.residue_index[structure_idx]
-      ci = batched_ensemble.chain_index[structure_idx]
+      c = coords_for_vmap[structure_idx]
+      m = mask_for_vmap[structure_idx]
+      ri = residue_index_for_vmap[structure_idx]
+      ci = chain_index_for_vmap[structure_idx]
       fm = fixed_mask_for_vmap[structure_idx]
       ft = fixed_tokens_for_vmap[structure_idx]
 
@@ -191,14 +199,14 @@ def _sample_batch(
         bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
         tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
         state_weights=state_weights,
-        ligand_coords=ligand_context["y"][structure_idx]
-        if ligand_context["y"] is not None
+        ligand_coords=ligand_context["Y"][structure_idx]
+        if ligand_context["Y"] is not None
         else None,
-        ligand_atom_types=ligand_context["y_t"][structure_idx]
-        if ligand_context["y_t"] is not None
+        ligand_atom_types=ligand_context["Y_t"][structure_idx]
+        if ligand_context["Y_t"] is not None
         else None,
-        ligand_mask=ligand_context["y_m"][structure_idx]
-        if ligand_context["y_m"] is not None
+        ligand_mask=ligand_context["Y_m"][structure_idx]
+        if ligand_context["Y_m"] is not None
         else None,
         structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
         temperature=temp_val,
@@ -243,10 +251,10 @@ def _sample_batch(
     sample_decision = batch_plan.decision_for("n_samples")
 
     def _unified_call_structure_fused(structure_idx):
-      c = batched_ensemble.coordinates[structure_idx]
-      m = batched_ensemble.mask[structure_idx]
-      ri = batched_ensemble.residue_index[structure_idx]
-      ci = batched_ensemble.chain_index[structure_idx]
+      c = coords_for_vmap[structure_idx]
+      m = mask_for_vmap[structure_idx]
+      ri = residue_index_for_vmap[structure_idx]
+      ci = chain_index_for_vmap[structure_idx]
       fm = fixed_mask_for_vmap[structure_idx]
       ft = fixed_tokens_for_vmap[structure_idx]
 
@@ -262,14 +270,14 @@ def _sample_batch(
           bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
           tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
           state_weights=state_weights,
-          ligand_coords=ligand_context["y"][structure_idx]
-          if ligand_context["y"] is not None
+          ligand_coords=ligand_context["Y"][structure_idx]
+          if ligand_context["Y"] is not None
           else None,
-          ligand_atom_types=ligand_context["y_t"][structure_idx]
-          if ligand_context["y_t"] is not None
+          ligand_atom_types=ligand_context["Y_t"][structure_idx]
+          if ligand_context["Y_t"] is not None
           else None,
-          ligand_mask=ligand_context["y_m"][structure_idx]
-          if ligand_context["y_m"] is not None
+          ligand_mask=ligand_context["Y_m"][structure_idx]
+          if ligand_context["Y_m"] is not None
           else None,
           structure_mapping=mapping_for_vmap[structure_idx]
           if mapping_for_vmap is not None
@@ -330,10 +338,10 @@ def _sample_batch(
     # Path A: no fusion — standard encode-per-(structure, noise, temp) topology
     # -------------------------------------------------------------------------
     def _call_kernel(key_samples, structure_idx, noise_val, temp_val):
-      c = batched_ensemble.coordinates[structure_idx]
-      m = batched_ensemble.mask[structure_idx]
-      ri = batched_ensemble.residue_index[structure_idx]
-      ci = batched_ensemble.chain_index[structure_idx]
+      c = coords_for_vmap[structure_idx]
+      m = mask_for_vmap[structure_idx]
+      ri = residue_index_for_vmap[structure_idx]
+      ci = chain_index_for_vmap[structure_idx]
       fm = fixed_mask_for_vmap[structure_idx]
       ft = fixed_tokens_for_vmap[structure_idx]
 
@@ -348,14 +356,14 @@ def _sample_batch(
         bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
         tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
         state_weights=state_weights,
-        ligand_coords=ligand_context["y"][structure_idx]
-        if ligand_context["y"] is not None
+        ligand_coords=ligand_context["Y"][structure_idx]
+        if ligand_context["Y"] is not None
         else None,
-        ligand_atom_types=ligand_context["y_t"][structure_idx]
-        if ligand_context["y_t"] is not None
+        ligand_atom_types=ligand_context["Y_t"][structure_idx]
+        if ligand_context["Y_t"] is not None
         else None,
-        ligand_mask=ligand_context["y_m"][structure_idx]
-        if ligand_context["y_m"] is not None
+        ligand_mask=ligand_context["Y_m"][structure_idx]
+        if ligand_context["Y_m"] is not None
         else None,
         structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
         temperature=temp_val,
@@ -396,10 +404,10 @@ def _sample_batch(
     # Path B: with fusion — encode D times per structure, fuse → K, decode K×T×N
     # -------------------------------------------------------------------------
     def _call_structure_fused(structure_idx):
-      c = batched_ensemble.coordinates[structure_idx]
-      m = batched_ensemble.mask[structure_idx]
-      ri = batched_ensemble.residue_index[structure_idx]
-      ci = batched_ensemble.chain_index[structure_idx]
+      c = coords_for_vmap[structure_idx]
+      m = mask_for_vmap[structure_idx]
+      ri = residue_index_for_vmap[structure_idx]
+      ci = chain_index_for_vmap[structure_idx]
       fm = fixed_mask_for_vmap[structure_idx]
       ft = fixed_tokens_for_vmap[structure_idx]
 
@@ -415,14 +423,14 @@ def _sample_batch(
           bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
           tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
           state_weights=state_weights,
-          ligand_coords=ligand_context["y"][structure_idx]
-          if ligand_context["y"] is not None
+          ligand_coords=ligand_context["Y"][structure_idx]
+          if ligand_context["Y"] is not None
           else None,
-          ligand_atom_types=ligand_context["y_t"][structure_idx]
-          if ligand_context["y_t"] is not None
+          ligand_atom_types=ligand_context["Y_t"][structure_idx]
+          if ligand_context["Y_t"] is not None
           else None,
-          ligand_mask=ligand_context["y_m"][structure_idx]
-          if ligand_context["y_m"] is not None
+          ligand_mask=ligand_context["Y_m"][structure_idx]
+          if ligand_context["Y_m"] is not None
           else None,
           structure_mapping=mapping_for_vmap[structure_idx]
           if mapping_for_vmap is not None

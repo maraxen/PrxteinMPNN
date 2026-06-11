@@ -207,7 +207,7 @@ class PottsModel(eqx.Module):
     residue_index_arr = jnp.asarray(residue_index, dtype=jnp.int32)
     chain_index_arr = jnp.asarray(chain_index, dtype=jnp.int32)
 
-    from prxteinmpnn.model.features import ProteinFeatures  # noqa: PLC0415
+    from aminx.model.features import ProteinFeatures  # noqa: PLC0415
 
     features = ProteinFeatures(
       node_features=128,
@@ -271,7 +271,7 @@ class PottsModel(eqx.Module):
     chain_index = jnp.asarray(chain_index, dtype=jnp.int32)
 
     # Extract k-NN edges and features via ProteinFeatures
-    from prxteinmpnn.model.features import ProteinFeatures  # noqa: PLC0415
+    from aminx.model.features import ProteinFeatures  # noqa: PLC0415
 
     features = ProteinFeatures(
       node_features=128,

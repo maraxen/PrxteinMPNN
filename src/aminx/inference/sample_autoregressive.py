@@ -33,15 +33,13 @@ def kernel(
   bundle: InferenceBundle,
   config: InferenceConfig,
   stage_set: StageSet,
-  *,
-  atom_37: Array | None = None,
-  atom_37_mask: Array | None = None,
-  chain_mask: Array | None = None,
 ) -> SampleResult:
   """Autoregressive sampling kernel.
 
   Optimized to encode features once and then iterate through the decoding waves.
-  Delegates to unified driver for autoregressive decoding.
+  Delegates to unified driver for autoregressive decoding. Side-chain context
+  (atom_37/atom_37_mask) is packaged onto the GeometryBundle by
+  build_inference_bundle, not accepted as loose kernel kwargs (see #105).
   """
   import jax
 
@@ -51,15 +49,6 @@ def kernel(
   from aminx.tiling.strategy import Vmap
 
   k_enc, k_dec = jax.random.split(prng_key)
-
-  # Inject side-chain context into bundle if provided
-  if atom_37 is not None or atom_37_mask is not None:
-    bundle = eqx.tree_at(
-      lambda b: (b.geometry.atom_37, b.geometry.atom_37_mask),
-      bundle,
-      (atom_37, atom_37_mask),
-      is_leaf=lambda x: x is None,
-    )
 
   # Encode using make_encode_fn with rolling state disabled for AR
   encode_fn = make_encode_fn(model, use_rolling_state=False)

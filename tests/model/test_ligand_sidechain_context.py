@@ -75,13 +75,10 @@ def _run_conditional(
   from aminx.inference.logits import make_stage_set
   from aminx.inference import score_conditional
 
-  kwargs: dict[str, jax.Array] = {}
-  if include_side_chain_inputs:
-    kwargs = {
-      "atom_37": inputs["atom_37"][None, ...],
-      "atom_37_mask": inputs["atom_37_mask"][None, ...],
-      "chain_mask": inputs["chain_mask"][None, ...],
-    }
+  # Side-chain context (atom_37/atom_37_mask) is packaged onto the GeometryBundle via
+  # build_inference_bundle (see #105), not passed as loose kernel kwargs.
+  sc_atom_37 = inputs["atom_37"][None, ...] if include_side_chain_inputs else None
+  sc_atom_37_mask = inputs["atom_37_mask"][None, ...] if include_side_chain_inputs else None
 
   # Build inference bundle with ligand coordinates and ligand mask
   bundle, config = build_inference_bundle(
@@ -92,6 +89,8 @@ def _run_conditional(
     ligand_coords=inputs["y"][None, ...],
     ligand_atom_types=inputs["y_t"][None, ...],
     ligand_mask=y_m[None, ...],
+    atom_37=sc_atom_37,
+    atom_37_mask=sc_atom_37_mask,
     ar_mask=inputs["ar_mask"][None, ...],
     sequence=inputs["one_hot_sequence"],
     mode="score_conditional",
@@ -99,7 +98,7 @@ def _run_conditional(
   stage_set = make_stage_set()
 
   # Run conditional scoring kernel
-  logits = score_conditional.kernel(model, jax.random.PRNGKey(123), bundle, config, stage_set, **kwargs)
+  logits = score_conditional.kernel(model, jax.random.PRNGKey(123), bundle, config, stage_set)
 
   # Return sequence (one-hot) and logits for compatibility with previous API
   return inputs["one_hot_sequence"], logits

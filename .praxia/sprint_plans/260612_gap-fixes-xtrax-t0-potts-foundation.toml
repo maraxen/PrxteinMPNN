@@ -1,0 +1,410 @@
+[sprint]
+sprint_id = "260612_gap-fixes-xtrax-t0-potts-foundation"
+sprint_num = 1
+name = "260612_gap-fixes-xtrax-t0-potts-foundation"
+description = "Close three host wiring gaps (atom_37, fixed_mask, STE), complete T1.4 checkpoint orbax, bump to Python 3.13, and lay Potts foundation (P-00a recon + P-00b ADR)."
+context = "Resuming from 260611_xtrax-foundations sprint. T1.1-T1.2 (xtrax ResumableState+optimizer), RS-4 (run exports), RS-1 (inventory research) all completed. T1.4 audit was FAIL. Three correctness gaps found in host dispatch layer."
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[[tracks]]
+id = "a"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1753"
+phase_name = "Track A — [Gap 1] Wire atom_37/atom_37_mask/chain_mask from ligand_context into build_inference_bundle call sites (#1753)"
+fixer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Objective: Wire atom_37, atom_37_mask, and chain_mask from ligand_context into every
+build_inference_bundle call site in src/aminx/host/kernel_dispatch.py. Edit only.
+
+Background:
+- _sampling_helper.py:349-351 populates ligand_context["atom_37"], ["atom_37_mask"], ["chain_mask"]
+- src/aminx/inference/bundle_builder.py:56-57 already accepts atom_37 and atom_37_mask as
+  optional keyword args (jax.Array | None = None)
+- kernel_dispatch.py has 3+ call sites (~line 191, ~258, ~345, possibly ~411) that forward
+  ligand_context["Y"/"Y_t"/"Y_m"] with the same None-guard pattern but omit the three fields
+  above — they are silently dropped
+
+Fix: At each build_inference_bundle(...) call site in kernel_dispatch.py that already passes
+ligand_coords/ligand_atom_types/ligand_mask, add three more keyword arguments using the same
+None-guard pattern:
+  atom_37=ligand_context["atom_37"][structure_idx]
+      if ligand_context["atom_37"] is not None else None,
+  atom_37_mask=ligand_context["atom_37_mask"][structure_idx]
+      if ligand_context["atom_37_mask"] is not None else None,
+  chain_mask=ligand_context["chain_mask"][structure_idx]
+      if ligand_context["chain_mask"] is not None else None,
+
+Steps:
+1. Read src/aminx/host/kernel_dispatch.py, identify all build_inference_bundle call sites
+2. Edit each call site to add the three fields above — one Edit per call site
+3. Run: uv run ty check src/aminx/host/kernel_dispatch.py
+4. Do NOT touch _sampling_helper.py or bundle_builder.py"""
+reviewer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Reviewing Track A: atom_37/atom_37_mask/chain_mask wiring in kernel_dispatch.py
+
+VERIFY 1: Run `uv run ty check src/aminx/host/kernel_dispatch.py` — must exit 0 (no type errors)
+VERIFY 2: Run `uv run pytest tests/ -x -q -m "not slow and not parity_heavy and not parity_audit" 2>&1 | tail -20`
+          — must show no new failures introduced by this change
+VERIFY 3: Read src/aminx/host/kernel_dispatch.py — confirm that every build_inference_bundle
+          call that passes ligand_coords/ligand_atom_types/ligand_mask ALSO passes
+          atom_37, atom_37_mask, and chain_mask with the None-guard pattern
+VERIFY 4: No other files modified
+
+PASS if all 4 VERIFYs are satisfied.
+FAIL if any test fails, type errors introduced, or fields are missing at any call site."""
+return_key = "1753"
+
+[[tracks]]
+id = "b"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1754"
+phase_name = "Track B — [Gap 2] Read spec.fixed_mask in _prepare_fixed_controls alongside spec.fixed_positions (#1754)"
+fixer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Objective: In src/aminx/host/_sampling_helper.py, make _prepare_fixed_controls respect
+spec.fixed_mask when it is set directly. Edit only — one file.
+
+Background:
+- _prepare_fixed_controls (line 438) builds fixed_mask_np as np.zeros, then fills it from
+  spec.fixed_positions if not None (line 448-456)
+- spec.fixed_mask (ArrayLike | None) is a separate field that callers can set directly as
+  a (batch_size, seq_len) float32 array — but the function ignores it entirely
+- A caller that sets spec.fixed_mask without setting spec.fixed_positions silently gets zeros
+
+Fix: After the opening `fixed_mask_np = np.zeros(...)` at line 445, add a branch:
+
+  if spec.fixed_mask is not None:
+      fixed_mask_np = np.asarray(spec.fixed_mask, dtype=np.float32)
+      if fixed_mask_np.ndim == 1:
+          fixed_mask_np = np.broadcast_to(
+              fixed_mask_np[None, :], (batch_size, seq_len)
+          ).copy()
+      if fixed_mask_np.shape != (batch_size, seq_len):
+          msg = f"fixed_mask must have shape ({batch_size}, {seq_len}), got {fixed_mask_np.shape}"
+          raise ValueError(msg)
+  elif spec.fixed_positions is not None:
+      ... (existing fixed_positions branch, unchanged)
+
+The fixed_mask branch should take precedence over (replace, not combine with) the
+fixed_positions branch — spec.fixed_mask is an explicit mask, fixed_positions is a
+convenience shorthand that builds the mask.
+
+Also verify what fields spec.fixed_mask has by checking src/aminx/run/specs.py:305 first.
+
+Steps:
+1. Read src/aminx/run/specs.py around SamplingSpecification (line 305) to confirm the
+   field name, type annotation, and default value
+2. Read src/aminx/host/_sampling_helper.py:438-473 to see the exact current structure
+3. Edit _sampling_helper.py to add the branch above
+4. Run: uv run ty check src/aminx/host/_sampling_helper.py"""
+reviewer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Reviewing Track B: spec.fixed_mask branch in _prepare_fixed_controls
+
+VERIFY 1: Run `uv run ty check src/aminx/host/_sampling_helper.py` — must exit 0
+VERIFY 2: Run `uv run pytest tests/ -x -q -m "not slow and not parity_heavy and not parity_audit" 2>&1 | tail -20`
+          — no new failures
+VERIFY 3: Read _sampling_helper.py:_prepare_fixed_controls — confirm the function checks
+          spec.fixed_mask before spec.fixed_positions, converts to float32, validates shape,
+          and raises ValueError on shape mismatch
+VERIFY 4: No other files modified
+
+PASS if all 4 VERIFYs satisfied.
+FAIL if type errors, test failures, or if spec.fixed_mask is still silently ignored."""
+return_key = "1754"
+
+[[tracks]]
+id = "c"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1755"
+phase_name = "Track C — [Gap 3] Add STEMode dispatch path to host/averaging.py entry points (#1755)"
+fixer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Objective: Wire the STE (straight-through estimator) path into the legacy
+_make_encoding_sampling_split_fn_legacy function in src/aminx/host/averaging.py.
+The sampling_strategy parameter is currently accepted and immediately deleted.
+
+Background (read these files first):
+- src/aminx/host/averaging.py: The legacy sample_fn (line ~318) has
+    sampling_strategy: Literal["temperature", "straight_through"] = "temperature"
+  and iterations/learning_rate params, but line ~357 does:
+    del iterations, learning_rate, sampling_strategy  # Not used in current implementation
+- src/aminx/inference/optimize_ste.py:50 has make_optimize_sequence_fn(model, stage_set, ...)
+  which returns a callable with signature (prng_key, bundle, config, iterations, lr, temp) →
+  (sequence, logits_output, logits_ste). This is a DIFFERENT API than sample_fn.
+- The legacy averaging path encodes directly (no InferencePlan), so the STE path must use
+  the STEDecode module from src/aminx/inference/decode/ste.py:66 instead.
+- src/aminx/inference/decode/ste.py: STEDecode(eqx.Module) has __call__ that takes
+  encoded_features and returns optimized sequence. Read it to understand the interface.
+
+Fix approach: In the legacy sample_fn, instead of deleting all three STE params, add a
+dispatch branch:
+  if sampling_strategy == "straight_through":
+      # delegate to STEDecode
+      ste = STEDecode(decode_logits_fn, iterations=iterations or 100,
+                      learning_rate=learning_rate or 0.01, temperature=temperature or 1.0)
+      return ste(prng_key, encoded_features, decoding_order)
+  # else fall through to existing temperature sampling path
+
+But first do recon: read ste.py to understand STEDecode.__init__ signature before writing
+the dispatch. Match the constructor args to what's available in sample_fn's scope.
+
+Steps:
+1. Read src/aminx/inference/decode/ste.py (full file, 424 lines) — understand STEDecode API
+2. Read src/aminx/host/averaging.py:225-360 to understand the full legacy function context
+3. Edit averaging.py to add the straight_through dispatch (Edit only)
+4. Run: uv run ty check src/aminx/host/averaging.py"""
+reviewer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Reviewing Track C: STE dispatch in averaging.py
+
+VERIFY 1: Run `uv run ty check src/aminx/host/averaging.py` — must exit 0
+VERIFY 2: Run `uv run pytest tests/ -x -q -m "not slow and not parity_heavy and not parity_audit" 2>&1 | tail -20`
+          — no new failures
+VERIFY 3: Read averaging.py:sample_fn — confirm iterations, learning_rate, sampling_strategy
+          are NO LONGER all deleted; there is a branch on sampling_strategy == "straight_through"
+          that calls STEDecode (or equivalent) and returns a sequence
+VERIFY 4: Confirm the temperature path (the else branch) is unchanged
+
+PASS if all 4 VERIFYs satisfied.
+FAIL if type errors, test failures, or if sampling_strategy is still silently discarded."""
+return_key = "1755"
+
+[[tracks]]
+id = "d"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1549"
+phase_name = "Track D — [xtrax T1.4] Checkpoint -> xtrax orbax single-PyTree; metrics->extras; CLEAN-BREAK (no migration, per T-R2=NO) (#1549)"
+fixer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Objective: Complete T1.4 — adopt xtrax.checkpoint.orbax single-PyTree checkpointing.
+The prior audit (260611_xtrax-foundations_T1.4-reviewer) returned FAIL. Diagnose and fix.
+
+Background:
+- src/aminx/training/checkpoint.py is already a thin re-export of xtrax.checkpoint.orbax
+  (this was done; the file header says so)
+- src/aminx/training/trainer.py:127-220 uses get_checkpoint_manager and load_checkpoint;
+  save calls use save_checkpoint(manager, resumable_state)
+- The CLEAN-BREAK decision: no Composite-format migration, no migration CLI
+
+Acceptance criteria (from spec 260611):
+  AC-1: get_checkpoint_manager returns a PyTreeCheckpointHandler-backed manager
+  AC-2: save_checkpoint(manager, resumable_state) writes params+opt_state+step+RNG+extras
+  AC-3: load_checkpoint(manager) restores and jnp.array_equal passes for all fields
+  AC-4: metrics live in ResumableState.extras (not a top-level field)
+  AC-5: CHANGELOG has entry for Composite->PyTree format break
+
+Steps:
+1. Run `uv run pytest tests/training/ -x -q 2>&1 | tail -40` — identify exact failure
+2. Read the failing test and checkpoint.py/trainer.py to understand the gap
+3. Fix the root cause (Edit only — checkpoint.py and/or trainer.py)
+4. Run `uv run pytest tests/training/ -x -q` again to confirm green
+5. If CHANGELOG entry is missing, add it to CHANGELOG.md"""
+reviewer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Reviewing Track D: T1.4 checkpoint xtrax orbax adoption
+
+VERIFY 1: Run `uv run pytest tests/training/ -x -q 2>&1 | tail -20` — must show all PASSED
+VERIFY 2: Run `uv run ty check src/aminx/training/checkpoint.py src/aminx/training/trainer.py`
+          — must exit 0
+VERIFY 3: Read CHANGELOG.md — must contain an entry for Composite->PyTree format break
+VERIFY 4: Run `uv run pytest tests/ -x -q -m "not slow and not parity_heavy and not parity_audit" 2>&1 | tail -20`
+          — full suite green (no regressions outside training/)
+
+PASS if all 4 VERIFYs satisfied.
+FAIL if any training test fails, type errors introduced, or CHANGELOG missing."""
+return_key = "1549"
+
+[[tracks]]
+id = "e"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1542"
+phase_name = "Track E — [xtrax T0.1] Bump aminx to Python >=3.13 (requires-python + both [tool.uv.environments] markers) (#1542)"
+fixer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Objective: Bump aminx's Python requirement to >=3.13. Edit only — one file (pyproject.toml).
+
+Background:
+- xtrax requires Python >=3.13; uv lock fails under >=3.12 because of this
+- pyproject.toml has requires-python = ">=3.12" and two [tool.uv.environments] entries
+  with python_version >= '3.12' markers
+
+Fix (all in pyproject.toml):
+  1. Change: requires-python = ">=3.12"  →  requires-python = ">=3.13"
+  2. Update both [tool.uv.environments] marker strings from '3.12' to '3.13'
+
+After editing:
+  3. Run: uv lock  (must resolve without error)
+  4. Run: uv run pytest -x -q -m "not slow and not parity_heavy and not parity_audit" 2>&1 | tail -20
+
+Do NOT run uv sync or install anything."""
+reviewer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Reviewing Track E: Python >=3.13 bump
+
+VERIFY 1: Read pyproject.toml — requires-python must be ">=3.13"; both [tool.uv.environments]
+          markers must reference '3.13' (not '3.12')
+VERIFY 2: Run `uv lock 2>&1 | tail -10` — must exit 0 and show "Resolved N packages"
+VERIFY 3: Run `uv run pytest -x -q -m "not slow and not parity_heavy and not parity_audit" 2>&1 | tail -20`
+          — full non-cluster suite green
+VERIFY 4: Only pyproject.toml and uv.lock modified (no source file changes)
+
+PASS if all 4 VERIFYs satisfied.
+FAIL if lock fails, tests fail, or any source file other than pyproject.toml/uv.lock was edited."""
+return_key = "1542"
+
+[[tracks]]
+id = "f"
+is_research = true
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1302"
+phase_name = "Track F — P-00a: Recon — ProteinFeatures shared vs. mistypotts-local copy (#1302)"
+fixer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Objective: Research task. Determine whether aminx's k-NN ProteinFeatures featurizer and
+any copy inside the mistypotts vendor tree are the same implementation or have diverged.
+Output: a decision record at .praxia/docs/decisions/260612_proteinfeatures-shared-vs-local.md
+
+Steps:
+1. Find ProteinFeatures in aminx: grep -rn "class ProteinFeatures" src/aminx/
+2. Find any vendor copy: find src/ -name "*.py" | xargs grep -l "class ProteinFeatures" 2>/dev/null
+3. If both exist, diff the two implementations (read both files in full)
+4. Determine:
+   a. Are they identical / trivially diverged (safe to deduplicate)?
+   b. Are there divergences that matter (different k-NN logic, different input shapes)?
+   c. Would PottsModel be better served importing aminx.model.features vs. carrying a local copy?
+5. Write the decision record (.praxia/docs/decisions/260612_proteinfeatures-shared-vs-local.md)
+   using standard ADR format:
+   - Status, Context, Decision, Consequences, Rejected alternatives
+6. Update .praxia/docs/INDEX.md with the new entry
+7. Log findings to transduction:
+   transduction_log(action="append_research", task_id="260612_gap-fixes-xtrax-t0-potts-foundation",
+     payload={research_id="260612_proteinfeatures-recon", task_id="...",
+     findings=[{source, claim, evidence}], confidence})
+
+Do NOT write any code changes. Research and documentation only."""
+reviewer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Reviewing Track F: ProteinFeatures recon
+
+VERIFY 1: File exists at .praxia/docs/decisions/260612_proteinfeatures-shared-vs-local.md
+VERIFY 2: Read the file — it must state a clear decision (deduplicate / keep separate),
+          provide evidence (file paths + diff summary), and have Status/Context/Decision sections
+VERIFY 3: .praxia/docs/INDEX.md references the new file
+VERIFY 4: transduction_log shows an append_research entry for this research_id
+
+PASS if all 4 VERIFYs satisfied.
+FAIL if file is missing, decision is vague, or no transduction log entry."""
+return_key = "1302"
+
+[[tracks]]
+id = "g"
+is_research = true
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1303"
+phase_name = "Track G — P-00b: ADR — Potts is a parallel model family, NOT a StageSet consumer (#1303)"
+fixer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Objective: Write an Architecture Decision Record locking the boundary: PottsModel lives in
+aminx.potts as a parallel model family and does NOT consume StageSet or InferencePlan.
+Output: .praxia/docs/decisions/260605_potts-parallel-not-stageset.md
+
+Context already established (do NOT re-derive — use this directly):
+- Option II rejected: decode_step signature is (node_f, edge_f, nei, mask) → (L,V) logits;
+  Potts needs raw backbone coordinates as input and returns (marginals, h, J, rho) — interface mismatch
+- Option III rejected: EncoderOutput is load-bearing across the entire aminx inference stack;
+  widening it to carry Potts-specific fields creates downstream coupling
+- Option IV rejected: ProductOfProbabilities (aminx.inference.logits) cannot express pairwise
+  J coupling — it operates on per-residue logit vectors with no residue-residue terms
+
+Decision: PottsModel operates on raw coordinates, produces Potts parameters (h, J), runs TRW
+marginals internally, and exposes a sampling interface. It is a sibling to Aminx at the
+aminx.potts namespace level — not a plugin or StageSet stage.
+
+Steps:
+1. Check if .praxia/docs/decisions/260605_potts-parallel-not-stageset.md already exists;
+   if so, augment it rather than replacing it
+2. Write the ADR using this structure:
+   ---
+   status: Accepted
+   date: 2026-06-05
+   ---
+   # ADR: Potts is a parallel model family, not a StageSet consumer
+   ## Status / Context / Decision / Consequences / Rejected alternatives
+3. Ensure the Rejected alternatives section covers II, III, IV with the exact reasoning above
+4. Update .praxia/docs/INDEX.md
+5. Do NOT modify any .py source files — documentation only"""
+reviewer_prompt = """
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+workspace: /home/marielle/projects/aminx
+
+Reviewing Track G: Potts ADR
+
+VERIFY 1: File exists at .praxia/docs/decisions/260605_potts-parallel-not-stageset.md
+VERIFY 2: Read the file — must contain Status, Context, Decision, Consequences, and Rejected
+          alternatives sections; Rejected alternatives must cover Options II, III, IV with
+          specific reasoning for each rejection (not just "rejected")
+VERIFY 3: .praxia/docs/INDEX.md references the file
+VERIFY 4: No .py files modified
+
+PASS if all 4 VERIFYs satisfied.
+FAIL if file missing, Rejected alternatives section is vague, or any source file edited."""
+return_key = "1303"
+
+[orchestration]
+sequential = []
+concurrent = []

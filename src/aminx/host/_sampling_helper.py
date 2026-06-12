@@ -8,7 +8,7 @@ import numpy as np
 
 from aminx.run.specs import SamplingSpecification
 from aminx.utils.data_structures import Protein
-from aminx.utils.decoding_order import random_decoding_order
+from aminx.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
 LIGAND_PLACEHOLDER_ATOMS = 1
 LIGAND_CONTEXT_KEYS = ("Y", "Y_t", "Y_m")
@@ -445,7 +445,16 @@ def _prepare_fixed_controls(
   fixed_mask_np = np.zeros((batch_size, seq_len), dtype=np.float32)
   fixed_tokens_np = np.zeros((batch_size, seq_len), dtype=np.int32)
 
-  if spec.fixed_positions is not None:
+  if spec.fixed_mask is not None:
+    fixed_mask_np = np.asarray(spec.fixed_mask, dtype=np.float32)
+    if fixed_mask_np.ndim == 1:
+      fixed_mask_np = np.broadcast_to(
+          fixed_mask_np[None, :], (batch_size, seq_len)
+      ).copy()
+    if fixed_mask_np.shape != (batch_size, seq_len):
+      msg = f"fixed_mask must have shape ({batch_size}, {seq_len}), got {fixed_mask_np.shape}"
+      raise ValueError(msg)
+  elif spec.fixed_positions is not None:
     fixed_pos = np.asarray(spec.fixed_positions, dtype=np.int32)
     fixed_mask_np = _broadcast_per_structure(
       fixed_pos,

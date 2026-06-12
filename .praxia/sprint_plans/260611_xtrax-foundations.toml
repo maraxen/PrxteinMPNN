@@ -1,0 +1,424 @@
+[sprint]
+sprint_id = "260611_xtrax-foundations"
+sprint_num = 1
+name = "260611_xtrax-foundations — aminx→xtrax P0 foundations + RunSpec prep"
+description = """
+First executable slice of EPIC #1541 + RunSpec foundations (RS-1/RS-4/RS-5). Lands boundary-lint,
+training adoption (ResumableState + optimizer + T1.4 clean-break checkpoint), and parallel RunSpec prep.
+Cluster smoke (#1544) DEFERRED. G1 training-parity gate WAIVED (user: training not active).
+RE-BASELINED 2026-06-12: Tracks A (#1542) and B (#1543) already done in main (pyproject.toml at
+>=3.13, xtrax editable pin live). Tracks G (#1623) and H (#1624) implemented but uncommitted
+(verify+commit). Sequential spine starts at #1545. Stack: uv + ty + ruff + pytest (`uv run`).
+"""
+context = """
+USER DECISIONS (2026-06-11): T-R1-X=5%/T-R2=clean-break/T-R3b=prolix-YES confirmed. T1.4 IN
+foundations. G1 WAIVED. Cluster smoke DEFERRED. HDF5 scoring streaming (#1444) PERMANENTLY SHELVED.
+
+RE-BASELINE (2026-06-12):
+- Tracks A/B DONE: pyproject.toml already has requires-python=">=3.13" and
+  xtrax={path="../xtrax",editable=true}. Confirmed live.
+- Track G DONE (uncommitted): src/aminx/run/_exports.py + tests/run/test_exports.py exist in
+  working tree; fixer must verify ACs and commit.
+- Track H DONE (uncommitted): kernel_dispatch.py:171 default already True +
+  tests/host/test_use_unified_driver_default.py in working tree; fixer must verify ACs and commit.
+- P2 xtrax recon STALE: xtrax tiling already has BatchPlanner/DedupSpec/DedupGather/AxisSpec —
+  re-recon needed before T2.1-T2.5 can be scoped in sprint 2 (not a sprint-1 blocker).
+
+GROUND TRUTH: .praxia/docs/research/260611_aminx-xtrax-refactor-codebase-model.md
+- xtrax editable at ../xtrax. xtrax.training.ResumableState + adamw_with_schedule confirmed present.
+- aminx/training/trainer.py still uses create_optimizer() — Track E is the real sequential entry.
+- Track D boundary-lint: no xtrax ast-grep rule exists yet; .ast-grep/ dir exists for pattern.
+- Dependency order: 1545→1548→1549. RS tracks F/G/H independent (concurrent).
+"""
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+# ── Track A [DONE — skip] ──────────────────────────────────────────────────
+[[tracks]]
+id = "a"
+is_research = false
+worktree = false
+skip_worktree = true
+
+[[tracks.items]]
+backlog_id = "1542"
+phase_name = "Track A — [DONE] py3.13 floor already in pyproject.toml (#1542)"
+fixer_prompt = """
+SKIP — already done. pyproject.toml has requires-python=">=3.13" and both
+[tool.uv.environments] markers at python_version >= '3.13'. Nothing to change.
+Verify: `rg -n 'requires-python|python_version' pyproject.toml` → all 3.13.
+"""
+reviewer_prompt = """
+VERIFY only: `rg -n 'requires-python|python_version' pyproject.toml` → all 3.13. PASS immediately.
+"""
+return_key = "1542"
+
+# ── Track B [DONE — skip] ──────────────────────────────────────────────────
+[[tracks]]
+id = "b"
+is_research = false
+worktree = false
+skip_worktree = true
+
+[[tracks.items]]
+backlog_id = "1543"
+phase_name = "Track B — [DONE] editable xtrax pin already in pyproject.toml (#1543)"
+fixer_prompt = """
+SKIP — already done. pyproject.toml [project].dependencies has xtrax>=0.2.0 and
+[tool.uv.sources] has xtrax = { path = "../xtrax", editable = true }.
+Verify: `uv run python -c "import xtrax; print(xtrax.__version__)"` → 0.2.0.
+"""
+reviewer_prompt = """
+VERIFY only:
+- `rg -n 'xtrax' pyproject.toml` shows the dep + editable source with literal ../xtrax path.
+- `uv run python -c "import xtrax; print(xtrax.__version__)"` → 0.2.0.
+- `rg -n "import xtrax|from xtrax" src` → NO source imports yet.
+PASS immediately if all hold.
+"""
+return_key = "1543"
+
+# ── Track C [DEFERRED] ────────────────────────────────────────────────────
+[[tracks]]
+id = "c"
+is_research = false
+worktree = false
+skip_worktree = true
+
+[[tracks.items]]
+backlog_id = "1544"
+phase_name = "Track C — [DEFERRED] L3 cluster smoke py3.13+JAX on SM120 (#1544)"
+fixer_prompt = """
+DEFERRED — user decision 2026-06-11. Cluster smoke will run in a separate cluster sprint.
+Do not execute this track. Report SKIPPED.
+"""
+reviewer_prompt = """
+DEFERRED — skip. Report SKIPPED.
+"""
+return_key = "1544"
+
+# ── Track D — boundary-lint ────────────────────────────────────────────────
+[[tracks]]
+id = "d"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1545"
+phase_name = "Track D — [xtrax T0.4] Boundary-lint: ruff banned-api + xtrax protein-agnostic guard (#1545)"
+fixer_prompt = """
+task_id: 260611_xtrax-refactor-spec. Depends on B (#1543) already done. Stack: uv/Python + ruff/ast-grep. New lint file allowed.
+
+OBJECTIVE: Preserve ADR 260605 boundary discipline across the xtrax move. ruff TID251 bans
+aminx.* paths but xtrax.* is inherently unbanned, so the first xtrax.* import would silently
+bypass the boundary. This guard MUST land atomically with or before any xtrax.* import.
+
+CURRENT STATE: `rg -rn "import xtrax|from xtrax" src/` → zero hits (no xtrax imports yet).
+.ast-grep/ dir exists with existing rules as pattern (see potts-import-boundary.yml was removed;
+check git log for structure). pyproject.toml [tool.ruff.lint.flake8-tidy-imports.banned-api]
+currently bans only aminx.* paths.
+
+DO (both halves required, must both be atomic):
+(a) aminx→xtrax-internals boundary: an import-boundary check ensuring aminx protein modules
+    do not reach into xtrax internals they should not (mirror the ADR's intent for surfaces
+    that will move to xtrax). Implement as a ruff banned-api entry or ast-grep rule.
+(b) xtrax protein-agnostic guard: assert no xtrax module references the symbols
+    `atom_37`, `residue_index`, `tie_group_map`. Implement as an ast-grep rule (preferred,
+    matches repo convention) or a pytest that greps ../xtrax/src; wire into CI.
+
+SUCCESS CRITERIA:
+- Both checks are GREEN on the current tree.
+- Injecting a violation (e.g. a temp xtrax module with `atom_37 = None`) makes part (b) FAIL;
+  removing it passes again. Demonstrate both states.
+- `uv run ruff check .` exits 0.
+- New check wired into CI (ci.yml) or pytest suite.
+Report: rule/file added, the inject-fail/clean-pass output.
+"""
+reviewer_prompt = """
+task_id: 260611_xtrax-refactor-spec. Reviewer (HAS Bash). Stack: uv/Python + ruff/ast-grep.
+
+VERIFY:
+- Both halves exist and are wired: (a) protein→xtrax-internals guard, (b) xtrax protein-agnostic guard.
+- Demonstrate FAIL on injected violation and PASS once removed (run both).
+- `uv run ruff check .` exits 0.
+- CI / pytest integration present.
+PASS iff both guards are real and enforced. FAIL otherwise.
+"""
+return_key = "1545"
+
+# ── Track E — ResumableState + optimizer ──────────────────────────────────
+[[tracks]]
+id = "e"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1548"
+phase_name = "Track E — [xtrax T1.1-1.2] Adopt xtrax ResumableState + optimizer in trainer.py (#1548)"
+fixer_prompt = """
+task_id: 260611_xtrax-refactor-spec. Depends on #1545 (boundary-lint must land with the first
+xtrax import). Stack: uv/Python. Edit-only on named files; this is the first real xtrax.* import.
+
+OBJECTIVE: Replace aminx's inline training state + optimizer with xtrax primitives (idea-2
+"free win" — xtrax already ahead; no feature flag needed).
+
+ANCHORS:
+- src/aminx/training/trainer.py: `create_optimizer()` (~lines 73-106, inline
+  optax.warmup_cosine_decay + clip_by_global_norm) and the (model, opt_state, start_step)
+  state threading (~lines 125-199).
+- xtrax targets (confirmed present in ../xtrax):
+    xtrax.training.ResumableState  (xtrax/src/xtrax/training/types.py:43 — step/key/model/opt_state/extras)
+    xtrax.training.optim.adamw_with_schedule + make_optimizer  (xtrax/src/xtrax/training/optim.py)
+
+DO:
+- Replace (model, opt_state, step) tuple threading with a single ResumableState.
+- Replace create_optimizer() internals with adamw_with_schedule(...) / make_optimizer(...),
+  mapping aminx's TrainingSpecification fields (learning_rate, warmup_steps, total_steps,
+  weight_decay, gradient_clip) onto xtrax builder args.
+- KEEP in aminx: domain losses (losses.py), metrics, diffusion, dataloading — do NOT move them.
+- Update imports and any affected tests under tests/training/.
+
+DO NOT: change checkpoint format (that is #1549). Do not touch tiling/host.
+
+SUCCESS CRITERIA:
+- `uv run ty check` and `uv run ruff check .` pass.
+- `uv run pytest -q tests/training -m 'not slow'` green.
+- Structural adoption verified: ResumableState threading + xtrax optimizer builder in place.
+  G1 loss-curve gate WAIVED (user: training not active).
+Report: diff per file and test tail.
+"""
+reviewer_prompt = """
+task_id: 260611_xtrax-refactor-spec. Reviewer (HAS Bash). Stack: uv/Python.
+
+VERIFY:
+- Training state is xtrax.training.ResumableState; optimizer built via xtrax
+  adamw_with_schedule/make_optimizer (inline optax.chain removed from trainer.py).
+- Domain losses/metrics/diffusion/dataloading remain in aminx:
+  `rg -n 'cross_entropy_loss|NoiseSchedule' src/aminx/training` resolves locally.
+- First xtrax import is covered by #1545 boundary-lint (green).
+- `uv run ty check` clean; `uv run ruff check .` clean; `uv run pytest -q tests/training -m 'not slow'` green.
+- G1 loss-curve gate WAIVED — structural adoption + tests suffice.
+PASS iff all hold. FAIL with command output otherwise.
+"""
+return_key = "1548"
+
+# ── Track F — RS-1 host field inventory ──────────────────────────────────
+[[tracks]]
+id = "f"
+is_research = true
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1620"
+phase_name = "Track F — [RunSpec RS-1] Host field inventory → run_spec migration map (#1620)"
+fixer_prompt = """
+task_id: 260611_xtrax-refactor-spec. Research-only; no product code changes. Stack: uv/Python.
+Concurrent with D/E — no dependency on sequential spine.
+
+OBJECTIVE: Produce the AC-RS-1a inventory table mapping every flat spec field read in the host
+inference hot path to either run_spec.<subconfig> or "protein-only façade" (per RunSpec
+unification spec .praxia/docs/specs/260611_runspec-unification.md).
+
+ANCHORS (grep before writing):
+- src/aminx/host/{plan,prep,runner,streaming,kernel_dispatch}.py — every `spec.` / `getattr(spec,` read.
+- src/aminx/run/specs.py — build_run_spec / _sync_run_spec call sites.
+- src/aminx/run/spec.py — RunSpec sub-config fields.
+
+OUTPUT: Commit .praxia/docs/research/260611_runspec-host-field-inventory.md with columns:
+| file:line | read pattern | current source | target run_spec path | migration sprint | notes |
+
+SUCCESS CRITERIA:
+- Table covers all five host modules with zero TBD rows.
+- Explicitly notes the 2 existing run_spec read sites (streaming.py, training/trainer.py).
+- Flags the three currently-ignored spec fields: spec.fixed_mask, spec.iterations/learning_rate/
+  sampling_strategy (del'd in averaging.py), and the atom_37/chain_mask gap in kernel_dispatch.
+- Lists which fields must NEVER move to xtrax (protein-only: ligand, fixed_mask, tied_positions).
+Report row count and protein-only field list.
+"""
+reviewer_prompt = """
+task_id: 260611_xtrax-refactor-spec. Reviewer. Stack: uv/Python.
+
+VERIFY:
+- .praxia/docs/research/260611_runspec-host-field-inventory.md exists and is complete.
+- Spot-check 5 random rows against source (`rg` the cited patterns).
+- Three gap fields flagged: fixed_mask, iterations/learning_rate/sampling_strategy, atom_37/chain_mask.
+- No product code changed.
+PASS iff inventory is complete and spot-checks match. FAIL with mismatches.
+"""
+return_key = "1620"
+
+# ── Track G — RS-4 exports verify+commit ─────────────────────────────────
+[[tracks]]
+id = "g"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1623"
+phase_name = "Track G — [RunSpec RS-4] Verify + commit aminx.run exports fix (#1623)"
+fixer_prompt = """
+task_id: 260611_xtrax-refactor-spec. Stack: uv/Python. Concurrent with D/E.
+
+CONTEXT: Implementation of AC-RS-4 appears to already exist as uncommitted work:
+- src/aminx/run/_exports.py (untracked new file)
+- tests/run/test_exports.py (untracked new file)
+Verify these satisfy the AC, then commit. If they are incomplete, finish them.
+
+OBJECTIVE: AC-RS-4 — `from aminx.run import sample, score` must route to spec-driven
+host.runner (returns dict), while tensor APIs remain importable with DeprecationWarning.
+
+VERIFY EXISTING FILES:
+1. Read src/aminx/run/_exports.py — does it re-export spec-driven sample/score from host.runner?
+2. Read tests/run/test_exports.py — does it test that spec call returns dict, that tensor path
+   emits DeprecationWarning, and that aminx.sampling.sample / aminx.scoring.score still work?
+3. Read src/aminx/run/__init__.py — is _exports.py integrated (imported/re-exported)?
+
+RUN CHECKS:
+- `uv run pytest -q tests/run` — must be green.
+- `uv run python -c "from aminx.run import sample, score; print(sample, score)"` — must resolve.
+- `uv run ty check` and `uv run ruff check .` — must pass.
+
+IF ALL PASS: `git add src/aminx/run/_exports.py tests/run/test_exports.py` + any other
+modified files, then commit with message `feat(run): spec-driven aminx.run exports + deprecation shim (RS-4 #1623)`.
+
+IF GAPS FOUND: complete the implementation before committing.
+
+SUCCESS CRITERIA:
+- `from aminx.run import sample, score` routes to host.runner (dict result).
+- Tensor path through aminx.run emits DeprecationWarning for one minor version.
+- `uv run pytest -q tests/run` green; `uv run ty check` clean.
+Report: what you found in the existing files, what (if anything) you completed, and the commit hash.
+"""
+reviewer_prompt = """
+task_id: 260611_xtrax-refactor-spec. Reviewer (HAS Bash). Stack: uv/Python.
+
+VERIFY:
+- `from aminx.run import sample, score` resolves to spec-driven host.runner paths.
+- Tensor APIs still importable from aminx.sampling / aminx.scoring.
+- DeprecationWarning test exists for legacy tensor call via aminx.run.
+- `uv run pytest -q tests/run` green; `uv run ty check` clean.
+- Commit exists for this track (`git log --oneline -5`).
+PASS iff AC-RS-4 holds and work is committed. FAIL with output.
+"""
+return_key = "1623"
+
+# ── Track H — RS-5 unified driver verify+commit ───────────────────────────
+[[tracks]]
+id = "h"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1624"
+phase_name = "Track H — [RunSpec RS-5] Verify + commit unified driver default fix (#1624)"
+fixer_prompt = """
+task_id: 260611_xtrax-refactor-spec. Stack: uv/Python. Concurrent with D/E.
+
+CONTEXT: Implementation of AC-RS-5 appears to already exist as uncommitted work:
+- src/aminx/host/kernel_dispatch.py (modified) — getattr default likely already True
+- tests/host/test_use_unified_driver_default.py (untracked new file)
+Verify these satisfy the AC, then commit. If incomplete, finish them.
+
+OBJECTIVE: AC-RS-5 — align kernel_dispatch.py getattr default with
+SamplingSpecification.use_unified_driver=True (was False, causing default mismatch).
+
+VERIFY EXISTING CHANGES:
+1. `rg -n "use_unified_driver" src/aminx/host/kernel_dispatch.py` — confirm default is True.
+2. Read tests/host/test_use_unified_driver_default.py — does it prove default SamplingSpecification()
+   routes through the unified driver path?
+3. `uv run pytest -q tests/host` — must be green.
+4. `uv run ty check` and `uv run ruff check .` — must pass.
+
+IF ALL PASS: `git add src/aminx/host/kernel_dispatch.py tests/host/test_use_unified_driver_default.py`
++ any other modified files, then commit with message:
+`fix(host): align use_unified_driver default to True (RS-5 #1624)`.
+
+IF GAPS FOUND: complete the implementation. The fix is ONE line:
+`getattr(spec, 'use_unified_driver', False)` → `getattr(spec, 'use_unified_driver', True)`.
+
+DO NOT: add PlannerTopology / run_spec.planner field (that is RS-2, sprint 2).
+
+SUCCESS CRITERIA:
+- Default SamplingSpecification() routes through unified driver path.
+- Regression test green.
+- `uv run ty check` and `uv run ruff check .` pass.
+Report: confirmed line change, test result, commit hash.
+"""
+reviewer_prompt = """
+task_id: 260611_xtrax-refactor-spec. Reviewer (HAS Bash). Stack: uv/Python.
+
+VERIFY:
+- `rg -n "use_unified_driver" src/aminx/host/kernel_dispatch.py` shows default True.
+- Regression test proves default SamplingSpecification uses unified path.
+- `uv run pytest -q tests/host` green.
+- Commit exists for this track.
+PASS iff AC-RS-5 holds and work is committed. FAIL otherwise.
+"""
+return_key = "1624"
+
+# ── Track I — checkpoint clean-break ──────────────────────────────────────
+[[tracks]]
+id = "i"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1549"
+phase_name = "Track I — [xtrax T1.4] Checkpoint clean-break → xtrax single-PyTree ResumableState (#1549)"
+fixer_prompt = """
+task_id: 260611_xtrax-refactor-spec. Depends on #1548 (ResumableState must land first).
+Stack: uv/Python. T-R2=NO clean-break (user-confirmed: no in-flight runs, no migration tool).
+
+OBJECTIVE: Replace Composite orbax checkpoint with xtrax single-PyTree over ResumableState.
+Metrics go in extras. No migration CLI — clean break documented in CHANGELOG.
+
+PRE-CUTOVER AUDIT (required first — if any exist, STOP and report to user):
+- Search for legacy Composite checkpoint dirs:
+  `find . -name "*.orbax-checkpoint-tmp-*" -o -name "checkpoint_manager" 2>/dev/null | head -20`
+  `rg -rn "Composite|StandardSave|PyTreeSave" src/aminx/training/`
+- If any Composite checkpoint dirs exist ON DISK (not just in code), do not merge format break —
+  report to user and stop.
+
+ANCHORS:
+- src/aminx/training/checkpoint.py — Composite(model, opt_state, metrics JsonSave) today.
+- src/aminx/training/trainer.py — save_checkpoint / restore_checkpoint call sites.
+- xtrax: mirror xtrax.checkpoint / ResumableState PyTree handler from ../xtrax examples.
+
+DO:
+- Rewrite checkpoint save/load to persist full ResumableState (model, opt_state, step, key, extras w/ metrics).
+- Document Composite→PyTree break in CHANGELOG (one bullet under the relevant version).
+- Update tests/training checkpoint tests for fresh save→load round-trip.
+
+DO NOT: build migration tooling. Do not require G1 loss-curve parity.
+
+SUCCESS CRITERIA:
+- Fresh ResumableState save→load round-trip test green (jnp.array_equal on arrays; step/key/extras match).
+- `uv run ty check` + `uv run ruff check .` + `uv run pytest -q tests/training` pass.
+- CHANGELOG entry present.
+Report: audit output (no legacy ckpts found) + test names + CHANGELOG entry.
+"""
+reviewer_prompt = """
+task_id: 260611_xtrax-refactor-spec. Reviewer (HAS Bash). Stack: uv/Python.
+
+VERIFY:
+- Pre-cutover audit documented (no Composite ckpt dirs on disk).
+- checkpoint.py no longer uses ocp.args.Composite for the primary path.
+- Fresh save→load round-trip test passes on ResumableState fields.
+- CHANGELOG documents format break. No migration CLI added.
+- `uv run ty check` clean; `uv run pytest -q tests/training` green.
+PASS iff AC-1 T1.4 holds. FAIL with output.
+"""
+return_key = "1549"
+
+[orchestration]
+# Re-baselined 2026-06-12. A/B/C are done/deferred (skip_worktree=true).
+# Sequential spine: D (boundary-lint) → E (ResumableState) → I (checkpoint clean-break).
+# Concurrent: F (RS-1 inventory, research), G (RS-4 verify+commit), H (RS-5 verify+commit).
+# G and H are concurrent because they touch different files and have no mutual dependency.
+sequential = ["d", "e", "i"]
+concurrent = ["a", "b", "c", "f", "g", "h"]

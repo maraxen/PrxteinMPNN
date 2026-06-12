@@ -94,7 +94,10 @@ def test_xtrax_protein_symbols_guard():
     if git_common.returncode != 0:
         pytest.skip("Could not determine git root; skipping xtrax boundary check")
     common_dir = Path(git_common.stdout.strip())
-    # --git-common-dir returns an absolute path to <aminx-root>/.git
+    # --git-common-dir is relative when run from the main checkout, absolute from a worktree.
+    if not common_dir.is_absolute():
+        common_dir = (repo_root / common_dir).resolve()
+    # common_dir = <aminx-root>/.git  =>  projects_dir = <aminx-root>/..
     projects_dir = common_dir.parent.parent
     xtrax_src = projects_dir / "xtrax" / "src" / "xtrax"
 

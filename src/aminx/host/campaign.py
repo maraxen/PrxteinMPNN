@@ -499,7 +499,7 @@ def _campaign_lock_context(  # noqa: PLR0915
   attempt_id: str,
   lease_seconds: int,
   heartbeat_interval_seconds: int,
-) -> Generator[list[Exception], None, None]:
+) -> Generator[list[Exception]]:
   heartbeat_errors: list[Exception] = []
   stop_event = threading.Event()
 

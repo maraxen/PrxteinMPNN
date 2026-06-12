@@ -163,7 +163,7 @@ def _sample_batch(
     base_key,
     target_num_samples,
     chunk_sample_start=chunk_sample_start,
-    grid_lineage_sample_start=grid_lineage["sample_start"] if grid_lineage is not None else None,
+    grid_lineage_sample_start=int(grid_lineage["sample_start"]) if grid_lineage is not None else None,
   )
 
   # 4. Dispatch — two paths based on whether encoding_fusion is wired (Python-level static check)
@@ -213,6 +213,9 @@ def _sample_batch(
         else None,
         atom_37_mask=ligand_context["atom_37_mask"][structure_idx]
         if ligand_context["atom_37_mask"] is not None
+        else None,
+        chain_mask=ligand_context["chain_mask"][structure_idx]
+        if ligand_context["chain_mask"] is not None
         else None,
         structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
         temperature=temp_val,
@@ -290,6 +293,9 @@ def _sample_batch(
           else None,
           atom_37_mask=ligand_context["atom_37_mask"][structure_idx]
           if ligand_context["atom_37_mask"] is not None
+          else None,
+          chain_mask=ligand_context["chain_mask"][structure_idx]
+          if ligand_context["chain_mask"] is not None
           else None,
           structure_mapping=mapping_for_vmap[structure_idx]
           if mapping_for_vmap is not None
@@ -383,6 +389,9 @@ def _sample_batch(
         atom_37_mask=ligand_context["atom_37_mask"][structure_idx]
         if ligand_context["atom_37_mask"] is not None
         else None,
+        chain_mask=ligand_context["chain_mask"][structure_idx]
+        if ligand_context["chain_mask"] is not None
+        else None,
         structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
         temperature=temp_val,
         mode="sample_ar",
@@ -455,6 +464,9 @@ def _sample_batch(
           else None,
           atom_37_mask=ligand_context["atom_37_mask"][structure_idx]
           if ligand_context["atom_37_mask"] is not None
+          else None,
+          chain_mask=ligand_context["chain_mask"][structure_idx]
+          if ligand_context["chain_mask"] is not None
           else None,
           structure_mapping=mapping_for_vmap[structure_idx]
           if mapping_for_vmap is not None
@@ -538,7 +550,7 @@ def _sample_batch(
 
   # 8. IO & Metadata
   if spec.compute_pseudo_perplexity:
-    mask = batched_ensemble.mask
+    mask = jnp.asarray(batched_ensemble.mask) if batched_ensemble.mask is not None else None
     if mask is None:
       mask = jnp.ones(batched_ensemble.coordinates.shape[:2], dtype=jnp.float32)
     pseudo_perplexity = compute_pseudo_perplexity(sampled_logits, sampled_sequences, mask)

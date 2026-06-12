@@ -191,7 +191,7 @@ def _init_checkpoint_and_model(
     )
     start_step = 0
     optimizer_obj = create_optimizer(spec)
-    opt_state = optimizer_obj.init(eqx.filter(model, eqx.is_inexact_array))
+    opt_state = optimizer_obj.init(eqx.filter(model, eqx.is_inexact_array))  # type: ignore[invalid-assignment]
 
   # Cast model to target precision
   if compute_dtype != jnp.float32:
@@ -372,8 +372,8 @@ def train_step(  # noqa: PLR0915
     one_hot_seq = jax.nn.one_hot(seq, 21)
 
     # 1. Encode
+    coords = jnp.asarray(coords)
     node_features, edge_features, edge_indices = m(
-      key,
       coords,
       mask,
       res_idx,
@@ -381,6 +381,7 @@ def train_step(  # noqa: PLR0915
       backbone_noise=jnp.array(backbone_noise_std),
       structure_mapping=None,  # training is usually single-state
       initial_node_features=phys_feat,
+      prng_key=key,
     )
 
     if training_mode == "diffusion":
@@ -610,8 +611,8 @@ def eval_step(
     inference_model = eqx.nn.inference_mode(model)
 
     # 1. Encode
+    coords = jnp.asarray(coords)
     node_features, edge_features, edge_indices = inference_model(
-      key,
       coords,
       msk,
       res_idx,
@@ -619,6 +620,7 @@ def eval_step(
       backbone_noise=jnp.array(0.0),
       structure_mapping=None,
       initial_node_features=phys_feat,
+      prng_key=key,
     )
 
     if training_mode == "diffusion":

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "aminx"
 version = "0.1.0a5"
 description = "Aminx: A functional interface for ProteinMPNN"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "jax>=0.4.35",
     "jaxtyping>=0.2.30",
@@ -23,6 +23,7 @@ dependencies = [
     "proxide>=0.1.0a9",
     "typer>=0.12.0",
     "huggingface-hub>=0.23.0",
+    "xtrax>=0.2.0",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -245,8 +246,8 @@ aminx = ["py.typed"]
 [tool.uv]
 # Only resolve for platforms we actually target (including WSL which reports as linux)
 environments = [
-    "sys_platform == 'darwin' and python_version >= '3.12'",
-    "sys_platform == 'linux' and python_version >= '3.12'",
+    "sys_platform == 'darwin' and python_version >= '3.13'",
+    "sys_platform == 'linux' and python_version >= '3.13'",
 ]
 
 [[tool.uv.index]]
@@ -260,6 +261,7 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.uv.sources]
+xtrax = { path = "../xtrax", editable = true }
 # Resolve proxide from PyPI (not sibling-folder discovery) when ../proxide exists.
 proxide = { index = "pypi" }
 # PyPI serves the CUDA-enabled wheel on Linux and CPU wheel on macOS — correct for both envs.

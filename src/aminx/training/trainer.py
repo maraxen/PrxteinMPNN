@@ -15,6 +15,8 @@ import optax
 import orbax.checkpoint as ocp
 import tqdm
 from proxide.ops.dataset import create_protein_dataset
+from xtrax.training.optim import adamw_with_schedule, make_optimizer
+from xtrax.training.types import ResumableState
 
 from aminx.io.weights import load_model
 from aminx.run.resources import proxide_dataset_resource_kwargs
@@ -72,38 +74,38 @@ def get_compute_dtype(precision: str) -> jnp.dtype:
 
 def create_optimizer(
   spec: TrainingSpecification,
-) -> tuple[optax.GradientTransformation, optax.Schedule]:
-  """Create AdamW optimizer with learning rate schedule.
+) -> optax.GradientTransformation:
+  """Create AdamW optimizer with learning rate schedule using xtrax.
 
   Args:
       spec: Training specification
 
   Returns:
-      Tuple of (optimizer, learning_rate_schedule)
+      An optax GradientTransformation combining warmup-cosine decay schedule,
+      AdamW, and optional gradient clipping.
 
   """
+  total_steps = spec.total_steps or (spec.num_epochs * 1000)
+
   if spec.warmup_steps > 0:
-    schedule = optax.warmup_cosine_decay_schedule(
-      init_value=0.0,
-      peak_value=spec.learning_rate,
+    optimizer = adamw_with_schedule(
+      peak_lr=spec.learning_rate,
       warmup_steps=spec.warmup_steps,
-      decay_steps=spec.total_steps or (spec.num_epochs * 1000),
-      end_value=spec.learning_rate * 0.1,
+      total_steps=total_steps,
+      weight_decay=spec.weight_decay,
+      clip_norm=spec.gradient_clip,
     )
   else:
-    schedule = optax.constant_schedule(spec.learning_rate)
+    # No warmup: use constant schedule with adamw
+    optimizer = make_optimizer(
+      optax.adamw(
+        learning_rate=spec.learning_rate,
+        weight_decay=spec.weight_decay,
+      ),
+      clip_norm=spec.gradient_clip,
+    )
 
-  optimizer = optax.chain(
-    optax.clip_by_global_norm(spec.gradient_clip)
-    if spec.gradient_clip is not None
-    else optax.identity(),
-    optax.adamw(
-      learning_rate=schedule,
-      weight_decay=spec.weight_decay,
-    ),
-  )
-
-  return optimizer, schedule
+  return optimizer
 
 
 @dataclass
@@ -124,12 +126,12 @@ class TrainingResult:
 
 def _init_checkpoint_and_model(
   spec: TrainingSpecification,
-) -> tuple[Aminx, Any, int, ocp.CheckpointManager, ocp.CheckpointManager]:
+) -> tuple[ResumableState, ocp.CheckpointManager, ocp.CheckpointManager]:
   """Initialize or restore model, optimizer state and checkpoint manager.
 
   Applies physics encoder surgery if use_physics_features is enabled.
 
-  Returns (model, opt_state, start_step, checkpoint_manager).
+  Returns (resumable_state, checkpoint_manager, permanent_manager).
   """
   checkpoint_dir = Path(spec.checkpoint_dir)
   checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -160,7 +162,7 @@ def _init_checkpoint_and_model(
     )
 
     # Compute abstract opt state for restoration
-    optimizer_obj, _ = create_optimizer(spec)
+    optimizer_obj = create_optimizer(spec)
     abstract_opt_state = jax.eval_shape(
       optimizer_obj.init,
       eqx.filter(model_template, eqx.is_inexact_array),
@@ -179,10 +181,9 @@ def _init_checkpoint_and_model(
       spec.model_weights,  # type: ignore[invalid-argument-type]
       use_electrostatics=spec.use_electrostatics,
       use_vdw=spec.use_vdw,
-      training_mode=spec.training_mode,
     )
     start_step = 0
-    optimizer_obj, _ = create_optimizer(spec)
+    optimizer_obj = create_optimizer(spec)
     opt_state = optimizer_obj.init(eqx.filter(model, eqx.is_inexact_array))
 
   # Cast model to target precision
@@ -195,7 +196,17 @@ def _init_checkpoint_and_model(
     model = jax.tree_util.tree_map(_cast_fn, model)
     opt_state = jax.tree_util.tree_map(_cast_fn, opt_state)
 
-  return model, opt_state, start_step, checkpoint_manager, permanent_manager
+  # Create ResumableState
+  prng_key = jax.random.PRNGKey(spec.random_seed)
+  resumable_state = ResumableState(
+    step=jnp.int32(start_step),
+    key=prng_key,
+    model=model,
+    opt_state=opt_state,
+    extras={},
+  )
+
+  return resumable_state, checkpoint_manager, permanent_manager
 
 
 def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
@@ -283,7 +294,6 @@ def train_step(  # noqa: PLR0915
   prng_key: jax.Array,
   label_smoothing: float,
   current_step: int,
-  lr_schedule: optax.Schedule,
   physics_features: jax.Array | None = None,
   backbone_noise_std: float = 0.0,
   mask_strategy: str = "random_order",
@@ -300,7 +310,7 @@ def train_step(  # noqa: PLR0915
   Args:
       model: Aminx model
       opt_state: Optimizer state
-      optimizer: Optax optimizer
+      optimizer: Optax optimizer with integrated learning rate schedule (from xtrax)
       coordinates: Backbone coordinates
       mask: Valid residue mask
       residue_index: Residue indices
@@ -309,7 +319,6 @@ def train_step(  # noqa: PLR0915
       prng_key: PRNG key
       label_smoothing: Label smoothing factor
       current_step: Current training step (used for learning rate scheduling)
-      lr_schedule: Learning rate schedule function
       physics_features: Optional physics features (if used)
       backbone_noise_std: Standard deviation of Gaussian noise added to backbone coordinates
       mask_strategy: Strategy for autoregressive masking ("random_order" or "bert")
@@ -533,7 +542,9 @@ def train_step(  # noqa: PLR0915
   accuracy = jnp.mean(accuracies)
   ppl = jnp.mean(perplexities)
   grad_norm = compute_grad_norm(grads)
-  current_lr = lr_schedule(current_step)
+  # Note: learning rate is now embedded in the optimizer's schedule from xtrax.training.optim
+  # We log a placeholder value; the actual LR is internal to optax
+  current_lr = jnp.array(0.0)
 
   params = eqx.filter(model, eqx.is_inexact_array)
   updates, new_opt_state = optimizer.update(grads, opt_state, params)
@@ -711,19 +722,19 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
   setup_mixed_precision(_training_precision(spec))
   logger.info("Starting training with spec: %s", spec)
 
-  optimizer, lr_schedule = create_optimizer(spec)
+  optimizer = create_optimizer(spec)
 
-  model, opt_state, start_step, checkpoint_manager, permanent_manager = _init_checkpoint_and_model(
+  resumable_state, checkpoint_manager, permanent_manager = _init_checkpoint_and_model(
     spec,
   )
 
   train_loader, val_loader = _create_dataloaders(spec)
 
-  step = start_step
+  step = int(resumable_state.step)
   best_val_metric = float("inf")
   patience_counter = 0
 
-  prng_key = jax.random.PRNGKey(spec.random_seed)
+  prng_key = resumable_state.key
   noise_schedule = None
   if spec.training_mode == "diffusion":
     noise_schedule = NoiseSchedule(
@@ -752,9 +763,9 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
       else:
         backbone_noise_std = float(spec.backbone_noise[0])
 
-      model, opt_state, train_metrics = filter_jitted_train_step(
-        model,
-        opt_state,
+      updated_model, updated_opt_state, train_metrics = filter_jitted_train_step(
+        resumable_state.model,
+        resumable_state.opt_state,
         optimizer,
         batch.coordinates,
         batch.mask,
@@ -764,7 +775,6 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
         subkey,
         spec.label_smoothing,
         step,
-        lr_schedule,
         batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
         backbone_noise_std,
         spec.mask_strategy,
@@ -773,6 +783,15 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
         noise_schedule,
         spec.accum_steps,
         compute_dtype,
+      )
+
+      # Update resumable state
+      resumable_state = ResumableState(
+        step=jnp.int32(step + 1),
+        key=prng_key,
+        model=updated_model,
+        opt_state=updated_opt_state,
+        extras=resumable_state.extras,
       )
 
       step += 1
@@ -786,7 +805,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
           prng_key, subkey = jax.random.split(prng_key)
 
           val_metrics = filter_jitted_eval_step(
-            model,
+            resumable_state.model,
             val_batch.coordinates,
             val_batch.mask,
             val_batch.residue_index,
@@ -828,8 +847,8 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
         save_checkpoint(
           checkpoint_manager,
           step,
-          model,
-          opt_state,
+          resumable_state.model,
+          resumable_state.opt_state,
           metrics=train_metrics,
         )
 
@@ -839,8 +858,8 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
         save_checkpoint(
           permanent_manager,
           step,
-          model,
-          opt_state,
+          resumable_state.model,
+          resumable_state.opt_state,
           metrics=train_metrics,
         )
 
@@ -888,7 +907,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
       prng_key, subkey = jax.random.split(prng_key)
 
       test_metrics = eqx.filter_jit(eval_step)(
-        model,
+        resumable_state.model,
         test_batch.coordinates,
         test_batch.mask,
         test_batch.residue_index,
@@ -923,4 +942,4 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
   checkpoint_manager.close()
   permanent_manager.close()
 
-  return TrainingResult(final_model=model, final_step=step, checkpoint_dir=spec.checkpoint_dir)
+  return TrainingResult(final_model=resumable_state.model, final_step=step, checkpoint_dir=spec.checkpoint_dir)

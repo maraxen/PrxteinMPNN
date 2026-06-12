@@ -16,6 +16,20 @@ message: |
   See ADR 260605_potts-parallel-not-stageset.md and 260611_xtrax-foundations for rationale.
 
 files:
+  # NOTE: Expected lifecycle and current dev setup
+  #
+  # src/xtrax/ is populated when xtrax source is checked out as a subtree, symlinked,
+  # or vendored into this repo. In the current editable-pin development setup
+  # (xtrax pinned as ../xtrax in pyproject.toml), xtrax source is NOT co-located here.
+  #
+  # This guard enforces the boundary if/when xtrax code is inlined in this repo (P2/P3).
+  # Until then, the rule trivially passes because no src/xtrax/ files exist locally.
+  #
+  # For active boundary enforcement TODAY against the sibling xtrax repo, run:
+  #   sg scan --rule .ast-grep/rules/xtrax-protein-symbols.yml --include ../xtrax/src/xtrax
+  #
+  # This should be added to CI (e.g., in .github/workflows/ci.yml) to prevent violations
+  # at the point of xtrax source integration.
   - 'src/xtrax/**/*.py'
 
 rule:

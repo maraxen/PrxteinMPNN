@@ -168,7 +168,7 @@ def _sample_batch(
 
   # 4. Dispatch — two paths based on whether encoding_fusion is wired (Python-level static check)
   # Check spec for unified driver flag (defaults to True since S5-D10; legacy path kept as fallback)
-  _use_unified = getattr(spec, "use_unified_driver", False)
+  _use_unified = getattr(spec, "use_unified_driver", True)
 
   if _use_unified and plan.stage_set.encoding_fusion is None:
     # -------------------------------------------------------------------------

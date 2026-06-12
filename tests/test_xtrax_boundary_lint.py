@@ -14,8 +14,12 @@ from pathlib import Path
 import pytest
 
 
-def run_ast_grep_rule(rule_path: str) -> tuple[bool, str]:
+def run_ast_grep_rule(rule_path: str, scan_path: str | None = None) -> tuple[bool, str]:
     """Run an ast-grep rule and return (success, output).
+
+    Args:
+        rule_path: Path to the rule YAML, relative to repo root.
+        scan_path: Optional explicit path to scan; overrides files: in the rule.
 
     Returns:
         (True, "") if rule passes (0 violations)
@@ -24,9 +28,12 @@ def run_ast_grep_rule(rule_path: str) -> tuple[bool, str]:
     Raises:
         pytest.skip: if ast-grep (sg) is not installed
     """
+    cmd = ["sg", "scan", "--rule", rule_path]
+    if scan_path is not None:
+        cmd.append(scan_path)
     try:
         result = subprocess.run(
-            ["sg", "scan", "--rule", rule_path],
+            cmd,
             capture_output=True,
             text=True,
             cwd=str(Path(__file__).parent.parent),
@@ -34,7 +41,7 @@ def run_ast_grep_rule(rule_path: str) -> tuple[bool, str]:
         return result.returncode == 0, result.stderr
     except FileNotFoundError:
         pytest.skip(
-            "ast-grep (sg) not found in PATH. Install via: cargo install ast-grep --locked"
+            "ast-grep (sg) not found in PATH. Install via: npm install -g @ast-grep/cli"
         )
 
 
@@ -69,9 +76,35 @@ def test_xtrax_protein_symbols_guard():
 
     These symbols are protein-domain-specific and violate xtrax's
     domain-agnostic interface.
+
+    Scans the sibling ../xtrax/src/xtrax directory when present (editable-pin dev
+    setup). Skips if the directory does not exist.
     """
     rule_path = ".ast-grep/rules/xtrax-protein-symbols.yml"
-    success, output = run_ast_grep_rule(rule_path)
+    repo_root = Path(__file__).parent.parent
+
+    # Resolve the main repo root via git so this works in both the main checkout
+    # and any worktrees (which live at deeply-nested paths under .claude/worktrees/).
+    git_common = subprocess.run(
+        ["git", "rev-parse", "--git-common-dir"],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+    )
+    if git_common.returncode != 0:
+        pytest.skip("Could not determine git root; skipping xtrax boundary check")
+    common_dir = Path(git_common.stdout.strip())
+    # --git-common-dir returns an absolute path to <aminx-root>/.git
+    projects_dir = common_dir.parent.parent
+    xtrax_src = projects_dir / "xtrax" / "src" / "xtrax"
+
+    if not xtrax_src.exists():
+        pytest.skip(
+            f"sibling xtrax repo not found at {xtrax_src}; "
+            "boundary guard only enforces against co-located source"
+        )
+
+    success, output = run_ast_grep_rule(rule_path, str(xtrax_src))
 
     assert success, (
         f"xtrax protein-symbols guard violated:\n{output}\n\n"

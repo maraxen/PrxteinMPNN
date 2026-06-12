@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.0a6 (unreleased)
+
+### Breaking Changes
+
+- **Checkpoint format**: Adopted `xtrax.checkpoint.orbax` single-PyTree checkpointing via
+  `PyTreeCheckpointHandler`, replacing the legacy `ocp.args.Composite` format. Checkpoints
+  saved with the old format are **NOT compatible** with this version. Delete existing
+  checkpoint directories before resuming training.
+  ([`src/aminx/training/checkpoint.py`](src/aminx/training/checkpoint.py),
+  [`src/aminx/training/trainer.py`](src/aminx/training/trainer.py))
+
+  The `ResumableState` (params, optimizer state, step, RNG, and extras) is now written as
+  a single flat PyTree, improving checkpoint composability and enabling future multi-device
+  training. The metrics dict (if any) lives in `ResumableState.extras`, not as a top-level
+  checkpoint key.
+
 ## 0.1.0a5 (2026-06-10)
 
 ### Breaking Changes

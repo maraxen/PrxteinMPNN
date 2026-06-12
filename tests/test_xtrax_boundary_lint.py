@@ -11,6 +11,8 @@ xtrax-foundations spec (260611).
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 def run_ast_grep_rule(rule_path: str) -> tuple[bool, str]:
     """Run an ast-grep rule and return (success, output).
@@ -18,6 +20,9 @@ def run_ast_grep_rule(rule_path: str) -> tuple[bool, str]:
     Returns:
         (True, "") if rule passes (0 violations)
         (False, output) if rule fails (violations found)
+
+    Raises:
+        pytest.skip: if ast-grep (sg) is not installed
     """
     try:
         result = subprocess.run(
@@ -28,7 +33,9 @@ def run_ast_grep_rule(rule_path: str) -> tuple[bool, str]:
         )
         return result.returncode == 0, result.stderr
     except FileNotFoundError:
-        raise RuntimeError("ast-grep (sg) not found in PATH. Install via: cargo install ast-grep")
+        pytest.skip(
+            "ast-grep (sg) not found in PATH. Install via: cargo install ast-grep --locked"
+        )
 
 
 def test_aminx_xtrax_internals_boundary():

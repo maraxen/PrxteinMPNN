@@ -9,6 +9,7 @@ Parallel model family for sequence design via Potts energy:
   - designer: Multi-chain sequence design protocol
 """
 
+from aminx.potts._trw_spec import PottsTRWRunSpec
 from aminx.potts.calibration import (
   CalibrationModule,
   IdentityCalibration,
@@ -22,7 +23,6 @@ from aminx.potts.model import (
   PottsParams,
 )
 from aminx.potts.spec import PottsRunSpec
-from aminx.potts._trw_spec import PottsTRWRunSpec
 
 try:
   from aminx.potts.poe import PoeModel, PoeParams

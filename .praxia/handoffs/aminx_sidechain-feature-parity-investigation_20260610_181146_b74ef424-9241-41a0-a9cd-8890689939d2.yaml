@@ -1,0 +1,60 @@
+---
+workspace: aminx
+session_id: 4d7b5f3f-83d2-47cf-a736-d4f6facd69df
+status: in_progress
+immediately_relevant:
+- file: src/aminx/model/ligand_features.py
+  lines:
+  - 56
+  - 76
+  reason: SIDE_CHAIN_ATOM_TYPES constant (32 side-chain atom element types, slots 5:36) — must align with proxide atom37 ordering
+- file: src/aminx/model/ligand_features.py
+  lines:
+  - 353
+  - 369
+  reason: 'ProteinFeaturesLigand side-chain context computation: gating xyz_37_m*(1-chain_mask), xyz_37[:,5:] gather, RBF/embedding. THIS is the divergent code (the wiring feeding it is correct).'
+- file: tests/parity/test_sidechain_context_parity.py
+  lines:
+  - 1
+  - 30
+  reason: Parity test measuring the divergence; header documents all numbers (0.9998 baseline, 0.85 SC-on, ~5 magnitude both frameworks). test_sidechain_context_logits_parity is the strict-xfail to flip when fixed.
+- file: src/aminx/utils/atom_ordering.py
+  lines:
+  - 37
+  - 65
+  reason: proxide atom37 backbone ordering (CB@3, O@4), NOT applied in score path. Backbone parity perfect (0.9998); the question is slots 5:.
+- file: src/aminx/inference/encode.py
+  lines:
+  - 55
+  - 100
+  reason: Where chain_mask=1-fixed_mask is derived and xyz_37 forwarded to the model on the score path (the wiring, confirmed correct).
+active_dispatches: []
+task_id: 260610_aminx-sc-scorepath
+phase: sidechain-feature-parity-investigation
+goal_statement: Wire xyz_37 side-chain context through aminx's score/logits path AND validate against the PyTorch LigandMPNN reference. Wiring + validation are DONE; the open work is resolving the pre-existing side-chain feature-construction divergence (~0.85 cross-framework vs 0.9998 baseline) that the validation uncovered.
+context_refs: []
+failed_attempts:
+- attempt_id: a1
+  description: First reference-parity test compared reference model.single_aa_score() against aminx score_conditional with no shared decoding order, then lowered thresholds to 0.85/0.70 when baseline only hit 0.88.
+  outcome: Misleading 'pass' masking the real signal; baseline (no side chains) should be ~0.9998 not 0.88.
+  reason_failed: Wrong comparand. single_aa_score != teacher-forced AR conditional logits. Proven comparand is pt_model.score(fd, use_sequence=True)['log_probs'] with a SHARED randn-derived decoding order as ar_mask (test_full_model_parity.py:392). Do not retry single_aa_score.
+  do_not_retry: true
+  evidence_ref: null
+- attempt_id: a2
+  description: Running tests/scripts via the worktree's own uv env (uv run / worktree .venv).
+  outcome: uv sync fails (relative ../mistypotts resolves wrong in worktree; missing proxide/chex).
+  reason_failed: 'Local-path deps (mistypotts/prolix/vendored prxteinmpnn) only resolve from MAIN checkout. WORKAROUND: use MAIN venv /home/marielle/projects/aminx/.venv/bin/python; pytest ini pythonpath=[src,tests] makes worktree code win. Bare scripts: PYTHONPATH=src (NOT src:tests — shadows stdlib types under -m pytest).'
+  do_not_retry: true
+  evidence_ref: null
+open_questions:
+- 'Is the side-chain divergence an atom37 slot-ordering mismatch (proxide slots 5: vs the order SIDE_CHAIN_ATOM_TYPES encodes), or an RBF/embedding/distance-math detail in the side-chain lane?'
+- 'Does proxide emit atom37 slots 5: in the exact AlphaFold residue_constants atom order the reference assumes, per residue type?'
+deferred: []
+lessons_refs: []
+next_steps:
+- Compare aminx ProteinFeaturesLigand side-chain context lane vs reference at the INTERMEDIATE-TENSOR level (per-edge side-chain features before the context encoder) on identical xyz_37, to localize where the 0.85 divergence enters — not just final logits.
+- Verify proxide atom37 slot ordering (slots 5:) matches the atom ordering aminx SIDE_CHAIN_ATOM_TYPES (ligand_features.py:56) assumes vs the reference residue_constants atom_order — prime suspect is a side-chain slot permutation, since both frameworks swing ~5 in magnitude but only correlate 0.85 (decorrelation, not scale blowup).
+- Check side-chain RBF/distance encoding + side_chain_atom_types embedding in ligand_features.py:353-369 against reference model_utils.py:715 and ~1246-1270 for a math/parameter mismatch.
+- Once root cause is fixed, the strict-xfail test_sidechain_context_logits_parity will XPASS — convert it from xfail to a plain assert >= 0.95.
+- 'Run parity locally: REFERENCE_PATH=/home/marielle/repos/LigandMPNN /home/marielle/projects/aminx/.venv/bin/python -m pytest tests/parity/test_sidechain_context_parity.py -m parity_heavy -o addopts='''' -q (worktree uv env is broken; use MAIN checkout venv, pytest ini handles pythonpath).'
+---

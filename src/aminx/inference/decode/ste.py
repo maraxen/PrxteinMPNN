@@ -251,7 +251,7 @@ class STEDecode(eqx.Module):
 
       # Generate batch_size decoding orders
       decoding_orders, _ = jax.vmap(
-        self.decoding_order_fn, in_axes=(0, None, None, None)
+        self.decoding_order_fn, in_axes=(0, None, None, None),
       )(
         keys_for_decoding,
         num_residues,

@@ -22,10 +22,11 @@ from aminx.potts.model import (
   PottsModel,
   PottsParams,
 )
+from aminx.potts.sampling import gibbs_sweep, log_energy, parallel_tempering
 from aminx.potts.spec import PottsRunSpec
 
 try:
-  from aminx.potts.poe import PoeModel, PoeParams
+  from aminx.potts.poe import PoeModel, PoeOutput, PoeParams
 except ImportError:
   # poe may not be available if prxteinmpnn or other deps are not installed
   pass
@@ -37,10 +38,14 @@ __all__ = [
   "IdentityCalibration",
   "LearnedCalibration",
   "PoeModel",
+  "PoeOutput",
   "PoeParams",
   "PottsModel",
   "PottsParams",
   "PottsRunSpec",
   "PottsTRWRunSpec",
+  "gibbs_sweep",
   "load_calibration",
+  "log_energy",
+  "parallel_tempering",
 ]

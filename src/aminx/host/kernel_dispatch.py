@@ -208,6 +208,12 @@ def _sample_batch(
         ligand_mask=ligand_context["Y_m"][structure_idx]
         if ligand_context["Y_m"] is not None
         else None,
+        atom_37=ligand_context["atom_37"][structure_idx]
+        if ligand_context["atom_37"] is not None
+        else None,
+        atom_37_mask=ligand_context["atom_37_mask"][structure_idx]
+        if ligand_context["atom_37_mask"] is not None
+        else None,
         structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
         temperature=temp_val,
         mode="sample_ar",
@@ -278,6 +284,12 @@ def _sample_batch(
           else None,
           ligand_mask=ligand_context["Y_m"][structure_idx]
           if ligand_context["Y_m"] is not None
+          else None,
+          atom_37=ligand_context["atom_37"][structure_idx]
+          if ligand_context["atom_37"] is not None
+          else None,
+          atom_37_mask=ligand_context["atom_37_mask"][structure_idx]
+          if ligand_context["atom_37_mask"] is not None
           else None,
           structure_mapping=mapping_for_vmap[structure_idx]
           if mapping_for_vmap is not None
@@ -365,6 +377,12 @@ def _sample_batch(
         ligand_mask=ligand_context["Y_m"][structure_idx]
         if ligand_context["Y_m"] is not None
         else None,
+        atom_37=ligand_context["atom_37"][structure_idx]
+        if ligand_context["atom_37"] is not None
+        else None,
+        atom_37_mask=ligand_context["atom_37_mask"][structure_idx]
+        if ligand_context["atom_37_mask"] is not None
+        else None,
         structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
         temperature=temp_val,
         mode="sample_ar",
@@ -431,6 +449,12 @@ def _sample_batch(
           else None,
           ligand_mask=ligand_context["Y_m"][structure_idx]
           if ligand_context["Y_m"] is not None
+          else None,
+          atom_37=ligand_context["atom_37"][structure_idx]
+          if ligand_context["atom_37"] is not None
+          else None,
+          atom_37_mask=ligand_context["atom_37_mask"][structure_idx]
+          if ligand_context["atom_37_mask"] is not None
           else None,
           structure_mapping=mapping_for_vmap[structure_idx]
           if mapping_for_vmap is not None

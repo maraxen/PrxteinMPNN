@@ -11,6 +11,9 @@
 - [260527_sprint6-decode-axis-composability](superpowers/plans/260527_sprint6-decode-axis-composability.md) — Sprint 6 COMPLETE ✅: composable decode modes (ConditionalDecode/AR/STE), iterator injection, driver.py retired
 
 ## Specs
+- [260611_aminx-xtrax-refactor](specs/260611_aminx-xtrax-refactor.md) — **Active** — xtrax vertical-slice refactor (T0–T5), gates, prolix second-consumer API
+- [260611_runspec-unification](specs/260611_runspec-unification.md) — **Active** — RunSpec + PlannerTopology addendum (RS track); blocks T4.1
+- [260611_architecture-sequencing-testing-and-pack](specs/260611_architecture-sequencing-testing-and-pack.md) — brainstorm convergence record (composite winner)
 - [260527_merge-readiness-hardening](specs/260527_merge-readiness-hardening.md) — ORACLE-REVIEWED PASS (15/18): pre-merge hygiene for refactor-full → main
 - [260601_benchmark-spec](specs/260601_benchmark-spec.md) — ORACLE-APPROVED: GPU benchmark suite (aminx vs. LigandMPNN vs. ColabDesign)
 - [260604_release-preparedness-epic](specs/260604_release-preparedness-epic-for-prxteinmpn.md) — Release Preparedness epic: two-phase backlog DAG (CI+cleanup → docs+release), Definition of Done, ADR index
@@ -33,6 +36,7 @@
 - [260605_potts-alphabet-alignment](decisions/260605_potts-alphabet-alignment.md) — Potts-MPNN alphabet comparison: indices 0-19 identical, index 20 (gap) semantically aligned. Identity permutation safe.
 - [260605_potts-parallel-not-stageset](decisions/260605_potts-parallel-not-stageset.md) — **Accepted 2026-06-05**: PottsModel is a parallel architecture, NOT a StageSet consumer. Boundary enforced by lint #1304
 - [260605_protein-features-shared-or-local](decisions/260605_protein-features-shared-or-local.md) — ProteinFeatures sourcing decision: mistypotts imports from aminx.model.features (with legacy prxteinmpnn vendored copy)
+- [260612_proteinfeatures-shared-vs-local](decisions/260612_proteinfeatures-shared-vs-local.md) — **Accepted 2026-06-12**: Confirms Option A complete — aminx.potts imports from aminx.model.features; no vendor copy in potts tree. Supersedes adr/260605.
 
 ## ADRs (Legacy)
 

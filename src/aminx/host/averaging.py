@@ -8,6 +8,7 @@ from typing import Literal, cast
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import optax
 from jaxtyping import Float, Int, PRNGKeyArray
 
 from aminx.inference.logits import LOGIT_STRATEGIES
@@ -31,6 +32,7 @@ from aminx.types.stages import (
 from aminx.utils.autoregression import generate_ar_mask
 from aminx.utils.data_structures import Protein
 from aminx.utils.decoding_order import DecodingOrder, DecodingOrderFn
+from aminx.utils.ste import straight_through_estimator
 
 
 class ArithmeticMeanEncodingFusion(eqx.Module):
@@ -222,6 +224,94 @@ def get_averaged_encodings(*args, **kwargs):
   return _get_averaged_encodings_legacy(*args, **kwargs)
 
 
+def _ste_optimize_sequence_legacy(
+  prng_key: PRNGKeyArray,
+  encoded_features: tuple,
+  decode_logits_fn: Callable,
+  autoregressive_mask: jnp.ndarray,
+  seq_length: int,
+  iterations: Int,
+  learning_rate: Float,
+  temperature: Float,
+  bias: InputBias | None = None,
+) -> ProteinSequence:
+  """Straight-through estimator (STE) optimization for legacy sampling path.
+
+  Optimizes sequence logits using gradient descent with the straight-through
+  estimator to allow gradients through discrete sampling. Uses cached encoder
+  features and the legacy decode_logits_fn interface.
+
+  Args:
+    prng_key: JAX random key for initialization.
+    encoded_features: Cached encoder features tuple from encode_fn.
+    decode_logits_fn: Function (encoded_features, sequence, ar_mask) -> logits.
+    autoregressive_mask: Autoregressive masking array (L, L).
+    seq_length: Length of sequence.
+    iterations: Number of STE optimization iterations.
+    learning_rate: Optimizer learning rate.
+    temperature: Temperature for softmax in STE.
+    bias: Optional bias to add to logits (N, 21).
+
+  Returns:
+    Optimized sequence as integer array (N,).
+
+  """
+  # Initialize sequence logits
+  sequence_logits = jnp.zeros((seq_length, 21), dtype=jnp.float32)
+
+  # Create optimizer
+  optimizer = optax.adam(learning_rate)
+  opt_state = optimizer.init(sequence_logits)
+
+  def loss_fn(logits: jnp.ndarray) -> jnp.ndarray:
+    """Loss function for STE optimization."""
+    # Apply STE to get differentiable one-hot
+    one_hot_seq = straight_through_estimator(logits / temperature)
+
+    # Convert one-hot to discrete sequence for model evaluation
+    discrete_seq = one_hot_seq.argmax(axis=-1).astype(jnp.int8)
+
+    # Get model logits for this sequence
+    model_logits = decode_logits_fn(encoded_features, discrete_seq, autoregressive_mask)
+
+    # Apply bias if provided
+    if bias is not None:
+      model_logits = model_logits + bias
+
+    # Cross-entropy loss between STE and model logits
+    loss = optax.softmax_cross_entropy(logits=model_logits, labels=one_hot_seq)
+    return loss.mean()
+
+  def update_step(
+    iteration: int,
+    carry: tuple[jnp.ndarray, optax.OptState],
+  ) -> tuple[jnp.ndarray, optax.OptState]:
+    """Single STE optimization step."""
+    current_logits, current_opt_state = carry
+
+    # Compute loss and gradients
+    _, grads = jax.value_and_grad(loss_fn)(current_logits)
+
+    # Update via optimizer
+    updates, next_opt_state = optimizer.update(grads, current_opt_state)
+    next_logits = optax.apply_updates(current_logits, updates)
+
+    return next_logits, next_opt_state
+
+  # Run optimization loop
+  final_logits, _ = jax.lax.fori_loop(
+    0,
+    iterations,
+    update_step,
+    (sequence_logits, opt_state),
+  )
+
+  # Convert final logits to sequence via argmax
+  final_sequence = final_logits.argmax(axis=-1).astype(jnp.int8)
+
+  return final_sequence
+
+
 def _make_encoding_sampling_split_fn_legacy(
   model_parameters: ModelProtocol,
   decoding_order_fn: DecodingOrderFn | None = None,
@@ -315,7 +405,7 @@ def _make_encoding_sampling_split_fn_legacy(
       structure_mapping=structure_mapping,
     )
 
-  @partial(jax.jit, static_argnames=("num_groups", "multi_state_strategy"))
+  @partial(jax.jit, static_argnames=("num_groups", "multi_state_strategy", "sampling_strategy"))
   def sample_fn(
     prng_key: PRNGKeyArray,
     encoded_features: tuple,
@@ -341,10 +431,10 @@ def _make_encoding_sampling_split_fn_legacy(
       encoded_features: Encoder features from encode_fn.
       decoding_order: Decoding order for autoregressive sampling.
       bias: Optional bias to add to logits (N, 21).
-      iterations: For STE optimization (not used in temperature sampling).
-      learning_rate: For STE optimization (not used in temperature sampling).
+      iterations: For STE optimization (default: 100 for STE, unused for temperature).
+      learning_rate: For STE optimization (default: 0.01 for STE, unused for temperature).
       temperature: Temperature for sampling (default: 1.0).
-      sampling_strategy: "temperature" or "straight_through" (currently only temperature).
+      sampling_strategy: "temperature" or "straight_through".
       tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
       num_groups: Number of unique groups when using tied positions.
       multi_state_strategy: Strategy for combining logits across tied positions.
@@ -354,12 +444,27 @@ def _make_encoding_sampling_split_fn_legacy(
       Sampled sequence as integer array (N,).
 
     """
-    del iterations, learning_rate, sampling_strategy  # Not used in current implementation
-
     if temperature is None:
       temperature = jnp.array(1.0, dtype=jnp.float32)
 
     autoregressive_mask = cast("Callable", generate_ar_mask)(decoding_order, tie_group_map)
+
+    # Dispatch based on sampling strategy
+    if sampling_strategy == "straight_through":
+      return _ste_optimize_sequence_legacy(
+        prng_key,
+        encoded_features,
+        decode_logits_fn,
+        autoregressive_mask,
+        seq_length=cast("jax.Array", autoregressive_mask).shape[0],
+        iterations=100 if iterations is None else iterations,
+        learning_rate=0.01 if learning_rate is None else learning_rate,
+        temperature=temperature,
+        bias=bias,
+      )
+
+    # Temperature-based sampling path
+    del iterations, learning_rate  # Not used in temperature sampling
 
     seq_length = cast("jax.Array", autoregressive_mask).shape[0]
     _, prng_key = jax.random.split(prng_key)

@@ -1,0 +1,50 @@
+---
+workspace: aminx
+session_id: c4e8f2a1-debt-closeout-260611
+status: complete
+immediately_relevant:
+- file: src/aminx/host/kernel_dispatch.py
+  lines:
+  - 115
+  - 211
+  reason: 'Debt #111 fixes; #117 getattr nit; #122 closure duplication.'
+- file: src/aminx/host/runner.py
+  lines:
+  - 695
+  - 830
+  reason: Uncommitted jacobian + IO-sink WIP atop merged hoist.
+active_dispatches: []
+task_id: 260611_aminx-debt-sprint
+phase: debt-sprint-closeout
+goal_statement: 'Close out debt sprint #105-#111: merge to main, resolve Praxia debt, audit, log follow-ups and lessons.'
+context_refs:
+- phase: sidechain-parity
+  task_id: 260610_aminx-sc-scorepath
+  summary: 'Opened debt #105-#111 as next_steps after parity ship.'
+failed_attempts:
+- attempt_id: b1
+  description: TRW validation at n=8
+  outcome: Error flat ~0.062 across iterations
+  reason_failed: Inherent TRW variational gap; do not retry
+  do_not_retry: true
+  evidence_ref: null
+open_questions: []
+deferred:
+- description: 'Follow-up debt #117-123'
+  rationale: Auditor nits and pre-existing test gaps
+  recommended_phase: host/potts cleanup
+- description: Jacobian reverse-mode + IO-sink WIP
+  rationale: Separate feature from debt sprint
+  recommended_phase: backlog-1441/1442
+lessons_refs:
+- '128'
+- '129'
+- '130'
+- '131'
+- '132'
+next_steps:
+- Push local main when ready (6 commits ahead of origin/main).
+- Reconcile uncommitted Jacobian WIP on primary checkout — stash or feature branch.
+- 'Optional: debt #117 — fix getattr(use_unified_driver, True) at kernel_dispatch.py:171.'
+- Remove worktree worktree-aminx-debt-sprint-260610 after push confirms.
+---

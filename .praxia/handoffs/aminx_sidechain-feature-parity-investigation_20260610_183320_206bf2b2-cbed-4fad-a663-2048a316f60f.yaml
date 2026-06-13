@@ -1,0 +1,40 @@
+---
+workspace: aminx
+session_id: 4d7b5f3f-83d2-47cf-a736-d4f6facd69df
+status: complete
+immediately_relevant:
+- file: src/aminx/model/ligand_features.py
+  lines:
+  - 171
+  - 171
+  reason: 'THE FIX: _make_angle_features einsum changed from ''lqp, lym -> lyp'' (broken: q,m each in one operand only -> einsum independently sums both -> outer-product of column-sums) to ''lqp, lyq -> lyp'' (correct frame projection e_p.diff matching reference model_utils.py:1135-1137).'
+- file: tests/parity/test_sidechain_context_parity.py
+  lines:
+  - 224
+  - 240
+  reason: test_sidechain_context_logits_parity flipped from strict-xfail to plain >=0.95 assert; now passes. Full suite 5/5 green.
+- file: /home/marielle/repos/LigandMPNN/model_utils.py
+  lines:
+  - 1135
+  - 1137
+  reason: Reference _make_angle_features einsum 'blqp, blyq -> blyp' the fix matches.
+active_dispatches: []
+task_id: 260610_aminx-sc-scorepath
+phase: null
+goal_statement: RESOLVED. The pre-existing side-chain feature-construction divergence (~0.85 cross-framework vs 0.9998 baseline) in ProteinFeaturesLigand is fixed. Wiring + validation were already done; this session found and fixed the remaining feature-math bug.
+context_refs: []
+failed_attempts:
+- attempt_id: a3
+  description: Handoff prime hypothesis was an atom37 slot-ordering mismatch between proxide and AlphaFold atom_order (SIDE_CHAIN_ATOM_TYPES vs proxide slots 5:).
+  outcome: Falsified as the cross-framework cause.
+  reason_failed: The parity test feeds the SAME xyz_37 (aminx parse_structure output) to BOTH the reference and aminx models (test lines 153-154 vs 178-179). An input slot-ordering issue would corrupt both identically and they would still AGREE (high correlation). A cross-framework divergence can only come from feature-construction MATH differing given identical inputs. Verified SIDE_CHAIN_ATOM_TYPES is byte-identical to the reference array and RBF params match.
+  do_not_retry: true
+  evidence_ref: null
+open_questions: []
+deferred: []
+lessons_refs: []
+next_steps:
+- 'Merge branch aminx-sc-scorepath into main: wiring (c61d082), ephemeral reference acquisition (8e5a4d9), parity test (96dca94), and the divergence fix (5f2f54b) are all green.'
+- 'SEPARATE pre-existing issue, NOT introduced by this work and out of scope: tests/model/test_ligand_sidechain_context.py has 5 failures from a stale build_inference_bundle API call (uses y=/y_t=/y_m=; current signature is ligand_coords=/ligand_atom_types=/ligand_mask=). Confirmed pre-existing by stashing this session''s edits and re-running (identical TypeError). Mechanical kwarg rename + shape check.'
+- 'Run the heavy parity locally to re-confirm: REFERENCE_PATH=/home/marielle/repos/LigandMPNN /home/marielle/projects/aminx/.venv/bin/python -m pytest tests/parity/test_sidechain_context_parity.py -m parity_heavy -o addopts='''' -q (run from the worktree dir; worktree uv env broken, use MAIN venv python, pytest ini handles pythonpath).'
+---

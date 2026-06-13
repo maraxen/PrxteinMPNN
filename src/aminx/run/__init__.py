@@ -5,7 +5,6 @@
 from aminx.host.sampling_driver import SamplingDriver
 
 from ._exports import sample, score
-
 from .run_spec_portable_json import (
   PORTABLE_RUN_SPEC_VERSION,
   run_spec_portable_from_dict,

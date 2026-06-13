@@ -1,8 +1,8 @@
 ---
 title: PottsModel is a parallel model family, NOT a StageSet consumer
 decision_id: 260605_potts-parallel-not-stageset
-date: 260605
-status: Accepted 2026-06-05
+date: 2026-06-05
+status: Accepted
 decision_type: architectural
 relates_to: 260605_integration-architecture-for-mistypotts
 ---

@@ -20,7 +20,11 @@ from xtrax.training.types import ResumableState
 
 from aminx.io.weights import load_model
 from aminx.run.resources import proxide_dataset_resource_kwargs
-from aminx.training.checkpoint import restore_checkpoint, save_checkpoint
+from aminx.training.checkpoint import (
+  get_checkpoint_manager,
+  load_checkpoint,
+  save_checkpoint,
+)
 from aminx.training.diffusion import NoiseSchedule
 from aminx.training.losses import (
   cross_entropy_loss,
@@ -135,19 +139,17 @@ def _init_checkpoint_and_model(
   """
   checkpoint_dir = Path(spec.checkpoint_dir)
   checkpoint_dir.mkdir(parents=True, exist_ok=True)
-  options = ocp.CheckpointManagerOptions(max_to_keep=spec.keep_last_n_checkpoints)
-  checkpoint_manager = ocp.CheckpointManager(
+  checkpoint_manager = get_checkpoint_manager(
     checkpoint_dir,
-    options=options,
+    max_to_keep=spec.keep_last_n_checkpoints,
   )
 
-  # Permanent checkpoint manager for specific epochs
+  # Permanent checkpoint manager for epoch-pinned saves (keeps all)
   permanent_checkpoint_dir = checkpoint_dir / "kept"
   permanent_checkpoint_dir.mkdir(parents=True, exist_ok=True)
-  permanent_options = ocp.CheckpointManagerOptions(max_to_keep=None)  # Keep all
-  permanent_manager = ocp.CheckpointManager(
+  permanent_manager = get_checkpoint_manager(
     permanent_checkpoint_dir,
-    options=permanent_options,
+    max_to_keep=None,
   )
 
   opt_state: ArrayTree | None = None
@@ -168,12 +170,18 @@ def _init_checkpoint_and_model(
       eqx.filter(model_template, eqx.is_inexact_array),
     )
 
-    model, opt_state, _, start_step = restore_checkpoint(
-      checkpoint_manager,
-      model_template,
-      abstract_opt_state=abstract_opt_state,
-      step=None,  # Load latest
+    # Build a ResumableState template so orbax knows the expected PyTree shapes
+    state_template = ResumableState(
+      step=jnp.int32(0),
+      key=jax.random.PRNGKey(0),
+      model=model_template,
+      opt_state=abstract_opt_state,
+      extras={},
     )
+    restored_state = load_checkpoint(checkpoint_manager, state_template, step=None)
+    start_step = int(restored_state.step)
+    model = restored_state.model
+    opt_state = restored_state.opt_state
     logger.info("Resumed from checkpoint at step %d", start_step)
   else:
     model = load_model(
@@ -184,7 +192,7 @@ def _init_checkpoint_and_model(
     )
     start_step = 0
     optimizer_obj = create_optimizer(spec)
-    opt_state = optimizer_obj.init(eqx.filter(model, eqx.is_inexact_array))
+    opt_state = optimizer_obj.init(eqx.filter(model, eqx.is_inexact_array))  # type: ignore[invalid-assignment]
 
   # Cast model to target precision
   if compute_dtype != jnp.float32:
@@ -346,8 +354,8 @@ def train_step(  # noqa: PLR0915
     seq: jax.Array,
     key: jax.Array,
     phys_feat: jax.Array | None = None,
-    rbf_feats: jax.Array | None = None,
-    neighbor_idx: jax.Array | None = None,
+    rbf_feats: jax.Array | None = None,  # noqa: ARG001
+    neighbor_idx: jax.Array | None = None,  # noqa: ARG001
   ) -> Logits:
     """Forward pass for a single protein."""
     key, subkey = jax.random.split(key)
@@ -367,8 +375,8 @@ def train_step(  # noqa: PLR0915
     one_hot_seq = jax.nn.one_hot(seq, 21)
 
     # 1. Encode
+    coords = jnp.asarray(coords)
     node_features, edge_features, edge_indices = m(
-      key,
       coords,
       mask,
       res_idx,
@@ -376,6 +384,7 @@ def train_step(  # noqa: PLR0915
       backbone_noise=jnp.array(backbone_noise_std),
       structure_mapping=None,  # training is usually single-state
       initial_node_features=phys_feat,
+      prng_key=key,
     )
 
     if training_mode == "diffusion":
@@ -406,8 +415,7 @@ def train_step(  # noqa: PLR0915
         key=key,
         inference=False,
       )
-      logits = jax.vmap(diff_model.w_out)(decoded)
-      return logits
+      return jax.vmap(diff_model.w_out)(decoded)
 
     # 2. Decode (Conditional MPNN)
     decoded = m.decoder.call_conditional(
@@ -421,8 +429,7 @@ def train_step(  # noqa: PLR0915
       key=key,
       inference=False,
     )
-    logits = jax.vmap(m.w_out)(decoded)
-    return logits
+    return jax.vmap(m.w_out)(decoded)
 
   def batch_loss(logits: Logits, seq: jax.Array, msk: jax.Array) -> jax.Array:
     return cross_entropy_loss(logits, seq, msk, label_smoothing)
@@ -607,8 +614,8 @@ def eval_step(
     inference_model = eqx.nn.inference_mode(model)
 
     # 1. Encode
+    coords = jnp.asarray(coords)
     node_features, edge_features, edge_indices = inference_model(
-      key,
       coords,
       msk,
       res_idx,
@@ -616,6 +623,7 @@ def eval_step(
       backbone_noise=jnp.array(0.0),
       structure_mapping=None,
       initial_node_features=phys_feat,
+      prng_key=key,
     )
 
     if training_mode == "diffusion":
@@ -647,8 +655,7 @@ def eval_step(
         key=key,
         inference=True,
       )
-      logits = jax.vmap(diff_model.w_out)(decoded)
-      return logits
+      return jax.vmap(diff_model.w_out)(decoded)
 
     # 2. Decode (Unconditional/Conditional)
     decoded = inference_model.decoder.call_conditional(
@@ -662,8 +669,7 @@ def eval_step(
       key=key,
       inference=True,
     )
-    logits = jax.vmap(inference_model.w_out)(decoded)
-    return logits
+    return jax.vmap(inference_model.w_out)(decoded)
 
   logits_batch = jax.vmap(single_forward)(
     coordinates,
@@ -805,7 +811,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
           prng_key, subkey = jax.random.split(prng_key)
 
           val_metrics = filter_jitted_eval_step(
-            resumable_state.model,
+            cast("Aminx", resumable_state.model),
             val_batch.coordinates,
             val_batch.mask,
             val_batch.residue_index,
@@ -844,24 +850,12 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
             break
 
       if step % spec.checkpoint_every == 0:
-        save_checkpoint(
-          checkpoint_manager,
-          step,
-          resumable_state.model,
-          resumable_state.opt_state,
-          metrics=train_metrics,
-        )
+        save_checkpoint(checkpoint_manager, resumable_state)
 
       # Persistent checkpointing
       if spec.save_at_epochs and (epoch + 1) in spec.save_at_epochs:
         logger.info("Saving persistent checkpoint for epoch %d", epoch + 1)
-        save_checkpoint(
-          permanent_manager,
-          step,
-          resumable_state.model,
-          resumable_state.opt_state,
-          metrics=train_metrics,
-        )
+        save_checkpoint(permanent_manager, resumable_state)
 
   logger.info("Training complete!")
 
@@ -907,7 +901,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
       prng_key, subkey = jax.random.split(prng_key)
 
       test_metrics = eqx.filter_jit(eval_step)(
-        resumable_state.model,
+        cast("Aminx", resumable_state.model),
         test_batch.coordinates,
         test_batch.mask,
         test_batch.residue_index,
@@ -942,4 +936,4 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
   checkpoint_manager.close()
   permanent_manager.close()
 
-  return TrainingResult(final_model=resumable_state.model, final_step=step, checkpoint_dir=spec.checkpoint_dir)
+  return TrainingResult(final_model=cast("Aminx", resumable_state.model), final_step=step, checkpoint_dir=spec.checkpoint_dir)

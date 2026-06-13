@@ -1,0 +1,684 @@
+[sprint]
+sprint_id = "260614_potts-runspec-xtrax-gates"
+sprint_num = 1
+name = "260614_potts-runspec-xtrax-gates"
+description = "Potts sampling layer (P-05/P-06/P-07/P-09/P-00c), RunSpec foundation (RS-1), xtrax phase gates (G1, T0.3), and T2.1 kickoff — completing the Potts define+test+guard layer and unblocking the full RS and T2 fan-out."
+context = '''
+Prior sprint (260613_host-gaps-parity-gates) closed three host-dispatch bugs:
+- Track A: STE dispatch restored in averaging.py (backlog #1767)
+- Track B: fixed_mask branch wired in _prepare_fixed_controls (backlog #1766)
+- Track C: atom_37/atom_37_mask/chain_mask forwarded in kernel_dispatch.py (backlog #1765)
+Tracks D (G1 #1550), E (RS-1 #1620), F (T0.3 #1544) were planned but not executed.
+
+Prior sprint (260613_xtrax-t0-potts-core) completed:
+- T0.2: xtrax editable pin verified (#1543)
+- T0.4: xtrax boundary lint rules (#1545)
+- P-01: PottsMPNN .pt -> potts_<id>.eqx.zst recapture script (#1291)
+- P-03: PottsModel(eqx.Module) with DifferentiableTRW (#1292)
+- P-04: PottsRunSpec frozen dataclass + JSON round-trip (#1293)
+
+Resolved risks (pre-sprint):
+- G1 pass criteria: pytest tests/training/ all pass + checkpoint round-trip allclose(atol=1e-7) + loss decrease >=10% over 50 steps
+- T0.3 cluster: node4007/4008 alloc but will queue (15min walltime, not a blocker)
+- T2.1 cross-repo: xtrax at /home/marielle/projects/xtrax, editable=true (pyproject.toml:274)
+- P-05 dep (#1293 P-04): confirmed closed
+- RS-1 output: locked to .praxia/docs/plans/260614_runspec-migration-map.md
+
+Key anchors:
+- src/aminx/potts/ — active Potts module (P-03/P-04 landed; P-05/P-06/P-07/P-09 are next)
+- src/aminx/potts/model.py — PottsModel (P-03, complete)
+- src/aminx/potts/spec.py — PottsRunSpec (P-04, complete)
+- src/aminx/training/ — checkpoint.py + trainer.py (xtrax ResumableState, G1 gate)
+- src/aminx/host/ — runner/kernel_dispatch/_sampling_helper (RS-1 scan target)
+- /home/marielle/projects/xtrax/ — xtrax source (editable pin at ../xtrax)
+- pyproject.toml:274 — xtrax = { path = "../xtrax", editable = true }
+- pi_so3 partition: node4007/node4008 (SM120 Blackwell); XLA_FLAGS workaround mandatory
+'''
+max_fix_retries = 2
+worktree_shadow_mode = false
+
+# ── Track A: P-06 Potts Sampling ──────────────────────────────────────────────
+[[tracks]]
+id = "a"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1295"
+phase_name = "Track A — P-06: aminx.potts.sampling — Gibbs + parallel tempering as pure JAX functions (#1295)"
+fixer_prompt = '''
+# P-06: aminx.potts.sampling (backlog #1295)
+
+## Context
+PottsModel (P-03) and PottsRunSpec (P-04) are complete. This track implements the sampling
+layer: single-sweep Gibbs sampling and parallel tempering, both as pure JAX functions
+(no side effects, explicit PRNG keys, jit-compatible).
+
+## What to implement
+
+### src/aminx/potts/sampling.py
+
+**gibbs_sweep(key, seq, h, J, w, mask, temperature=1.0)**
+  - Single Gibbs sweep over all positions (or masked subset)
+  - For each position i: compute conditional p(a_i | a_{-i}) from (h_i, J_{ij}, w)
+  - Sample from categorical; return updated seq
+  - Pure JAX: no Python loops over residues; use jax.lax.scan or jax.vmap
+  - Types: seq: Int32[N], h: Float32[N, q], J: Float32[N, N, q, q], mask: Bool[N]
+  - temperature scales logits before softmax
+
+**parallel_tempering(key, seq, h, J, w, mask, n_replicas=4, temperatures=None, n_sweeps=100)**
+  - n_replicas chains at different temperatures (default: linspace(0.5, 2.0, n_replicas))
+  - Each sweep: gibbs_sweep all replicas, then propose adjacent swaps (Metropolis-Hastings)
+  - Return (final_seqs: Int32[n_replicas, N], energies: Float32[n_replicas])
+  - Pure JAX; use jax.lax.scan for outer sweep loop
+
+**log_energy(seq, h, J, w, mask)**
+  - Potts energy E(seq) = -sum_i h[i,seq[i]] - sum_{i<j} J[i,j,seq[i],seq[j]]
+  - Pure function; Float32 scalar output
+
+Export all three from src/aminx/potts/__init__.py.
+
+## Tests — tests/potts/test_sampling.py
+1. test_gibbs_sweep_changes_sequence: correct output shape Int32[N]
+2. test_gibbs_sweep_jit_compatible: eqx.filter_jit(gibbs_sweep)(...) does not raise
+3. test_log_energy_synthetic: known 2-residue system, allclose(atol=1e-5)
+4. test_parallel_tempering_shape: seqs.shape==(n_replicas,N), energies.shape==(n_replicas,)
+
+## Acceptance criteria
+- uv run pytest tests/potts/test_sampling.py -v — all 4 tests pass
+- uv run ty check src/aminx/potts/sampling.py — exits 0
+- gibbs_sweep, parallel_tempering, log_energy exported from aminx.potts
+'''
+reviewer_prompt = '''
+# Track A Reviewer — P-06 Potts Sampling (#1295)
+
+VERIFY: src/aminx/potts/sampling.py exists with gibbs_sweep, parallel_tempering, log_energy
+  Check: grep -n "def gibbs_sweep\|def parallel_tempering\|def log_energy" src/aminx/potts/sampling.py
+
+VERIFY: Pure JAX — no Python loops over residues (lax.scan/vmap OK)
+  Check: grep -n "^    for\|^        for" src/aminx/potts/sampling.py | grep -v "lax"
+
+VERIFY: uv run pytest tests/potts/test_sampling.py -v — all 4 tests pass, zero skips
+
+VERIFY: uv run ty check src/aminx/potts/sampling.py — exits 0
+
+VERIFY: grep "gibbs_sweep\|parallel_tempering\|log_energy" src/aminx/potts/__init__.py
+
+PASS if all VERIFY items satisfied.
+FAIL if sampling.py missing, Python residue loops present, any test skips/fails, or ty errors.
+'''
+return_key = "1295"
+
+# ── Track B: P-09 TRW Marginals Tests ─────────────────────────────────────────
+[[tracks]]
+id = "b"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1294"
+phase_name = "Track B — P-09: Tests — TRW marginals vs brute-force exact_marginals (n<=12) (#1294)"
+fixer_prompt = '''
+# P-09: TRW marginals vs brute-force exact_marginals (backlog #1294)
+
+## Context
+PottsModel with DifferentiableTRW is implemented (P-03). This track writes the correctness
+gate: for small systems (n<=12 residues), compare TRW marginals against exact brute-force
+marginals computed by summing over all q^n configurations.
+
+## What to implement — tests/potts/test_trw_marginals.py
+
+**helper: exact_marginals(h, J, mask, q=4)**
+  - Enumerate all q^n valid sequences (n=mask.sum()); use q=4 toy alphabet for tractability
+  - Compute unnorm prob: exp(-E(seq)), E = -sum_i h[i,s[i]] - sum_{i<j} J[i,j,s[i],s[j]]
+  - Return site marginals p_i(a) = sum_{seq: seq[i]=a} p(seq); shape: Float32[N, q]
+  - q=4 gives 4^12=16M configs in ~1s (tractable)
+
+**test_trw_vs_exact_n6_q4**: 6 residues, q=4, random h/J, temperature=1.0
+  Call DifferentiableTRW directly (check import: aminx.potts.model or aminx.potts.trw)
+  Compare TRW site marginals vs exact_marginals: allclose(atol=0.05, rtol=0.05)
+
+**test_trw_vs_exact_n4_q4_ferromagnet**: 4-residue ferromagnet (J_{ij}=-1 all i!=j, h=0)
+  Ground truth: uniform marginals by symmetry. Assert max deviation from uniform < 0.02.
+
+**test_trw_marginals_sum_to_one**:
+  allclose(marginals.sum(axis=-1)[mask], 1.0, atol=1e-4)
+
+## Acceptance criteria
+- tests/potts/test_trw_marginals.py with 3 tests
+- uv run pytest tests/potts/test_trw_marginals.py -v — all 3 pass
+- Test runtime < 120s total
+'''
+reviewer_prompt = '''
+# Track B Reviewer — P-09 TRW Marginals Tests (#1294)
+
+VERIFY: tests/potts/test_trw_marginals.py exists with >= 3 tests
+  Check: grep -n "def test_" tests/potts/test_trw_marginals.py
+
+VERIFY: exact_marginals uses q=4 (not q=20)
+  Check: grep -n "q=4\|q = 4" tests/potts/test_trw_marginals.py
+
+VERIFY: uv run pytest tests/potts/test_trw_marginals.py -v — all 3 pass, zero skips
+
+VERIFY: ferromagnet test asserts max deviation from uniform < 0.02
+VERIFY: sum_to_one test uses atol <= 1e-4
+
+PASS if all VERIFY items satisfied.
+FAIL if test file missing, runtime > 120s, or any test skips/fails.
+'''
+return_key = "1294"
+
+# ── Track C: P-05 PoeModel + P-00c import guard ───────────────────────────────
+[[tracks]]
+id = "c"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1296"
+phase_name = "Track C (item 1) — P-05: aminx.potts.poe — PoeModel(eqx.Module) for N-backbone PoE (#1296)"
+fixer_prompt = '''
+# P-05: aminx.potts.poe — PoeModel(eqx.Module) (backlog #1296)
+
+## Context
+PoE coordinator: given N backbone conformations, runs PottsModel on each and combines
+marginals as a product (in log space). Multi-backbone aggregation layer above PottsModel.
+
+## Dependencies confirmed closed: P-03 (#1292), P-04 (#1293)
+
+## What to implement — src/aminx/potts/poe.py
+
+**class PoeModel(eqx.Module)**
+  potts_model: PottsModel
+  n_backbones: int = eqx.field(static=True)
+
+  __call__(key, backbone_coords: Float32[B,N,3], mask: Bool[N],
+            residue_index: Int32[N], chain_index: Int32[N]) -> PoeOutput:
+    - Apply potts_model to each backbone via eqx.filter_vmap over B axis
+    - Aggregate: log_poe(a) = sum_b log_marginals_b(a); normalize via softmax
+    - Return PoeOutput(marginals, log_poe_unnorm, per_backbone_marginals)
+
+**class PoeOutput (NamedTuple or frozen dataclass)**
+  marginals: Float32[N, q]
+  log_poe_unnorm: Float32[N, q]
+  per_backbone_marginals: Float32[B, N, q]
+
+Export PoeModel and PoeOutput from src/aminx/potts/__init__.py.
+
+## Tests — tests/potts/test_poe.py
+1. test_poe_single_backbone_matches_potts: n_backbones=1 marginals match PottsModel (atol=1e-5)
+2. test_poe_shape: shapes correct for B=3, N=10, q=20
+3. test_poe_marginals_sum_to_one: poe_marginals.sum(axis=-1) ~= 1.0 (atol=1e-5)
+
+Use synthetic protein inputs (random coords, all-True mask).
+
+## Acceptance criteria
+- uv run pytest tests/potts/test_poe.py -v — all 3 tests pass
+- uv run ty check src/aminx/potts/poe.py — exits 0
+- PoeModel and PoeOutput exported from aminx.potts
+'''
+reviewer_prompt = '''
+# Track C (item 1) Reviewer — P-05 PoeModel (#1296)
+
+VERIFY: src/aminx/potts/poe.py has PoeModel(eqx.Module) and PoeOutput
+  Check: grep -n "class PoeModel\|class PoeOutput" src/aminx/potts/poe.py
+
+VERIFY: Uses eqx.filter_vmap (not Python loop) over backbones
+  Check: grep -n "filter_vmap\|vmap" src/aminx/potts/poe.py
+
+VERIFY: PoE aggregation in log space
+  Check: grep -n "log_\|jnp.log\|log_softmax\|softmax" src/aminx/potts/poe.py
+
+VERIFY: uv run pytest tests/potts/test_poe.py -v — all 3 pass, zero skips
+
+VERIFY: uv run ty check src/aminx/potts/poe.py — exits 0
+
+VERIFY: grep "PoeModel\|PoeOutput" src/aminx/potts/__init__.py — both exported
+
+PASS if all VERIFY items satisfied.
+FAIL if poe.py missing, Python loop over backbones, any test fails, or ty errors.
+'''
+return_key = "1296"
+
+[[tracks.items]]
+backlog_id = "1304"
+phase_name = "Track C (item 2) — P-00c: ast-grep import boundary guardrail for aminx.potts (#1304)"
+fixer_prompt = '''
+# P-00c: Import boundary guardrail for aminx.potts (backlog #1304)
+
+## Context
+aminx.potts must NOT import from aminx.model, aminx.host, or aminx.run.
+potts/ is a pure Potts-math layer; cross-contamination couples it to protein-domain code.
+
+## What to implement — add TestPottsBoundary to tests/potts/test_import_boundaries.py
+
+**test_potts_no_protein_domain_imports**
+  Glob all *.py in src/aminx/potts/; extract imports via AST
+  Assert no import starts with:
+    POTTS_FORBIDDEN = {"aminx.model", "aminx.host", "aminx.run", "aminx.cli"}
+  aminx.potts.*, aminx.io, aminx.training are fine
+
+**test_potts_no_protein_field_names**
+  Scan all *.py in src/aminx/potts/ for substrings:
+    {"atom_37", "atom_37_mask", "residue_index", "chain_index"}
+  Exclude comment lines. Report file + line on failure.
+
+If any current violations exist: fix them first, then add the test.
+
+## Acceptance criteria
+- TestPottsBoundary class in tests/potts/test_import_boundaries.py
+- uv run pytest tests/potts/test_import_boundaries.py -v — all tests pass
+- grep -rn "from aminx.model\|from aminx.host\|from aminx.run" src/aminx/potts/ returns empty
+'''
+reviewer_prompt = '''
+# Track C (item 2) Reviewer — P-00c import guardrail (#1304)
+
+VERIFY: TestPottsBoundary class in tests/potts/test_import_boundaries.py
+  Check: grep -n "TestPottsBoundary" tests/potts/test_import_boundaries.py
+
+VERIFY: POTTS_FORBIDDEN includes aminx.model, aminx.host, aminx.run, aminx.cli
+
+VERIFY: uv run pytest tests/potts/test_import_boundaries.py -v — all tests pass
+
+VERIFY: grep -rn "from aminx.model\|from aminx.host\|from aminx.run" src/aminx/potts/ is empty
+
+PASS if all VERIFY items satisfied.
+FAIL if TestPottsBoundary missing, violations exist, or tests fail.
+'''
+return_key = "1304"
+
+# ── Track D: P-07 PottsRunSpec CLI ────────────────────────────────────────────
+[[tracks]]
+id = "d"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1297"
+phase_name = "Track D — P-07: spec emit-* CLI for PottsRunSpec (aminx spec emit-potts) (#1297)"
+fixer_prompt = '''
+# P-07: spec emit-* CLI for PottsRunSpec (backlog #1297)
+
+## Context
+PottsRunSpec (P-04) has to_json()/from_json(). Add `aminx spec emit-potts` CLI subcommand
+that prints a JSON template to stdout — analogous to `aminx spec emit-sample`.
+
+## Recon first
+Read src/aminx/cli/ or src/aminx/run/ to find where `spec emit-sample` is implemented.
+Follow the same pattern exactly.
+
+## What to implement
+
+1. Add emit-potts subcommand:
+   - `aminx spec emit-potts [--weights-path PATH] [--k-neighbors N] [--n-backbones N]`
+   - Default: PottsRunSpec(k_neighbors=48, n_backbones=1, weights_path="")
+   - Print stdout as json.dumps(..., indent=2)
+
+2. Wire into CLI entry point if needed.
+
+3. Tests — tests/cli/test_spec_emit_potts.py:
+
+   test_emit_potts_default:
+     subprocess.run(["uv", "run", "aminx", "spec", "emit-potts"], capture_output=True)
+     exits 0; stdout is valid JSON; JSON["k_neighbors"]==48; JSON["n_backbones"]==1
+
+   test_emit_potts_custom_args:
+     [..., "--k-neighbors", "32", "--n-backbones", "4"]
+     JSON["k_neighbors"]==32; JSON["n_backbones"]==4
+
+   test_emit_potts_round_trips:
+     PottsRunSpec.from_json(output) does not raise
+
+## Acceptance criteria
+- `aminx spec emit-potts` exits 0 and prints valid JSON
+- uv run pytest tests/cli/test_spec_emit_potts.py -v — all 3 tests pass
+- uv run ty check on modified CLI file — exits 0
+'''
+reviewer_prompt = '''
+# Track D Reviewer — P-07 PottsRunSpec CLI (#1297)
+
+VERIFY: uv run aminx spec emit-potts exits 0 and prints JSON
+  Check: uv run aminx spec emit-potts 2>&1 | python3 -m json.tool > /dev/null && echo OK
+
+VERIFY: uv run pytest tests/cli/test_spec_emit_potts.py -v — all 3 tests pass
+
+VERIFY: test_emit_potts_round_trips passes
+
+VERIFY: --k-neighbors 32 -> JSON k_neighbors == 32
+
+VERIFY: uv run ty check on modified CLI file — exits 0
+
+PASS if all VERIFY items satisfied.
+FAIL if command missing, any test fails, or ty errors.
+'''
+return_key = "1297"
+
+# ── Track E: G1 Training Parity Gate ──────────────────────────────────────────
+[[tracks]]
+id = "e"
+is_research = true
+worktree = false
+skip_worktree = true
+
+[[tracks.items]]
+backlog_id = "1550"
+phase_name = "Track E — G1 Training parity gate: loss curve + checkpoint round-trip (#1550)"
+fixer_prompt = '''
+# G1 Training parity gate (backlog #1550)
+
+## Context
+T1.4 (sprint 260612): trainer.py uses xtrax ResumableState checkpoint (single-PyTree format).
+8 tests in tests/training/ pass. G1 is the formal gate confirming training + checkpoint integrity.
+
+## Pass criteria (explicitly defined for this sprint)
+1. pytest tests/training/ — all pass, zero fail
+2. Checkpoint round-trip: fresh save->close->reopen->load; step==42, all params allclose(atol=1e-7, rtol=0)
+3. Loss curve: if loss/convergence tests exist in tests/training/, they must pass.
+   If none: run 50-step overfit smoke, assert loss at step 50 < loss at step 0 (>=10% decrease).
+
+## Task
+
+1. uv run pytest tests/training/ -v --tb=short 2>&1 | tail -40
+
+2. Checkpoint round-trip smoke:
+   uv run python -c "
+import jax, jax.numpy as jnp, equinox as eqx, tempfile, pathlib
+from xtrax.training.types import ResumableState
+from aminx.training.checkpoint import get_checkpoint_manager, save_checkpoint, load_checkpoint
+key = jax.random.PRNGKey(0)
+model = eqx.nn.Linear(8, 8, key=key)
+state = ResumableState(step=jnp.int32(42), key=key, model=model, opt_state=None, extras={})
+with tempfile.TemporaryDirectory() as d:
+    mgr = get_checkpoint_manager(pathlib.Path(d), max_to_keep=1)
+    save_checkpoint(mgr, state); mgr.close()
+    mgr2 = get_checkpoint_manager(pathlib.Path(d), max_to_keep=1)
+    restored = load_checkpoint(mgr2, state); mgr2.close()
+    assert int(restored.step) == 42
+    orig = jax.tree.leaves(eqx.filter(state, eqx.is_array))
+    rest = jax.tree.leaves(eqx.filter(restored, eqx.is_array))
+    for o, r in zip(orig, rest):
+        assert jnp.allclose(o, r, atol=1e-7, rtol=0)
+    print('CHECKPOINT ROUND-TRIP: PASS')
+" 2>&1
+
+3. uv run pytest tests/training/ -k "loss or curve or overfit or convergence" -v 2>&1
+   If no matches: run 50-step overfit check, report step-0 and step-50 loss.
+
+4. Write .praxia/docs/research/260614_g1-training-parity-gate.md with:
+   - pytest results (N passed, N failed)
+   - Checkpoint round-trip result
+   - Loss curve result
+   - GATE VERDICT: PASS (all three criteria met) or FAIL
+
+## Acceptance criteria
+- pytest tests/training/ all pass
+- Checkpoint round-trip prints CHECKPOINT ROUND-TRIP: PASS
+- Loss curve criterion satisfied
+- .praxia/docs/research/260614_g1-training-parity-gate.md contains GATE VERDICT: PASS
+'''
+reviewer_prompt = '''
+# Track E Reviewer — G1 Training parity gate (#1550)
+
+VERIFY: uv run pytest tests/training/ -v — 0 FAIL (report exact counts)
+
+VERIFY: Checkpoint round-trip smoke prints CHECKPOINT ROUND-TRIP: PASS
+
+VERIFY: .praxia/docs/research/260614_g1-training-parity-gate.md exists
+
+VERIFY: grep "GATE VERDICT: PASS" .praxia/docs/research/260614_g1-training-parity-gate.md
+
+PASS if all VERIFY items satisfied.
+FAIL if any training test fails, round-trip errors, or gate doc missing or says FAIL.
+'''
+return_key = "1550"
+
+# ── Track F: RS-1 host-field inventory ────────────────────────────────────────
+[[tracks]]
+id = "f"
+is_research = true
+worktree = false
+skip_worktree = true
+
+[[tracks.items]]
+backlog_id = "1620"
+phase_name = "Track F — RS-1: Inventory host/* getattr(spec) -> run_spec migration map (#1620)"
+fixer_prompt = '''
+# RS-1: host-field inventory (backlog #1620)
+
+## Context
+RS-2+ RunSpec unification requires a complete map of every spec field read in src/aminx/host/.
+Output path (fixed): .praxia/docs/plans/260614_runspec-migration-map.md
+RS-2 will consume this as its primary input.
+
+## Task
+
+### Step 1 — Grep for direct spec reads
+grep -rn "spec\." src/aminx/host/ --include="*.py" \
+  | grep -v "run_spec\.\|#\|\"spec\.\|\'spec\." | sort
+
+### Step 2 — Read key files in full
+Read: runner.py, kernel_dispatch.py, _sampling_helper.py, averaging.py
+Also check: _scoring_helper.py, streaming_host.py (if they exist)
+
+### Step 3 — Migration table
+For each spec.<field>:
+| file | line | field_name | already_on_run_spec | target_subconfig | notes |
+
+target_subconfig options:
+  sampling / plan / precision / protein / ligand / model / new
+  protein = protein-domain fields that stay flat (do NOT migrate)
+  new = no clear home (flag as RS-gap)
+
+### Step 4 — Write .praxia/docs/plans/260614_runspec-migration-map.md
+Sections:
+1. Summary (unique fields, already migrated count, needs-migration count)
+2. Full migration table
+3. Already migrated
+4. Needs migration (grouped by target_subconfig)
+5. RS-gaps (no clear home — candidate RS-2/RS-3 additions)
+6. Protein-only fields (stay flat, not migrate)
+
+## Acceptance criteria
+- .praxia/docs/plans/260614_runspec-migration-map.md exists
+- Covers kernel_dispatch.py, _sampling_helper.py, runner.py
+- Table has >= 10 entries
+- RS-gaps and protein-only sections present
+'''
+reviewer_prompt = '''
+# Track F Reviewer — RS-1 host inventory (#1620)
+
+VERIFY: .praxia/docs/plans/260614_runspec-migration-map.md exists
+
+VERIFY: Covers kernel_dispatch.py, _sampling_helper.py, runner.py
+  Check: grep "kernel_dispatch\|_sampling_helper\|runner" .praxia/docs/plans/260614_runspec-migration-map.md
+
+VERIFY: Table has >= 10 rows
+  Check: grep -c "^|" .praxia/docs/plans/260614_runspec-migration-map.md
+
+VERIFY: RS-gaps and protein-only sections present
+
+PASS if all VERIFY items satisfied.
+FAIL if doc missing, fewer than 10 entries, or key files not covered.
+'''
+return_key = "1620"
+
+# ── Track G: T0.3 Cluster Smoke (SM120) ───────────────────────────────────────
+[[tracks]]
+id = "g"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1544"
+phase_name = "Track G — T0.3: L3 cluster smoke on SM120 + bathos sidecar (#1544)"
+fixer_prompt = '''
+# T0.3: L3 cluster smoke on SM120 Blackwell (backlog #1544)
+
+## Context
+pi_so3 nodes (node4007/4008) currently allocated — jobs will queue, this is expected.
+Mandatory: XLA_FLAGS=--xla_gpu_shard_autotuning=false (without this: 1170x slowdown, job 15294138)
+sbatch/squeue are transparent SSH wrappers to engaging — run locally.
+xtrax editable at ../xtrax (pyproject.toml:274).
+
+## Task
+
+### Step 1 — scripts/cluster/smoke_sm120.py
+import sys, jax, jax.numpy as jnp, xtrax, aminx
+print(f"Python: {sys.version}")
+print(f"JAX: {jax.__version__}, xtrax: {xtrax.__version__}")
+print(f"devices: {jax.devices()}")
+assert len(jax.devices()) > 0
+
+@jax.jit
+def dot(a, b): return jnp.dot(a, b)
+A = jax.random.normal(jax.random.PRNGKey(0), (64, 64))
+C = dot(A, A.T); C.block_until_ready()
+print(f"dot(64,64): shape={C.shape}")
+print("SMOKE: PASS")
+
+### Step 2 — scripts/cluster/smoke_sm120.sbatch
+#!/bin/bash
+#SBATCH --job-name=aminx-smoke-sm120
+#SBATCH --partition=pi_so3
+#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=4 --gpus=1
+#SBATCH --time=00:15:00
+#SBATCH --output=outputs/logs/slurm/smoke_sm120_%j.out
+
+# SM120 Blackwell XLA workaround (mandatory — without this: 1170x slowdown)
+_NODE="${SLURM_JOB_NODELIST:-$(hostname -s)}"
+if [[ "${_NODE}" == *node4007* ]] || [[ "${_NODE}" == *node4008* ]]; then
+    export XLA_FLAGS="${XLA_FLAGS:+${XLA_FLAGS} }--xla_gpu_shard_autotuning=false"
+fi
+_PROJ="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+cd "${_PROJ}"
+echo "Node: $(hostname -s), XLA_FLAGS=${XLA_FLAGS:-<unset>}"
+uv run python scripts/cluster/smoke_sm120.py
+
+### Step 3 — Submit
+mkdir -p outputs/logs/slurm
+sbatch scripts/cluster/smoke_sm120.sbatch
+(Record job ID from sbatch output)
+
+### Step 4 — Wait
+Use mcp__myxcel__job_wait with job ID, timeout 25min. Nodes may queue — expected.
+
+### Step 5 — Verify
+Confirm "SMOKE: PASS" in logs via mcp__myxcel__tail_job_log.
+
+### Step 6 — Gate doc
+Write .praxia/docs/research/260614_t03-sm120-smoke.md:
+- Job ID, node, partition
+- XLA_FLAGS value
+- JAX/xtrax/Python versions
+- GATE VERDICT: PASS or FAIL
+
+## Acceptance criteria
+- scripts/cluster/smoke_sm120.py and .sbatch committed
+- Job COMPLETED (not TIMEOUT/FAILED)
+- "SMOKE: PASS" in output
+- .praxia/docs/research/260614_t03-sm120-smoke.md with GATE VERDICT: PASS
+'''
+reviewer_prompt = '''
+# Track G Reviewer — T0.3 cluster smoke (#1544)
+
+VERIFY: scripts/cluster/smoke_sm120.py and .sbatch exist
+  Check: ls scripts/cluster/smoke_sm120.py scripts/cluster/smoke_sm120.sbatch
+
+VERIFY: .sbatch has XLA_FLAGS node4007/node4008 guard
+  Check: grep "XLA_FLAGS\|node4007\|node4008" scripts/cluster/smoke_sm120.sbatch
+
+VERIFY: .sbatch uses SLURM_SUBMIT_DIR path anchoring
+  Check: grep "SLURM_SUBMIT_DIR" scripts/cluster/smoke_sm120.sbatch
+
+VERIFY: .praxia/docs/research/260614_t03-sm120-smoke.md exists with GATE VERDICT: PASS
+
+PASS if all VERIFY items satisfied.
+FAIL if scripts missing, XLA workaround absent, job TIMEOUT/FAILED, or gate doc missing.
+'''
+return_key = "1544"
+
+# ── Track H: T2.1 xtrax Scan.init ─────────────────────────────────────────────
+[[tracks]]
+id = "h"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1551"
+phase_name = "Track H — T2.1 (xtrax repo): Add Scan.init field to xtrax tiling Scan strategy (#1551)"
+fixer_prompt = '''
+# T2.1: Add Scan.init field to xtrax tiling Scan strategy (backlog #1551)
+
+## IMPORTANT: Cross-repo work in /home/marielle/projects/xtrax (NOT aminx)
+xtrax editable dep: pyproject.toml:274 — xtrax = { path = "../xtrax", editable = true }
+Changes to xtrax are immediately visible to aminx. Commit in xtrax repo.
+Do NOT modify aminx source files in this track.
+
+## Recon first
+Read /home/marielle/projects/xtrax/src/xtrax/tiling/strategy.py — find Scan class, fields, carry flow.
+Read /home/marielle/projects/xtrax/src/xtrax/tiling/dispatch.py — find where Scan is consumed.
+
+## What to implement
+
+In strategy.py, add to Scan class:
+  init: PyTree | None = None
+  (backwards compatible: None = use existing default, no behavior change)
+
+In dispatch.py: if jax.lax.scan is called with init, pass Scan.init when not None.
+
+## Tests (in xtrax repo)
+Check for existing scan tests. Add test_scan_init_field:
+1. Scan(init={"counter": 0}) — field accessible
+2. Scan() — works without init (backwards compat)
+
+Run from /home/marielle/projects/xtrax:
+  uv run pytest tests/ -k "scan" -v
+
+## Commit in xtrax repo
+git -C /home/marielle/projects/xtrax add -u
+git -C /home/marielle/projects/xtrax commit -m "feat(tiling): add Scan.init field for configurable carry init (aminx T2.1)"
+
+## Verify from aminx
+uv run python -c "from xtrax.tiling import Scan; s = Scan(init={'x': 0}); print(s.init)"
+uv run pytest -x -q -m "not slow and not parity_heavy and not parity_audit" | tail -5
+
+## Acceptance criteria
+- Scan.init field in xtrax; committed with T2.1 message
+- Scan() without init works identically (backwards compat)
+- xtrax scan tests pass
+- aminx regression suite shows no new FAIL
+'''
+reviewer_prompt = '''
+# Track H Reviewer — T2.1 xtrax Scan.init (#1551)
+
+VERIFY: Scan.init field exists in /home/marielle/projects/xtrax/src/xtrax/tiling/strategy.py
+  Check: grep -n "init" /home/marielle/projects/xtrax/src/xtrax/tiling/strategy.py | head -10
+
+VERIFY: Scan.init defaults to None
+  Check: grep "init.*=.*None" /home/marielle/projects/xtrax/src/xtrax/tiling/strategy.py
+
+VERIFY: T2.1 commit exists in xtrax
+  Check: git -C /home/marielle/projects/xtrax log --oneline -3
+
+VERIFY: uv run pytest tests/ -k "scan" -v (from xtrax root) — all pass
+
+VERIFY: Backwards compat: from xtrax.tiling import Scan; Scan() — no error
+
+VERIFY: aminx regression: uv run pytest -x -q -m "not slow and not parity_heavy and not parity_audit" | tail -5
+  No new FAIL
+
+PASS if all VERIFY items satisfied.
+FAIL if Scan.init absent, no T2.1 commit, xtrax tests fail, or aminx regresses.
+'''
+return_key = "1551"
+
+# ── Orchestration ──────────────────────────────────────────────────────────────
+[orchestration]
+sequential = []
+concurrent = ["a", "b", "c", "d", "e", "f", "g", "h"]

@@ -179,82 +179,51 @@ class PottsModel(eqx.Module):
       spec=self.trw_spec,
     )
 
-  def _build_adjacency(
-    self,
-    coords: Float[Array, "n 37 3"],
+  @staticmethod
+  def build_adjacency_from_neighbors(
+    nei: Int[Array, "n k"],
     mask: Float[Array, " n"],
-    residue_index: Int[Array, " n"],
-    chain_index: Int[Array, " n"],
-    key: PRNGKeyArray,
   ) -> Float[Array, "n n"]:
-    """Build k-NN adjacency matrix W from structure coordinates.
+    """Build k-NN adjacency matrix W from precomputed neighbor indices.
 
-    Extracts k-NN edges via ProteinFeatures, symmetrizes, and applies mask.
-    Reusable helper to avoid redundant ProteinFeatures calls.
+    Takes k-NN neighbor indices (computed externally via ProteinFeatures or similar)
+    and builds a symmetric adjacency matrix with masking.
 
     Args:
-        coords: Structure coordinates (N, 37, 3)
-        mask: Residue mask (N,)
-        residue_index: Residue indices (N,)
-        chain_index: Chain assignment (N,)
-        key: JAX random key (required for ProteinFeatures initialization)
+        nei: Neighbor indices (N, k) as output from graph construction algorithm
+        mask: Residue mask (N,) in [0, 1]; masked positions excluded from edges
 
     Returns:
         Adjacency matrix W (N, N) with symmetric edges and zero diagonal.
     """
-    coords_arr = jnp.asarray(coords, dtype=jnp.float32)
-    mask_arr = jnp.asarray(mask, dtype=jnp.float32)
-    residue_index_arr = jnp.asarray(residue_index, dtype=jnp.int32)
-    chain_index_arr = jnp.asarray(chain_index, dtype=jnp.int32)
-
-    from aminx.model.features import ProteinFeatures  # noqa: PLC0415
-
-    features = ProteinFeatures(
-      node_features=128,
-      edge_features=128,
-      k_neighbors=self.k_neighbors,
-      key=key,
-    )
-
-    edge_knn, nei, _, _ = features(
-      key,
-      coords_arr,
-      mask_arr,
-      residue_index_arr,
-      chain_index_arr,
-      backbone_noise=None,
-    )
-
     nei = jnp.asarray(nei, dtype=jnp.int32)
-    edge_knn = jnp.asarray(edge_knn, dtype=jnp.float32)
+    mask_arr = jnp.asarray(mask, dtype=jnp.float32)
 
-    n = edge_knn.shape[0]
+    n = nei.shape[0]
     row = jnp.arange(n, dtype=jnp.int32)[:, None]
     col = nei.astype(jnp.int32)
     valid = (mask_arr[row] > 0) & (mask_arr[col] > 0) & (col >= 0) & (col < n)
     w_vals = jnp.where(valid, 1.0, 0.0)
-    w = jnp.zeros((n, n), dtype=edge_knn.dtype)
+    w = jnp.zeros((n, n), dtype=jnp.float32)
     w = w.at[row, col].set(w_vals)
     w = jnp.maximum(w, w.T)
     return w.at[jnp.arange(n), jnp.arange(n)].set(0.0)
 
   def __call__(
     self,
-    key: PRNGKeyArray,
-    coords: Float[Array, "n 37 3"],
+    edge_knn: Float[Array, "n k e"],
+    nei: Int[Array, "n k"],
     mask: Float[Array, " n"],
-    residue_index: Int[Array, " n"],
-    chain_index: Int[Array, " n"],
+    key: PRNGKeyArray | None = None,
     aux_node_features: Array | None = None,
   ) -> tuple[Array, Array, Array, Array]:
-    """Forward pass: extract Potts h/J from coords, run TRW.
+    """Forward pass: extract Potts h/J from precomputed graph, run TRW.
 
     Args:
-        key: JAX random key (for future stochastic features)
-        coords: Structure coordinates shape (N, 37, 3) with B-factor padding
+        edge_knn: Precomputed edge features (N, k, E) from k-NN graph construction
+        nei: k-NN neighbor indices (N, k) from k-NN graph construction
         mask: Valid residue indicator (N,) in [0, 1]
-        residue_index: Residue index array (N,)
-        chain_index: Chain assignment (N,)
+        key: JAX random key (unused, for API compatibility)
         aux_node_features: Optional auxiliary features (N, aux_node_dim)
 
     Returns:
@@ -266,35 +235,12 @@ class PottsModel(eqx.Module):
 
     Note:
         No batch axis. Caller applies eqx.filter_vmap for batching.
+        Caller is responsible for computing edge_knn and nei via ProteinFeatures
+        or similar k-NN graph construction method in the integration layer.
     """
     # Ensure inputs are JAX arrays with correct dtype
-    coords = jnp.asarray(coords, dtype=jnp.float32)
-    mask = jnp.asarray(mask, dtype=jnp.float32)
-    residue_index = jnp.asarray(residue_index, dtype=jnp.int32)
-    chain_index = jnp.asarray(chain_index, dtype=jnp.int32)
-
-    # Extract k-NN edges and features via ProteinFeatures
-    from aminx.model.features import ProteinFeatures  # noqa: PLC0415
-
-    features = ProteinFeatures(
-      node_features=128,
-      edge_features=128,
-      k_neighbors=self.k_neighbors,
-      key=key,
-    )
-
-    edge_knn, nei, _node_features_out, _ = features(
-      key,
-      coords,
-      mask,
-      residue_index,
-      chain_index,
-      backbone_noise=None,
-    )
-
-    # Build symmetric adjacency and dense edge features
-    nei = jnp.asarray(nei, dtype=jnp.int32)
     edge_knn = jnp.asarray(edge_knn, dtype=jnp.float32)
+    nei = jnp.asarray(nei, dtype=jnp.int32)
     mask_arr = jnp.asarray(mask, dtype=jnp.float32)
 
     n = edge_knn.shape[0]
@@ -355,39 +301,36 @@ class PottsModel(eqx.Module):
 
   def infer_params(
     self,
-    key: PRNGKeyArray,
-    coords: Float[Array, "n 37 3"],
+    edge_knn: Float[Array, "n k e"],
+    nei: Int[Array, "n k"],
     mask: Float[Array, " n"],
-    residue_index: Int[Array, " n"],
-    chain_index: Int[Array, " n"],
+    key: PRNGKeyArray | None = None,
     aux_node_features: Array | None = None,
   ) -> PottsParams:
     """Infer Potts parameters and return as namedtuple.
 
-    Runs TRW inference on k-NN graph and computes adjacency matrix W.
+    Runs TRW inference on precomputed k-NN graph and computes adjacency matrix W.
 
     Args:
-        key: JAX random key
-        coords: Structure coordinates (N, 37, 3)
+        edge_knn: Precomputed edge features (N, k, E) from k-NN graph construction
+        nei: k-NN neighbor indices (N, k) from k-NN graph construction
         mask: Residue mask (N,)
-        residue_index: Residue indices (N,)
-        chain_index: Chain assignment (N,)
+        key: JAX random key (unused, for API compatibility)
         aux_node_features: Optional auxiliary node features (N, aux_node_dim)
 
     Returns:
         PottsParams namedtuple with marginals, h, J, rho, W.
     """
     marginals, h, j_sym, rho = self(
-      key,
-      coords,
+      edge_knn,
+      nei,
       mask,
-      residue_index,
-      chain_index,
+      key=key,
       aux_node_features=aux_node_features,
     )
 
-    # Build W adjacency using shared helper (avoids redundant ProteinFeatures call)
-    w = self._build_adjacency(coords, mask, residue_index, chain_index, key)
+    # Build W adjacency using static helper
+    w = self.build_adjacency_from_neighbors(nei, mask)
 
     return PottsParams(
       marginals=marginals,

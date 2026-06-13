@@ -437,10 +437,10 @@ class TestPoeModelInferAllParams:
 
     sig = inspect.signature(model.infer_all_params)
     params = list(sig.parameters.keys())
-    assert "coords_stack" in params
+    assert "key" in params
+    assert "edge_knn_stack" in params
+    assert "nei_stack" in params
     assert "mask" in params
-    assert "residue_index" in params
-    assert "chain_index" in params
 
 
 class TestPoeModelJointLogProb:
@@ -515,6 +515,171 @@ class TestPoeModelJointLogProb:
 
     # Should sum: log_prob1 (3.0) + log_prob2 (6.0) = 9.0
     assert jnp.allclose(log_prob, 9.0, atol=1e-5)
+
+
+class TestPoeModelCall:
+  """Test PoeModel.__call__: aggregate marginals across backbones."""
+
+  @pytest.mark.slow
+  @pytest.mark.potts
+  def test_poe_single_backbone_matches_potts(self) -> None:
+    """Test that single-backbone PoE marginals match PottsModel (atol=1e-5)."""
+    from aminx.potts.poe import PoeModel, PoeOutput
+
+    key = jax.random.PRNGKey(42)
+    k1 = jax.random.split(key, 1)[0]
+
+    backbone = PottsModel(
+      hidden_dim=16,
+      num_aa=20,
+      k_neighbors=30,
+      edge_features_dim=64,
+      trw_iters=2,
+      key=k1,
+    )
+
+    model = PoeModel(backbones=(backbone,))
+
+    # Create test data: synthetic edge features and neighbor indices
+    key_call = jax.random.PRNGKey(123)
+    n = 10
+    k = 30  # k_neighbors
+    e = 64  # edge_features_dim
+    mask = jnp.ones(n, dtype=jnp.float32)
+
+    # Create synthetic edge_knn (B, N, k, E) and nei (B, N, k)
+    edge_knn_stack = jnp.ones((1, n, k, e), dtype=jnp.float32)
+    nei_stack = jnp.zeros((1, n, k), dtype=jnp.int32)
+    # Fill nei with valid neighbor indices
+    for i in range(n):
+      for j in range(k):
+        nei_stack = nei_stack.at[0, i, j].set((i + j + 1) % n)
+
+    # Call PoeModel
+    poe_output = model(
+      key=key_call,
+      edge_knn_stack=edge_knn_stack,
+      nei_stack=nei_stack,
+      mask=mask,
+    )
+
+    # Verify output structure
+    assert isinstance(poe_output, PoeOutput)
+    assert poe_output.marginals.shape == (n, 20)
+    assert poe_output.log_poe_unnorm.shape == (n, 20)
+    assert poe_output.per_backbone_marginals.shape == (1, n, 20)
+
+    # For single backbone, marginals should match per-backbone marginals
+    assert jnp.allclose(
+      poe_output.marginals,
+      poe_output.per_backbone_marginals[0, :, :],
+      atol=1e-5,
+    ), "Single-backbone PoE marginals should match PottsModel output"
+
+  @pytest.mark.slow
+  @pytest.mark.potts
+  def test_poe_shape(self) -> None:
+    """Test that shapes are correct for B=3, N=10, q=20."""
+    from aminx.potts.poe import PoeModel, PoeOutput
+
+    key = jax.random.PRNGKey(42)
+    k1, k2, k3 = jax.random.split(key, 3)
+
+    cfg = {
+      "hidden_dim": 16,
+      "num_aa": 20,
+      "k_neighbors": 30,
+      "edge_features_dim": 64,
+      "trw_iters": 2,
+    }
+
+    backbone_a = PottsModel(**cfg, key=k1)
+    backbone_b = PottsModel(**cfg, key=k2)
+    backbone_c = PottsModel(**cfg, key=k3)
+
+    model = PoeModel(backbones=(backbone_a, backbone_b, backbone_c))
+
+    # Create test data: B=3, N=10
+    key_call = jax.random.PRNGKey(999)
+    b, n = 3, 10
+    k = 30  # k_neighbors
+    e = 64  # edge_features_dim
+    q = 20
+    mask = jnp.ones(n, dtype=jnp.float32)
+
+    # Create synthetic edge_knn (B, N, k, E) and nei (B, N, k)
+    edge_knn_stack = jnp.ones((b, n, k, e), dtype=jnp.float32)
+    nei_stack = jnp.zeros((b, n, k), dtype=jnp.int32)
+    for bi in range(b):
+      for i in range(n):
+        for j in range(k):
+          nei_stack = nei_stack.at[bi, i, j].set((i + j + 1) % n)
+
+    poe_output = model(
+      key=key_call,
+      edge_knn_stack=edge_knn_stack,
+      nei_stack=nei_stack,
+      mask=mask,
+    )
+
+    # Verify all shapes
+    assert poe_output.marginals.shape == (n, q)
+    assert poe_output.log_poe_unnorm.shape == (n, q)
+    assert poe_output.per_backbone_marginals.shape == (b, n, q)
+
+  @pytest.mark.slow
+  @pytest.mark.potts
+  def test_poe_marginals_sum_to_one(self) -> None:
+    """Test that poe_marginals.sum(axis=-1) ≈ 1.0 (atol=1e-5)."""
+    from aminx.potts.poe import PoeModel, PoeOutput
+
+    key = jax.random.PRNGKey(42)
+    k1, k2, k3 = jax.random.split(key, 3)
+
+    cfg = {
+      "hidden_dim": 16,
+      "num_aa": 20,
+      "k_neighbors": 30,
+      "edge_features_dim": 64,
+      "trw_iters": 2,
+    }
+
+    backbone_a = PottsModel(**cfg, key=k1)
+    backbone_b = PottsModel(**cfg, key=k2)
+    backbone_c = PottsModel(**cfg, key=k3)
+
+    model = PoeModel(backbones=(backbone_a, backbone_b, backbone_c))
+
+    # Create test data
+    key_call = jax.random.PRNGKey(777)
+    n = 10
+    b = 3
+    k = 30  # k_neighbors
+    e = 64  # edge_features_dim
+    mask = jnp.ones(n, dtype=jnp.float32)
+
+    # Create synthetic edge_knn (B, N, k, E) and nei (B, N, k)
+    edge_knn_stack = jnp.ones((b, n, k, e), dtype=jnp.float32)
+    nei_stack = jnp.zeros((b, n, k), dtype=jnp.int32)
+    for bi in range(b):
+      for i in range(n):
+        for j in range(k):
+          nei_stack = nei_stack.at[bi, i, j].set((i + j + 1) % n)
+
+    poe_output = model(
+      key=key_call,
+      edge_knn_stack=edge_knn_stack,
+      nei_stack=nei_stack,
+      mask=mask,
+    )
+
+    # Check that marginals sum to 1 over amino acid dimension
+    marginal_sums = poe_output.marginals.sum(axis=-1)
+    assert jnp.allclose(
+      marginal_sums,
+      jnp.ones(n),
+      atol=1e-5,
+    ), f"Marginals should sum to 1 over amino acid axis, got sums: {marginal_sums}"
 
 
 class TestPoeModelSanityCheck:

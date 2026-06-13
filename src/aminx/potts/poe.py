@@ -36,6 +36,20 @@ from jaxtyping import Array, Float, Int, PRNGKeyArray
 from aminx.potts.model import PottsModel, PottsParams
 
 
+class PoeOutput(NamedTuple):
+  """Output from PoeModel forward pass: aggregated marginals across backbones.
+
+  Attributes:
+      marginals: Aggregated node marginals (N, q) — normalized via softmax
+      log_poe_unnorm: Log unnormalized PoE (N, q) — sum of log-marginals
+      per_backbone_marginals: Per-backbone marginals (B, N, q) for decomposition analysis
+  """
+
+  marginals: Float[Array, "n q"]
+  log_poe_unnorm: Float[Array, "n q"]
+  per_backbone_marginals: Float[Array, "b n q"]
+
+
 class PoeParams(NamedTuple):
   """Product-of-Experts parameters tuple: list of per-backbone PottsParams.
 
@@ -114,6 +128,79 @@ class PoeModel(eqx.Module):
           )
           raise ValueError(msg)
 
+  def __call__(
+    self,
+    key: PRNGKeyArray,
+    edge_knn_stack: Float[Array, "b n k e"],
+    nei_stack: Int[Array, "b n k"],
+    mask: Float[Array, " n"],
+  ) -> PoeOutput:
+    """Forward pass: infer marginals for all backbones and aggregate via PoE.
+
+    Applies each backbone to its precomputed k-NN graph, then aggregates
+    marginals via Product of Experts: log_poe(a) = sum_b log_marginals_b(a);
+    normalize to get marginals.
+
+    Args:
+        key: JAX random key for stochastic components.
+        edge_knn_stack: Precomputed edge features (B, N, k, E) where B=n_backbones.
+        nei_stack: k-NN neighbor indices (B, N, k) where B=n_backbones.
+        mask: Residue validity mask (N,).
+
+    Returns:
+        PoeOutput namedtuple with:
+        - marginals: Aggregated node marginals (N, q) via softmax normalization
+        - log_poe_unnorm: Log unnormalized PoE (N, q)
+        - per_backbone_marginals: Per-backbone marginals (B, N, q)
+
+    Raises:
+        ValueError: If edge_knn_stack.shape[0] != n_backbones.
+    """
+    if edge_knn_stack.shape[0] != self.n_backbones:
+      msg = (
+        f"edge_knn_stack batch dimension ({edge_knn_stack.shape[0]}) "
+        f"must match n_backbones ({self.n_backbones})"
+      )
+      raise ValueError(msg)
+
+    # Split key for each backbone
+    keys = jax.random.split(key, self.n_backbones)
+
+    # Infer marginals for each backbone via explicit iteration
+    # (JAX will trace through the loop at tracing time)
+    all_marginals = []
+    for i in range(self.n_backbones):
+      backbone = self.backbones[i]
+      key_b = keys[i]
+      edge_knn_b = edge_knn_stack[i]
+      nei_b = nei_stack[i]
+
+      # Call backbone.__call__ with precomputed k-NN graph features
+      marginals, _, _, _ = backbone(
+        edge_knn=edge_knn_b,
+        nei=nei_b,
+        mask=mask,
+        key=key_b,
+      )
+      all_marginals.append(marginals)
+
+    # Stack marginals: (B, N, q)
+    per_backbone_marginals = jnp.stack(all_marginals, axis=0)
+
+    # Aggregate via Product of Experts: log_poe = sum_b log(marginals_b)
+    # Then normalize via softmax to get final marginals
+    log_marginals = jnp.log(per_backbone_marginals + 1e-10)  # Add small epsilon for numerical stability
+    log_poe_unnorm = jnp.sum(log_marginals, axis=0)  # Sum over backbone axis (B)
+
+    # Normalize via softmax to get final marginals
+    marginals = jax.nn.softmax(log_poe_unnorm, axis=-1)
+
+    return PoeOutput(
+      marginals=marginals,
+      log_poe_unnorm=log_poe_unnorm,
+      per_backbone_marginals=per_backbone_marginals,
+    )
+
   def joint_energy(
     self,
     seq: Int[Array, " n"],
@@ -153,34 +240,38 @@ class PoeModel(eqx.Module):
   def infer_all_params(
     self,
     key: PRNGKeyArray,
-    coords_stack: Float[Array, "b n 37 3"],
+    edge_knn_stack: Float[Array, "b n k e"],
+    nei_stack: Int[Array, "b n k"],
     mask: Float[Array, " n"],
-    residue_index: Int[Array, " n"],
-    chain_index: Int[Array, " n"],
   ) -> list[PottsParams]:
     """Infer parameters for all backbones using eqx.filter_vmap.
 
     Uses JAX vmap to parallelize inference across the backbone pytree ensemble.
-    Each backbone receives the same structural inputs (coords, mask, residue_index,
-    chain_index) and produces a PottsParams tuple.
+    Each backbone receives the same precomputed k-NN graph structure (edge_knn, nei)
+    and produces a PottsParams tuple.
 
     Args:
         key: JAX random key for stochastic components.
-        coords_stack: Structure coordinates, shape (B, N, 37, 3) where B=n_backbones.
+        edge_knn_stack: Precomputed edge features, shape (B, N, k, E) where B=n_backbones.
+        nei_stack: Precomputed k-NN neighbors, shape (B, N, k) where B=n_backbones.
         mask: Residue validity mask (N,).
-        residue_index: Residue indices (N,).
-        chain_index: Chain assignment (N,).
 
     Returns:
         List of PottsParams, one per backbone.
 
     Raises:
-        ValueError: If coords_stack.shape[0] != n_backbones.
+        ValueError: If batch dimensions don't match n_backbones.
 
     """
-    if coords_stack.shape[0] != self.n_backbones:
+    if edge_knn_stack.shape[0] != self.n_backbones:
       msg = (
-        f"coords_stack batch dimension ({coords_stack.shape[0]}) "
+        f"edge_knn_stack batch dimension ({edge_knn_stack.shape[0]}) "
+        f"must match n_backbones ({self.n_backbones})"
+      )
+      raise ValueError(msg)
+    if nei_stack.shape[0] != self.n_backbones:
+      msg = (
+        f"nei_stack batch dimension ({nei_stack.shape[0]}) "
         f"must match n_backbones ({self.n_backbones})"
       )
       raise ValueError(msg)
@@ -190,14 +281,16 @@ class PoeModel(eqx.Module):
 
     # Define vmap over backbone index (dimension 0 of PyTree)
     def infer_single_backbone(
-      backbone: PottsModel, key_b: PRNGKeyArray, coords_b: Float[Array, "n 37 3"],
+      backbone: PottsModel,
+      key_b: PRNGKeyArray,
+      edge_knn_b: Float[Array, "n k e"],
+      nei_b: Int[Array, "n k"],
     ) -> PottsParams:
       return backbone.infer_params(
         key=key_b,
-        coords=coords_b,
+        edge_knn=edge_knn_b,
+        nei=nei_b,
         mask=mask,
-        residue_index=residue_index,
-        chain_index=chain_index,
       )
 
     # Use eqx.filter_vmap to properly handle static fields in Equinox modules
@@ -205,12 +298,12 @@ class PoeModel(eqx.Module):
     # (differentiable) leaves, which jax.vmap does not.
     vmapped_infer = eqx.filter_vmap(
       infer_single_backbone,
-      in_axes=(0, 0, 0),  # vmap over backbone, key, coords
+      in_axes=(0, 0, 0, 0),  # vmap over backbone, key, edge_knn, nei
     )
 
     # Apply vmap: pass self.backbones as batched pytree argument
     # eqx.filter_vmap handles static fields automatically
-    params_list = vmapped_infer(self.backbones, keys, coords_stack)
+    params_list = vmapped_infer(self.backbones, keys, edge_knn_stack, nei_stack)
 
     # Convert params_list (which may be batched PyTree from vmap) to list format
     return list(params_list)

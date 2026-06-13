@@ -7,7 +7,39 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, Int, PRNGKeyArray
 
+from aminx.model import ProteinFeatures
 from aminx.potts.model import PottsModel, PottsParams, POTTS_ALPHABET
+
+
+def _compute_edge_features(
+    coords: Float[Array, "n 37 3"],
+    mask: Float[Array, " n"],
+    residue_index: Int[Array, " n"],
+    chain_index: Int[Array, " n"],
+    k_neighbors: int,
+    key: PRNGKeyArray,
+) -> tuple[Float[Array, "n k e"], Int[Array, "n k"]]:
+    """Compute k-NN edge features and neighbor indices via ProteinFeatures.
+
+    Helper for tests to convert old API inputs to new API format.
+    """
+    features = ProteinFeatures(
+        node_features=128,
+        edge_features=128,
+        k_neighbors=k_neighbors,
+        key=key,
+    )
+
+    edge_knn, nei, _, _ = features(
+        key,
+        coords,
+        mask,
+        residue_index,
+        chain_index,
+        backbone_noise=None,
+    )
+
+    return edge_knn, nei
 
 
 def test_potts_model_construction(rng_key: PRNGKeyArray) -> None:
@@ -33,22 +65,31 @@ def test_potts_model_call(
 ) -> None:
     """Test that PottsModel.__call__ returns correct shapes."""
     n = int(model_inputs["mask"].sum())
+    k_neighbors = 8  # Small k for fast testing
 
     model = PottsModel(
         hidden_dim=64,
         num_aa=21,
-        k_neighbors=8,  # Small k for fast testing
+        k_neighbors=k_neighbors,
         edge_features_dim=128,
         trw_iters=2,
         key=rng_key,
     )
 
+    # Compute edge features using ProteinFeatures
+    edge_knn, nei = _compute_edge_features(
+        model_inputs["structure_coordinates"],
+        model_inputs["mask"],
+        model_inputs["residue_index"],
+        model_inputs["chain_index"],
+        k_neighbors,
+        rng_key,
+    )
+
     marginals, h, J, rho = model(
-        key=rng_key,
-        coords=model_inputs["structure_coordinates"],
+        edge_knn=edge_knn,
+        nei=nei,
         mask=model_inputs["mask"],
-        residue_index=model_inputs["residue_index"],
-        chain_index=model_inputs["chain_index"],
     )
 
     # Check shapes
@@ -69,21 +110,31 @@ def test_potts_model_infer_params(
     model_inputs: dict,
 ) -> None:
     """Test that infer_params returns PottsParams namedtuple."""
+    k_neighbors = 8
+
     model = PottsModel(
         hidden_dim=64,
         num_aa=21,
-        k_neighbors=8,
+        k_neighbors=k_neighbors,
         edge_features_dim=128,
         trw_iters=2,
         key=rng_key,
     )
 
+    # Compute edge features using ProteinFeatures
+    edge_knn, nei = _compute_edge_features(
+        model_inputs["structure_coordinates"],
+        model_inputs["mask"],
+        model_inputs["residue_index"],
+        model_inputs["chain_index"],
+        k_neighbors,
+        rng_key,
+    )
+
     params = model.infer_params(
-        key=rng_key,
-        coords=model_inputs["structure_coordinates"],
+        edge_knn=edge_knn,
+        nei=nei,
         mask=model_inputs["mask"],
-        residue_index=model_inputs["residue_index"],
-        chain_index=model_inputs["chain_index"],
     )
 
     # Check that we get a PottsParams namedtuple with expected fields
@@ -217,25 +268,34 @@ def test_infer_params_returns_correct_w(
 ) -> None:
     """Test that infer_params correctly returns W adjacency matrix.
 
-    Regression test for Finding #4: The fix should ensure that W returned
-    by infer_params is the same as would be computed by __call__, so that
-    W is available without redundant ProteinFeatures calls.
+    Regression test: W should be computed from neighbor indices and mask,
+    available without redundant ProteinFeatures calls.
     """
+    k_neighbors = 8
+
     model = PottsModel(
         hidden_dim=64,
         num_aa=21,
-        k_neighbors=8,
+        k_neighbors=k_neighbors,
         edge_features_dim=128,
         trw_iters=2,
         key=rng_key,
     )
 
+    # Compute edge features using ProteinFeatures
+    edge_knn, nei = _compute_edge_features(
+        model_inputs["structure_coordinates"],
+        model_inputs["mask"],
+        model_inputs["residue_index"],
+        model_inputs["chain_index"],
+        k_neighbors,
+        rng_key,
+    )
+
     params = model.infer_params(
-        key=rng_key,
-        coords=model_inputs["structure_coordinates"],
+        edge_knn=edge_knn,
+        nei=nei,
         mask=model_inputs["mask"],
-        residue_index=model_inputs["residue_index"],
-        chain_index=model_inputs["chain_index"],
     )
 
     # Verify W is returned and has sensible properties

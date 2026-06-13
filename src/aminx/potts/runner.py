@@ -30,6 +30,7 @@ import jax.numpy as jnp
 import zstandard as zstd
 from jaxtyping import Array, PRNGKeyArray
 
+from aminx.model import ProteinFeatures
 from aminx.potts.calibration import load_calibration
 from aminx.potts.model import PottsModel
 from aminx.potts.spec import PottsRunSpec
@@ -180,13 +181,30 @@ def run_potts(
     coords_37 = coords_37.at[:, :4, :].set(coords)
     coords = coords_37
 
+  # Step 3.5: Compute k-NN graph features via ProteinFeatures
+  # This integration layer responsibility: compute graph and pass to pure potts model
+  features = ProteinFeatures(
+    node_features=128,
+    edge_features=128,
+    k_neighbors=model.k_neighbors,
+    key=key,
+  )
+
+  edge_knn, nei, _, _ = features(
+    key,
+    coords,
+    mask,
+    residue_index,
+    chain_index,
+    backbone_noise=None,
+  )
+
   # Step 4: Infer Potts parameters via model.infer_params
   params = model.infer_params(
     key=key,
-    coords=coords,
+    edge_knn=edge_knn,
+    nei=nei,
     mask=mask,
-    residue_index=residue_index,
-    chain_index=chain_index,
   )
 
   # Step 5: Apply calibration to marginals

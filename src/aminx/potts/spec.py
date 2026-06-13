@@ -15,11 +15,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
+from typing import Type
 
 from aminx.potts._trw_spec import PottsTRWRunSpec
 
 
-def _get_potts_trw_run_spec_class() -> type:
+def _get_potts_trw_run_spec_class() -> Type[PottsTRWRunSpec]:
   """Return PottsTRWRunSpec class (already imported above).
 
   Returns:
@@ -63,7 +64,7 @@ class PottsRunSpec:
     """Validate spec fields and enforce safety constraints."""
     if self.trw_spec is None:
       potts_trw_run_spec_cls = _get_potts_trw_run_spec_class()
-      object.__setattr__(self, "trw_spec", potts_trw_run_spec_cls.default_dense())  # type: ignore[no-untyped-call]
+      object.__setattr__(self, "trw_spec", potts_trw_run_spec_cls.default_dense())  # type: ignore[unresolved-attribute, no-untyped-call]
 
     if self.k_neighbors <= 0:
       msg = (
@@ -96,7 +97,7 @@ class PottsRunSpec:
     potts_trw_run_spec_cls = _get_potts_trw_run_spec_class()
     data = json.loads(s)
     trw_dict = data.pop("trw_spec", {})
-    trw_spec = potts_trw_run_spec_cls.from_json_dict(trw_dict) if trw_dict else None  # type: ignore[no-untyped-call]
+    trw_spec = potts_trw_run_spec_cls.from_json_dict(trw_dict) if trw_dict else None  # type: ignore[unresolved-attribute, no-untyped-call]
     return cls(trw_spec=trw_spec, **data)
 
   @classmethod
@@ -116,7 +117,7 @@ class PottsRunSpec:
       n_backbones=1,
       weights_path=weights_path,
       caliby_path=None,
-      trw_spec=potts_trw_run_spec_cls.default_dense(),  # type: ignore[no-untyped-call]
+      trw_spec=potts_trw_run_spec_cls.default_dense(),  # type: ignore[unresolved-attribute, no-untyped-call]
       k_neighbors=k_neighbors,
       training=False,
     )

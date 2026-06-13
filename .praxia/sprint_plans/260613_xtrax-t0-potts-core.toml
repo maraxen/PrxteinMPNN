@@ -1,0 +1,431 @@
+[sprint]
+sprint_id = "260613_xtrax-t0-potts-core"
+sprint_num = 1
+name = "260613_xtrax-t0-potts-core"
+description = "xtrax T0 pin + boundary lint, Potts recapture script + model + spec verification"
+context = "[MANUAL: paste recon findings here before running emit-sprint]"
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[[tracks]]
+id = "a"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1543"
+phase_name = "Track A — [xtrax T0.2] Add editable xtrax pin + dependency (#1543)"
+fixer_prompt = """
+# xtrax editable dependency — verify pin completeness
+
+## Background
+xtrax is a JAX training/tiling library at ../xtrax (editable install). The editable pin was
+added to pyproject.toml in commit 4f1b86a as part of the T0.1 Python 3.13 upgrade.
+This task verifies the pin is correct and the gate commands pass — no new code is expected.
+
+## Recon anchors
+- pyproject.toml:26 — "xtrax>=0.2.0" in [project].dependencies
+- pyproject.toml:264 — xtrax = { path = "../xtrax", editable = true } in [tool.uv.sources]
+
+## What to check
+1. Open pyproject.toml and confirm both anchors are present.
+2. Run the acceptance gate from the project root (/home/marielle/projects/aminx):
+     uv lock --check
+     uv run python -c 'import xtrax; print(xtrax.__version__)'
+   Expected output: 0.2.0
+
+## If uv lock --check fails
+Run `uv lock` (no --check) to regenerate the lockfile, then re-run `uv lock --check`.
+
+## If import fails
+Check that the xtrax source exists:
+  ls /home/marielle/projects/xtrax/src/xtrax/__init__.py
+If missing, the xtrax repo is not checked out — report this as a blocker.
+Do NOT attempt to fix by changing the pin path.
+
+## If either anchor is absent from pyproject.toml
+Add the missing line:
+  - To [project].dependencies array: "xtrax>=0.2.0",
+  - To [tool.uv.sources] section: xtrax = { path = "../xtrax", editable = true }
+Then run `uv lock` and re-run the gate.
+
+## Expected outcome
+Both anchors present, `uv lock --check` exits 0, import prints 0.2.0.
+"""
+reviewer_prompt = """
+# Reviewer for T0.2 — xtrax editable dependency
+
+## Spec
+pyproject.toml must contain BOTH:
+  [project].dependencies: "xtrax>=0.2.0"
+  [tool.uv.sources]: xtrax = { path = "../xtrax", editable = true }
+Gate: `uv lock` resolves cleanly; import prints 0.2.0
+
+## VERIFY items
+VERIFY: `grep 'xtrax' pyproject.toml` shows both the version pin (>=0.2.0) and editable source entry
+VERIFY: `uv lock --check` exits 0 (run from /home/marielle/projects/aminx)
+VERIFY: `uv run python -c 'import xtrax; print(xtrax.__version__)'` prints exactly `0.2.0`
+VERIFY: uv.lock is committed or unchanged if it was already up to date
+
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or the import fails.
+"""
+return_key = "1543"
+
+[[tracks]]
+id = "b"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1545"
+phase_name = "Track B — [xtrax T0.4] Boundary-lint (ADR 260605) + ruff banned-api for xtrax.* — atomic with first xtrax import (#1545)"
+fixer_prompt = """
+# xtrax import boundary enforcement (ADR 260605)
+
+## Background
+ADR 260605_potts-parallel-not-stageset requires that aminx protein modules only import from
+xtrax's public __init__ re-exports, not from implementation submodules directly. Also, xtrax
+must never reference aminx-specific field names (atom_37, residue_index, tie_group_map).
+
+The current ruff TID251 config at pyproject.toml:136-140 bans specific aminx.* module paths
+from potts modules. It does NOT enforce xtrax.* boundary. This task adds that enforcement
+atomically — before any xtrax.* imports land in aminx code.
+
+## Recon anchors
+- pyproject.toml:133-140 — existing [tool.ruff.lint.flake8-tidy-imports.banned-api] section
+- tests/potts/test_import_boundaries.py:18-23 — existing FORBIDDEN_IMPORTS set (aminx.* only)
+- /home/marielle/projects/xtrax/src/xtrax/ — xtrax public API structure:
+  Each subpackage has __init__.py that re-exports public API; implementation files
+  (bundle.py, protocols.py, dispatch.py, etc.) are internal to each subpackage.
+
+## Change 1 — pyproject.toml: extend banned-api
+Add the following entries to [tool.ruff.lint.flake8-tidy-imports.banned-api]
+(insert after the existing aminx.inference.logits entry at line 140):
+
+"xtrax.stages.bundle" = {msg = "Use `from xtrax.stages import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.stages.protocols" = {msg = "Use `from xtrax.stages import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.bucket" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.dedup" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.dispatch" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.plan" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.strategy" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.engine.engine" = {msg = "Use `from xtrax.engine import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.engine.io" = {msg = "Use `from xtrax.engine import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.safety.manager" = {msg = "Use `from xtrax.safety import ...` — import from public __init__ only (ADR 260605)"}
+
+## Change 2 — tests/potts/test_import_boundaries.py: add TestXtraxBoundaries class
+Add a new test class TestXtraxBoundaries at the bottom of the file with two tests:
+
+(a) test_aminx_potts_no_xtrax_internals
+    Glob all *.py files in src/aminx/potts/. For each file, extract imports via AST using the
+    existing extract_imports() helper. Assert no import matches any of the following set:
+      XTRAX_BANNED_INTERNAL = {
+          "xtrax.stages.bundle", "xtrax.stages.protocols",
+          "xtrax.tiling.bucket", "xtrax.tiling.dedup", "xtrax.tiling.dispatch",
+          "xtrax.tiling.plan", "xtrax.tiling.strategy",
+          "xtrax.engine.engine", "xtrax.engine.io",
+          "xtrax.safety.manager",
+      }
+    Use the existing find_forbidden_imports() helper (prefix-match logic).
+
+(b) test_xtrax_no_aminx_field_names
+    Locate xtrax source root: /home/marielle/projects/xtrax/src/xtrax/
+    If that path does not exist: pytest.skip("xtrax source not found at expected path")
+    Scan all .py files under that root. For each file, read its text and assert it does NOT
+    contain any of these substrings: "atom_37", "residue_index", "tie_group_map".
+    On failure, report: which file, which forbidden string.
+
+## Gate: verify the new banned-api rules trigger a violation
+After writing both changes, run from /home/marielle/projects/aminx:
+  uv run ruff check . 2>&1 | head -5
+(should exit 0 — no production code violates the new rules)
+
+Then inject a temporary violation to verify the rule fires:
+  Add this comment to src/aminx/potts/spec.py after the last import:
+    from xtrax.stages.bundle import FuseFn  # noqa: F401
+  Run: uv run ruff check src/aminx/potts/spec.py 2>&1 | grep TID251
+  Expected: line reporting TID251 violation for xtrax.stages.bundle
+  Remove the injected line after confirming the rule fires.
+
+Run `uv run pytest tests/potts/test_import_boundaries.py -v` — all tests must pass.
+"""
+reviewer_prompt = """
+# Reviewer for T0.4 — xtrax import boundary enforcement
+
+## Spec
+pyproject.toml [tool.ruff.lint.flake8-tidy-imports.banned-api] must include TID251 bans for:
+  xtrax.stages.bundle, xtrax.stages.protocols, xtrax.tiling.bucket, xtrax.tiling.dedup,
+  xtrax.tiling.dispatch, xtrax.tiling.plan, xtrax.tiling.strategy,
+  xtrax.engine.engine, xtrax.engine.io, xtrax.safety.manager
+tests/potts/test_import_boundaries.py must include TestXtraxBoundaries with:
+  (a) test that aminx.potts.* doesn't import xtrax internal paths
+  (b) test that xtrax source doesn't contain atom_37/residue_index/tie_group_map
+
+## VERIFY items
+VERIFY: `uv run ruff check .` exits 0 with no new TID251 violations in production code
+VERIFY: `uv run pytest tests/potts/test_import_boundaries.py -v` — all tests pass including TestXtraxBoundaries
+VERIFY: Injecting `from xtrax.stages.bundle import FuseFn` in any src/aminx/potts/*.py triggers TID251
+VERIFY: All 10 xtrax internal module paths appear in pyproject.toml banned-api section
+
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or the gate injection test does not trigger.
+"""
+return_key = "1545"
+
+[[tracks]]
+id = "c"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1291"
+phase_name = "Track C — P-01: Weight recapture — PottsMPNN .pt → potts_<id>.eqx.zst (bathos-tracked) (#1291)"
+fixer_prompt = """
+# P-01: PottsMPNN .pt -> potts_<id>.eqx.zst weight recapture script
+
+## Background
+The recapture script ports mistypotts/pottsmpnn_ckpt_export.py into a bathos-tracked pipeline.
+It loads a PyTorch .pt checkpoint, converts h/J via etab_to_dense_h_j_w (preserving x2 scale),
+serializes to .eqx.zst using the PottsCheckpointData pytree, and bakes in k_neighbors metadata.
+
+## Current state
+Script is largely complete at scripts/recapture/pottsmpnn_to_eqx.py (487 lines).
+Bathos sidecar at scripts/recapture/pottsmpnn_to_eqx.bth.toml.
+
+Key functions expected by tests/potts/test_pottsmpnn_conversion.py:
+  - etab_to_dense_h_j_w at line 65: (etab, e_idx, mask) -> (h, J, W)
+    * etab shape: (1, L, K, q, q); e_idx shape: (1, L, K)
+    * self-loops (e_idx[i,k]==i) go to h diagonal
+    * off-diagonal pairs accumulate in J, symmetrize: j = 0.5*(j + j^T)
+    * x2 scale: h *= 2.0, j *= 2.0 (directed-slot PottsMPNN convention)
+  - extract_k_neighbors_from_config at line 137: reads payload['args']['k_neighbors']
+    then payload['hyper_params']['k_neighbors']; raises ValueError "k_neighbors not found" if absent
+  - save_checkpoint at line ~286: PottsCheckpointData pytree -> .eqx.zst
+    via eqx.tree_serialise_leaves + zstandard compression
+
+PottsCheckpointData (line 44):
+  class PottsCheckpointData(eqx.Module):
+    h, j, w, mask arrays; k_neighbors: int = eqx.field(static=True)
+
+## What to do
+1. Run the conversion tests from /home/marielle/projects/aminx:
+     uv run pytest tests/potts/test_pottsmpnn_conversion.py -v --no-header 2>&1 | tail -30
+
+2. If ALL tests PASS: task is complete. Report PASS.
+
+3. If any test FAILS:
+   a. Read the failing test to understand the expected contract.
+   b. Read scripts/recapture/pottsmpnn_to_eqx.py to find the gap.
+   c. Fix the gap in the script.
+   d. Re-run `uv run pytest tests/potts/test_pottsmpnn_conversion.py -v`.
+
+## Key test expectations
+- test_etab_to_dense_h_j_w_synthetic_2residue: 2-residue ground-truth, tolerance 1e-6
+- test_save_potts_checkpoint_format: output starts with zstd magic 0x28 0xb5 0x2f 0xfd
+- test_k_neighbors_from_model_config: ValueError raised with "k_neighbors not found" for empty payload
+
+## No external deps needed
+All three tests use synthetic data only — no actual .pt checkpoint required.
+"""
+reviewer_prompt = """
+# Reviewer for P-01 — PottsMPNN weight recapture script
+
+## Spec
+scripts/recapture/pottsmpnn_to_eqx.py must expose:
+  - etab_to_dense_h_j_w: (etab, e_idx, mask) -> (h, J, W) with x2 scale factor
+  - save_checkpoint: serializes PottsCheckpointData to .eqx.zst (zstd-compressed pytree)
+  - extract_k_neighbors_from_config: reads k_neighbors from payload dict, raises ValueError if absent
+Bathos sidecar at scripts/recapture/pottsmpnn_to_eqx.bth.toml must exist.
+2-residue synthetic ground-truth check must pass within 1e-6 tolerance.
+
+## VERIFY items
+VERIFY: `uv run pytest tests/potts/test_pottsmpnn_conversion.py -v` — all 3 tests pass
+VERIFY: scripts/recapture/pottsmpnn_to_eqx.bth.toml exists and is non-empty
+VERIFY: test_etab_to_dense_h_j_w_synthetic_2residue passes (h/J match reference within 1e-6)
+VERIFY: test_save_potts_checkpoint_format passes (output is valid zstd)
+VERIFY: test_k_neighbors_from_model_config passes (ValueError raised for empty payload)
+
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written.
+"""
+return_key = "1291"
+
+[[tracks]]
+id = "d"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1292"
+phase_name = "Track D — P-03: aminx.potts.model — PottsModel(eqx.Module) with DifferentiableTRW internal (#1292)"
+fixer_prompt = """
+# P-03: aminx.potts.model — PottsModel(eqx.Module) with DifferentiableTRW
+
+## Background
+PottsModel is a Potts MPNN with TRW inference on k-NN graphs built by ProteinFeatures.
+It projects edge features to unary (h) and pairwise (J) potentials, then runs differentiable
+tree-reweighted message passing for marginals.
+
+## Current state
+PottsModel(eqx.Module) is fully implemented at src/aminx/potts/model.py:71
+
+Key elements:
+  - __call__(key, coords, mask, residue_index, chain_index) -> (marginals, h, J, rho) at line 241
+  - infer_params returning PottsParams namedtuple at line 353
+  - log_prob(seq, h, j, w, mask) @staticmethod at line 397 — pure function, no model state
+  - DifferentiableTRW: held as static field self.trw (eqx.field(static=True)) at line 97
+  - trw_spec: PottsTRWRunSpec static field at line 98
+  - k_neighbors: int = eqx.field(static=True) at line 89
+  - x2 scale factor preserved; documented in module docstring lines 5-8
+  - Training mode guard at lines 167-172: raises ValueError if trw_loop='fori' and training=True
+
+## What to do
+1. Run model tests from /home/marielle/projects/aminx:
+     uv run pytest tests/potts/test_potts_model.py tests/potts/test_potts_correctness.py -v --no-header 2>&1 | tail -40
+
+2. Run type check:
+     uv run ty check src/aminx/potts/model.py 2>&1 | tail -20
+
+3. If ALL tests PASS and ty is clean: task is complete. Report PASS.
+
+4. If any test FAILS or ty reports new errors:
+   a. Read model.py lines 71-180 (class definition) and 241-351 (__call__).
+   b. Fix the specific failing requirement.
+   c. Re-run tests and ty check.
+
+5. Verify PottsModel is exported from aminx.potts:
+     grep "PottsModel" src/aminx/potts/__init__.py
+   If absent: add `from aminx.potts.model import PottsModel` and "PottsModel" to __all__.
+
+## Weight loading (not inside PottsModel)
+Caller uses load_weights(local_path=..., skeleton=PottsModel(...)) from aminx.io.weights.
+No fork of weights.py needed.
+
+## Batch-axis convention
+__call__ operates on single N-residue input (no batch dim).
+Caller applies eqx.filter_vmap for batching. If this is undocumented in the __call__
+docstring (lines 245-266), add one line: "No batch axis. Caller applies filter_vmap."
+"""
+reviewer_prompt = """
+# Reviewer for P-03 — PottsModel(eqx.Module)
+
+## Spec
+src/aminx/potts/model.py must have PottsModel(eqx.Module) with:
+  - __call__(key, coords, mask, residue_index, chain_index) -> (marginals, h, J, rho)
+  - log_prob @staticmethod (pure function: no self)
+  - DifferentiableTRW as eqx.field(static=True)
+  - k_neighbors as eqx.field(static=True)
+  - x2 scale factor preserved and documented
+  - Training guard: raises ValueError if trw_loop='fori' and training=True
+  - PottsModel exported from src/aminx/potts/__init__.py
+
+## VERIFY items
+VERIFY: `uv run pytest tests/potts/test_potts_model.py tests/potts/test_potts_correctness.py -v` — all tests pass
+VERIFY: `uv run ty check src/aminx/potts/model.py` — exits 0 or no new errors introduced
+VERIFY: PottsModel.log_prob is a @staticmethod (grep confirms decorator in model.py)
+VERIFY: PottsModel.trw and PottsModel.trw_spec have eqx.field(static=True) annotation
+VERIFY: `grep "PottsModel" src/aminx/potts/__init__.py` — PottsModel is exported
+
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written.
+"""
+return_key = "1292"
+
+[[tracks]]
+id = "e"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1293"
+phase_name = "Track E — P-04: aminx.potts.spec — PottsRunSpec frozen dataclass (#1293)"
+fixer_prompt = """
+# P-04: aminx.potts.spec — PottsRunSpec frozen dataclass
+
+## Background
+PottsRunSpec couples model checkpoint paths (weights_path, caliby_path), TRW numerics config
+(trw_spec), and inference metadata (n_backbones, k_neighbors, training). It is a frozen
+dataclass (not eqx.Module) for avoid PyTree registration. Round-trips to/from JSON.
+
+## Current state
+PottsRunSpec(frozen=True) is fully implemented at src/aminx/potts/spec.py:36
+
+Fields:
+  n_backbones: int = 1
+  weights_path: str = ""
+  caliby_path: str | None = None   (None = identity calibration, valid)
+  trw_spec: PottsTRWRunSpec | None = None
+  k_neighbors: int = 0
+  training: bool = False
+
+__post_init__ at line 62:
+  - fills trw_spec default if None
+  - raises ValueError if k_neighbors <= 0 (line 68-73)
+  - raises ValueError if training=True and trw_spec.trw_loop='fori' (line 75-80)
+  - raises ValueError if n_backbones < 1 (line 82-84)
+
+JSON round-trip:
+  - to_json() at line 86: asdict + trw_spec.to_json_dict()
+  - from_json() at line 93: json.loads + PottsTRWRunSpec.from_json_dict()
+
+caliby_path load-time file-absent check: in runner.py:140 (FileNotFoundError) — NOT in __post_init__
+
+## What to do
+1. Run spec tests from /home/marielle/projects/aminx:
+     uv run pytest tests/potts/test_spec.py -v --no-header 2>&1 | tail -30
+
+2. Run type check:
+     uv run ty check src/aminx/potts/spec.py 2>&1 | tail -20
+
+3. Verify JSON round-trip:
+     uv run python -c "
+from aminx.potts.spec import PottsRunSpec
+s = PottsRunSpec(weights_path='/tmp/w', k_neighbors=48)
+s2 = PottsRunSpec.from_json(s.to_json())
+assert s == s2, f'round-trip mismatch'
+print('round-trip OK')
+" 2>&1
+
+4. If ALL tests PASS, ty clean, round-trip works: task is complete. Report PASS.
+
+5. If any fails: read spec.py lines 35-161 and tests/potts/test_spec.py. Fix and re-run.
+
+## Not required
+- File existence check at __post_init__ for caliby_path (that is runner.py's job)
+- trw_spec as eqx.field (this is a plain frozen dataclass)
+"""
+reviewer_prompt = """
+# Reviewer for P-04 — PottsRunSpec frozen dataclass
+
+## Spec
+src/aminx/potts/spec.py must have PottsRunSpec(frozen=True) with:
+  - Fields: n_backbones, weights_path, caliby_path (str|None), trw_spec, k_neighbors, training
+  - k_neighbors > 0 validation at construction (raises ValueError)
+  - n_backbones >= 1 validation at construction (raises ValueError)
+  - trw_loop='fori' + training=True guard at construction (raises ValueError naming OOM risk)
+  - caliby_path=None is valid (no error raised)
+  - JSON round-trip via to_json() / from_json() preserving all fields including nested trw_spec
+  - caliby_path file-absent check is load-time in runner.py (not __post_init__)
+
+## VERIFY items
+VERIFY: `uv run pytest tests/potts/test_spec.py -v` — all tests pass
+VERIFY: `uv run ty check src/aminx/potts/spec.py` — exits 0 or no new errors
+VERIFY: `PottsRunSpec(weights_path='/tmp/w', k_neighbors=48).to_json()` is parseable JSON
+VERIFY: JSON round-trip: from_json(to_json(s)) == s
+VERIFY: `PottsRunSpec(weights_path='/tmp/w', k_neighbors=0)` raises ValueError
+VERIFY: `PottsRunSpec(weights_path='/tmp/w', k_neighbors=48, n_backbones=0)` raises ValueError
+
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written.
+"""
+return_key = "1293"
+
+[orchestration]
+sequential = ["a", "b"]
+concurrent = ["c", "d", "e"]

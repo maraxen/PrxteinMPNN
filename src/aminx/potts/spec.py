@@ -15,12 +15,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from typing import Type
 
 from aminx.potts._trw_spec import PottsTRWRunSpec
 
 
-def _get_potts_trw_run_spec_class() -> Type[PottsTRWRunSpec]:
+def _get_potts_trw_run_spec_class() -> type[PottsTRWRunSpec]:
   """Return PottsTRWRunSpec class (already imported above).
 
   Returns:

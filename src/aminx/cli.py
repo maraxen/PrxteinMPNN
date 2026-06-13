@@ -178,21 +178,21 @@ def _run_base(
   model_weights: Annotated[str, _OPT(help="Model weights name")] = "original",
   model_version: Annotated[str, _OPT(help="Model version")] = "v_48_020",
   model_family: Annotated[
-    str, _OPT(help="Model family: proteinmpnn or ligandmpnn")
+    str, _OPT(help="Model family: proteinmpnn or ligandmpnn"),
   ] = "proteinmpnn",
   checkpoint_id: Annotated[str | None, _OPT(help="Checkpoint identifier")] = None,
   model_local_path: Annotated[Path | None, _OPT(help="Local model checkpoint path")] = None,
   checkpoint_registry_path: Annotated[Path | None, _OPT(help="Checkpoint registry path")] = None,
   ligand_mpnn_use_side_chain_context: Annotated[
-    bool | None, _OPT(help="LigandMPNN side-chain context")
+    bool | None, _OPT(help="LigandMPNN side-chain context"),
   ] = None,
   batch_size: Annotated[int | None, _OPT(help="Batch size (None = subclass default)")] = None,
   backbone_noise: Annotated[str, _OPT(help="Comma-separated backbone noise levels")] = "0.0",
   backbone_noise_mode: Annotated[
-    str, _OPT(help="Backbone noise mode: direct or thermal")
+    str, _OPT(help="Backbone noise mode: direct or thermal"),
   ] = "direct",
   estat_noise: Annotated[
-    str | None, _OPT(help="Comma-separated electrostatic noise levels")
+    str | None, _OPT(help="Comma-separated electrostatic noise levels"),
   ] = None,
   estat_noise_mode: Annotated[str, _OPT(help="Electrostatic noise mode")] = "direct",
   vdw_noise: Annotated[str | None, _OPT(help="Comma-separated vdw noise levels")] = None,
@@ -209,10 +209,10 @@ def _run_base(
   overwrite_cache: Annotated[bool, _OPT(help="Overwrite cache")] = False,
   max_length: Annotated[int | None, _OPT(help="Max sequence length")] = 512,
   truncation_strategy: Annotated[
-    str, _OPT(help="Truncation strategy: none, random_crop, center_crop")
+    str, _OPT(help="Truncation strategy: none, random_crop, center_crop"),
   ] = "random_crop",
   host_resource_allocation_strategy: Annotated[
-    str, _OPT(help="Resource allocation: auto or full")
+    str, _OPT(help="Resource allocation: auto or full"),
   ] = "auto",
   ram_budget_mb: Annotated[int | None, _OPT(help="RAM budget in MB")] = None,
   max_workers: Annotated[int | None, _OPT(help="Max data loading workers")] = None,
@@ -335,13 +335,13 @@ def run_sample(
     _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
   ],
   emit_json: Annotated[
-    bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0")
+    bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0"),
   ] = False,
   out: Annotated[Path | None, _OPT(help="Write JSON file (only with --emit-json)")] = None,
   # Sample-specific
   num_samples: Annotated[int, _OPT(help="Number of samples")] = 1,
   sampling_strategy: Annotated[
-    str, _OPT(help="Sampling strategy: temperature or straight_through")
+    str, _OPT(help="Sampling strategy: temperature or straight_through"),
   ] = "temperature",
   temperature: Annotated[str, _OPT(help="Comma-separated temperature values")] = "0.1",
   use_unified_driver: Annotated[bool, _OPT(help="Use unified driver")] = True,
@@ -360,10 +360,10 @@ def run_sample(
   average_node_features: Annotated[bool, _OPT(help="Average node features")] = False,
   average_encoding_mode: Annotated[str, _OPT(help="Encoding averaging mode")] = "inputs_and_noise",
   multi_state_strategy: Annotated[
-    str, _OPT(help="Multi-state aggregation strategy")
+    str, _OPT(help="Multi-state aggregation strategy"),
   ] = "arithmetic_mean",
   compute_pseudo_perplexity: Annotated[
-    bool, _OPT(help="Compute pseudo-perplexity (requires return-logits)")
+    bool, _OPT(help="Compute pseudo-perplexity (requires return-logits)"),
   ] = False,
   ligand_conditioning: Annotated[bool, _OPT(help="Ligand conditioning")] = False,
   sidechain_conditioning: Annotated[bool, _OPT(help="Sidechain conditioning")] = False,
@@ -451,7 +451,7 @@ def run_score(
     _OPT("--sequences-to-score", help="Amino acid sequences to score (repeatable, required)"),
   ],
   emit_json: Annotated[
-    bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0")
+    bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0"),
   ] = False,
   out: Annotated[Path | None, _OPT(help="Write JSON file (only with --emit-json)")] = None,
   # Score-specific
@@ -464,7 +464,7 @@ def run_score(
   average_encoding_mode: Annotated[str, _OPT(help="Encoding averaging mode")] = "inputs_and_noise",
   noise_batch_size: Annotated[int, _OPT(help="Noise batch size")] = 4,
   multi_state_strategy: Annotated[
-    str, _OPT(help="Multi-state aggregation strategy")
+    str, _OPT(help="Multi-state aggregation strategy"),
   ] = "arithmetic_mean",
 ) -> None:
   """Score sequences against structure inputs (non-serializable fields: ar_mask, conformational_states, decoding_order_fn)."""
@@ -521,7 +521,7 @@ def run_jacobian(
     _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
   ],
   emit_json: Annotated[
-    bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0")
+    bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0"),
   ] = False,
   out: Annotated[Path | None, _OPT(help="Write JSON file (only with --emit-json)")] = None,
   # Jacobian-specific
@@ -592,7 +592,7 @@ def run_inspect(
     _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
   ],
   emit_json: Annotated[
-    bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0")
+    bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0"),
   ] = False,
   out: Annotated[Path | None, _OPT(help="Write JSON file (only with --emit-json)")] = None,
   # Inspect-specific
@@ -606,13 +606,13 @@ def run_inspect(
   ] = ["unconditional_logits"],  # noqa: B006
   distance_matrix: Annotated[bool, _OPT(help="Compute distance matrix")] = False,
   distance_matrix_method: Annotated[
-    str, _OPT(help="Distance matrix method: ca, cb, backbone_average, closest_atom")
+    str, _OPT(help="Distance matrix method: ca, cb, backbone_average, closest_atom"),
   ] = "ca",
   cross_input_similarity: Annotated[
-    bool, _OPT(help="Compute cross-input similarity (requires >=2 inputs)")
+    bool, _OPT(help="Compute cross-input similarity (requires >=2 inputs)"),
   ] = False,
   similarity_metric: Annotated[
-    str, _OPT(help="Similarity metric: rmsd, tm-score, gdt_ts, gdt_ha, cosine")
+    str, _OPT(help="Similarity metric: rmsd, tm-score, gdt_ts, gdt_ha, cosine"),
   ] = "rmsd",
 ) -> None:
   """Inspect model encodings and features (non-serializable fields: ar_mask, conformational_states)."""
@@ -653,21 +653,21 @@ def _spec_base(
   model_weights: Annotated[str, _OPT(help="Model weights name")] = "original",
   model_version: Annotated[str, _OPT(help="Model version")] = "v_48_020",
   model_family: Annotated[
-    str, _OPT(help="Model family: proteinmpnn or ligandmpnn")
+    str, _OPT(help="Model family: proteinmpnn or ligandmpnn"),
   ] = "proteinmpnn",
   checkpoint_id: Annotated[str | None, _OPT(help="Checkpoint identifier")] = None,
   model_local_path: Annotated[Path | None, _OPT(help="Local model checkpoint path")] = None,
   checkpoint_registry_path: Annotated[Path | None, _OPT(help="Checkpoint registry path")] = None,
   ligand_mpnn_use_side_chain_context: Annotated[
-    bool | None, _OPT(help="LigandMPNN side-chain context")
+    bool | None, _OPT(help="LigandMPNN side-chain context"),
   ] = None,
   batch_size: Annotated[int | None, _OPT(help="Batch size (None = subclass default)")] = None,
   backbone_noise: Annotated[str, _OPT(help="Comma-separated backbone noise levels")] = "0.0",
   backbone_noise_mode: Annotated[
-    str, _OPT(help="Backbone noise mode: direct or thermal")
+    str, _OPT(help="Backbone noise mode: direct or thermal"),
   ] = "direct",
   estat_noise: Annotated[
-    str | None, _OPT(help="Comma-separated electrostatic noise levels")
+    str | None, _OPT(help="Comma-separated electrostatic noise levels"),
   ] = None,
   estat_noise_mode: Annotated[str, _OPT(help="Electrostatic noise mode")] = "direct",
   vdw_noise: Annotated[str | None, _OPT(help="Comma-separated vdw noise levels")] = None,
@@ -684,10 +684,10 @@ def _spec_base(
   overwrite_cache: Annotated[bool, _OPT(help="Overwrite cache")] = False,
   max_length: Annotated[int | None, _OPT(help="Max sequence length")] = 512,
   truncation_strategy: Annotated[
-    str, _OPT(help="Truncation strategy: none, random_crop, center_crop")
+    str, _OPT(help="Truncation strategy: none, random_crop, center_crop"),
   ] = "random_crop",
   host_resource_allocation_strategy: Annotated[
-    str, _OPT(help="Resource allocation: auto or full")
+    str, _OPT(help="Resource allocation: auto or full"),
   ] = "auto",
   ram_budget_mb: Annotated[int | None, _OPT(help="RAM budget in MB")] = None,
   max_workers: Annotated[int | None, _OPT(help="Max data loading workers")] = None,
@@ -780,7 +780,7 @@ def spec_emit_sample(
   # Sample-specific
   num_samples: Annotated[int, _OPT(help="Number of samples")] = 1,
   sampling_strategy: Annotated[
-    str, _OPT(help="Sampling strategy: temperature or straight_through")
+    str, _OPT(help="Sampling strategy: temperature or straight_through"),
   ] = "temperature",
   temperature: Annotated[str, _OPT(help="Comma-separated temperature values")] = "0.1",
   use_unified_driver: Annotated[bool, _OPT(help="Use unified driver")] = True,
@@ -799,10 +799,10 @@ def spec_emit_sample(
   average_node_features: Annotated[bool, _OPT(help="Average node features")] = False,
   average_encoding_mode: Annotated[str, _OPT(help="Encoding averaging mode")] = "inputs_and_noise",
   multi_state_strategy: Annotated[
-    str, _OPT(help="Multi-state aggregation strategy")
+    str, _OPT(help="Multi-state aggregation strategy"),
   ] = "arithmetic_mean",
   compute_pseudo_perplexity: Annotated[
-    bool, _OPT(help="Compute pseudo-perplexity (requires return-logits)")
+    bool, _OPT(help="Compute pseudo-perplexity (requires return-logits)"),
   ] = False,
   ligand_conditioning: Annotated[bool, _OPT(help="Ligand conditioning")] = False,
   sidechain_conditioning: Annotated[bool, _OPT(help="Sidechain conditioning")] = False,
@@ -897,7 +897,7 @@ def spec_emit_score(
   average_encoding_mode: Annotated[str, _OPT(help="Encoding averaging mode")] = "inputs_and_noise",
   noise_batch_size: Annotated[int, _OPT(help="Noise batch size")] = 4,
   multi_state_strategy: Annotated[
-    str, _OPT(help="Multi-state aggregation strategy")
+    str, _OPT(help="Multi-state aggregation strategy"),
   ] = "arithmetic_mean",
 ) -> None:
   """Emit ScoringSpecification as JSON (non-serializable fields excluded)."""
@@ -1027,13 +1027,13 @@ def spec_emit_inspect(
   ] = ["unconditional_logits"],  # noqa: B006
   distance_matrix: Annotated[bool, _OPT(help="Compute distance matrix")] = False,
   distance_matrix_method: Annotated[
-    str, _OPT(help="Distance matrix method: ca, cb, backbone_average, closest_atom")
+    str, _OPT(help="Distance matrix method: ca, cb, backbone_average, closest_atom"),
   ] = "ca",
   cross_input_similarity: Annotated[
-    bool, _OPT(help="Compute cross-input similarity (requires >=2 inputs)")
+    bool, _OPT(help="Compute cross-input similarity (requires >=2 inputs)"),
   ] = False,
   similarity_metric: Annotated[
-    str, _OPT(help="Similarity metric: rmsd, tm-score, gdt_ts, gdt_ha, cosine")
+    str, _OPT(help="Similarity metric: rmsd, tm-score, gdt_ts, gdt_ha, cosine"),
   ] = "rmsd",
 ) -> None:
   """Emit InspectionSpecification as JSON (non-serializable fields excluded)."""
@@ -1183,25 +1183,25 @@ def campaign_plan(
   inputs: Annotated[str, _OPT("--inputs", help="Comma-separated input paths (required)")] = ...,  # ty: ignore[invalid-parameter-default]
   campaign_id: Annotated[str, _OPT("--campaign-id", help="Campaign identifier (required)")] = ...,  # ty: ignore[invalid-parameter-default]
   manifest_path: Annotated[
-    Path, _OPT("--manifest-path", help="Path to write manifest JSON (required)")
+    Path, _OPT("--manifest-path", help="Path to write manifest JSON (required)"),
   ] = ...,  # ty: ignore[invalid-parameter-default]
   output_root: Annotated[
-    Path, _OPT("--output-root", help="Root directory for output HDF5 files (required)")
+    Path, _OPT("--output-root", help="Root directory for output HDF5 files (required)"),
   ] = ...,  # ty: ignore[invalid-parameter-default]
   designs_per_library_type: Annotated[
-    int, _OPT("--designs-per-library-type", help="Designs per library type (required)")
+    int, _OPT("--designs-per-library-type", help="Designs per library type (required)"),
   ] = ...,  # ty: ignore[invalid-parameter-default]
   samples_chunk_size: Annotated[
-    int, _OPT("--samples-chunk-size", help="Samples chunk size (required)")
+    int, _OPT("--samples-chunk-size", help="Samples chunk size (required)"),
   ] = ...,  # ty: ignore[invalid-parameter-default]
   fixed_policies: Annotated[
-    str, _OPT("--fixed-policies", help="Comma-separated fixed policy names")
+    str, _OPT("--fixed-policies", help="Comma-separated fixed policy names"),
   ] = "catalytic_triad,active_site",
   state_weight_profiles: Annotated[
-    str, _OPT("--state-weight-profiles", help="Comma-separated state weight profile names")
+    str, _OPT("--state-weight-profiles", help="Comma-separated state weight profile names"),
   ] = "equal",
   checkpoint_id: Annotated[
-    str | None, _OPT("--checkpoint-id", help="Checkpoint identifier for manifest rows")
+    str | None, _OPT("--checkpoint-id", help="Checkpoint identifier for manifest rows"),
   ] = None,
 ) -> None:
   """Generate campaign manifest JSON."""
@@ -1231,18 +1231,18 @@ def campaign_plan(
 @campaign_app.command("worker")
 def campaign_worker(
   manifest_path: Annotated[
-    Path, _OPT("--manifest-path", help="Path to campaign manifest JSON (required)")
+    Path, _OPT("--manifest-path", help="Path to campaign manifest JSON (required)"),
   ] = ...,  # ty: ignore[invalid-parameter-default]
   row_index: Annotated[int | None, _OPT("--row-index", help="Row index to execute")] = None,
   row_hash: Annotated[str | None, _OPT("--row-hash", help="Row hash to execute")] = None,
   lock_backend: Annotated[
-    LockBackend, _OPT("--lock-backend", help="Lock backend: local_fs or distributed")
+    LockBackend, _OPT("--lock-backend", help="Lock backend: local_fs or distributed"),
   ] = LockBackend.local_fs,
   lock_lease_seconds: Annotated[
-    int | None, _OPT("--lock-lease-seconds", help="Lock lease duration in seconds")
+    int | None, _OPT("--lock-lease-seconds", help="Lock lease duration in seconds"),
   ] = None,
   heartbeat_interval_seconds: Annotated[
-    int | None, _OPT("--heartbeat-interval-seconds", help="Heartbeat interval in seconds")
+    int | None, _OPT("--heartbeat-interval-seconds", help="Heartbeat interval in seconds"),
   ] = None,
 ) -> None:
   """Execute one manifest row."""
@@ -1276,23 +1276,23 @@ def campaign_worker(
 @campaign_app.command("run")
 def campaign_run(
   manifest_path: Annotated[
-    Path, _OPT("--manifest-path", help="Path to campaign manifest JSON (required)")
+    Path, _OPT("--manifest-path", help="Path to campaign manifest JSON (required)"),
   ] = ...,  # ty: ignore[invalid-parameter-default]
   row_hash: Annotated[list[str], _OPT("--row-hash", help="Row hash filter (repeatable)")] = [],  # noqa: B006
   continue_on_error: Annotated[
-    bool, _OPT("--continue-on-error", help="Continue executing rows after a failure")
+    bool, _OPT("--continue-on-error", help="Continue executing rows after a failure"),
   ] = False,
   summary_path: Annotated[
-    Path | None, _OPT("--summary-path", help="Path to write execution summary JSON")
+    Path | None, _OPT("--summary-path", help="Path to write execution summary JSON"),
   ] = None,
   lock_backend: Annotated[
-    LockBackend, _OPT("--lock-backend", help="Lock backend: local_fs or distributed")
+    LockBackend, _OPT("--lock-backend", help="Lock backend: local_fs or distributed"),
   ] = LockBackend.local_fs,
   lock_lease_seconds: Annotated[
-    int | None, _OPT("--lock-lease-seconds", help="Lock lease duration in seconds")
+    int | None, _OPT("--lock-lease-seconds", help="Lock lease duration in seconds"),
   ] = None,
   heartbeat_interval_seconds: Annotated[
-    int | None, _OPT("--heartbeat-interval-seconds", help="Heartbeat interval in seconds")
+    int | None, _OPT("--heartbeat-interval-seconds", help="Heartbeat interval in seconds"),
   ] = None,
 ) -> None:
   """Execute manifest rows sequentially."""
@@ -1330,16 +1330,16 @@ def campaign_run(
 @campaign_app.command("gates")
 def campaign_gates(
   manifest_path: Annotated[
-    Path, _OPT("--manifest-path", help="Path to campaign manifest JSON (required)")
+    Path, _OPT("--manifest-path", help="Path to campaign manifest JSON (required)"),
   ] = ...,  # ty: ignore[invalid-parameter-default]
   rerun_manifest_path: Annotated[
-    list[Path], _OPT("--rerun-manifest-path", help="Rerun manifest path (repeatable)")
+    list[Path], _OPT("--rerun-manifest-path", help="Rerun manifest path (repeatable)"),
   ] = [],  # noqa: B006
   report_path: Annotated[
-    Path | None, _OPT("--report-path", help="Path to write gate report JSON")
+    Path | None, _OPT("--report-path", help="Path to write gate report JSON"),
   ] = None,
   allow_missing_rerun: Annotated[
-    bool, _OPT("--allow-missing-rerun", help="Allow determinism gate without full-cell rerun")
+    bool, _OPT("--allow-missing-rerun", help="Allow determinism gate without full-cell rerun"),
   ] = False,
 ) -> None:
   """Evaluate pilot campaign gates."""
@@ -1360,29 +1360,29 @@ def campaign_ramp_plan(
   inputs: Annotated[str, _OPT("--inputs", help="Comma-separated input paths (required)")] = ...,  # ty: ignore[invalid-parameter-default]
   campaign_id: Annotated[str, _OPT("--campaign-id", help="Campaign identifier (required)")] = ...,  # ty: ignore[invalid-parameter-default]
   manifest_dir: Annotated[
-    Path, _OPT("--manifest-dir", help="Directory for staged manifest files (required)")
+    Path, _OPT("--manifest-dir", help="Directory for staged manifest files (required)"),
   ] = ...,  # ty: ignore[invalid-parameter-default]
   output_root: Annotated[
-    Path, _OPT("--output-root", help="Root directory for output HDF5 files (required)")
+    Path, _OPT("--output-root", help="Root directory for output HDF5 files (required)"),
   ] = ...,  # ty: ignore[invalid-parameter-default]
   stage_designs_per_library_type: Annotated[
     str,
     _OPT("--stage-designs-per-library-type", help="Comma-separated stage design counts (required)"),
   ] = ...,  # ty: ignore[invalid-parameter-default]
   samples_chunk_size: Annotated[
-    int, _OPT("--samples-chunk-size", help="Samples chunk size (required)")
+    int, _OPT("--samples-chunk-size", help="Samples chunk size (required)"),
   ] = ...,  # ty: ignore[invalid-parameter-default]
   fixed_policies: Annotated[
-    str, _OPT("--fixed-policies", help="Comma-separated fixed policy names")
+    str, _OPT("--fixed-policies", help="Comma-separated fixed policy names"),
   ] = "catalytic_triad,active_site",
   state_weight_profiles: Annotated[
-    str, _OPT("--state-weight-profiles", help="Comma-separated state weight profile names")
+    str, _OPT("--state-weight-profiles", help="Comma-separated state weight profile names"),
   ] = "equal",
   plan_path: Annotated[
-    Path | None, _OPT("--plan-path", help="Path to write scale ramp plan JSON")
+    Path | None, _OPT("--plan-path", help="Path to write scale ramp plan JSON"),
   ] = None,
   checkpoint_id: Annotated[
-    str | None, _OPT("--checkpoint-id", help="Checkpoint identifier for manifest rows")
+    str | None, _OPT("--checkpoint-id", help="Checkpoint identifier for manifest rows"),
   ] = None,
 ) -> None:
   """Generate staged ramp manifests."""
@@ -1415,10 +1415,10 @@ def campaign_ramp_plan(
 @campaign_app.command("ramp-evaluate")
 def campaign_ramp_evaluate(
   report_path: Annotated[
-    list[Path], _OPT("--report-path", help="Stage gate report path (repeatable, required, min=1)")
+    list[Path], _OPT("--report-path", help="Stage gate report path (repeatable, required, min=1)"),
   ] = [],  # noqa: B006
   summary_path: Annotated[
-    Path | None, _OPT("--summary-path", help="Path to write ramp evaluation summary JSON")
+    Path | None, _OPT("--summary-path", help="Path to write ramp evaluation summary JSON"),
   ] = None,
 ) -> None:
   """Evaluate staged gate reports."""

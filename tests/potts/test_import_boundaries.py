@@ -161,6 +161,172 @@ class TestImportBoundaries:
         ), f"Exempt files list mismatch. Update to match ADR 260605_potts-parallel-not-stageset.md"
 
 
+@pytest.mark.potts
+class TestPottsBoundary:
+    """Verify aminx.potts respects domain boundaries.
+
+    Potts is a pure mathematical layer (Potts model, TRW inference).
+    Pure math modules (model, poe, sampling) must not import from protein-domain
+    modules (aminx.model, aminx.host, aminx.run, aminx.cli). Integration layers
+    (runner, cli, designer) are exempt as they sit at the boundary with protein code.
+
+    Field names test: pure math modules must not reference protein-specific field
+    names (atom_37, atom_37_mask, residue_index, chain_index).
+    """
+
+    # Pure math layers: must not import protein-domain modules
+    POTTS_PURE_MATH_FILES = {
+        "src/aminx/potts/model.py",
+        "src/aminx/potts/poe.py",
+        "src/aminx/potts/sampling.py",
+    }
+
+    POTTS_FORBIDDEN_IMPORTS = {
+        "aminx.model",
+        "aminx.host",
+        "aminx.run",
+        "aminx.cli",
+    }
+
+    POTTS_FORBIDDEN_FIELD_NAMES = {
+        "atom_37",
+        "atom_37_mask",
+        "residue_index",
+        "chain_index",
+    }
+
+    def test_potts_no_protein_domain_imports(self) -> None:
+        """Verify pure math modules do not import from protein-domain packages.
+
+        Only checks: model.py, poe.py, sampling.py (the mathematical core).
+        Integration layers (runner, cli, designer) are exempt.
+
+        Potts math layer must not import from:
+        - aminx.model: protein structure/sequence models
+        - aminx.host: host system integration
+        - aminx.run: execution harness
+        - aminx.cli: command-line interface
+
+        Raises:
+            AssertionError: If any forbidden import is found in pure math modules.
+        """
+        all_violations = {}
+
+        for guarded_file in self.POTTS_PURE_MATH_FILES:
+            project_root = Path(__file__).parent.parent.parent
+            filepath = project_root / guarded_file
+
+            if not filepath.exists():
+                continue
+
+            imports = extract_imports(filepath)
+            violations = set()
+
+            for imp in imports:
+                # Check if import starts with any forbidden module
+                for forbidden in self.POTTS_FORBIDDEN_IMPORTS:
+                    if imp == forbidden or imp.startswith(forbidden + "."):
+                        violations.add(imp)
+                        break
+
+            if violations:
+                all_violations[filepath.name] = violations
+
+        assert not all_violations, (
+            f"Potts pure math modules import from protein-domain packages:\n"
+            + "\n".join(
+                f"  {filename}: {', '.join(sorted(viol))}"
+                for filename, viol in sorted(all_violations.items())
+            )
+            + f"\nPure math modules (model, poe, sampling) must not couple to protein-domain code.\n"
+            f"Integration (runner, cli, designer) may import from aminx.model as they sit at the boundary."
+        )
+
+    def test_potts_no_protein_field_names(self) -> None:
+        """Verify potts source code does not reference protein field names in code.
+
+        Field names like atom_37, residue_index, chain_index are protein-specific
+        metadata from the protein structure domain. This test checks that pure math
+        modules (model.py, poe.py, sampling.py) do not reference these in their
+        implementation logic.
+
+        Excludes:
+        - Pure comment lines (lines starting with #)
+        - Docstrings and function signatures (these are documentation, not logic)
+        - Usage in integration layers (runner, cli, designer)
+
+        Raises:
+            AssertionError: If any field name is found in implementation logic.
+        """
+        # Only check pure math modules; integration layers are allowed these field names
+        pure_math_files = {
+            "model.py",
+            "poe.py",
+            "sampling.py",
+        }
+
+        potts_root = Path(__file__).parent.parent.parent / "src" / "aminx" / "potts"
+
+        violations = {}
+        for py_file in sorted(potts_root.glob("*.py")):
+            if py_file.name not in pure_math_files:
+                continue
+
+            code = py_file.read_text()
+            lines = code.split("\n")
+
+            # Track docstring state
+            in_docstring = False
+            for line_num, line in enumerate(lines, 1):
+                stripped = line.strip()
+
+                # Skip empty lines and pure comment lines
+                if not stripped or stripped.startswith("#"):
+                    continue
+
+                # Track docstring state (triple quotes)
+                if '"""' in stripped or "'''" in stripped:
+                    # Count quotes to handle opening/closing
+                    triple_double = stripped.count('"""')
+                    triple_single = stripped.count("'''")
+                    if triple_double % 2 == 1:
+                        in_docstring = not in_docstring
+                    if triple_single % 2 == 1:
+                        in_docstring = not in_docstring
+
+                # Skip docstring lines
+                if in_docstring:
+                    continue
+
+                # Check for forbidden field names (but not in function signatures)
+                # Skip lines that are just type hints or parameter definitions
+                if "def " in line or ": " in line and "=" not in line:
+                    # This is likely a function signature or type hint
+                    continue
+
+                for field_name in self.POTTS_FORBIDDEN_FIELD_NAMES:
+                    if field_name in line:
+                        rel_path = py_file.relative_to(potts_root.parent)
+                        if rel_path not in violations:
+                            violations[rel_path] = []
+                        violations[rel_path].append((line_num, line.rstrip()))
+
+        assert not violations, (
+            f"potts pure math modules reference protein-specific field names:\n"
+            + "\n".join(
+                f"  {filepath}:\n"
+                + "\n".join(
+                    f"    Line {line_num}: {line_text}"
+                    for line_num, line_text in file_violations
+                )
+                for filepath, file_violations in sorted(violations.items())
+            )
+            + f"\nPure math modules (model, poe, sampling) must not reference protein field names in logic.\n"
+            f"Integration layers (runner, cli, designer) are exempt.\n"
+            f"Forbidden: {', '.join(sorted(self.POTTS_FORBIDDEN_FIELD_NAMES))}"
+        )
+
+
 # xtrax internal module boundary enforcement
 XTRAX_BANNED_INTERNAL = {
     "xtrax.stages.bundle",

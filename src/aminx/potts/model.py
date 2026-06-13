@@ -263,6 +263,9 @@ class PottsModel(eqx.Module):
         - h: Unary potentials (N, num_aa) with x2 scale factor
         - J: Pairwise potentials (N, N, num_aa, num_aa) with x2 scale factor
         - rho: Tree-reweighting parameters (N, N)
+
+    Note:
+        No batch axis. Caller applies eqx.filter_vmap for batching.
     """
     # Ensure inputs are JAX arrays with correct dtype
     coords = jnp.asarray(coords, dtype=jnp.float32)

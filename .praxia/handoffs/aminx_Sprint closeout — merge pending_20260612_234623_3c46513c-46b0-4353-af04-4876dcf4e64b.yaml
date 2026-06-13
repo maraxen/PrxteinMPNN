@@ -1,0 +1,58 @@
+---
+workspace: aminx
+session_id: 2603dd52-12bd-4476-ae4a-f6625ac6c82a
+status: in_progress
+immediately_relevant:
+- file: src/aminx/host/kernel_dispatch.py
+  lines:
+  - 195
+  - 470
+  reason: 'Gap 1: chain_mask + atom_37 wired at all 4 build_inference_bundle call sites'
+- file: src/aminx/host/_sampling_helper.py
+  lines:
+  - 438
+  - 473
+  reason: 'Gap 2: spec.fixed_mask branch before fixed_positions'
+- file: src/aminx/host/averaging.py
+  lines:
+  - 408
+  - 468
+  reason: 'Gap 3: STE dispatch at 453; helper at 227'
+- file: src/aminx/model/capabilities.py
+  lines:
+  - 1
+  - 21
+  reason: encode_fn_supports_structure_mapping added to ModelCapabilities
+- file: src/aminx/training/trainer.py
+  lines:
+  - 188
+  - 385
+  reason: 'T1.4: prng_key keyword + BackboneCoordinates cast + optax type-ignore'
+- file: pyproject.toml
+  lines:
+  - 1
+  - 10
+  reason: 'T0.1: requires-python >=3.13; uv.lock updated'
+active_dispatches: []
+task_id: 260612_gap-fixes-xtrax-t0-potts-foundation
+phase: Sprint closeout — merge pending
+goal_statement: Merge worktree-precious-floating-koala into main, then start next sprint (xtrax T0.2 + Potts foundation).
+context_refs:
+- phase: Sprint closeout
+  task_id: 260611_xtrax-foundations
+  summary: Prior sprint; T1.1-T1.2/RS-4/RS-1 done; gaps carried forward
+failed_attempts: []
+open_questions: []
+deferred:
+- description: 'T0.2 (#1543): editable xtrax pin — depends on T0.1 (now done)'
+  rationale: First item for next sprint
+  recommended_phase: Next sprint
+- description: 'Potts P-01/P-03/P-04 (#1291/#1292/#1293): weight recapture + PottsModel + PottsRunSpec'
+  rationale: All P1 executable; no blockers after P-00a/P-00b
+  recommended_phase: Next sprint
+lessons_refs: []
+next_steps:
+- 'Merge worktree branch to main: git checkout main && git merge --no-ff worktree-precious-floating-koala'
+- 'Verify: uv run pytest -x -q -m ''not slow and not parity_heavy and not parity_audit'' from main'
+- 'Compose next sprint: T0.2 (#1543) + Potts P-01 (#1291) + P-03 (#1292) + P-04 (#1293)'
+---

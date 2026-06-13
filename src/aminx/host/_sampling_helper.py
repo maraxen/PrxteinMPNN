@@ -454,15 +454,18 @@ def _prepare_fixed_controls(
     if fixed_mask_np.shape != (batch_size, seq_len):
       msg = f"fixed_mask must have shape ({batch_size}, {seq_len}), got {fixed_mask_np.shape}"
       raise ValueError(msg)
-  elif spec.fixed_positions is not None:
-    fixed_pos = np.asarray(spec.fixed_positions, dtype=np.int32)
-    fixed_mask_np = _broadcast_per_structure(
+
+  if spec.fixed_positions is not None:
+    fixed_pos = np.asarray(spec.fixed_positions, dtype=np.float32)
+    fixed_pos_mask = _broadcast_per_structure(
       fixed_pos,
       batch_size=batch_size,
       expected_len=seq_len,
       dtype=jnp.float32,
       name="fixed_positions",
     )
+    # Union: combine fixed_positions with fixed_mask (if both are set)
+    fixed_mask_np = np.maximum(fixed_mask_np, fixed_pos_mask)
 
   if spec.fixed_tokens is not None:
     fixed_tok = np.asarray(spec.fixed_tokens, dtype=np.int32)

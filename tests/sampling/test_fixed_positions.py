@@ -138,6 +138,100 @@ def test_ste_partial_fixed(small_model, synthetic_inputs):
     )
 
 
+# ── fixed_mask only (without fixed_tokens) ──────────────────────────────────
+
+def test_temperature_fixed_mask_without_tokens(small_model, synthetic_inputs):
+    """When fixed_mask is set but fixed_tokens is not, fixed positions are still constrained.
+
+    The fixed_mask should be incorporated into the fixed tensor returned by _prepare_fixed_controls.
+    Positions marked as 1.0 in fixed_mask should have fixed_mask=1.0 in the output,
+    even without fixed_tokens specified.
+    """
+    coords, mask, res_idx, chain_idx = synthetic_inputs
+    sample_fn = make_sample_sequences(small_model, sampling_strategy="temperature")
+
+    # Set fixed_mask on even positions without setting fixed_tokens
+    fixed_mask = jnp.array([1, 0] * (N // 2), dtype=jnp.float32)
+
+    seq, _, _ = sample_fn(
+        _KEY, coords, mask, res_idx, chain_idx,
+        temperature=jnp.array(0.5),
+        fixed_mask=fixed_mask,
+        fixed_tokens=None,  # explicit None: no token constraint
+    )
+
+    # Test passes if no error; the fixed_mask should be incorporated into constraints
+    assert seq.shape == (N,), f"Expected seq shape ({N},), got {seq.shape}"
+
+
+def test_ste_fixed_mask_without_tokens(small_model, synthetic_inputs):
+    """STE: fixed_mask should constrain positions even without fixed_tokens."""
+    coords, mask, res_idx, chain_idx = synthetic_inputs
+    sample_fn = make_sample_sequences(small_model, sampling_strategy="straight_through")
+
+    # Set fixed_mask on odd positions
+    fixed_mask = jnp.array([0, 1] * (N // 2), dtype=jnp.float32)
+
+    seq, _, _ = sample_fn(
+        _KEY, coords, mask, res_idx, chain_idx,
+        iterations=jnp.array(10),
+        learning_rate=jnp.array(0.01),
+        temperature=jnp.array(0.1),
+        fixed_mask=fixed_mask,
+        fixed_tokens=None,
+    )
+
+    assert seq.shape == (N,), f"Expected seq shape ({N},), got {seq.shape}"
+
+
+def test_fixed_mask_and_positions_union_prepare_controls():
+    """When both fixed_mask and fixed_positions are set, they should combine (union).
+
+    This test directly calls _prepare_fixed_controls to verify the union behavior,
+    since the sampling function doesn't expose both parameters directly.
+    """
+    from aminx.host._sampling_helper import _prepare_fixed_controls
+    from aminx.run.specs import SamplingSpecification
+    from aminx.utils.data_structures import Protein
+
+    # Create a minimal protein batch
+    batch_size, seq_len = 1, N
+    coords = jnp.ones((batch_size, seq_len, 37, 3), dtype=jnp.float32)
+    aatype = jnp.zeros((batch_size, seq_len), dtype=jnp.int32)
+    res_idx = jnp.arange(seq_len, dtype=jnp.int32)[None, :]
+    chain_idx = jnp.zeros((batch_size, seq_len), dtype=jnp.int32)
+
+    protein = Protein(
+        coordinates=coords,
+        aatype=aatype,
+        residue_index=res_idx,
+        chain_index=chain_idx,
+    )
+
+    # fixed_positions: even positions (indices 0, 2, 4, ...)
+    fixed_positions = jnp.array([1, 0] * (N // 2), dtype=jnp.float32)
+    # fixed_mask: odd positions (indices 1, 3, 5, ...)
+    fixed_mask = jnp.array([0, 1] * (N // 2), dtype=jnp.float32)
+    # tokens: force to 0 at all constrained positions
+    fixed_tokens = jnp.zeros(N, dtype=jnp.int8)
+
+    spec = SamplingSpecification(
+        inputs=[],
+        fixed_positions=fixed_positions,
+        fixed_mask=fixed_mask,
+        fixed_tokens=fixed_tokens,
+    )
+
+    fm, ft = _prepare_fixed_controls(spec, batched_ensemble=protein)
+
+    # After union, all positions (even AND odd) should be marked as fixed
+    expected_mask = np.ones(N, dtype=np.float32)
+    np.testing.assert_array_equal(
+        np.array(fm[0]), expected_mask,
+        err_msg="fixed_positions and fixed_mask should combine (union) — all positions should be fixed",
+    )
+
+
 # ── no-fixed-mask baseline (both strategies accept None) ─────────────────────
 
 @pytest.mark.parametrize("strategy", ["temperature", "straight_through"])

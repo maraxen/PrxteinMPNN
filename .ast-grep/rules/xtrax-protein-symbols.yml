@@ -1,0 +1,42 @@
+---
+id: xtrax-protein-symbols-guard
+language: python
+severity: error
+message: |
+  xtrax modules must NOT reference aminx protein-specific symbols.
+
+  Protected symbols:
+    - atom_37 (37-atom PDB standard, protein-structure-dependent)
+    - residue_index (PDB residue numbering, protein-structure-dependent)
+    - tie_group_map (amino acid tying for symmetric design, protein design-specific)
+
+  These symbols are defined in aminx.types.bundles and represent protein-domain
+  assumptions that violate xtrax's domain-agnostic interface.
+
+  See ADR 260605_potts-parallel-not-stageset.md and 260611_xtrax-foundations for rationale.
+
+files:
+  # NOTE: Expected lifecycle and current dev setup
+  #
+  # src/xtrax/ is populated when xtrax source is checked out as a subtree, symlinked,
+  # or vendored into this repo. In the current editable-pin development setup
+  # (xtrax pinned as ../xtrax in pyproject.toml), xtrax source is NOT co-located here.
+  #
+  # This guard enforces the boundary if/when xtrax code is inlined in this repo (P2/P3).
+  # Until then, the rule trivially passes because no src/xtrax/ files exist locally.
+  #
+  # For active boundary enforcement TODAY against the sibling xtrax repo, run:
+  #   sg scan --rule .ast-grep/rules/xtrax-protein-symbols.yml --include ../xtrax/src/xtrax
+  #
+  # This should be added to CI (e.g., in .github/workflows/ci.yml) to prevent violations
+  # at the point of xtrax source integration.
+  - 'src/xtrax/**/*.py'
+
+rule:
+  any:
+    # Direct variable reference: atom_37
+    - pattern: atom_37
+    # Direct variable reference: residue_index
+    - pattern: residue_index
+    # Direct variable reference: tie_group_map
+    - pattern: tie_group_map

@@ -1,0 +1,36 @@
+---
+id: aminx-xtrax-internals-boundary
+language: python
+severity: error
+message: |
+  aminx modules must NOT import xtrax internals (implementation modules).
+
+  Allowed: public xtrax API only (xtrax.training, xtrax.engine, xtrax.tiling, etc.)
+  Forbidden: xtrax._internal, xtrax.impl, xtrax.core, xtrax._utils (private modules)
+
+  Rationale: ADR 260605 boundary discipline. Private modules are unstable.
+  Use public surface only.
+
+  See ADR 260605_potts-parallel-not-stageset.md and 260611_xtrax-foundations for rationale.
+
+files:
+  - 'src/aminx/**/*.py'
+
+rule:
+  any:
+    # Pattern: from xtrax._internal import ...
+    - pattern: from xtrax._internal import $_
+    # Pattern: from xtrax._utils import ...
+    - pattern: from xtrax._utils import $_
+    # Pattern: from xtrax.impl import ...
+    - pattern: from xtrax.impl import $_
+    # Pattern: from xtrax.core import ...
+    - pattern: from xtrax.core import $_
+    # Pattern: import xtrax.impl
+    - pattern: import xtrax.impl
+    # Pattern: import xtrax.core
+    - pattern: import xtrax.core
+    # Pattern: import xtrax._internal
+    - pattern: import xtrax._internal
+    # Pattern: import xtrax._utils
+    - pattern: import xtrax._utils

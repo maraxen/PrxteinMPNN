@@ -2,7 +2,8 @@
 title: ProteinFeatures Import Strategy — aminx.model.features vs prxteinmpnn.model.features
 task_id: 260605_multistate-potts
 date: 260605
-status: decided
+status: superseded
+superseded_by: decisions/260612_proteinfeatures-shared-vs-local.md
 adr_number: 260605
 relates_to:
   - "260605_potts-parallel-not-stageset.md"

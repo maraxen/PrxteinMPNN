@@ -1,0 +1,62 @@
+---
+workspace: aminx
+session_id: f3e48886-96c4-47ae-9560-5398a3bd168d
+status: complete
+immediately_relevant:
+- file: src/aminx/model/ligand_features.py
+  lines:
+  - 171
+  - 171
+  reason: 'The einsum fix that resolved the divergence: ''lqp, lyq -> lyp''. Side-chain context lane is ~353-381 (atom_37 slots 5:).'
+- file: src/aminx/inference/score_conditional.py
+  lines:
+  - 23
+  - 40
+  reason: '#105: loose atom_37/atom_37_mask/chain_mask kernel kwargs (chain_mask is dead) duplicating GeometryBundle packaging; same shim in sample_autoregressive.py:37-62.'
+- file: src/aminx/host/runner.py
+  lines:
+  - 1
+  - 1
+  reason: '#111: uncommitted WIP in primary checkout; make_stage_set hoist must land for green CI. Tested by tests/host/test_comp534_plan_wiring.py and tests/integration/test_comp533_stage_set_hoist.py.'
+- file: pyproject.toml
+  lines:
+  - 39
+  - 99
+  reason: '#110: omegaconf still in [tests] extra, unimported. mistypotts already removed.'
+active_dispatches: []
+task_id: 260610_aminx-sc-scorepath
+phase: null
+goal_statement: Resolve the side-chain feature-construction divergence, then carry it through to a merged, released, dependency-clean main. All shipped.
+context_refs:
+- phase: sidechain-feature-parity-investigation
+  task_id: 260610_aminx-sc-scorepath
+  summary: 'Prior session: wired xyz_37 side-chain context + parity test; left the ~0.85 divergence open. This session found+fixed it (einsum) and shipped.'
+failed_attempts:
+- attempt_id: a3
+  description: Hypothesis that the side-chain divergence was an atom37 slot-ordering mismatch (proxide vs AlphaFold atom_order).
+  outcome: Falsified.
+  reason_failed: The parity test feeds the SAME atom_37 tensor (aminx parse_structure) to BOTH frameworks, so input-ordering would corrupt both identically and they'd still agree. Cross-framework divergence had to be feature-math; it was the einsum.
+  do_not_retry: true
+  evidence_ref: null
+- attempt_id: a4
+  description: Blanket text-rename or stash+rerun to verify pre-existing CI failures while mistypotts was restored.
+  outcome: uv run re-syncs and fails on the mistypotts local path (../mistypotts -> wrong dir in worktree).
+  reason_failed: mistypotts local-path dep breaks uv sync from any non-MAIN checkout; now removed. Use the fact that the diff doesn't touch the failing files to prove pre-existing, rather than stash+rerun.
+  do_not_retry: true
+  evidence_ref: null
+open_questions: []
+deferred:
+- description: omegaconf removal from [tests] extra (#110)
+  rationale: Kept change scoped to the explicit mistypotts ask
+  recommended_phase: next
+- description: Conditional tie-group logit fusion (#106)
+  rationale: Genuine unimplemented feature, not a test fix
+  recommended_phase: later
+lessons_refs: []
+next_steps:
+- '#111 (P2): land the in-flight runner.py/make_stage_set hoist refactor to make main CI green again — 3 tests now fail (tests/host/test_comp534_plan_wiring.py x2, tests/integration/test_comp533_stage_set_hoist.py). These are uncommitted WIP in the primary checkout (M src/aminx/host/runner.py).'
+- '#105 (P2): consolidate side-chain conditioning onto GeometryBundle.atom_37; remove the loose-kwarg/dead-chain_mask kernel shim in score_conditional.py / sample_autoregressive.py.'
+- '#110 (P3, quick): remove orphaned omegaconf from the [tests] extra + regen uv.lock.'
+- '#109 (P3): restore CI coverage for Potts correctness (currently skips when local mistypotts/prxteinmpnn absent).'
+- '#106 (P3): implement conditional tie-group logit fusion (tracked by xfail test_ligand_conditional_multistate_logits_are_group_shared).'
+---

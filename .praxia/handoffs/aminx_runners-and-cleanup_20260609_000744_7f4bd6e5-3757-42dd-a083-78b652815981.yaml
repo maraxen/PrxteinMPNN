@@ -1,0 +1,56 @@
+---
+workspace: aminx
+session_id: 6a76fa52-cca5-48c3-886f-2923fc05e167
+status: completed
+immediately_relevant:
+- file: src/aminx/host/runner.py
+  lines:
+  - 261
+  - 429
+  reason: New score() runner; one-hot + padding fix at ~363-385
+- file: src/aminx/host/runner.py
+  lines:
+  - 432
+  - 600
+  reason: New inspect() runner; feasible features + NotImplementedError guards
+- file: src/aminx/scoring/score.py
+  lines:
+  - 108
+  - 120
+  reason: 'score_sequence NLL math: requires one-hot; mask[0] sum-not-average bug (#1389)'
+- file: src/aminx/cli.py
+  lines:
+  - 471
+  - 586
+  reason: run_score/run_inspect now runner_available=True and call the runners
+active_dispatches: []
+task_id: 260608_using-aminx-skill
+phase: null
+goal_statement: 'Author a using-aminx skill, then register the other specs/APIs: remove dead ConformationalInferenceSpecification, add top-level exports, and wire the score + inspect host runners.'
+context_refs: []
+failed_attempts:
+- attempt_id: a1
+  description: Fixer hardcoded mistypotts={path=/home/marielle/projects/mistypotts} + edited uv.lock to make uv resolve in the worktree
+  outcome: Committed machine-specific abs path
+  reason_failed: ../mistypotts doesn't resolve inside .claude/worktrees; abs path would break for everyone. Reverted in 19a1bc5; use a symlink or run via main venv for local testing
+  do_not_retry: true
+  evidence_ref: null
+- attempt_id: a2
+  description: Score runner passed integer sequence indices to score_fn
+  outcome: 'Silently wrong: native scored WORSE than shuffled (67931 vs 48992)'
+  reason_failed: score_sequence computes -(one_hot * log_softmax).sum(-1); needs one-hot (L,21). Fixed in 8b72141
+  do_not_retry: true
+  evidence_ref: null
+open_questions: []
+deferred:
+- description: score_sequence masked-average bug (#1389)
+  rationale: Shared scoring code; rankings correct, magnitude wrong; out of 'wire the runner' scope
+  recommended_phase: next
+- description: 'Full inspect features + jacobian runner (#1390, #1197)'
+  rationale: Needs new structure-metric algorithms + decoder refactor
+  recommended_phase: later
+lessons_refs: []
+next_steps:
+- 'Address #1389: score_sequence masked-average bug (magnitude wrong, rankings OK)'
+- 'Pick up #1390 + jacobian runner (#1197 remainder)'
+---

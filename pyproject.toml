@@ -138,6 +138,16 @@ pylint.max-args = 15
 "aminx.host.plan" = {msg = "PottsModel is parallel, not a stageset consumer. Use aminx.potts.model.PottsModel.infer_params() instead. See ADR 260605_potts-parallel-not-stageset.md"}
 "aminx.types.stages" = {msg = "PottsModel is parallel, not a stageset consumer. Use aminx.potts.model.PottsModel.infer_params() instead. See ADR 260605_potts-parallel-not-stageset.md"}
 "aminx.inference.logits" = {msg = "PottsModel is parallel, not a stageset consumer. Use aminx.potts.model.PottsModel.infer_params() instead. See ADR 260605_potts-parallel-not-stageset.md"}
+"xtrax.stages.bundle" = {msg = "Use `from xtrax.stages import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.stages.protocols" = {msg = "Use `from xtrax.stages import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.bucket" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.dedup" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.dispatch" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.plan" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.strategy" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.engine.engine" = {msg = "Use `from xtrax.engine import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.engine.io" = {msg = "Use `from xtrax.engine import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.safety.manager" = {msg = "Use `from xtrax.safety import ...` — import from public __init__ only (ADR 260605)"}
 
 [tool.ruff.lint.per-file-ignores]
 "src/aminx/cli.py" = [

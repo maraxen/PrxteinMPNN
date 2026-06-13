@@ -318,6 +318,109 @@ def _gibbs_one_round_chains(
   return seqs2, key
 
 
+def log_energy(
+  seq: Int[Array, " n"],
+  h: Float[Array, "n q"],
+  j: Float[Array, "n n q q"],
+  w: Float[Array, "n n"],
+  mask: Float[Array, " n"],
+) -> Float[Array, ""]:
+  """Compute log-unnormalized energy for a Potts sequence.
+
+  E(seq) = sum_i m_i h[i, seq[i]] + 0.5 * sum_{i,k} m_i m_k w[i,k] J[i,k,seq[i],seq[k]]
+
+  Args:
+    seq: Sequence indices of shape (n,)
+    h: Field energies of shape (n, q)
+    j: Pairwise couplings of shape (n, n, q, q)
+    w: Contact weights of shape (n, n)
+    mask: Site activity mask of shape (n,)
+
+  Returns:
+    Scalar energy (Float32)
+  """
+  return _potts_log_unnormalized(h, j, w, seq, mask)
+
+
+def parallel_tempering(
+  key: Array,
+  seq: Int[Array, " n"],
+  h: Float[Array, "n q"],
+  j: Float[Array, "n n q q"],
+  w: Float[Array, "n n"],
+  mask: Float[Array, " n"],
+  n_replicas: int = 4,
+  temperatures: Float[Array, " n_replicas"] | None = None,
+  n_sweeps: int = 100,
+) -> tuple[Int[Array, "n_replicas n"], Float[Array, " n_replicas"]]:
+  """Parallel tempering MCMC for sampling from Potts distribution.
+
+  Runs independent Gibbs sweeps on n_replicas chains at different temperatures,
+  with periodic replica-exchange moves (Metropolis-Hastings).
+
+  Args:
+    key: JAX random key
+    seq: Initial sequence of shape (n,)
+    h: Field energies of shape (n, q)
+    j: Pairwise couplings of shape (n, n, q, q)
+    w: Contact weights of shape (n, n)
+    mask: Site activity mask of shape (n,)
+    n_replicas: Number of replicas (default 4)
+    temperatures: Inverse temperatures (betas) of shape (n_replicas,).
+      If None, uses linspace(0.5, 2.0, n_replicas).
+    n_sweeps: Number of Gibbs + exchange rounds per replica (default 100)
+
+  Returns:
+    Tuple of (final_sequences, final_energies) where:
+      - final_sequences: shape (n_replicas, n)
+      - final_energies: shape (n_replicas,)
+  """
+  # Handle default temperatures
+  if temperatures is None:
+    temperatures = jnp.linspace(0.5, 2.0, n_replicas, dtype=h.dtype)
+  else:
+    temperatures = jnp.asarray(temperatures, dtype=h.dtype)
+
+  # Validate temperature count
+  if int(temperatures.shape[0]) != n_replicas:
+    msg = (
+      f"temperatures shape mismatch: got {int(temperatures.shape[0])} "
+      f"but n_replicas={n_replicas}"
+    )
+    raise ValueError(msg)
+
+  # Initialize replicas from the same starting sequence
+  seqs = jnp.tile(seq[None, :], (n_replicas, 1)).astype(jnp.int32)
+
+  # Run PT rounds
+  def body(
+    _i: Int[Array, ""], carry: tuple[Int[Array, "k n"], Array],
+  ) -> tuple[Int[Array, "k n"], Array]:
+    seqs_in, k_in = carry
+    seqs_out, k_out, _ = parallel_tempering_round(
+      k_in,
+      seqs_in,
+      temperatures,
+      h,
+      j,
+      w,
+      mask,
+    )
+    return (seqs_out, k_out)
+
+  (seqs_final, _key_out) = jax.lax.fori_loop(
+    jnp.int32(0),
+    jnp.int32(n_sweeps),
+    body,
+    (seqs, key),
+  )
+
+  # Compute final energies
+  energies = jax.vmap(lambda s: log_energy(s, h, j, w, mask))(seqs_final)
+
+  return seqs_final, energies
+
+
 @functools.partial(jax.jit, static_argnames=("num_chains", "num_sweeps", "num_aa"))
 def gibbs_empirical_marginals(
   key: Array,

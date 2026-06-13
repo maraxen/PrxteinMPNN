@@ -159,3 +159,96 @@ class TestImportBoundaries:
         assert (
             EXEMPT_FILES == expected
         ), f"Exempt files list mismatch. Update to match ADR 260605_potts-parallel-not-stageset.md"
+
+
+# xtrax internal module boundary enforcement
+XTRAX_BANNED_INTERNAL = {
+    "xtrax.stages.bundle",
+    "xtrax.stages.protocols",
+    "xtrax.tiling.bucket",
+    "xtrax.tiling.dedup",
+    "xtrax.tiling.dispatch",
+    "xtrax.tiling.plan",
+    "xtrax.tiling.strategy",
+    "xtrax.engine.engine",
+    "xtrax.engine.io",
+    "xtrax.safety.manager",
+}
+
+XTRAX_FIELD_NAMES = {
+    "atom_37",
+    "residue_index",
+    "tie_group_map",
+}
+
+
+@pytest.mark.potts
+class TestXtraxBoundaries:
+    """Verify xtrax import boundary enforcement and aminx field separation."""
+
+    def test_aminx_potts_no_xtrax_internals(self) -> None:
+        """Verify aminx.potts modules only import from xtrax public APIs.
+
+        Scans all .py files in src/aminx/potts/ and verifies no import
+        matches the internal xtrax modules (implementation files that
+        should only be accessed via public __init__ re-exports).
+
+        Raises:
+            AssertionError: If any internal xtrax import is found.
+        """
+        potts_root = Path(__file__).parent.parent.parent / "src" / "aminx" / "potts"
+
+        # Collect all violations across all potts modules
+        all_violations = {}
+        for py_file in potts_root.glob("*.py"):
+            imports = extract_imports(py_file)
+            violations = find_forbidden_imports(imports, XTRAX_BANNED_INTERNAL)
+            if violations:
+                all_violations[py_file.name] = violations
+
+        assert not all_violations, (
+            f"aminx.potts modules import from xtrax internal modules (ADR 260605):\n"
+            + "\n".join(
+                f"  {filename}: {', '.join(sorted(viol))}"
+                for filename, viol in sorted(all_violations.items())
+            )
+            + f"\nUse public __init__ re-exports instead, e.g., "
+            f"`from xtrax.stages import ...` not `from xtrax.stages.bundle import ...`"
+        )
+
+    def test_xtrax_no_aminx_field_names(self) -> None:
+        """Verify xtrax codebase does not reference aminx-specific field names.
+
+        These field names (atom_37, residue_index, tie_group_map) are specific
+        to aminx and should not appear in xtrax implementation. This enforces
+        the separation that xtrax operates on generic structures.
+
+        Raises:
+            AssertionError: If any forbidden field name is found in xtrax source.
+            pytest.skip: If xtrax source is not available at expected path.
+        """
+        xtrax_root = Path("/home/marielle/projects/xtrax/src/xtrax")
+
+        # Skip if xtrax is not available (allowed in some CI environments)
+        if not xtrax_root.exists():
+            pytest.skip("xtrax source not found at expected path")
+
+        violations = {}
+        for py_file in xtrax_root.rglob("*.py"):
+            code = py_file.read_text()
+            for field_name in XTRAX_FIELD_NAMES:
+                if field_name in code:
+                    rel_path = py_file.relative_to(xtrax_root.parent)
+                    if rel_path not in violations:
+                        violations[rel_path] = []
+                    violations[rel_path].append(field_name)
+
+        assert not violations, (
+            f"xtrax source contains aminx-specific field names (ADR 260605):\n"
+            + "\n".join(
+                f"  {filepath}: {', '.join(sorted(set(fields)))}"
+                for filepath, fields in sorted(violations.items())
+            )
+            + f"\nxtrax must not reference aminx-specific structures. "
+            f"Remove or parameterize these references."
+        )

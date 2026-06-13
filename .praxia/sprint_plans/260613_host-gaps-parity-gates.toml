@@ -1,0 +1,393 @@
+[sprint]
+sprint_id = "260613_host-gaps-parity-gates"
+sprint_num = 2
+name = "260613_host-gaps-parity-gates"
+description = "Fix three silent host-dispatch bugs (STE, fixed_mask, atom_37), validate checkpoint clean-break training parity, complete RS-1 inventory to unblock RS-2+, and run T0.3 cluster smoke to unblock T2 tiling."
+context = '''
+Prior sprint (260611_xtrax-foundations) landed:
+- Track I: checkpoint.py rewritten as xtrax.checkpoint.orbax re-export; trainer.py uses save_checkpoint(manager, resumable_state). Composite format is DEAD — no backwards compat.
+- Track E: ResumableState adopted; train_step() no longer takes current_step.
+- Track D: ast-grep boundary guards in CI; protein-symbols rule scans ../xtrax/src/xtrax.
+- Track G: aminx.run.sample/score are now spec-driven with deprecation dispatch shim.
+- Track H: use_unified_driver defaults to True.
+
+Three host-dispatch bugs were identified in the original issue and are silent no-ops:
+1. STE body was deleted from src/aminx/inference/decode/ste.py — tied-position STE decoding falls through silently.
+2. spec.fixed_mask is never read in _prepare_fixed_controls — mask-based fixed positions are a no-op.
+3. atom_37/atom_37_mask/chain_mask are never forwarded from LigandContext into build_inference_bundle.
+
+Key file anchors:
+- src/aminx/inference/decode/ste.py — STE implementation (currently incomplete/deleted)
+- src/aminx/potts/__init__.py — has uncommitted changes (check before editing)
+- src/aminx/host/_sampling_helper.py:448 — _prepare_fixed_controls
+- src/aminx/host/kernel_dispatch.py:191-215 — build_inference_bundle call sites
+- src/aminx/training/checkpoint.py — thin re-export of xtrax.checkpoint.orbax
+- src/aminx/training/trainer.py:127-220 — _init_checkpoint_and_model (new load_checkpoint path)
+- tests/sampling/test_ste_tied_positions.py — exists; may be skipped or failing
+- tests/training/ — new; test_checkpoint.py + test_resumable_state.py (8 tests, all pass)
+'''
+max_fix_retries = 2
+worktree_shadow_mode = false
+
+# ── Track A: STE dispatch restoration ─────────────────────────────────────────
+[[tracks]]
+id = "a"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1767"
+phase_name = "Track A — Restore + wire STE dispatch in averaging.py (#1767)"
+fixer_prompt = '''
+# Track A — Restore STE dispatch (backlog #1767)
+
+## Context
+The STE (straight-through estimator) decode path was removed from
+src/aminx/inference/decode/ste.py in a prior session. The file currently
+has an incomplete or stub body. averaging.py does not dispatch to it.
+tests/sampling/test_ste_tied_positions.py exists but may be skipping or failing.
+
+## Step 1 — Recover the implementation
+Run:
+  git log --all --oneline -- src/aminx/inference/decode/ste.py
+to find the last commit that had a working body. Read that version via:
+  git show <sha>:src/aminx/inference/decode/ste.py
+
+## Step 2 — Restore ste.py
+Restore the STE implementation. It must:
+- Implement straight-through estimation for tied-position autoregressive decoding
+- Be a pure JAX function compatible with eqx.filter_jit / jax.vmap
+- Have no side effects; all randomness via explicit PRNG key
+
+## Step 3 — Wire dispatch in averaging.py
+In src/aminx/inference/decode/averaging.py (or equivalent dispatch point),
+add the STE branch so it is called when the run spec requests tied-position
+STE decoding. Check how other decode modes are dispatched and follow the
+same pattern.
+
+## Step 4 — Verify
+  uv run pytest tests/sampling/test_ste_tied_positions.py -v
+All tests must pass without skips.
+Also run: uv run pytest tests/sampling/ -v --tb=short to check no regression.
+
+## Acceptance criteria
+- src/aminx/inference/decode/ste.py contains a working non-stub implementation
+- averaging.py (or the dispatch module) routes to STE when appropriate
+- tests/sampling/test_ste_tied_positions.py: all tests PASS (no skips)
+- No regression in tests/sampling/
+'''
+reviewer_prompt = '''
+# Track A Reviewer — STE dispatch (#1767)
+
+VERIFY: src/aminx/inference/decode/ste.py contains a real implementation
+  (not just pass, raise NotImplementedError, or an emptied body)
+  Check: grep -n "def\|return\|jax\." src/aminx/inference/decode/ste.py | head -20
+
+VERIFY: averaging.py (or the dispatch entry point) imports and calls the STE function
+  Check: grep -rn "ste\|STE\|straight_through" src/aminx/inference/ src/aminx/host/
+
+VERIFY: uv run pytest tests/sampling/test_ste_tied_positions.py -v
+  All tests PASS. Zero skips.
+
+VERIFY: uv run pytest tests/sampling/ -v --tb=short
+  No new failures compared to baseline.
+
+PASS if all VERIFY items are satisfied.
+FAIL if ste.py is still a stub, dispatch is missing, or tests skip/fail.
+'''
+return_key = "1767"
+
+# ── Track B: fixed_mask in _prepare_fixed_controls ────────────────────────────
+[[tracks]]
+id = "b"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1766"
+phase_name = "Track B — Read spec.fixed_mask in _prepare_fixed_controls (#1766)"
+fixer_prompt = '''
+# Track B — fixed_mask gap (_prepare_fixed_controls, backlog #1766)
+
+## Context
+src/aminx/host/_sampling_helper.py, function _prepare_fixed_controls (around line 448),
+reads spec.fixed_positions to build the fixed-residue tensor but never reads
+spec.fixed_mask. RunSpec exposes fixed_mask as a first-class field (a boolean
+array of shape [N_residues]) but it is silently ignored — mask-based position
+fixing is a complete no-op.
+
+## Task
+1. Read src/aminx/host/_sampling_helper.py in full around _prepare_fixed_controls.
+2. Read the RunSpec/SamplingSpecification definition to confirm the type and
+   semantics of fixed_mask.
+3. In _prepare_fixed_controls, after handling fixed_positions, also handle fixed_mask:
+   - When spec.fixed_mask is set (not None), treat True positions as fixed.
+   - Combine with fixed_positions if both are set (union).
+4. Add a test in tests/sampling/test_fixed_positions.py (or new
+   tests/sampling/test_fixed_mask.py) that:
+   - Creates a spec with fixed_mask set (no fixed_positions)
+   - Verifies the output fixed tensor reflects the mask
+   - Verifies it differs from an unfixed run
+
+## Acceptance criteria
+- _prepare_fixed_controls reads spec.fixed_mask
+- When fixed_mask is set, the resulting fixed tensor reflects it
+- New test covers the fixed_mask path and passes
+- uv run pytest tests/sampling/test_fixed_positions.py -v all pass
+'''
+reviewer_prompt = '''
+# Track B Reviewer — fixed_mask gap (#1766)
+
+VERIFY: grep -n "fixed_mask" src/aminx/host/_sampling_helper.py
+  Must show at least one read of spec.fixed_mask inside _prepare_fixed_controls.
+
+VERIFY: A test exercises the fixed_mask path specifically
+  Check: grep -rn "fixed_mask" tests/sampling/
+
+VERIFY: uv run pytest tests/sampling/ -v --tb=short
+  No failures. New fixed_mask test(s) present and PASS.
+
+PASS if all VERIFY items are satisfied.
+FAIL if fixed_mask is still unread, no test was added, or sampling tests regress.
+'''
+return_key = "1766"
+
+# ── Track C: atom_37 wiring in kernel_dispatch ────────────────────────────────
+[[tracks]]
+id = "c"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1765"
+phase_name = "Track C — Wire atom_37/atom_37_mask/chain_mask into build_inference_bundle (#1765)"
+fixer_prompt = '''
+# Track C — atom_37 wiring gap (backlog #1765)
+
+## Context
+src/aminx/host/kernel_dispatch.py lines 191-215 contain the call sites for
+build_inference_bundle. LigandContext carries atom_37, atom_37_mask, and
+chain_mask but these are never forwarded into the bundle — silently dropped
+at the host dispatch boundary.
+
+## Task
+1. Read src/aminx/host/kernel_dispatch.py fully around lines 191-215.
+2. Read the LigandContext definition to confirm which fields it carries.
+3. Read build_inference_bundle's signature to confirm it accepts these fields.
+4. Forward atom_37, atom_37_mask, chain_mask from ligand_context into the
+   build_inference_bundle call site(s).
+   - Handle the case where ligand_context is None (preserve existing behaviour).
+5. Add or update a test that passes a LigandContext with non-trivial atom_37
+   and asserts it reaches the bundle.
+
+## Acceptance criteria
+- atom_37, atom_37_mask, chain_mask from ligand_context are forwarded when present
+- When ligand_context is None, behaviour is unchanged
+- Test covers the forwarding path
+- uv run pytest tests/ -k "kernel_dispatch or ligand or dispatch" -v passes
+'''
+reviewer_prompt = '''
+# Track C Reviewer — atom_37 wiring (#1765)
+
+VERIFY: grep -n "atom_37\|atom_37_mask\|chain_mask" src/aminx/host/kernel_dispatch.py
+  Must show these fields being read from ligand_context and passed to build_inference_bundle.
+
+VERIFY: The None-ligand_context path is guarded (no AttributeError when ligand_context=None)
+  Check: grep -n "ligand_context" src/aminx/host/kernel_dispatch.py | head -20
+
+VERIFY: uv run pytest tests/ -k "kernel_dispatch or ligand or dispatch" -v --tb=short
+  No failures. New test exercises the forwarding path.
+
+PASS if all VERIFY items are satisfied.
+FAIL if fields are still not forwarded, None guard is missing, or tests regress.
+'''
+return_key = "1765"
+
+# ── Track D: Training parity gate (G1) ────────────────────────────────────────
+[[tracks]]
+id = "d"
+is_research = true
+worktree = false
+skip_worktree = true
+
+[[tracks.items]]
+backlog_id = "1550"
+phase_name = "Track D — Training parity gate: checkpoint round-trip + loss curve (G1 #1550)"
+fixer_prompt = '''
+# Track D — Training parity gate (G1, backlog #1550)
+
+## Context
+Track I (prior sprint) rewrote checkpoint.py to use xtrax.checkpoint.orbax
+(PyTree format, breaking change from ocp.args.Composite). The new API:
+  save_checkpoint(manager, resumable_state)
+  load_checkpoint(manager, state_template, step=None)
+  get_checkpoint_manager(directory, max_to_keep=N)
+
+8 tests in tests/training/ pass locally. This gate confirms training correctness.
+
+## Task
+1. Run full training test suite:
+     uv run pytest tests/training/ -v
+   Report all results.
+
+2. Run checkpoint round-trip smoke:
+     uv run python -c "
+     import jax, jax.numpy as jnp, equinox as eqx, tempfile, pathlib
+     from xtrax.training.types import ResumableState
+     from aminx.training.checkpoint import get_checkpoint_manager, save_checkpoint, load_checkpoint
+     key = jax.random.PRNGKey(0)
+     model = eqx.nn.Linear(8, 8, key=key)
+     state = ResumableState(step=jnp.int32(42), key=key, model=model, opt_state=None, extras={})
+     with tempfile.TemporaryDirectory() as d:
+         mgr = get_checkpoint_manager(pathlib.Path(d), max_to_keep=1)
+         save_checkpoint(mgr, state); mgr.close()
+         mgr2 = get_checkpoint_manager(pathlib.Path(d), max_to_keep=1)
+         restored = load_checkpoint(mgr2, state); mgr2.close()
+         assert int(restored.step) == 42
+         print('PARITY GATE: PASS')
+     "
+
+3. Write .praxia/docs/research/260613_training-parity-gate.md with results.
+
+## Acceptance criteria
+- tests/training/ all pass
+- Checkpoint round-trip smoke prints PARITY GATE: PASS
+- Research doc created
+'''
+reviewer_prompt = '''
+# Track D Reviewer — Training parity gate (#1550)
+
+VERIFY: uv run pytest tests/training/ -v shows all PASS, zero FAIL.
+VERIFY: Research doc exists at .praxia/docs/research/260613_training-parity-gate.md
+VERIFY: Doc states checkpoint round-trip smoke PASS.
+
+PASS if all items satisfied.
+FAIL if any training test fails or round-trip smoke errors.
+'''
+return_key = "1550"
+
+# ── Track E: RS-1 host-field inventory ────────────────────────────────────────
+[[tracks]]
+id = "e"
+is_research = true
+worktree = false
+skip_worktree = true
+
+[[tracks.items]]
+backlog_id = "1620"
+phase_name = "Track E — RS-1 inventory: host/* getattr(spec) → run_spec migration map (#1620)"
+fixer_prompt = '''
+# Track E — RS-1 host-field inventory (backlog #1620)
+
+## Context
+RS-2+ RunSpec unification items require knowing exactly which spec fields
+are read in host/* so the migration can be planned safely.
+
+## Task
+Grep every place in src/aminx/host/ that reads directly from the spec:
+  grep -rn "spec\.\|getattr(spec" src/aminx/host/ | grep -v "run_spec\."
+
+Focus on:
+  src/aminx/host/runner.py
+  src/aminx/host/kernel_dispatch.py
+  src/aminx/host/_sampling_helper.py
+  src/aminx/host/_scoring_helper.py (if exists)
+
+For each hit record:
+  - file:line
+  - field name
+  - target RunSpec subconfig (sampling, plan, precision, etc.)
+    OR "protein-only facade" if it's a protein-domain field that stays flat
+  - Already reading run_spec? (yes/no)
+
+## Deliverable
+Write .praxia/docs/research/260613_runspec-host-field-inventory.md with:
+1. Full field inventory table
+2. Fields already on run_spec (done)
+3. Fields needing migration + target subconfig
+4. Protein-only fields that stay flat
+5. Any fields in spec with no run_spec equivalent (gaps that need RS additions)
+
+## Acceptance criteria
+- Doc exists with populated table covering the three key host files
+- At least 10 entries catalogued
+'''
+reviewer_prompt = '''
+# Track E Reviewer — RS-1 inventory (#1620)
+
+VERIFY: .praxia/docs/research/260613_runspec-host-field-inventory.md exists
+VERIFY: Doc contains table with file:line | field | target subconfig columns
+VERIFY: Table covers kernel_dispatch.py, _sampling_helper.py, runner.py
+
+PASS if doc exists with populated table covering all three key files.
+FAIL if doc is missing, table is empty, or key files are not covered.
+'''
+return_key = "1620"
+
+# ── Track F: T0.3 cluster smoke on SM120 ──────────────────────────────────────
+[[tracks]]
+id = "f"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1544"
+phase_name = "Track F — T0.3 L3 cluster smoke: py3.13 + JAX/jaxlib on SM120 + bathos sidecar (#1544)"
+fixer_prompt = '''
+# Track F — T0.3 cluster smoke (backlog #1544)
+
+## Context
+SM120 (Blackwell) nodes node4007/node4008 (partition pi_so3) require:
+  XLA_FLAGS=--xla_gpu_shard_autotuning=false
+Without this flag XLA autotuning hangs (1170× slowdown, SLURM job 15294138).
+sbatch/squeue/sacct are transparent SSH wrappers to engaging — run them locally.
+
+## Task
+1. Write scripts/cluster/smoke_sm120.py:
+   - import xtrax, jax, aminx
+   - print(jax.devices()) — assert at least one GPU
+   - run a tiny jax.jit'd jnp.dot(A, B) to confirm compilation
+   - print("SMOKE: PASS")
+
+2. Write scripts/cluster/smoke_sm120.sbatch:
+   - #SBATCH --partition=pi_so3
+   - #SBATCH --nodes=1 --ntasks=1 --gpus=1
+   - #SBATCH --time=00:10:00
+   - XLA_FLAGS SM120 workaround (key on SLURM_JOB_NODELIST for node4007/node4008)
+   - SLURM_SUBMIT_DIR path anchoring (not BASH_SOURCE)
+   - uv run python scripts/cluster/smoke_sm120.py
+
+3. Submit: use mcp__myxcel__submit_job or sbatch scripts/cluster/smoke_sm120.sbatch
+   Wait for completion with mcp__myxcel__job_wait.
+
+4. Retrieve logs; confirm "SMOKE: PASS" present.
+
+5. Write .praxia/docs/research/260613_t03-sm120-smoke.md with job ID, node, result.
+
+## Acceptance criteria
+- scripts/cluster/smoke_sm120.py and .sbatch committed
+- Job completes (COMPLETED, not TIMEOUT/FAILED)
+- "SMOKE: PASS" in job output
+- Research doc records job ID, node, result
+'''
+reviewer_prompt = '''
+# Track F Reviewer — T0.3 cluster smoke (#1544)
+
+VERIFY: scripts/cluster/smoke_sm120.py and scripts/cluster/smoke_sm120.sbatch exist
+VERIFY: .sbatch includes XLA_FLAGS workaround for node4007/node4008
+VERIFY: .praxia/docs/research/260613_t03-sm120-smoke.md exists with job ID + result
+VERIFY: Research doc states "SMOKE: PASS"
+
+PASS if all items satisfied.
+FAIL if scripts missing, XLA workaround absent, job failed/timed out, or doc missing.
+'''
+return_key = "1544"
+
+# ── Orchestration ──────────────────────────────────────────────────────────────
+[orchestration]
+sequential = ["a", "b", "c"]
+concurrent = ["d", "e", "f"]

@@ -215,6 +215,9 @@ def _sample_batch(
         atom_37_mask=ligand_context["atom_37_mask"][structure_idx]
         if ligand_context["atom_37_mask"] is not None
         else None,
+        chain_mask=ligand_context["chain_mask"][structure_idx]
+        if ligand_context["chain_mask"] is not None
+        else None,
         structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
         temperature=temp_val,
         mode="sample_ar",
@@ -291,6 +294,9 @@ def _sample_batch(
           else None,
           atom_37_mask=ligand_context["atom_37_mask"][structure_idx]
           if ligand_context["atom_37_mask"] is not None
+          else None,
+          chain_mask=ligand_context["chain_mask"][structure_idx]
+          if ligand_context["chain_mask"] is not None
           else None,
           structure_mapping=mapping_for_vmap[structure_idx]
           if mapping_for_vmap is not None
@@ -384,6 +390,9 @@ def _sample_batch(
         atom_37_mask=ligand_context["atom_37_mask"][structure_idx]
         if ligand_context["atom_37_mask"] is not None
         else None,
+        chain_mask=ligand_context["chain_mask"][structure_idx]
+        if ligand_context["chain_mask"] is not None
+        else None,
         structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
         temperature=temp_val,
         mode="sample_ar",
@@ -456,6 +465,9 @@ def _sample_batch(
           else None,
           atom_37_mask=ligand_context["atom_37_mask"][structure_idx]
           if ligand_context["atom_37_mask"] is not None
+          else None,
+          chain_mask=ligand_context["chain_mask"][structure_idx]
+          if ligand_context["chain_mask"] is not None
           else None,
           structure_mapping=mapping_for_vmap[structure_idx]
           if mapping_for_vmap is not None

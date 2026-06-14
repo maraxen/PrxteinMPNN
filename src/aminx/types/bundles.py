@@ -72,6 +72,11 @@ class GeometryBundle(eqx.Module):
   # Side-chain atom validity mask: shape (S, L, 37).
   # None when side-chain context conditioning is disabled (no GPU transfer).
   atom_37_mask: Float[Array, "S L 37"] | None = None
+  # Chain mask for side-chain design gating: shape (S, L).
+  # Semantics: 1.0 = residue is designable (sidechain may be designed),
+  # 0.0 = residue is fixed (sidechain design gated off).
+  # None when side-chain context conditioning is disabled.
+  chain_mask: Float[Array, "S L"] | None = None
 
 
 class ConditioningBundle(eqx.Module):

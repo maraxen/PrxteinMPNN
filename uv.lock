@@ -53,7 +53,7 @@ wheels = [
 
 [[package]]
 name = "aminx"
-version = "0.1.0a5"
+version = "0.1.0a6"
 source = { editable = "." }
 dependencies = [
     { name = "array-record", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -198,7 +198,7 @@ requires-dist = [
     { name = "ty", marker = "extra == 'dev'" },
     { name = "ty", marker = "extra == 'tests'" },
     { name = "typer", specifier = ">=0.12.0" },
-    { name = "xtrax", editable = "../xtrax" },
+    { name = "xtrax", editable = "/home/marielle/projects/xtrax" },
     { name = "zstandard", specifier = ">=0.21.0" },
 ]
 provides-extras = ["benchmark", "docs", "tests", "dev", "foldcomp", "cpu"]
@@ -3682,7 +3682,7 @@ wheels = [
 
 [[package]]
 name = "xtrax"
-source = { editable = "../xtrax" }
+source = { editable = "/home/marielle/projects/xtrax" }
 dependencies = [
     { name = "equinox", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "grain", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },

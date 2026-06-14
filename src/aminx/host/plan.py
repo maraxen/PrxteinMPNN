@@ -15,7 +15,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from aminx.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
+from aminx.tiling.axes import N_NOISES, N_SAMPLES, N_STATES, N_STRUCTURES, N_TEMPERATURES
 from aminx.tiling.errors import TilingError
 from aminx.tiling.planner import BatchPlan, BatchPlanner, estimate_memory_theoretical
 
@@ -632,7 +632,7 @@ def make_inference_plan(model: ModelProtocol, spec: Any, packer: Any = None) -> 
 
   """
   from aminx.inference.decode.factory import make_decode_fn
-  from aminx.inference.decode.mode import ConditionalMode
+  from aminx.inference.decode.mode import ConditionalMode, STEMode
   from aminx.inference.encode import make_encode_fn
   from aminx.inference.logits import make_stage_set
   from aminx.tiling.strategy import Vmap
@@ -677,12 +677,13 @@ def make_inference_plan(model: ModelProtocol, spec: Any, packer: Any = None) -> 
     )
     # sample_step stays None (already None from make_stage_set) — teacher-forced path
 
-  # Resolve decode_fn via make_decode_fn with default ConditionalMode and Vmap strategy.
-  # NOTE: mode and strategy are intentionally hardcoded here (conservative defaults).
-  # Routing mode from spec.sampling_strategy is planned future work. To use a
-  # different mode (AR, STE, Unconditional), construct decode_fn manually via
-  # make_decode_fn() and pass it to InferencePlan directly.
-  decode_mode = ConditionalMode()
+  # Resolve decode_fn via make_decode_fn. Route mode from spec.sampling_strategy.
+  # - sampling_strategy="straight_through" → STEMode (STE refinement)
+  # - All other strategies (temperature, etc.) → ConditionalMode (default)
+  if getattr(spec, "sampling_strategy", None) == "straight_through":
+    decode_mode = STEMode()
+  else:
+    decode_mode = ConditionalMode()
   decode_strategy = Vmap()
   decode_fn = make_decode_fn(model, mode=decode_mode, strategy=decode_strategy)
 

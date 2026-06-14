@@ -340,7 +340,10 @@ def _prepare_ligand_context(
     msg = "atom mask must have shape (batch, residues, atoms) for sidechain conditioning."
     raise ValueError(msg)
 
-  chain_mask = jnp.zeros((batch_size, seq_len), dtype=jnp.float32)
+  # Compute chain_mask: 1=designable, 0=fixed.
+  # Default is all-ones (all residues designable) unless overridden by spec.
+  # In the future, spec could have chain_mask or a derived method to set this per-chain.
+  chain_mask = jnp.ones((batch_size, seq_len), dtype=jnp.float32)
 
   return {
     "Y": Y,

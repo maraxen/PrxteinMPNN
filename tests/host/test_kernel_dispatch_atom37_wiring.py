@@ -98,3 +98,64 @@ def test_build_inference_bundle_atom37_none_when_not_passed():
     bundle, _ = build_inference_bundle(coords, mask, res_idx, chain_idx)
     assert bundle.geometry.atom_37 is None
     assert bundle.geometry.atom_37_mask is None
+
+
+# ── chain_mask: not hardcoded to all-zeros when sidechain_conditioning ──────────
+
+def test_ligand_context_chain_mask_not_all_zeros_with_sidechain_conditioning():
+    """chain_mask must NOT be all-zeros when sidechain_conditioning=True.
+
+    chain_mask semantics: 1=designable, 0=fixed.
+    An all-zeros chain_mask disables all sidechain design (semantically meaningless).
+    This test verifies that the computed chain_mask is semantically correct.
+    """
+    protein = _FakeProtein(seq_len=L, batch_size=BATCH)
+    spec = _base_spec(sidechain_conditioning=True)
+    ctx = _prepare_ligand_context(spec, batched_ensemble=protein, batch_size=BATCH, seq_len=L)
+
+    assert ctx["chain_mask"] is not None, "chain_mask must be set when sidechain_conditioning=True"
+    assert ctx["chain_mask"].shape == (BATCH, L), f"Unexpected shape: {ctx['chain_mask'].shape}"
+
+    # Check that chain_mask is NOT all-zeros (the hardcoded bug)
+    assert not jnp.allclose(ctx["chain_mask"], 0.0), (
+        "chain_mask must not be all-zeros; this is semantically meaningless "
+        "(all-zeros = all residues fixed, disabling sidechain design)"
+    )
+
+
+def test_ligand_context_chain_mask_none_without_sidechain_conditioning():
+    """chain_mask must remain None when sidechain_conditioning=False."""
+    protein = _FakeProtein(seq_len=L, batch_size=BATCH)
+    spec = _base_spec(sidechain_conditioning=False)
+    ctx = _prepare_ligand_context(spec, batched_ensemble=protein, batch_size=BATCH, seq_len=L)
+
+    assert ctx["chain_mask"] is None
+
+
+# ── build_inference_bundle: chain_mask parameter and storage ──────────
+
+def test_build_inference_bundle_stores_chain_mask():
+    """chain_mask passed to build_inference_bundle must appear in geometry bundle."""
+    coords, mask, res_idx, chain_idx = _make_inputs(L)
+    rng = np.random.default_rng(3)
+    atom_37 = jnp.asarray(rng.normal(size=(L, 37, 3)).astype(np.float32))
+    atom_37_mask = jnp.ones((L, 37), dtype=jnp.float32)
+    chain_mask = jnp.ones((L,), dtype=jnp.float32)  # All designable
+
+    bundle, _ = build_inference_bundle(
+        coords, mask, res_idx, chain_idx,
+        atom_37=atom_37,
+        atom_37_mask=atom_37_mask,
+        chain_mask=chain_mask,
+    )
+
+    assert bundle.geometry.chain_mask is not None, "chain_mask missing from geometry bundle"
+    assert bundle.geometry.chain_mask.shape == (1, L), f"Unexpected shape: {bundle.geometry.chain_mask.shape}"
+    assert jnp.allclose(bundle.geometry.chain_mask[0], chain_mask)
+
+
+def test_build_inference_bundle_chain_mask_none_when_not_passed():
+    """Without chain_mask, geometry.chain_mask must be None."""
+    coords, mask, res_idx, chain_idx = _make_inputs(L)
+    bundle, _ = build_inference_bundle(coords, mask, res_idx, chain_idx)
+    assert bundle.geometry.chain_mask is None

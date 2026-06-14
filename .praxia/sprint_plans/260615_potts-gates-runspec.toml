@@ -1,0 +1,803 @@
+[sprint]
+sprint_id = "260615_potts-gates-runspec"
+sprint_num = 1
+name = "260615_potts-gates-runspec"
+description = "Vectorise the two remaining Python loops in the Potts stack (P-06 sampling, P-05 PoE), close the G1 training gate, add PlannerTopology to RunSpec (RS-2), and port CarrySpec/DedupSpec + factory dispatch from aminx.tiling into xtrax.tiling (T2.2-2.3, T2.4)."
+context = '''
+Prior sprint (260614_potts-runspec-xtrax-gates) completed:
+- P-07 (#1297): spec emit-potts CLI
+- P-09 (#1294): TRW marginals vs brute-force tests
+- T0.3 (#1544): SM120 cluster smoke gate PASS
+- RS-1 (#1620): 67-field host-field inventory → .praxia/docs/plans/260614_runspec-migration-map.md
+- T2.1 (#1551): Scan.init field added to xtrax (3 commits: f9847a9, eff90d4, a24dd06)
+  NOTE: T2.1 was believed failed but actually landed in xtrax — discovered at sprint compose time.
+
+Open backlog items entering this sprint:
+- P-06 (#1295): sampling.py _parallel_tempering_exchange still has Python for/while loops (lines 206-224)
+- P-05 (#1296): poe.py __call__ (line 172) and joint_energy (line 234) still have Python loops
+- G1 (#1550): training parity gate not yet run (tests/training/ + checkpoint round-trip + overfit smoke)
+- RS-2 (#1621): PlannerTopology sub-config not yet added to RunSpec
+- T2.2-2.3 (#1552): CarrySpec, CarryShape, DedupSpec not yet in xtrax
+- T2.4 (#1553): xtrax make_axis_dispatch still eager (not factory-style)
+
+Key recon finding (260614 pre-sprint):
+aminx.tiling is the MATURE library — CarrySpec, CarryShape, DedupSpec, multi-phase BatchPlanner,
+and factory-style make_axis_dispatch all already exist in aminx.tiling/. T2.2-2.3 and T2.4 are
+PORT tasks (aminx → xtrax), not new designs. Do NOT re-invent these APIs.
+
+PlannerTopology stays in aminx for RS-2. aminx BatchPlanner (multi-phase) ≠ xtrax BatchPlanner
+(single-phase). Once T2.5 ships, PlannerTopology will gain an xtrax.ExecutionProfile field.
+
+Key file anchors:
+- src/aminx/potts/sampling.py:202–225 — _parallel_tempering_exchange (P-06 target)
+- src/aminx/potts/poe.py:162–238 — PoeModel.__call__ + joint_energy (P-05 target)
+- src/aminx/run/spec.py:96–114 — RunSpec + sub-configs (RS-2 target)
+- src/aminx/run/spec.py:218 — build_run_spec (RS-2 target)
+- src/aminx/tiling/carry.py — CarrySpec reference implementation for T2.2-2.3
+- src/aminx/tiling/carry_shape.py — CarryShape reference implementation for T2.2-2.3
+- src/aminx/tiling/dedup.py — DedupSpec reference implementation for T2.2-2.3
+- src/aminx/tiling/planner.py:104–165 — Phase 0/0b reference for T2.2-2.3
+- src/aminx/tiling/dispatch.py — factory dispatch reference for T2.4
+- src/aminx/tiling/iterator.py — VmapIterator/SafeMapIterator/JaxScanIterator reference for T2.4
+- /home/marielle/projects/xtrax/ — xtrax repo (editable at ../xtrax per pyproject.toml:274)
+- /home/marielle/projects/xtrax/src/xtrax/tiling/strategy.py — Scan, DedupGather, etc.
+- /home/marielle/projects/xtrax/src/xtrax/tiling/plan.py — xtrax BatchPlanner (single-phase)
+- /home/marielle/projects/xtrax/src/xtrax/tiling/dispatch.py — eager make_axis_dispatch (T2.4 target)
+'''
+max_fix_retries = 2
+worktree_shadow_mode = false
+
+# ── Track A: P-06 sampling.py Python loops → jax.vmap ────────────────────────
+[[tracks]]
+id = "a"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1295"
+phase_name = "Track A — P-06: Replace Python loops in _parallel_tempering_exchange with jax.vmap (#1295)"
+fixer_prompt = '''
+# P-06: sampling.py Python loops → jax.vmap (backlog #1295)
+
+## What to change
+
+File: src/aminx/potts/sampling.py
+Function: _parallel_tempering_exchange (starts around line 192)
+Target lines: 206–224 — the `for parity in range(2)` + `while i + 1 < k_rep` loops
+
+## READ FIRST
+Read src/aminx/potts/sampling.py lines 192–245 in full before writing anything.
+Also read _attempt_adjacent_swap to understand its exact signature and return shape.
+
+## Current code to replace
+
+```python
+for parity in range(2):
+    start = parity
+    i = start
+    while i + 1 < k_rep:
+        key_cur, sk = jax.random.split(key_cur)
+        seq_cur, key_cur, acc = _attempt_adjacent_swap(
+            sk, seq_cur, jnp.int32(i), betas[i], betas[i + 1],
+            h, j, w, mask, swap_pair_energy_only=swap_pair_energy_only,
+        )
+        accept_edge = accept_edge.at[i].set(acc)
+        i += 2
+```
+
+## Why this is safe to vmap
+
+k_rep = int(seqs.shape[0]) is statically known at trace time.
+Within each parity group, swaps are non-overlapping:
+  even parity: pairs (0,1), (2,3), (4,5)... — no index shared
+  odd parity:  pairs (1,2), (3,4), (5,6)... — no index shared
+So vmap over edges within each parity group is correct.
+
+## Replacement approach
+
+Step 1 — Read _attempt_adjacent_swap signature. It takes:
+  (key, seqs, i, beta_i, beta_next, h, j, w, mask, swap_pair_energy_only)
+  Returns: (updated_seqs, new_key, accept_scalar)
+  Note: it takes the FULL seqs array and edge index i (as jnp.int32).
+
+Step 2 — For each parity, build static edge-index arrays:
+  even_edges = jnp.arange(0, k_rep - 1, 2)   # shape (n_even,)
+  odd_edges  = jnp.arange(1, k_rep - 1, 2)   # shape (n_odd,)
+
+Step 3 — For each parity group, vmap over edges.
+  Because _attempt_adjacent_swap reads and writes seqs at positions i and i+1,
+  and edges within a parity group are non-overlapping, ALL calls in a group see
+  the same input seqs and produce disjoint position updates.
+  Strategy:
+    - Pre-split n_edges keys: subkeys = jax.random.split(key_cur, n_edges + 1)
+      key_cur, subkeys = subkeys[0], subkeys[1:]
+    - vmapped call: accepts, new_seqs_per_edge = jax.vmap(swap_fn)(subkeys, edges)
+      where swap_fn(sk, edge_i) = _attempt_adjacent_swap(sk, seq_cur, edge_i, ...)
+      BUT: _attempt_adjacent_swap returns full updated seqs — scatter only changed pairs.
+    - Alternatively: write a scalar helper that extracts just the new pair and accept:
+        def _swap_pair(sk, i):
+            _, _, acc = _attempt_adjacent_swap(sk, seq_cur, i, betas[i], betas[i+1], ...)
+            # Extract new seq values at positions i and i+1 from the returned seqs
+            new_seqs, _, acc = _attempt_adjacent_swap(sk, seq_cur, i, betas[i], betas[i+1], ...)
+            return new_seqs[i], new_seqs[i+1], acc
+      Then scatter: seq_cur = seq_cur.at[even_edges].set(new_i) ...
+
+  IMPORTANT: Check if betas[i] and betas[i+1] can be gathered inside vmap:
+    beta_i     = betas[even_edges]      # shape (n_even,)
+    beta_next  = betas[even_edges + 1]  # shape (n_even,)
+    These can be passed as in_axes=0 to vmap.
+
+Step 4 — Build accept_edge from vmap output directly (no .at[i].set loop).
+
+Step 5 — Keep the two-parity structure (even then odd) as two sequential vmap calls —
+  do NOT try to merge parities into one vmap (they must be sequential: odd parity
+  uses seqs updated by even parity).
+
+## Edit only — do not Write existing files. One file: sampling.py.
+
+## Verify
+uv run pytest tests/potts/ -v --tb=short 2>&1 | tail -20
+uv run ty check src/aminx/potts/sampling.py 2>&1
+grep -n "for parity\|while i" src/aminx/potts/sampling.py  # must be empty
+
+## Acceptance criteria
+- No `for parity` or `while i + 1` loops in _parallel_tempering_exchange
+- All tests/potts/ pass
+- uv run ty check clean
+'''
+reviewer_prompt = '''
+# Track A Reviewer — P-06 sampling.py vmap (#1295)
+
+VERIFY: Python loops removed from _parallel_tempering_exchange
+  grep -n "for parity\|while i + 1" src/aminx/potts/sampling.py
+  Expected: empty output
+
+VERIFY: jax.vmap or eqx.filter_vmap present in the function
+  grep -n "vmap" src/aminx/potts/sampling.py | head -10
+
+VERIFY: uv run pytest tests/potts/ -v --tb=short — zero failures
+
+VERIFY: uv run ty check src/aminx/potts/sampling.py — exits 0
+
+PASS if all four satisfied.
+FAIL if Python loops remain, tests fail, or ty errors.
+'''
+return_key = "1295"
+
+# ── Track B: P-05 poe.py Python loops → JAX-native ───────────────────────────
+[[tracks]]
+id = "b"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1296"
+phase_name = "Track B — P-05: Replace Python loops in PoeModel.__call__ and joint_energy with JAX-native ops (#1296)"
+fixer_prompt = '''
+# P-05: poe.py loops → JAX-native (backlog #1296)
+
+## READ FIRST
+Read src/aminx/potts/poe.py lines 140–250 in full.
+Pay special attention to:
+  - PoeModel.__call__ line ~172: `for i in range(self.n_backbones):`
+  - PoeModel.joint_energy line ~234: `for h, j, w in params_list:`
+  - PoeModel.infer_all_params line ~247: already uses eqx.filter_vmap — use as reference
+
+## File: src/aminx/potts/poe.py
+
+## Change 1: PoeModel.__call__ backbone loop (line ~172)
+
+Current:
+  all_marginals = []
+  for i in range(self.n_backbones):
+      backbone = self.backbones[i]
+      key_b = keys[i]
+      edge_knn_b = edge_knn_stack[i]
+      nei_b = nei_stack[i]
+      marginals, _, _, _ = backbone(edge_knn=edge_knn_b, nei=nei_b, mask=mask, key=key_b)
+      all_marginals.append(marginals)
+  per_backbone_marginals = jnp.stack(all_marginals, axis=0)
+
+Replace with eqx.filter_vmap following the pattern already in infer_all_params:
+  def _call_one(backbone, key_b, edge_knn_b, nei_b):
+      marginals, _, _, _ = backbone(edge_knn=edge_knn_b, nei=nei_b, mask=mask, key=key_b)
+      return marginals
+  per_backbone_marginals = eqx.filter_vmap(_call_one)(
+      self.backbones, keys, edge_knn_stack, nei_stack
+  )
+  # per_backbone_marginals shape: (B, N, q)
+
+Note: self.backbones is a list/pytree of identical-structure eqx.Modules.
+eqx.filter_vmap handles Equinox modules correctly — it's the same pattern used in
+infer_all_params. Follow that exactly.
+
+## Change 2: PoeModel.joint_energy params loop (line ~234)
+
+Current:
+  total_energy = 0.0
+  for h, j, w in params_list:
+      energy_b = PottsModel.log_prob(seq, h, j, w)
+      total_energy = total_energy + energy_b
+  return jnp.asarray(total_energy)
+
+Replace with:
+  # Stack params along batch axis (Python-level at trace time)
+  h_stack = jnp.stack([p[0] for p in params_list])  # (B, n, q)
+  j_stack = jnp.stack([p[1] for p in params_list])  # (B, n, n, q, q)
+  w_stack = jnp.stack([p[2] for p in params_list])  # (B, n, n)
+  # vmap log_prob over batch axis
+  energies = jax.vmap(PottsModel.log_prob, in_axes=(None, 0, 0, 0))(
+      seq, h_stack, j_stack, w_stack
+  )
+  return jnp.sum(energies)
+
+Verify PottsModel.log_prob signature before calling: it should be
+  log_prob(seq, h, j, w) -> scalar  (or a classmethod/staticmethod)
+Read src/aminx/potts/model.py to confirm.
+
+## Edit only — do not Write existing files. One file: poe.py.
+
+## Verify
+uv run pytest tests/potts/ -v --tb=short 2>&1 | tail -20
+uv run ty check src/aminx/potts/poe.py 2>&1
+grep -n "^    for i in range\|^    for h, j, w" src/aminx/potts/poe.py  # must be empty
+
+## Acceptance criteria
+- No Python backbone loop in __call__; no Python params loop in joint_energy
+- eqx.filter_vmap used in __call__ following infer_all_params pattern
+- jax.vmap + jnp.sum used in joint_energy
+- All tests/potts/ pass
+- uv run ty check clean
+'''
+reviewer_prompt = '''
+# Track B Reviewer — P-05 poe.py JAX-native (#1296)
+
+VERIFY: Python loops removed from __call__ and joint_energy
+  grep -n "for i in range(self.n_backbones)\|for h, j, w in params_list" src/aminx/potts/poe.py
+  Expected: empty output
+
+VERIFY: eqx.filter_vmap present in __call__
+  grep -n "filter_vmap" src/aminx/potts/poe.py | head -5
+
+VERIFY: jax.vmap present in joint_energy
+  grep -n "jax.vmap\|jnp.sum" src/aminx/potts/poe.py | head -5
+
+VERIFY: uv run pytest tests/potts/ -v --tb=short — zero failures
+
+VERIFY: uv run ty check src/aminx/potts/poe.py — exits 0
+
+PASS if all five satisfied.
+FAIL if Python loops remain, wrong vmap function used, tests fail, or ty errors.
+'''
+return_key = "1296"
+
+# ── Track C: G1 Training Parity Gate ──────────────────────────────────────────
+[[tracks]]
+id = "c"
+is_research = true
+worktree = false
+skip_worktree = true
+
+[[tracks.items]]
+backlog_id = "1550"
+phase_name = "Track C — G1: Training parity gate (pytest + checkpoint round-trip + overfit smoke) (#1550)"
+fixer_prompt = '''
+# G1: Training parity gate (backlog #1550)
+
+## Context
+T1.4 (sprint 260612) landed: trainer.py uses xtrax ResumableState, single-PyTree checkpoint.
+tests/training/ has test_checkpoint.py and test_resumable_state.py (8+ tests total).
+G1 = formal verification that all three criteria pass.
+
+## Gate criteria (all three must pass)
+
+### G1.1 — pytest suite
+uv run pytest tests/training/ -v --tb=short 2>&1 | tee /tmp/g1_pytest.txt
+
+### G1.2 — Checkpoint round-trip smoke
+Read tests/training/test_checkpoint.py first to find the fixture shape.
+Then run:
+
+uv run python - <<'PY'
+import jax, jax.numpy as jnp, equinox as eqx, tempfile, pathlib
+from xtrax.training.types import ResumableState
+from aminx.training.checkpoint import get_checkpoint_manager, save_checkpoint, load_checkpoint
+key = jax.random.PRNGKey(0)
+model = eqx.nn.Linear(8, 8, key=key)
+opt_state = None
+state = ResumableState(step=jnp.int32(42), key=key, model=model, opt_state=opt_state, extras={})
+with tempfile.TemporaryDirectory() as d:
+    mgr = get_checkpoint_manager(pathlib.Path(d), max_to_keep=None)
+    save_checkpoint(mgr, state); mgr.close()
+    mgr2 = get_checkpoint_manager(pathlib.Path(d), max_to_keep=None)
+    restored = load_checkpoint(mgr2, state); mgr2.close()
+    assert int(restored.step) == 42, f"step mismatch: {restored.step}"
+    orig_leaves = jax.tree.leaves(eqx.filter(state, eqx.is_array))
+    rest_leaves = jax.tree.leaves(eqx.filter(restored, eqx.is_array))
+    for i, (o, r) in enumerate(zip(orig_leaves, rest_leaves)):
+        assert jnp.allclose(o, r, atol=1e-7, rtol=0), f"leaf {i} mismatch: max diff={jnp.max(jnp.abs(o-r))}"
+    print("G1.2 CHECKPOINT ROUND-TRIP: PASS")
+PY
+
+Adapt if ResumableState signature or checkpoint API differs — read the actual types first.
+
+### G1.3 — 50-step overfit smoke
+Read src/aminx/training/trainer.py to find the Trainer API.
+Construct a minimal dummy batch (4-residue protein, eqx.nn.Linear + cross_entropy_loss).
+Run 50 steps; assert loss[49] < loss[0] * 0.9 (10% decrease).
+Print step-0 and step-49 loss values.
+
+## Output
+Write .praxia/docs/research/260614_g1-training-parity-gate.md with:
+---
+gate: G1
+date: 260615
+---
+
+## G1.1 pytest results
+<paste relevant tail of uv run pytest tests/training/ -v>
+N passed, N failed
+
+## G1.2 Checkpoint round-trip
+<output of the smoke script>
+Result: PASS or FAIL
+
+## G1.3 50-step overfit smoke
+step-0 loss: X.XXX
+step-49 loss: X.XXX
+loss ratio: X.XX
+Result: PASS (ratio < 0.9) or FAIL
+
+## GATE VERDICT: PASS  ← only if all three criteria met; otherwise GATE VERDICT: FAIL
+
+## Acceptance criteria
+- All training tests pass (G1.1)
+- Checkpoint round-trip prints PASS (G1.2)
+- Loss decreases >=10% over 50 steps (G1.3)
+- .praxia/docs/research/260614_g1-training-parity-gate.md contains GATE VERDICT: PASS
+'''
+reviewer_prompt = '''
+# Track C Reviewer — G1 training gate (#1550)
+
+VERIFY: uv run pytest tests/training/ -v — 0 FAIL
+  Run it; report exact counts (N passed, N failed, N error)
+
+VERIFY: Checkpoint round-trip — re-run the smoke inline or check gate doc evidence
+  Look for "G1.2 CHECKPOINT ROUND-TRIP: PASS" in gate doc
+
+VERIFY: .praxia/docs/research/260614_g1-training-parity-gate.md exists
+
+VERIFY: grep "GATE VERDICT: PASS" .praxia/docs/research/260614_g1-training-parity-gate.md
+
+PASS if all four satisfied.
+FAIL if any training test fails, round-trip errors, gate doc absent, or verdict is FAIL.
+'''
+return_key = "1550"
+
+# ── Track D: RS-2 PlannerTopology to RunSpec ──────────────────────────────────
+[[tracks]]
+id = "d"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1621"
+phase_name = "Track D — RS-2: Add PlannerTopology sub-config to RunSpec + topology_hash golden (#1621)"
+fixer_prompt = '''
+# RS-2: PlannerTopology to RunSpec (backlog #1621)
+
+## READ FIRST
+Read src/aminx/run/spec.py in full — understand all existing sub-configs and build_run_spec.
+Key lines: 96–114 (sub-config classes + RunSpec), 218–295 (build_run_spec body).
+
+## Placement: aminx only, NOT xtrax
+
+PlannerTopology is an aminx-specific wrapper around aminx kernel dispatch topology.
+- use_unified_driver is a flag for kernel_dispatch.py (aminx-only concept)
+- aminx.tiling.BatchPlanner (multi-phase) ≠ xtrax.tiling.BatchPlanner (single-phase)
+- Once T2.5 ships (xtrax multi-phase BatchPlanner), PlannerTopology gains an
+  xtrax.ExecutionProfile field. For RS-2: one field only.
+
+## File: src/aminx/run/spec.py
+
+### Step 1 — Add PlannerTopology class (after PrecisionConfig, before RunSpec)
+
+```python
+class PlannerTopology(eqx.Module):
+    """aminx kernel dispatch topology config.
+
+    Wraps aminx.tiling.BatchPlanner config fields for RunSpec.
+    Will gain xtrax.ExecutionProfile once xtrax BatchPlanner reaches multi-phase parity (T2.5).
+    """
+    use_unified_driver: bool = eqx.field(static=True)
+```
+
+### Step 2 — Add plan field to RunSpec
+
+Add `plan: PlannerTopology` to the RunSpec class fields.
+Order: keep existing fields; append plan after precision.
+
+### Step 3 — Add topology_hash (module-level function, NOT a method)
+
+```python
+def topology_hash(plan: PlannerTopology) -> str:
+    """Deterministic 16-char hex hash of PlannerTopology for cache-key derivation."""
+    import hashlib, json
+    payload = {"use_unified_driver": plan.use_unified_driver}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:16]
+```
+
+### Step 4 — Update build_run_spec to populate plan
+
+Find the final RunSpec(...) constructor call in build_run_spec. Before it, add:
+
+```python
+plan = PlannerTopology(
+    use_unified_driver=bool(getattr(spec, "use_unified_driver", True)),
+    # Default is True — RS-5 fix in 26c9bb5 confirmed False was wrong
+)
+```
+
+Pass plan=plan to RunSpec(...).
+
+### Step 5 — Export topology_hash
+
+Check src/aminx/run/__init__.py — add topology_hash to exports if it exports other
+spec-level functions (it exports build_run_spec; add topology_hash alongside it).
+
+### Step 6 — Tests
+
+Find or create tests/run/test_run_spec.py. Add:
+
+```python
+def test_planner_topology_default():
+    from aminx.run.spec import PlannerTopology, topology_hash
+    pt = PlannerTopology(use_unified_driver=True)
+    assert pt.use_unified_driver is True
+    h = topology_hash(pt)
+    assert len(h) == 16
+    assert h == topology_hash(pt)  # determinism
+
+def test_planner_topology_false():
+    from aminx.run.spec import PlannerTopology, topology_hash
+    pt_t = PlannerTopology(use_unified_driver=True)
+    pt_f = PlannerTopology(use_unified_driver=False)
+    assert topology_hash(pt_t) != topology_hash(pt_f)  # different inputs → different hash
+
+def test_build_run_spec_plan_field(minimal_spec):
+    from aminx.run.spec import build_run_spec
+    rs = build_run_spec(minimal_spec)
+    assert hasattr(rs, "plan")
+    assert isinstance(rs.plan.use_unified_driver, bool)
+```
+
+Use existing fixtures from the file if present; create minimal_spec fixture if needed
+(a simple object with no attributes — build_run_spec uses getattr with defaults).
+
+## Edit only — no Write on existing files.
+
+## Verify
+uv run ty check src/aminx/run/spec.py 2>&1
+uv run pytest tests/run/ -v --tb=short 2>&1 | tail -20
+
+## Acceptance criteria
+- PlannerTopology(eqx.Module) added with use_unified_driver: bool = eqx.field(static=True)
+- RunSpec has plan: PlannerTopology field
+- build_run_spec populates plan with correct default (True)
+- topology_hash is a module-level function returning 16-char hex string
+- topology_hash is deterministic (same input → same output)
+- topology_hash(True) != topology_hash(False)
+- All tests/run/ pass
+- uv run ty check clean
+'''
+reviewer_prompt = '''
+# Track D Reviewer — RS-2 PlannerTopology (#1621)
+
+VERIFY: PlannerTopology class added to spec.py
+  grep -n "class PlannerTopology" src/aminx/run/spec.py
+
+VERIFY: use_unified_driver uses eqx.field(static=True)
+  grep -n "use_unified_driver\|eqx.field(static" src/aminx/run/spec.py | head -5
+
+VERIFY: RunSpec has plan field
+  grep -n "plan:" src/aminx/run/spec.py | head -3
+
+VERIFY: build_run_spec populates plan with default True
+  grep -n "use_unified_driver.*True\|getattr.*use_unified" src/aminx/run/spec.py
+
+VERIFY: topology_hash function exists at module level
+  grep -n "def topology_hash" src/aminx/run/spec.py
+
+VERIFY: uv run pytest tests/run/ -v — zero failures
+
+VERIFY: uv run ty check src/aminx/run/spec.py — exits 0
+
+PASS if all seven satisfied.
+FAIL if class missing, wrong default, no test, ty errors, or tests fail.
+'''
+return_key = "1621"
+
+# ── Track E: T2.2-2.3 CarrySpec + DedupSpec port to xtrax ────────────────────
+[[tracks]]
+id = "e"
+is_research = false
+worktree = false
+skip_worktree = true
+
+[[tracks.items]]
+backlog_id = "1552"
+phase_name = "Track E — T2.2-2.3: Port CarrySpec, CarryShape, DedupSpec from aminx.tiling → xtrax.tiling; enrich BatchPlanner with Phase 0/0b (#1552)"
+fixer_prompt = '''
+# T2.2-2.3: Port CarrySpec + DedupSpec to xtrax (backlog #1552)
+
+## IMPORTANT: Work in /home/marielle/projects/xtrax (NOT aminx)
+xtrax is an editable dep: pyproject.toml:274 — changes immediately visible to aminx.
+Commit in the xtrax repo.
+
+## This is a PORT task — not a new design
+aminx.tiling is the reference. Copy-adapt these files, replacing aminx.* imports
+with xtrax.* equivalents. Do NOT re-invent the API.
+
+## READ FIRST (reference implementations in aminx)
+- /home/marielle/projects/aminx/src/aminx/tiling/carry.py      → CarrySpec
+- /home/marielle/projects/aminx/src/aminx/tiling/carry_shape.py → CarryShape
+- /home/marielle/projects/aminx/src/aminx/tiling/dedup.py       → DedupSpec + get_k_bucket
+- /home/marielle/projects/aminx/src/aminx/tiling/planner.py:104-165 → Phase 0/0b logic
+Read each in full before writing anything.
+
+Also read:
+- /home/marielle/projects/xtrax/src/xtrax/tiling/strategy.py — ScanTransition already exists
+- /home/marielle/projects/xtrax/src/xtrax/tiling/plan.py — current BatchPlanner (single-phase)
+- /home/marielle/projects/xtrax/src/xtrax/tiling/__init__.py — current exports
+
+## Files to create in /home/marielle/projects/xtrax/src/xtrax/tiling/
+
+### carry.py (new)
+Port from aminx/tiling/carry.py.
+Replace: `from aminx.tiling.strategy import ScanTransition`
+With:    `from xtrax.tiling.strategy import ScanTransition`
+Keep the _HETEROGENEOUS_AXIS_NAMES guard and __post_init__ validation exactly.
+No other aminx imports needed.
+
+### carry_shape.py (new)
+Port from aminx/tiling/carry_shape.py.
+No aminx imports — only jax and jax.numpy. Exact copy-adapt.
+
+### dedup.py (new)
+Port from aminx/tiling/dedup.py.
+Replace: `from aminx.tiling.strategy import DedupFn, DedupGather, GatherFn`
+With:    `from xtrax.tiling.strategy import DedupFn, DedupGather, GatherFn`
+Keep get_k_bucket, DedupSpec exactly. Note: the high-k TODO comment is valuable — keep it.
+
+## File to modify: /home/marielle/projects/xtrax/src/xtrax/tiling/plan.py
+
+### Enrich BatchPlanner with Phase 0 (CarrySpec) and Phase 0b (DedupSpec)
+
+Add imports at top:
+  from xtrax.tiling.carry import CarrySpec
+  from xtrax.tiling.dedup import DedupSpec, get_k_bucket
+
+Modify BatchPlanner.__init__ to accept:
+  carry_specs: list[CarrySpec] | None = None
+  dedup_specs: list[DedupSpec] | None = None
+
+Modify BatchPlanner.plan() to add Phase 0 and 0b BEFORE the existing budget loop.
+Reference: aminx/tiling/planner.py lines 104–165.
+
+Phase 0 — pre-demote axes with declared CarrySpec to Scan:
+  For each CarrySpec cs in self.carry_specs:
+    Find the AxisSpec with ax.name == cs.axis_name
+    Force its decision: strategy = Scan(transition=cs.transition, init=cs.init)
+    Remove it from the pending list (skip the budget loop for it)
+
+Phase 0b — pre-demote dedup_eligible axes with declared DedupSpec to DedupGather:
+  For each DedupSpec ds in self.dedup_specs:
+    Find the AxisSpec with ax.name == ds.axis_name
+    Force its decision: strategy = DedupGather(dedup_fn=ds.dedup_fn, gather_fn=ds.gather_fn, k_bucket=ds.k)
+    Remove it from the pending list
+
+Remaining axes go through the existing cardinality/budget rules unchanged.
+
+## File to modify: /home/marielle/projects/xtrax/src/xtrax/tiling/__init__.py
+
+Add exports:
+  from xtrax.tiling.carry import CarrySpec
+  from xtrax.tiling.carry_shape import CarryShape
+  from xtrax.tiling.dedup import DedupSpec, get_k_bucket
+
+Add to __all__: "CarrySpec", "CarryShape", "DedupSpec", "get_k_bucket"
+
+## Commit in xtrax repo
+cd /home/marielle/projects/xtrax
+git add src/xtrax/tiling/carry.py src/xtrax/tiling/carry_shape.py src/xtrax/tiling/dedup.py
+git add src/xtrax/tiling/plan.py src/xtrax/tiling/__init__.py
+git commit -m "feat(tiling): port CarrySpec, CarryShape, DedupSpec from aminx; Phase 0/0b BatchPlanner (aminx T2.2-2.3)"
+
+## Verify
+From /home/marielle/projects/xtrax:
+  uv run pytest tests/ -v --tb=short 2>&1 | tail -20
+
+From /home/marielle/projects/aminx (regression check):
+  uv run pytest -x -q -m "not slow" 2>&1 | tail -10
+
+## Acceptance criteria
+- xtrax/tiling/carry.py, carry_shape.py, dedup.py created — API matches aminx originals
+- BatchPlanner.plan() accepts carry_specs and dedup_specs; Phase 0/0b runs before budget loop
+- CarrySpec, CarryShape, DedupSpec, get_k_bucket exported from xtrax.tiling
+- xtrax tests pass; aminx regression clean
+- T2.2-2.3 commit in xtrax repo
+'''
+reviewer_prompt = '''
+# Track E Reviewer — T2.2-2.3 xtrax CarrySpec + DedupSpec (#1552)
+
+VERIFY: New files exist in xtrax
+  ls /home/marielle/projects/xtrax/src/xtrax/tiling/carry.py
+  ls /home/marielle/projects/xtrax/src/xtrax/tiling/carry_shape.py
+  ls /home/marielle/projects/xtrax/src/xtrax/tiling/dedup.py
+
+VERIFY: CarrySpec API matches aminx (axis_name, init, transition, ordered_sinks fields)
+  grep -n "axis_name\|init\|transition\|ordered_sinks" /home/marielle/projects/xtrax/src/xtrax/tiling/carry.py
+
+VERIFY: DedupSpec API matches aminx (unique_indices, index_map, k, dedup_fn, gather_fn)
+  grep -n "unique_indices\|index_map\|dedup_fn\|gather_fn" /home/marielle/projects/xtrax/src/xtrax/tiling/dedup.py
+
+VERIFY: BatchPlanner accepts carry_specs and dedup_specs
+  grep -n "carry_specs\|dedup_specs" /home/marielle/projects/xtrax/src/xtrax/tiling/plan.py
+
+VERIFY: CarrySpec, CarryShape, DedupSpec exported from xtrax.tiling.__init__
+  grep -n "CarrySpec\|CarryShape\|DedupSpec" /home/marielle/projects/xtrax/src/xtrax/tiling/__init__.py
+
+VERIFY: xtrax tests pass
+  cd /home/marielle/projects/xtrax && uv run pytest tests/ -v --tb=short | tail -10
+
+VERIFY: aminx regression clean
+  uv run pytest -x -q -m "not slow" 2>&1 | tail -5
+
+VERIFY: T2.2-2.3 commit in xtrax
+  git -C /home/marielle/projects/xtrax log --oneline -3
+
+PASS if all eight satisfied.
+FAIL if files missing, API mismatch, tests fail, aminx regresses, or commit absent.
+'''
+return_key = "1552"
+
+# ── Track F: T2.4 make_axis_dispatch factory refactor in xtrax ────────────────
+[[tracks]]
+id = "f"
+is_research = false
+worktree = false
+skip_worktree = true
+
+[[tracks.items]]
+backlog_id = "1553"
+phase_name = "Track F — T2.4: Refactor xtrax make_axis_dispatch to factory-style; port iterator types from aminx (#1553)"
+fixer_prompt = '''
+# T2.4: xtrax make_axis_dispatch factory refactor (backlog #1553)
+
+## IMPORTANT: Work in /home/marielle/projects/xtrax (NOT aminx)
+Commit in the xtrax repo after Track E is committed (both touch __init__.py —
+this track runs after E to avoid conflicts).
+
+## This is a PORT task — not a new design
+aminx.tiling.dispatch and aminx.tiling.iterator are the references.
+Copy-adapt to xtrax; replace aminx.* imports with xtrax.* equivalents.
+
+## READ FIRST (reference implementations in aminx)
+- /home/marielle/projects/aminx/src/aminx/tiling/iterator.py   → VmapIterator, SafeMapIterator, JaxScanIterator, MapIterator
+- /home/marielle/projects/aminx/src/aminx/tiling/dispatch.py   → factory make_axis_dispatch
+Read both in full before writing anything.
+
+Also read:
+- /home/marielle/projects/xtrax/src/xtrax/tiling/dispatch.py       — current eager dispatch
+- /home/marielle/projects/xtrax/src/xtrax/tiling/__init__.py        — current exports
+- /home/marielle/projects/xtrax/tests/                              — existing tests for make_axis_dispatch
+
+## Files to create/modify in /home/marielle/projects/xtrax/
+
+### src/xtrax/tiling/iterator.py (new)
+Port from aminx/tiling/iterator.py.
+- Replace aminx.* imports with xtrax.* equivalents
+- xtrax.transforms.map.safe_map already exists (used in dispatch.py)
+- xtrax.transforms.scan.safe_scan already exists (used in dispatch.py)
+- Keep VmapIterator, SafeMapIterator, JaxScanIterator, MapIterator API identical
+
+### src/xtrax/tiling/dispatch.py (modify)
+Current signature: make_axis_dispatch(strategy, fn, xs, init=None) → Any  [EAGER]
+New signature:     make_axis_dispatch(strategy, *, axis="") → iterator     [FACTORY]
+
+Key changes:
+1. make_axis_dispatch(strategy, *, axis="") returns an iterator object, not a result
+   - Vmap      → VmapIterator()
+   - SafeMap   → SafeMapIterator(tile=strategy.batch_size)
+   - Scan      → JaxScanIterator()
+   - DedupGather → raise DispatchRejected (handled by BatchPlanner + _dispatch_axis)
+   - Bucket    → raise DispatchRejected or TypeError (host-side only)
+
+2. Create DispatchRejected exception class (port from aminx.tiling.dispatch):
+   class DispatchRejected(Exception): ...
+
+3. Add backward-compat shim (prevents breaking existing callers):
+   def axis_dispatch(strategy, fn, xs, init=None):
+       """Eager shim: make_axis_dispatch(strategy)(fn, xs, init)."""
+       it = make_axis_dispatch(strategy)
+       return it(fn, xs, init)
+   This preserves the old 4-arg eager API under a new name.
+
+4. If existing xtrax tests use make_axis_dispatch(strategy, fn, xs) — check tests/ first.
+   If they do: rename the old eager function to axis_dispatch in tests too (or add both).
+   Do NOT silently break tests.
+
+## Update __init__.py
+Add: from xtrax.tiling.dispatch import DispatchRejected, axis_dispatch
+Add to __all__: "DispatchRejected", "axis_dispatch"
+Also add: from xtrax.tiling.iterator import VmapIterator, SafeMapIterator, JaxScanIterator, MapIterator
+Add to __all__: "VmapIterator", "SafeMapIterator", "JaxScanIterator", "MapIterator"
+
+## 4 invariants to preserve
+1. VmapIterator(fn, xs) produces same result shape as jax.vmap(fn)(xs)
+2. SafeMapIterator is chunk-order-stable (same as safe_map)
+3. JaxScanIterator returns (final_carry, stacked_outputs) matching safe_scan convention
+4. DedupGather → DispatchRejected (not handled here; handled by BatchPlanner + _dispatch_axis)
+
+## Commit in xtrax repo
+cd /home/marielle/projects/xtrax
+git add src/xtrax/tiling/iterator.py src/xtrax/tiling/dispatch.py src/xtrax/tiling/__init__.py
+git commit -m "feat(tiling): factory-style make_axis_dispatch + iterator types; axis_dispatch compat shim (aminx T2.4)"
+
+## Verify
+From /home/marielle/projects/xtrax:
+  uv run pytest tests/ -v --tb=short 2>&1 | tail -20
+
+From /home/marielle/projects/aminx:
+  uv run pytest -x -q -m "not slow" 2>&1 | tail -10
+
+## Acceptance criteria
+- xtrax/tiling/iterator.py created with VmapIterator, SafeMapIterator, JaxScanIterator, MapIterator
+- make_axis_dispatch(strategy) returns iterator (factory pattern)
+- axis_dispatch(strategy, fn, xs, init) provides backward-compat eager call
+- DispatchRejected raised for DedupGather (not TypeError)
+- All 4 invariants hold
+- xtrax tests pass; aminx regression clean
+- T2.4 commit in xtrax repo
+'''
+reviewer_prompt = '''
+# Track F Reviewer — T2.4 xtrax factory dispatch (#1553)
+
+VERIFY: iterator.py created
+  ls /home/marielle/projects/xtrax/src/xtrax/tiling/iterator.py
+
+VERIFY: VmapIterator, SafeMapIterator, JaxScanIterator present
+  grep -n "class VmapIterator\|class SafeMapIterator\|class JaxScanIterator" \
+    /home/marielle/projects/xtrax/src/xtrax/tiling/iterator.py
+
+VERIFY: make_axis_dispatch is factory (returns iterator, not result)
+  grep -n "def make_axis_dispatch" /home/marielle/projects/xtrax/src/xtrax/tiling/dispatch.py
+  Confirm signature does NOT include fn/xs params (factory = strategy only)
+
+VERIFY: axis_dispatch backward-compat shim exists
+  grep -n "def axis_dispatch" /home/marielle/projects/xtrax/src/xtrax/tiling/dispatch.py
+
+VERIFY: DispatchRejected raised for DedupGather
+  grep -n "DispatchRejected\|DedupGather" /home/marielle/projects/xtrax/src/xtrax/tiling/dispatch.py
+
+VERIFY: xtrax tests pass
+  cd /home/marielle/projects/xtrax && uv run pytest tests/ -v --tb=short | tail -10
+
+VERIFY: aminx regression clean
+  uv run pytest -x -q -m "not slow" 2>&1 | tail -5
+
+VERIFY: T2.4 commit in xtrax repo
+  git -C /home/marielle/projects/xtrax log --oneline -3
+
+PASS if all eight satisfied.
+FAIL if iterator.py missing, dispatch still eager, tests fail, aminx regresses, or commit absent.
+'''
+return_key = "1553"
+
+# ── Orchestration ──────────────────────────────────────────────────────────────
+[orchestration]
+sequential = ["e", "f"]
+concurrent = ["a", "b", "c", "d"]

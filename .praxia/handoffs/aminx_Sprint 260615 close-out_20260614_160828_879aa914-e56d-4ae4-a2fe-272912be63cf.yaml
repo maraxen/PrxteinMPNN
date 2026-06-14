@@ -1,0 +1,61 @@
+---
+workspace: aminx
+session_id: 0b675682-a081-4b24-ad5b-ecc1dc5a0b33
+status: complete
+immediately_relevant:
+- file: src/aminx/host/kernel_dispatch.py
+  lines:
+  - 191
+  - 215
+  reason: '#1856 target: only Y/Y_t/Y_m forwarded to build_inference_bundle; atom_37/atom_37_mask/chain_mask missing'
+- file: src/aminx/host/_sampling_helper.py
+  lines:
+  - 1
+  - 50
+  reason: _prepare_ligand_context materialises atom_37 when sidechain_conditioning=True but kernel_dispatch never picks it up
+- file: src/aminx/host/averaging.py
+  lines:
+  - 1
+  - 60
+  reason: '#1858 target: explicitly deletes iterations/learning_rate/sampling_strategy; STE never runs'
+- file: src/aminx/run/spec.py
+  lines:
+  - 104
+  - 240
+  reason: 'RS-2 landed here: PlannerTopology (104-112), topology_hash (231-235), build_run_spec integration (318-320)'
+- file: /home/marielle/projects/xtrax/src/xtrax/tiling/dispatch.py
+  lines:
+  - 31
+  - 100
+  reason: 'T2.4: factory make_axis_dispatch + axis_dispatch compat shim; BRITTLE: heterogeneous guard at line 77 uses ''state'' not _HETEROGENEOUS_AXIS_NAMES'
+active_dispatches: []
+task_id: 260615_potts-gates-runspec
+phase: Sprint 260615 close-out
+goal_statement: Vectorise remaining Python loops in Potts stack, close G1 training gate, add PlannerTopology to RunSpec, port CarrySpec/DedupSpec/factory dispatch from aminx.tiling to xtrax.tiling. Release aminx 0.1.0a6 and xtrax 0.2.1.
+context_refs:
+- phase: Sprint 260614 close-out
+  task_id: 260614_potts-runspec-xtrax-gates
+  summary: Completed P-07/P-09/T0.3/RS-1/T2.1; confirmed T2.1 landed in xtrax (3 commits) despite prior belief it had failed
+failed_attempts:
+- attempt_id: workflow-isolation-worktree
+  description: 'Sprint workflow ran Tracks A, B, D with isolation: ''worktree''; fixers committed to isolated worktree branches not to main'
+  outcome: Reviewers found loops still present on main; 3 tracks returned FAIL in first sprint pass
+  reason_failed: Isolated worktrees resolve ../xtrax as .claude/worktrees/xtrax which doesn't exist — fixers couldn't verify via uv run pytest and bailed without writing code
+  do_not_retry: true
+  evidence_ref: 'Sprint workflow result: research_1295/1296/1621 verdict=FAIL in first pass'
+open_questions: []
+deferred:
+- description: Worktree branch worktree-glowing-snuggling-lovelace merge to main (contains sprint plan TOML, JS, G1 gate doc)
+  rationale: Sprint artifacts only; no code; can be squash-merged or left as-is — no urgency
+  recommended_phase: Sprint 260616 compose
+- description: 'Staging items #100-105: xtrax tiling docs, PlannerTopology docs, sampling k_rep edge tests, dispatch guard unification, reflective topology_hash, dedup index_map validation'
+  rationale: Post-release hardening; none block next sprint
+  recommended_phase: Sprint 260616
+lessons_refs: []
+next_steps:
+- 'Push aminx v0.1.0a6 tag to remote when ready: git -C /home/marielle/projects/aminx push origin main v0.1.0a6'
+- 'Push xtrax v0.2.1 tag to remote: git -C /home/marielle/projects/xtrax push origin main v0.2.1'
+- 'Compose next sprint — highest-priority executable items: #1299 (P-08 end-to-end Potts run loop), #1554 (T2.5 xtrax multi-phase BatchPlanner, now unblocked), #1856 (atom_37 forward in kernel_dispatch), #1857 (fixed_mask wiring), #1858 (STE execution)'
+- 'Promote staging debt items #100-105 to backlog (xtrax tiling docs, PlannerTopology docs, edge-case tests, guard unification, reflective hash, dedup validation)'
+- Stage 3 bathos cells still require Python API (build_inference_bundle directly) for atom_37/fixed_mask/STE — host dispatch wiring incomplete
+---

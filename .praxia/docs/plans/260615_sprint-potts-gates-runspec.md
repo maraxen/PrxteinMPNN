@@ -158,8 +158,16 @@ with sections: test run output, checkpoint round-trip result, overfit smoke resu
 
 ## Track D — RS-2: PlannerTopology to RunSpec (#1621)
 
-**Goal:** Add `PlannerTopology` (ExecutionProfile) sub-config to `RunSpec` and `build_run_spec`,
-with a deterministic `topology_hash` golden.
+**Goal:** Add `PlannerTopology` sub-config to `RunSpec` and `build_run_spec` as an aminx-specific
+wrapper over the aminx planner. Scoped to `use_unified_driver` only for RS-2.
+
+**Placement rationale:** `PlannerTopology` lives in aminx, not xtrax.
+- `use_unified_driver` is an aminx kernel flag (kernel_dispatch.py) with no xtrax equivalent
+- aminx's `BatchPlanner` (multi-phase, `aminx.tiling.planner`) is more mature than xtrax's
+  (single-phase, `xtrax.tiling.plan`) — they are not yet interchangeable
+- Once T2.5 ships (xtrax multi-phase BatchPlanner reaching aminx parity), `PlannerTopology` will
+  gain an `execution_profile: xtrax.ExecutionProfile` field to wrap the xtrax planner config
+- For RS-2: thin wrapper only — do not try to incorporate xtrax types yet
 
 **File:** `src/aminx/run/spec.py`
 
@@ -169,29 +177,33 @@ with a deterministic `topology_hash` golden.
 **Step 1 — Add `PlannerTopology` class** (after `PrecisionConfig` at line 96):
 ```python
 class PlannerTopology(eqx.Module):
-    """Execution topology for the kernel dispatch planner."""
+    """aminx kernel dispatch topology. Wraps aminx.tiling.planner config for RunSpec.
+
+    Note: will gain an xtrax.ExecutionProfile field in RS-2+T2.5 once xtrax
+    BatchPlanner reaches multi-phase parity with aminx.tiling.BatchPlanner.
+    """
     use_unified_driver: bool = eqx.field(static=True)
 ```
 
 **Step 2 — Add `plan: PlannerTopology` field to `RunSpec`.**
 
-**Step 3 — Add `topology_hash` function** (pure, deterministic):
+**Step 3 — Add `topology_hash` function** (module-level, not a method):
 ```python
 def topology_hash(plan: PlannerTopology) -> str:
-    """Stable hash for topology cache-key derivation."""
     import hashlib, json
     payload = {"use_unified_driver": plan.use_unified_driver}
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:16]
 ```
+Keep as a module-level function — no methods on eqx.Module needed.
 
 **Step 4 — Update `build_run_spec` (line 218+)** to populate `plan`:
 ```python
 plan = PlannerTopology(
     use_unified_driver=bool(getattr(spec, "use_unified_driver", True)),
-    # Note: correct default is True (per RS-5 fix in 26c9bb5; False was wrong)
+    # Correct default is True — RS-5 fix in 26c9bb5; False was wrong
 )
 ```
-And pass `plan=plan` to the `RunSpec(...)` constructor.
+Pass `plan=plan` to the `RunSpec(...)` constructor.
 
 **Step 5 — Add topology_hash golden test.** Find or create `tests/run/test_run_spec.py`:
 - Assert `topology_hash(PlannerTopology(use_unified_driver=True)) == "<expected_hex>"`
@@ -203,58 +215,76 @@ And pass `plan=plan` to the `RunSpec(...)` constructor.
 
 ## Track E — T2.2-2.3: CarrySpec + DedupSpec enrichment in xtrax (#1552)
 
-**Goal:** Add `CarrySpec`/`CarryShape` types to xtrax tiling and enrich `DedupGather` to match
-aminx parity needs.
+**Goal:** Port `CarrySpec`, `CarryShape`, and `DedupSpec` FROM aminx.tiling INTO xtrax.tiling,
+and enrich xtrax's `BatchPlanner.plan()` with Phase 0 (CarrySpec pre-demote) and Phase 0b
+(DedupSpec pre-demote) to match aminx's multi-phase planner.
+
+**This is a port task, not a new design.** The source of truth is aminx; do not invent new APIs.
 
 **Repo:** `/home/marielle/projects/xtrax`
-**File:** `src/xtrax/tiling/strategy.py`
 
-**Step 0 (fixer recon — read before implementing):**
-- Read `strategy.py` current `DedupGather` definition (line ~52-58)
-- Grep aminx for `DedupGather|CarrySpec|CarryShape` usage to understand what "parity" means:
-  `grep -rn "DedupGather\|CarrySpec\|CarryShape" /home/marielle/projects/aminx/src/`
-- Read xtrax `dispatch.py` DedupGather dispatch path (lines ~70-80)
+**Source files to read first (aminx reference implementations):**
+- `aminx/src/aminx/tiling/carry.py` — `CarrySpec` (axis_name, init, transition, ordered_sinks)
+- `aminx/src/aminx/tiling/carry_shape.py` — `CarryShape` (name, shape, dtype, materialize())
+- `aminx/src/aminx/tiling/dedup.py` — `DedupSpec` (unique_indices, index_map, k, dedup_fn, gather_fn, get_k_bucket)
+- `aminx/src/aminx/tiling/planner.py:104–165` — Phase 0 and Phase 0b pre-demote logic in BatchPlanner
 
-**Expected additions:**
-- `CarrySpec(frozen=True)`: metadata dataclass describing expected carry shape/dtype, e.g.
-  `fields: dict[str, tuple[int, ...]]` and `dtypes: dict[str, str]`
-- `CarryShape`: type alias or companion for `CarrySpec`
-- Enrich `DedupGather` if aminx grep reveals additional fields needed (e.g., `pad_value`, `max_unique`)
+**Files to create/modify in xtrax:**
+- `src/xtrax/tiling/carry.py` — NEW: port `CarrySpec` from aminx (adapt imports: ScanTransition is already in xtrax.tiling.strategy)
+- `src/xtrax/tiling/carry_shape.py` — NEW: port `CarryShape` from aminx (no aminx deps; pure dataclass + jax.numpy)
+- `src/xtrax/tiling/dedup.py` — NEW: port `DedupSpec` and `get_k_bucket` from aminx (adapt DedupGather import to xtrax.tiling.strategy)
+- `src/xtrax/tiling/plan.py` — MODIFY: add Phase 0 (CarrySpec list param) and Phase 0b (DedupSpec list param) to `BatchPlanner.__init__` and `BatchPlanner.plan()`, following aminx planner lines 104–165
 
-**Verify:** `uv run pytest /home/marielle/projects/xtrax/tests/ -v` passes.
+**`BatchPlanner.plan()` enrichment (key diff from current xtrax):**
+Current xtrax planner has a single-pass loop. aminx adds two pre-demote phases BEFORE the
+budget loop:
+- Phase 0: for each `CarrySpec`, find matching `AxisSpec` by name and force strategy to `Scan(transition=cs.transition, init=cs.init)`
+- Phase 0b: for each `DedupSpec`, find matching `AxisSpec` by name and force strategy to `DedupGather(...)`
+- Then the existing cardinality/budget loop runs over remaining axes
+
+**Export:** Update `src/xtrax/tiling/__init__.py` to export `CarrySpec`, `CarryShape`, `DedupSpec`, `get_k_bucket`.
+
+**Verify:** `uv run pytest /home/marielle/projects/xtrax/tests/ -v` passes. Add a test for Phase 0 pre-demote if none exists.
 
 ---
 
-## Track F — T2.4: make_axis_dispatch factory refactor (#1553)
+## Track F — T2.4: make_axis_dispatch factory refactor in xtrax (#1553)
 
-**Goal:** Refactor `make_axis_dispatch` from eager-dispatch to factory-over-eager, add aminx
-wrapper preserving 4 invariants.
+**Goal:** Refactor xtrax's eager `make_axis_dispatch` to match aminx's factory-style dispatch
+pattern (returns iterator object, not immediate result).
+
+**This is a port task, not a new design.** aminx's dispatch is already factory-style and is
+the reference.
 
 **Repo:** `/home/marielle/projects/xtrax`
 **File:** `src/xtrax/tiling/dispatch.py`
 
-**Step 0 (fixer recon — read before implementing):**
-- Read `dispatch.py` current `make_axis_dispatch` signature + full implementation
-- Grep aminx for `make_axis_dispatch` call sites to understand the 4 invariants:
-  `grep -rn "make_axis_dispatch" /home/marielle/projects/aminx/src/`
-- Check xtrax tests for `make_axis_dispatch` to understand expected interface
+**Source to read first (aminx reference):**
+- `aminx/src/aminx/tiling/dispatch.py` — aminx's `make_axis_dispatch(strategy, *, axis) -> iterator`
+- `aminx/src/aminx/tiling/iterator.py` — `VmapIterator`, `SafeMapIterator`, `JaxScanIterator`, `MapIterator`
 
-**Factory-over-eager pattern (expected):**
-Current signature: `make_axis_dispatch(strategy, fn, xs, init=None) -> Any`
-Factory signature: `make_axis_dispatch(strategy) -> Callable[[Callable, Any, Any], Any]`
+**Key difference:**
+- aminx: `make_axis_dispatch(strategy, *, axis="state") -> VmapIterator | SafeMapIterator | JaxScanIterator`
+  — returns a typed iterator; execution happens when the iterator is called with `(fn, xs)`
+- xtrax current: `make_axis_dispatch(strategy, fn, xs, init=None) -> Any`
+  — immediately executes `jax.vmap(fn)(xs)` etc.
 
-This lets callers compose: `dispatch = make_axis_dispatch(Scan(transition=f, init=c))` then
-`result = dispatch(fn, xs)` — the strategy is bound once, the compute is called later.
+**Approach (keep xtrax independent of aminx.tiling.iterator — don't import aminx types):**
+1. Create `src/xtrax/tiling/iterator.py`: port `VmapIterator`, `SafeMapIterator`,
+   `JaxScanIterator` from aminx (pure xtrax deps — `safe_map`, `safe_scan` already in xtrax.transforms)
+2. Refactor `make_axis_dispatch(strategy, *, axis="")` → returns iterator; reject `DedupGather`
+   (it's handled by `BatchPlanner + _dispatch_axis`, same as aminx convention)
+3. Keep the old eager call pattern available as a compatibility shim:
+   `axis_dispatch(strategy, fn, xs, init=None)` that wraps `make_axis_dispatch(strategy)(fn, xs, init)`
 
-**Aminx wrapper:** If aminx has call sites that use the current eager API, add a thin wrapper
-`axis_dispatch(strategy, fn, xs, init=None)` in aminx that adapts the factory to the old
-eager-call pattern. This preserves backward compat.
+**Do not break existing xtrax tests.** Audit `tests/` for `make_axis_dispatch` call sites before
+changing the signature; add the shim first if needed.
 
-**4 invariants** (to be confirmed from aminx grep, but expected):
-1. Vmap result shape matches eager `jax.vmap(fn)(xs)` output shape
-2. SafeMap result is chunk-order-stable
-3. Scan final carry is accessible from the return value
-4. DedupGather result matches sequential map on the same inputs (up to gather reordering)
+**4 invariants to preserve (from aminx):**
+1. Vmap iterator: result shape matches `jax.vmap(fn)(xs)` output
+2. SafeMap iterator: result is chunk-order-stable (same as `safe_map`)
+3. Scan iterator: returns `(final_carry, stacked_outputs)` matching `safe_scan` convention
+4. DedupGather: NOT handled here — raise `DispatchRejected` (same as aminx)
 
 **Verify:** `uv run pytest /home/marielle/projects/xtrax/tests/ -v` passes.
 
@@ -290,6 +320,28 @@ Next sprint (260616) expected items:
 
 ---
 
+## Recon summary (260614 pre-sprint)
+
+**aminx.tiling is the mature library; xtrax.tiling is being uplifted.**
+
+| Concept | aminx | xtrax | Status |
+|---------|-------|-------|--------|
+| `BatchPlanner` | `aminx.tiling.planner` (multi-phase: Phase 0 CarrySpec, Phase 0b DedupSpec, then budget loop) | `xtrax.tiling.plan` (single-phase, budget loop only) | xtrax needs Phase 0/0b (T2.2-2.3) |
+| `AxisSpec` | `aminx.tiling.planner.AxisSpec` | `xtrax.tiling.plan.AxisSpec` | both exist; compatible |
+| `Vmap/SafeMap/Scan/DedupGather/Bucket` | `aminx.tiling.strategy` (typed generics) | `xtrax.tiling.strategy` (simpler) | both exist; need to verify compat |
+| `CarrySpec` | `aminx.tiling.carry` ✓ | NOT IN XTRAX | T2.2-2.3 ports to xtrax |
+| `CarryShape` | `aminx.tiling.carry_shape` ✓ | NOT IN XTRAX | T2.2-2.3 ports to xtrax |
+| `DedupSpec` | `aminx.tiling.dedup` ✓ | NOT IN XTRAX | T2.2-2.3 ports to xtrax |
+| `make_axis_dispatch` | `aminx.tiling.dispatch` (factory → iterator) | `xtrax.tiling.dispatch` (eager → result) | T2.4 ports factory pattern to xtrax |
+| `BatchPlan` | both | both | compatible |
+| `PlannerTopology` | `aminx.run.spec` (to be added RS-2) | N/A — not an xtrax concept | stays in aminx; wraps aminx BatchPlanner |
+
+**T2.2-2.3 and T2.4 are port tasks:** Copy-adapt from `aminx.tiling/` into `xtrax/tiling/` with
+no aminx imports. Do not re-invent the API — aminx is the reference implementation.
+
+**PlannerTopology stays in aminx** for RS-2. It will gain an `xtrax.ExecutionProfile` field in
+T2.5+ once xtrax's BatchPlanner reaches aminx multi-phase parity.
+
 ## Open questions to resolve at dispatch time
 
 1. **P-06 exchange vmap:** Does `_attempt_adjacent_swap` accept a scalar edge index `i` or
@@ -301,9 +353,10 @@ Next sprint (260616) expected items:
    `eqx.filter_vmap(lambda b, knn, nei: b(edge_knn=knn, nei=nei, mask=mask, key=key))` with
    an explicit pytree stack.
 
-3. **RS-2 `topology_hash` location:** Could live in `spec.py` as a module-level function or as
-   a method on `PlannerTopology`. Prefer module-level to keep `PlannerTopology` a pure data
-   class (no methods on eqx.Module needed for this).
+3. **T2.2-2.3 ScanTransition import:** aminx's `CarrySpec` imports `ScanTransition` from
+   `aminx.tiling.strategy`. When porting to xtrax, use `xtrax.tiling.strategy.ScanTransition`
+   (already exists). Verify the xtrax `ScanTransition` protocol signature matches before porting.
 
-4. **T2.2-2.3 DedupSpec "aminx parity":** The exact fields needed are unknown until recon.
-   Fixer agent should grep aminx for `DedupGather` usage as step 0.
+4. **T2.4 iterator shim:** Check xtrax test suite for `make_axis_dispatch(strategy, fn, xs)`
+   eager call sites before changing signature — add backward-compat shim first if tests use
+   the old 3-arg form.

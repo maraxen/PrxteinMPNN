@@ -1,0 +1,329 @@
+[sprint]
+sprint_id = "260617_poe-rs3-pt-stagebundle-tiling-val"
+sprint_num = 1
+name = "260617_poe-rs3-pt-stagebundle-tiling-val"
+description = "PoE sanity baseline, RS-3 CarrySpec wiring, PT edge-case tests, StageBundle adapter, xtrax-prolix tiling validation"
+context = "Recon completed 2026-06-14. #1300 done (alphabet_map implemented). #1305 has ready script never run. #1622 is 2-file wiring. #1861 zero boundary tests. #1555 needs StageSet->StageBundle adapter. #1599 needs falsifiable prolix compat test. All 5 independent."
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[[tracks]]
+id = "a"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1305"
+phase_name = "Track A -- P-00d: PoE energy sanity check -- run BATHOS validation script (#1305)"
+fixer_prompt = """
+task_id: 260617_poe-rs3-pt-stagebundle-tiling-val
+workspace: /home/marielle/projects/aminx
+
+## Context
+The PoE sanity script exists and is fully implemented but has never been executed.
+Run it. If it fails, fix the implementation. If it passes, the deliverable is the run output.
+
+## Key files
+- scripts/validate/poe_energy_sanity.py (282 lines) -- BATHOS validation script
+- scripts/validate/poe_energy_sanity.bth.toml -- sidecar with 2 pre-registered hypotheses
+- src/aminx/potts/poe.py:208 -- joint_energy; :186 -- eqx.filter_vmap over backbones
+- tests/potts/test_poe.py:690 -- test_poe_sanity_check_two_identical_backbones
+
+## Hypotheses
+H1: PoeModel([p,p]).joint_energy(seq) approx 2*PottsModel.log_prob(seq)  tol=1e-5
+H2: energy(2*h, 2*J) approx 2*energy(h,J)  tol=1e-6
+
+## Steps
+1. uv run python scripts/validate/poe_energy_sanity.py --dry-run
+   Must exit 0.
+2. uv run python scripts/validate/poe_energy_sanity.py --n-residues 6 --num-aa 20 --seed 0 2>&1 | tee /tmp/poe_sanity.log
+   Must exit 0 and print "ALL ASSERTIONS PASSED".
+3. uv run pytest tests/potts/test_poe.py -x -q --tb=short 2>&1 | tail -20
+4. If L2 fails: fix PoeModel or the script, then re-run. Do NOT widen tolerances.
+5. uv run pytest tests/potts/ -x -q --tb=short 2>&1 | tail -20 before declaring done.
+"""
+reviewer_prompt = """
+task_id: 260617_poe-rs3-pt-stagebundle-tiling-val
+workspace: /home/marielle/projects/aminx
+
+## Checks
+VERIFY: uv run python scripts/validate/poe_energy_sanity.py --dry-run exits 0
+VERIFY: uv run python scripts/validate/poe_energy_sanity.py --n-residues 6 --num-aa 20 --seed 0 exits 0 AND output contains "ALL ASSERTIONS PASSED"
+VERIFY: uv run pytest tests/potts/test_poe.py -x -q passes (including test_poe_sanity_check_two_identical_backbones)
+VERIFY: uv run pytest tests/potts/ -x -q 2>&1 | tail -5 -- all existing tests pass
+
+PASS if all VERIFY items satisfied.
+FAIL if script exits non-zero, "ALL ASSERTIONS PASSED" absent from output, or any test fails.
+"""
+return_key = "1305"
+
+[[tracks]]
+id = "b"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1622"
+phase_name = "Track B -- [RunSpec RS-3] Wire CarrySpec/DedupSpec from SamplingSpecification -> BatchPlanner (#1622)"
+fixer_prompt = """
+task_id: 260617_poe-rs3-pt-stagebundle-tiling-val
+workspace: /home/marielle/projects/aminx
+
+## Context
+BatchPlanner (plan.py:114-115) already has carries/dedup_specs fields but they always
+get empty defaults because SamplingSpecification never declares or passes them. 2-file fix.
+
+## Key files
+- src/aminx/run/specs.py:305-409 -- SamplingSpecification (no carry_specs/dedup_specs)
+- src/aminx/host/plan.py:96-100 -- make_sampling_planner BatchPlanner(...) call
+- src/aminx/host/plan.py:104-115 -- BatchPlanner: carries at 114, dedup_specs at 115
+- src/aminx/tiling/carry.py:22-44 -- CarrySpec (local)
+- src/aminx/tiling/dedup.py:47-84 -- DedupSpec (local)
+
+## Part 1: specs.py
+Add to SamplingSpecification:
+  carry_specs: list[CarrySpec] = field(default_factory=list)
+  dedup_specs: list[DedupSpec] = field(default_factory=list)
+Add imports: from aminx.tiling.carry import CarrySpec; from aminx.tiling.dedup import DedupSpec
+
+## Part 2: plan.py
+In make_sampling_planner, add to BatchPlanner(...):
+  carries=getattr(spec, "carry_specs", []),
+  dedup_specs=getattr(spec, "dedup_specs", []),
+
+## Part 3: Test
+New test in tests/host/ or tests/run/:
+  (a) SamplingSpecification with carry_specs=[CarrySpec(...)] and dedup_specs=[DedupSpec(...)]
+  (b) Call make_sampling_planner and assert BatchPlanner.carries and .dedup_specs are non-empty
+
+## Constraints
+- Edit only, no new source files (test file OK).
+- uv run pytest tests/ -x -q --tb=short -k "not chex" 2>&1 | tail -20 before done.
+- uv run ty check 2>&1 | tail -20 -- no new type errors.
+"""
+reviewer_prompt = """
+task_id: 260617_poe-rs3-pt-stagebundle-tiling-val
+workspace: /home/marielle/projects/aminx
+
+## Checks
+VERIFY: SamplingSpecification has carry_specs and dedup_specs fields with default_factory=list
+VERIFY: make_sampling_planner passes carries= and dedup_specs= to BatchPlanner constructor
+VERIFY: New test asserts non-empty carry_specs/dedup_specs reach BatchPlanner
+VERIFY: uv run pytest tests/ -x -q --tb=short -k "not chex" 2>&1 | tail -10 -- all pass
+VERIFY: uv run ty check -- no new type errors
+
+PASS if all satisfied. FAIL if any field/wiring/test missing, or tests fail.
+"""
+return_key = "1622"
+
+[[tracks]]
+id = "c"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1861"
+phase_name = "Track C -- [debt] _parallel_tempering_exchange edge-case tests for replica-count boundary conditions (#1861)"
+fixer_prompt = """
+task_id: 260617_poe-rs3-pt-stagebundle-tiling-val
+workspace: /home/marielle/projects/aminx
+
+## Context
+P-06 vectorised _parallel_tempering_exchange with vmap but zero tests cover replica-count
+boundary conditions where parity logic changes behavior.
+
+## Key files
+- src/aminx/potts/sampling.py:186 -- _parallel_tempering_exchange signature -> (seqs, accept, betas_out) accept shape (k-1,)
+- src/aminx/potts/sampling.py:207 -- process_parity: edges = jnp.arange(parity, k_rep-1, 2)
+  k=1: both parities empty (accept_edge shape (0,)); k=2: even=[0], odd=[] (odd is no-op)
+- tests/potts/test_sampling.py:170 -- only n_replicas=4, no accept_edge shape assertion
+- tests/potts/test_sampling.py:189 -- only n_replicas=3
+
+## Add tests (to test_sampling.py or new tests/potts/test_pt_edge_cases.py)
+
+1. @pytest.mark.parametrize("n_replicas", [1, 2, 3, 4, 5])
+   test: assert accept_edge.shape == (n_replicas - 1,)
+
+2. n_replicas=1: assert seqs_out equals seqs_in (no swap possible)
+
+3. n_replicas=2: function completes without error; odd parity is a no-op
+
+Use _parallel_tempering_exchange directly if importable, else via public
+parallel_tempering(..., n_replicas=N, n_sweeps=1). Use PRNGKey(0), N=4 residues, q=5.
+
+## Constraints
+- Test only. Do not modify sampling.py.
+- uv run pytest tests/potts/ -x -q --tb=short 2>&1 | tail -20 before done.
+"""
+reviewer_prompt = """
+task_id: 260617_poe-rs3-pt-stagebundle-tiling-val
+workspace: /home/marielle/projects/aminx
+
+## Checks
+VERIFY: Tests cover n_replicas in [1, 2, 3, 4, 5] (parametrized or individual)
+VERIFY: accept_edge.shape == (n_replicas - 1,) asserted for each value
+VERIFY: n_replicas=1 test asserts sequences unchanged
+VERIFY: n_replicas=2 test asserts function completes without error
+VERIFY: uv run pytest tests/potts/ -x -q --tb=short 2>&1 | tail -10 -- all pass
+
+PASS if all satisfied. FAIL if n_replicas=1 or 2 absent, shape assertion missing, or tests fail.
+"""
+return_key = "1861"
+
+[[tracks]]
+id = "d"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1555"
+phase_name = "Track D -- [xtrax T2.6] aminx StageBundle wrap-adapter preserving N-sink multiplicity (#1555)"
+fixer_prompt = """
+task_id: 260617_poe-rs3-pt-stagebundle-tiling-val
+workspace: /home/marielle/projects/aminx
+
+## Context
+xtrax StageBundle (xtrax/stages/bundle.py:22) is a strict eqx.Module with Optional[Callable]
+per stage field. aminx StageSet (src/aminx/types/stages.py:266) has tuple[EncoderSinkFn, ...]
+at lines 344-345. Build an adapter in aminx that wraps StageSet and presents the xtrax
+StageBundle interface without collapsing N sinks into one.
+
+## Key files (read before implementing)
+- /home/marielle/projects/xtrax/src/xtrax/stages/bundle.py:22 -- StageBundle (read fully)
+- src/aminx/types/stages.py:266 -- StageSet
+- src/aminx/types/stages.py:344-345 -- encoder_sink: tuple[...]; decoder_sink: tuple[...]
+- src/aminx/host/streaming_host.py -- how sinks fire today (firing order context)
+
+## Design
+class StageBundleAdapter(eqx.Module):
+  _stage_set: StageSet
+
+  def _chain(self, sinks: tuple) -> Callable | None:
+    if not sinks: return None
+    def chained(*args, **kwargs):
+      for fn in sinks: fn(*args, **kwargs)
+    return chained
+
+  @property
+  def encoder_sink(self) -> Callable | None:
+    return self._chain(self._stage_set.encoder_sink)
+  # similarly for decoder_sink, encode_fn, decode_fn
+  # active_stages(), has_stage(name) -- inspect which properties are non-None
+
+Create: src/aminx/host/stage_adapter.py
+
+## Test (AC-2): tests/host/test_stage_bundle_adapter.py
+- StageSet with 2 encoder sinks (each appends to a shared list for side-effect capture)
+- Wrap in StageBundleAdapter
+- Call encoder_sink() callable
+- Assert BOTH sinks fired AND in order (list has 2 entries in correct sequence)
+- Assert active_stages() returns correct names
+
+## Constraints
+- Do NOT modify xtrax source. Do NOT modify StageSet.
+- uv run pytest tests/host/ -x -q --tb=short 2>&1 | tail -20 before done.
+- uv run ty check 2>&1 | tail -20 -- no new type errors.
+"""
+reviewer_prompt = """
+task_id: 260617_poe-rs3-pt-stagebundle-tiling-val
+workspace: /home/marielle/projects/aminx
+
+## Checks
+VERIFY: StageBundleAdapter (or equivalent) exists in src/aminx/host/ and is an eqx.Module
+VERIFY: encoder_sink / decoder_sink expose Optional[Callable] (not tuples) to callers
+VERIFY: AC-2 test asserts BOTH sinks fire in order (2-sink side-effect capture)
+VERIFY: active_stages() and has_stage(name) work correctly on the adapter
+VERIFY: uv run pytest tests/host/ -x -q --tb=short 2>&1 | tail -10 -- all pass including AC-2
+VERIFY: uv run ty check 2>&1 | tail -10 -- no new type errors
+
+PASS if all satisfied. FAIL if N-sink multiplicity collapsed, protocol absent, or tests fail.
+"""
+return_key = "1555"
+
+[[tracks]]
+id = "e"
+is_research = true
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1599"
+phase_name = "Track E -- [xtrax #1564] Validate xtrax tiling CORE API against prolix 6-axis planner (#1599)"
+fixer_prompt = """
+task_id: 260617_poe-rs3-pt-stagebundle-tiling-val
+workspace: /home/marielle/projects/aminx
+xtrax: /home/marielle/projects/xtrax
+prolix: /home/marielle/projects/prolix
+
+## Context
+Write and run a falsifiable test: can prolix's 6-axis planner work using only
+xtrax.tiling CORE symbols? Both PASS and FAIL are valid -- FAIL documents the gap.
+
+## Key files
+- /home/marielle/projects/prolix/src/prolix/tiling/axes.py -- 6 AxisSpec instances
+  N_CONFORMERS (heterogeneous=True) + N_MOLS/N_SYSTEMS (heterogeneous=True)
+- /home/marielle/projects/xtrax/src/xtrax/tiling/__init__.py -- xtrax.tiling exports
+- /home/marielle/projects/aminx/.praxia/docs/specs/260611_aminx-xtrax-refactor.md:105-132
+  -- CORE vs OPTIONAL split table
+- /home/marielle/projects/aminx/.praxia/docs/specs/260611_aminx-xtrax-refactor.md:125-126
+  -- exact D7 criterion
+
+## Test to write: /home/marielle/projects/xtrax/tests/tiling/test_prolix_compat.py
+  (fallback: /home/marielle/projects/aminx/tests/tiling/test_xtrax_prolix_compat.py)
+
+1. Import CORE only:
+   from xtrax.tiling import AxisSpec, BatchPlanner
+
+2. Replicate prolix's 6 axes with xtrax.AxisSpec (read prolix/tiling/axes.py for constructor args):
+   N_ATOMS, N_BONDS, N_ANGLES, N_TORSIONS = ... (non-heterogeneous)
+   N_CONFORMERS = AxisSpec(name="n_conformers", ..., heterogeneous=True)
+   N_MOLS = AxisSpec(name="n_mols", ..., heterogeneous=True)
+
+3. Build plan:
+   planner = BatchPlanner(axes=[N_ATOMS,N_BONDS,N_ANGLES,N_TORSIONS,N_CONFORMERS,N_MOLS],
+                          budget_bytes=8*1024**3, estimate_memory=lambda ax,bs: bs*4)
+   plan = planner.plan()
+
+4. Falsifiable assertions:
+   assert plan.decision_for("n_mols").batch_size > 0
+   assert plan.decision_for("n_conformers").batch_size > 0
+
+5. CORE non-leaky assertions:
+   import xtrax.tiling as m
+   assert not hasattr(m, "DedupGather")
+   assert not hasattr(m, "io_callback_sink")
+
+Run: cd /home/marielle/projects/xtrax && uv run pytest tests/tiling/test_prolix_compat.py -v --tb=short 2>&1 | tee /tmp/prolix_compat.log
+
+## Deliverable: .praxia/docs/research/260617_xtrax-tiling-prolix-compat.md
+PASS: "xtrax.tiling CORE sufficient for prolix 6-axis planner as of xtrax <sha>."
+FAIL: "xtrax.tiling CORE insufficient: <error>. Gap: <what xtrax is missing>."
+
+## Constraints
+- Do NOT modify xtrax or prolix source.
+- Run the test. Record the result. Write the summary doc.
+"""
+reviewer_prompt = """
+task_id: 260617_poe-rs3-pt-stagebundle-tiling-val
+workspace: /home/marielle/projects/aminx
+
+## Checks
+VERIFY: Test exists at xtrax/tests/tiling/test_prolix_compat.py OR aminx/tests/tiling/test_xtrax_prolix_compat.py
+VERIFY: Test imports from xtrax.tiling only (AxisSpec, BatchPlanner -- no DedupGather, no sinks)
+VERIFY: Test builds 6-axis plan and asserts decision_for("n_mols").batch_size > 0 AND decision_for("n_conformers").batch_size > 0
+VERIFY: Test asserts DedupGather and io_callback_sink NOT in xtrax.tiling namespace
+VERIFY: Test was RUN -- /tmp/prolix_compat.log exists or equivalent evidence of execution
+VERIFY: Summary doc at .praxia/docs/research/260617_xtrax-tiling-prolix-compat.md with PASS/FAIL + explanation
+
+PASS if all satisfied (test written + run + documented) regardless of test outcome.
+FAIL only if test not written, not run, or outcome not documented.
+"""
+return_key = "1599"
+
+[orchestration]
+sequential = []
+concurrent = ["a", "b", "c", "d", "e"]

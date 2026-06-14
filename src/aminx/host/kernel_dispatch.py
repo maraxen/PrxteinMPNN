@@ -18,6 +18,7 @@ from aminx.host._sampling_helper import (
 )
 from aminx.host.logit_aggregation import compute_pseudo_perplexity
 from aminx.host.plan import (
+  AxisNames,
   compute_sample_keys,
   extract_batch_sizes,
   make_sampling_planner,
@@ -175,10 +176,10 @@ def _sample_batch(
     # Unified Path A: strategy-dispatched axis iteration using AxisDecision.strategy
     # Reads strategy from batch_plan.decision_for(axis_name) instead of batch_size ints.
     # -------------------------------------------------------------------------
-    struct_decision = batch_plan.decision_for("n_structures")
-    noise_decision = batch_plan.decision_for("n_noises")
-    temp_decision = batch_plan.decision_for("n_temperatures")
-    sample_decision = batch_plan.decision_for("n_samples")
+    struct_decision = batch_plan.decision_for(AxisNames.N_STRUCTURES)
+    noise_decision = batch_plan.decision_for(AxisNames.N_NOISES)
+    temp_decision = batch_plan.decision_for(AxisNames.N_TEMPERATURES)
+    sample_decision = batch_plan.decision_for(AxisNames.N_SAMPLES)
 
     def _unified_call_kernel(key_samples, structure_idx, noise_val, temp_val):
       c = coords_for_vmap[structure_idx]
@@ -251,10 +252,10 @@ def _sample_batch(
     # -------------------------------------------------------------------------
     # Unified Path B: strategy-dispatched encoding fusion + decoding
     # -------------------------------------------------------------------------
-    struct_decision = batch_plan.decision_for("n_structures")
-    noise_decision = batch_plan.decision_for("n_noises")
-    temp_decision = batch_plan.decision_for("n_temperatures")
-    sample_decision = batch_plan.decision_for("n_samples")
+    struct_decision = batch_plan.decision_for(AxisNames.N_STRUCTURES)
+    noise_decision = batch_plan.decision_for(AxisNames.N_NOISES)
+    temp_decision = batch_plan.decision_for(AxisNames.N_TEMPERATURES)
+    sample_decision = batch_plan.decision_for(AxisNames.N_SAMPLES)
 
     def _unified_call_structure_fused(structure_idx):
       c = coords_for_vmap[structure_idx]

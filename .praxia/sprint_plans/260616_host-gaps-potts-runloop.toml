@@ -11,8 +11,10 @@ bug, and STE is killed before dispatch. These three bugs block campaign-level si
 fixed-residue / STE workflows through the spec+CLI layer.
 P-08 is the next Potts milestone: end-to-end inference (weight load -> TRW -> sample -> output).
 T2.5 is unblocked after T2.4 landed (xtrax repo).
-DO NOT use worktree isolation for fixer agents — the ../xtrax relative path resolves
-incorrectly in isolated worktrees (see failed_attempts from sprint 260615 handoff).
+Worktree isolation IS enabled for concurrent tracks. The prior failure (sprint 260615)
+used relative ../xtrax paths — all prompts below use absolute paths so isolation is safe.
+Track E workspace is /home/marielle/projects/xtrax (absolute); fixer agents must NOT use
+relative ../xtrax references.
 """
 max_fix_retries = 2
 worktree_shadow_mode = false
@@ -23,7 +25,7 @@ worktree_shadow_mode = false
 [[tracks]]
 id = "a"
 is_research = false
-worktree = false
+worktree = true
 skip_worktree = false
 
 [[tracks.items]]
@@ -94,7 +96,7 @@ return_key = "1856"
 [[tracks]]
 id = "b"
 is_research = false
-worktree = false
+worktree = true
 skip_worktree = false
 
 [[tracks.items]]
@@ -161,7 +163,7 @@ return_key = "1857"
 [[tracks]]
 id = "c"
 is_research = false
-worktree = false
+worktree = true
 skip_worktree = false
 
 [[tracks.items]]
@@ -231,7 +233,7 @@ return_key = "1858"
 [[tracks]]
 id = "d"
 is_research = false
-worktree = false
+worktree = true
 skip_worktree = false
 
 [[tracks.items]]
@@ -305,7 +307,7 @@ return_key = "1299"
 [[tracks]]
 id = "e"
 is_research = false
-worktree = false
+worktree = true
 skip_worktree = false
 
 [[tracks.items]]

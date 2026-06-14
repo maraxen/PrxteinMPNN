@@ -1,0 +1,62 @@
+---
+workspace: aminx
+session_id: 41b06d08-d7ce-47d2-8ce7-03ccdf10a33f
+status: in_progress
+immediately_relevant:
+- file: src/aminx/potts/sampling.py
+  lines:
+  - 202
+  - 230
+  reason: 'P-06 gap: _parallel_tempering_exchange uses `for parity in range(2)` (line 206) + `while i + 1 < k_rep` (line 209) over replica dimension — must be replaced with jax.vmap over even/odd edge-index arrays'
+- file: src/aminx/potts/poe.py
+  lines:
+  - 168
+  - 245
+  reason: 'P-05 gap: joint_energy has `for h, j, w in params_list:` (line 234) and __call__ has `for i in range(self.n_backbones)` (line 172) — both must be replaced with JAX-native summation'
+- file: tests/training/
+  lines:
+  - 1
+  - 50
+  reason: 'G1 gate: 8 tests across test_checkpoint.py + test_resumable_state.py need live pytest run; no loss/overfit tests exist — 50-step smoke required separately'
+- file: .praxia/docs/plans/260614_runspec-migration-map.md
+  lines:
+  - 1
+  - 30
+  reason: 'RS-1 complete: 67-field migration map on main. RS-2 input. Read for context on what 16 fields need migration to SamplingConfig and 9 RS-gaps.'
+active_dispatches: []
+task_id: 260614_potts-runspec-xtrax-gates
+phase: Sprint 260614 close-out
+goal_statement: Complete the Potts define+test+guard layer (P-05/P-06/P-09/P-00c/P-07), RunSpec foundation (RS-1), and xtrax phase gates (G1, T0.3, T2.1)
+context_refs:
+- phase: Sprint 260613 close-out
+  task_id: 260613_ste-dispatch
+  summary: STE dispatch complete; fixed_mask + atom_37 wiring resolved. G1/RS-1/T0.3 were planned but not executed in 260613 — picked up in 260614.
+failed_attempts:
+- attempt_id: t2.1-worktree-dispatch
+  description: Dispatched T2.1 (xtrax Scan.init field fix) as a sprint track in aminx worktrees
+  outcome: Stalled after 2 repair cycles + 1867s timeout retry; no commit on main
+  reason_failed: Agents ran in aminx worktrees but T2.1 requires changes to the xtrax repo at /home/marielle/projects/xtrax — cross-repo isolation caused orientation failure
+  do_not_retry: true
+  evidence_ref: null
+open_questions:
+- 'For P-06 exchange: should the even/odd parity vmap accept dynamic k_rep or assume static (trace-time constant)? Current code uses int(seqs.shape[0]) which is statically known under JIT.'
+- 'For P-05 joint_energy: should we use eqx.filter_vmap (which handles equinox modules) or jnp.sum over a stacked params array? PottsModel params (h, J, W) are equinox modules — filter_vmap is safer.'
+- 'G1 gate criterion 3 (50-step overfit): which model architecture and optimizer to use for the smoke? The trainer uses a standard eqx.nn.Linear + cross_entropy_loss setup per src/aminx/training/trainer.py.'
+deferred:
+- description: 'RS-2: implement SamplingConfig sub-config on RunSpec, migrate 16 flat fields'
+  rationale: Blocked on RS-1 complete (now done); can start next sprint
+  recommended_phase: Sprint 260615
+- description: RS-gaps (ScoringConfig, InspectionConfig, JacobianConfig) for 9 task-specific fields
+  rationale: Deferred to RS-7/RS-8 per RS-1 recommendation
+  recommended_phase: Sprint 260617+
+- description: ADR 260612 staleness addendum (model.py imports fully removed, not just deferred)
+  rationale: Minor doc update, not blocking any implementation work
+  recommended_phase: Next available cleanup pass
+lessons_refs: []
+next_steps:
+- 'Dispatch fixer for P-06 (#1295): replace Python while/for loops in _parallel_tempering_exchange (sampling.py:206-224) with jax.vmap over static even/odd edge-index arrays'
+- 'Dispatch fixer for P-05 (#1296): replace Python for loops in joint_energy (poe.py:234) and __call__ (poe.py:172) with stack + jnp.sum or eqx.filter_vmap over backbone dimension'
+- 'Run G1 live gates: `uv run pytest tests/training/ -v --tb=short` (expect 8 passed), checkpoint round-trip smoke step=42 allclose atol=1e-7, 50-step overfit smoke loss decrease >=10%; write .praxia/docs/research/260614_g1-training-parity-gate.md'
+- Dispatch fresh T2.1 fixer to xtrax repo (/home/marielle/projects/xtrax) — prior attempts stalled in aminx worktrees; needs explicit xtrax path + clear Scan.init field scope
+- Add one-line addendum to .praxia/docs/decisions/260612_proteinfeatures-shared-vs-local.md noting that model.py PLC0415 imports were fully removed (beyond what ADR expected)
+---

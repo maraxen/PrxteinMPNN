@@ -10,7 +10,7 @@ from .run_spec_portable_json import (
   run_spec_portable_from_dict,
   run_spec_portable_to_dict,
 )
-from .spec import RunSpec, build_run_spec
+from .spec import RunSpec, build_run_spec, topology_hash
 from .spec_json import (
   SpecJSONDecodeError,
   SpecJSONEncodeError,
@@ -47,4 +47,5 @@ __all__ = [
   "run_specification_to_json_dict",
   "sample",
   "score",
+  "topology_hash",
 ]

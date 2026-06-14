@@ -1,0 +1,372 @@
+[sprint]
+sprint_id = "260616_host-gaps-potts-runloop"
+sprint_num = 1
+name = "Sprint 260616: Host dispatch gaps + P-08 run loop + T2.5 BatchPlanner"
+description = "Close three host dispatch wiring gaps (#1856 chain_mask, #1857 fixed_mask double-apply, #1858 STE del-kill), implement P-08 end-to-end Potts run loop, and land T2.5 multi-phase BatchPlanner in xtrax."
+context = """
+Prior sprint (260615) closed at 0.1.0a6 with P-05/P-07/P-09/T0.3/RS-1/T2.1/T2.4 complete.
+Stage 3 bathos cells still require the Python API directly (build_inference_bundle) because
+host dispatch wiring is incomplete: chain_mask is unrouted, fixed_mask has a double-apply
+bug, and STE is killed before dispatch. These three bugs block campaign-level sidechain /
+fixed-residue / STE workflows through the spec+CLI layer.
+P-08 is the next Potts milestone: end-to-end inference (weight load -> TRW -> sample -> output).
+T2.5 is unblocked after T2.4 landed (xtrax repo).
+DO NOT use worktree isolation for fixer agents — the ../xtrax relative path resolves
+incorrectly in isolated worktrees (see failed_attempts from sprint 260615 handoff).
+"""
+max_fix_retries = 2
+worktree_shadow_mode = false
+
+# ─────────────────────────────────────────────────────────────────
+# Track A — #1856: chain_mask unrouted for sidechain conditioning
+# ─────────────────────────────────────────────────────────────────
+[[tracks]]
+id = "a"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1856"
+phase_name = "Track A — [host-dispatch] chain_mask not forwarded for sidechain conditioning (#1856)"
+fixer_prompt = """
+task_id: 260616_host-gaps-potts-runloop
+workspace: /home/marielle/projects/aminx
+
+## Objective
+Fix the routing gap for `chain_mask` in the LigandMPNN sidechain conditioning path so that
+Stage 3 bathos cells can use sidechain conditioning through the spec+CLI layer.
+
+## Key files
+- src/aminx/host/_sampling_helper.py lines 247-352  (_prepare_ligand_context — returns
+  chain_mask at line 343; all code paths return this key)
+- src/aminx/host/kernel_dispatch.py lines 145-160  (_prepare_ligand_context call)
+- src/aminx/host/kernel_dispatch.py lines 191-221  (first build_inference_bundle call — atom_37
+  and atom_37_mask forwarded at lines 211-216; chain_mask is NOT forwarded)
+- src/aminx/host/kernel_dispatch.py lines 257-295, 349-387, 421-457  (three other call sites,
+  same pattern — atom_37/atom_37_mask forwarded, chain_mask missing)
+- src/aminx/inference/bundle_builder.py lines 36-63  (build_inference_bundle signature —
+  no chain_mask param currently)
+
+## Diagnosis
+atom_37 and atom_37_mask are already being forwarded at all four call sites (confirmed).
+chain_mask is populated by _prepare_ligand_context when sidechain_conditioning=True but is
+never passed anywhere. build_inference_bundle has no chain_mask parameter.
+Determine the correct route BEFORE implementing:
+  (a) Add chain_mask to build_inference_bundle and wire through to the model, OR
+  (b) Route chain_mask as a contribution to fixed_mask (mask all chain_mask==1 positions as
+      fixed), OR
+  (c) Another mechanism — check LigandMPNN usage to confirm intended semantic.
+
+## Implementation
+- Edit only. Do not Write to existing files.
+- Apply the routing consistently at ALL FOUR build_inference_bundle call sites.
+- If chain_mask needs a new param on build_inference_bundle, add it with type
+  `jax.Array | None = None` to bundle_builder.py line 63 area.
+- Add a test in tests/host/test_kernel_dispatch.py (or tests/inference/test_bundle_builder.py)
+  asserting that a non-None chain_mask reaches the bundle when sidechain_conditioning=True.
+- Run `uv run pytest tests/ -x -q 2>&1 | tail -30` before declaring done.
+
+## Constraints
+- Do not touch averaging.py, _prepare_fixed_controls, or Potts code.
+- One file per focused edit (kernel_dispatch.py changes first, then bundle_builder.py if needed).
+"""
+reviewer_prompt = """
+task_id: 260616_host-gaps-potts-runloop
+workspace: /home/marielle/projects/aminx
+
+## Checks
+VERIFY: `uv run pytest tests/ -x -q 2>&1 | tail -30` — all existing tests pass
+VERIFY: New test asserts chain_mask reaches the bundle when sidechain_conditioning=True
+VERIFY: ALL FOUR build_inference_bundle call sites in kernel_dispatch.py include chain_mask
+        (grep -n "build_inference_bundle" kernel_dispatch.py — count call sites; each must have chain_mask)
+VERIFY: atom_37/atom_37_mask forwarding still present at same call sites (no regression)
+VERIFY: `uv run ty check 2>&1 | tail -20` — no new type errors
+
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item fails or is untestable as written.
+"""
+return_key = "1856"
+
+# ─────────────────────────────────────────────────────────────────
+# Track B — #1857: fixed_mask double-applied in _prepare_fixed_controls
+# ─────────────────────────────────────────────────────────────────
+[[tracks]]
+id = "b"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1857"
+phase_name = "Track B — [host-dispatch] fixed_mask double-applied in _prepare_fixed_controls (#1857)"
+fixer_prompt = """
+task_id: 260616_host-gaps-potts-runloop
+workspace: /home/marielle/projects/aminx
+
+## Objective
+Fix the double-application of spec.fixed_mask in `_prepare_fixed_controls` so that a
+float-valued shell mask (shape (L,) or (batch, L)) is applied exactly once.
+
+## Key file
+src/aminx/host/_sampling_helper.py lines 438-495 (_prepare_fixed_controls)
+
+## Bug
+There are TWO blocks handling spec.fixed_mask in this function:
+  Block 1 (lines ~448-456): sets fixed_mask_np from spec.fixed_mask via np.broadcast_to
+  Block 2 (lines ~485-493): reads spec.fixed_mask AGAIN via _broadcast_per_structure and
+    takes jnp.maximum with the already-set fixed_mask_np
+
+This double-application is fragile and inconsistent with the single-pass pattern used for
+fixed_positions. The correct single-path logic:
+  1. Start with zeros.
+  2. If spec.fixed_mask set: apply once via _broadcast_per_structure.
+  3. If spec.fixed_positions set: union (jnp.maximum).
+  4. If spec.fixed_tokens set: validate against combined mask.
+
+## Implementation
+- Edit only. Do not Write to existing files.
+- Collapse the two blocks into one, using _broadcast_per_structure at the START of the
+  function (before the fixed_positions block), matching the pattern used for fixed_positions.
+- Remove Block 2 (lines ~485-493) entirely.
+- Add a test in tests/host/test_sampling_helper.py (or nearest existing test file):
+  (a) float mask via spec.fixed_mask → correctly broadcast
+  (b) fixed_mask + fixed_positions → union taken
+  (c) idempotency: applying spec with same mask twice produces same result
+- Run `uv run pytest tests/ -x -q 2>&1 | tail -30` before declaring done.
+
+## Constraints
+- One file focus: _sampling_helper.py.
+- Do not touch kernel_dispatch.py, averaging.py, or Potts code.
+"""
+reviewer_prompt = """
+task_id: 260616_host-gaps-potts-runloop
+workspace: /home/marielle/projects/aminx
+
+## Checks
+VERIFY: `uv run pytest tests/ -x -q 2>&1 | tail -30` — all existing tests pass
+VERIFY: spec.fixed_mask appears exactly ONCE in _prepare_fixed_controls body
+        (grep -c "spec.fixed_mask" _sampling_helper.py — should be 1 in the function, plus test)
+VERIFY: New test covers (a) float mask broadcast, (b) fixed_mask+fixed_positions union, (c) idempotency
+VERIFY: `uv run ty check 2>&1 | tail -20` — no new type errors
+
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item fails or is untestable as written.
+"""
+return_key = "1857"
+
+# ─────────────────────────────────────────────────────────────────
+# Track C — #1858: STE killed by `del sampling_strategy` in legacy path
+# ─────────────────────────────────────────────────────────────────
+[[tracks]]
+id = "c"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1858"
+phase_name = "Track C — [host-dispatch] STE killed by del sampling_strategy in averaging legacy path (#1858)"
+fixer_prompt = """
+task_id: 260616_host-gaps-potts-runloop
+workspace: /home/marielle/projects/aminx
+
+## Objective
+Fix the STE path in `_make_encoding_sampling_split_fn_legacy` so that
+sampling_strategy="straight_through" reaches `_ste_optimize_sequence_legacy`.
+
+## Key file
+src/aminx/host/averaging.py
+
+## Bug
+In _make_encoding_sampling_split_fn_legacy (line ~315):
+  Line 362: `del sampling_strategy, decoding_order_fn  # Currently only temperature sampling supported`
+  This kills sampling_strategy before the returned sample_fn closure can use it.
+  Result: regardless of what the caller passes, the split-fn path always runs temperature sampling.
+
+The WORKING STE dispatch is in _sample_using_averaged_features_legacy (line ~408):
+  Line 453: `if sampling_strategy == "straight_through": return _ste_optimize_sequence_legacy(...)`
+  But this is only reachable when calling _sample_using_averaged_features_legacy directly,
+  not via the split-function path.
+
+## Implementation
+- Edit only. Do not Write to existing files.
+- Remove `del sampling_strategy` from _make_encoding_sampling_split_fn_legacy (line 362).
+  Keep `del decoding_order_fn` only if decoding_order_fn truly is unused.
+- Wire sampling_strategy into the returned sample_fn closure: branch on
+  sampling_strategy == "straight_through" → call _ste_optimize_sequence_legacy(...),
+  else → temperature path.
+- The closure must capture sampling_strategy, iterations, and learning_rate from outer scope
+  (add these as parameters to the outer function if not already present).
+- Add a test in tests/host/test_averaging.py:
+  (a) split fn with sampling_strategy="straight_through" → sample_fn routes to STE path
+  (b) split fn with sampling_strategy="temperature" → sample_fn routes to temperature path
+- Run `uv run pytest tests/ -x -q 2>&1 | tail -30` before declaring done.
+
+## Constraints
+- Focus on averaging.py only.
+- Do not touch kernel_dispatch.py, _sampling_helper.py, or Potts code.
+"""
+reviewer_prompt = """
+task_id: 260616_host-gaps-potts-runloop
+workspace: /home/marielle/projects/aminx
+
+## Checks
+VERIFY: `uv run pytest tests/ -x -q 2>&1 | tail -30` — all existing tests pass
+VERIFY: `grep -n "del sampling_strategy" src/aminx/host/averaging.py` — ZERO matches in
+        _make_encoding_sampling_split_fn_legacy
+VERIFY: "straight_through" appears in BOTH the split-fn closure AND
+        _sample_using_averaged_features_legacy (grep "straight_through" averaging.py — 2+ hits)
+VERIFY: New test covers both STE and temperature dispatch paths through the split-fn
+VERIFY: `uv run ty check 2>&1 | tail -20` — no new type errors
+
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item fails or is untestable as written.
+"""
+return_key = "1858"
+
+# ─────────────────────────────────────────────────────────────────
+# Track D — #1299: P-08 end-to-end Potts run loop
+# ─────────────────────────────────────────────────────────────────
+[[tracks]]
+id = "d"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1299"
+phase_name = "Track D — P-08: aminx.potts end-to-end inference run loop (#1299)"
+fixer_prompt = """
+task_id: 260616_host-gaps-potts-runloop
+workspace: /home/marielle/projects/aminx
+
+## Objective
+Implement P-08: end-to-end Potts inference run loop in aminx.potts. First callable Potts
+inference path; unlocks Stage 3 bathos experiments.
+
+## Prior work (read first)
+- src/aminx/potts/model.py — PottsModel, __call__, joint_energy (P-05/#1296, vectorised)
+- src/aminx/potts/sampling.py — GibbsSampler, PTSampler (P-07/#1295, P-09/#1297)
+- src/aminx/io/weights.py — weight loading (eqx.deserialise_filtered / .eqx.zst)
+- src/aminx/run/spec.py lines 104-240 — RunSpec, PlannerTopology, topology_hash (RS-2/#1621)
+- src/aminx/run/specs.py — SamplingSpecification (pattern reference)
+
+## What to implement
+Create `src/aminx/potts/runner.py` with a `PottsRunner` class or `run_potts` function:
+  1. Accept PottsRunSpec or (PottsModel + config dict); load weights from potts_<id>.eqx.zst
+     via eqx.deserialise_filtered (existing weights.py pattern).
+  2. Optionally load caliby_<id>.eqx.zst; use identity caliby if absent.
+  3. Build Protein / GeometryBundle from a PDB input — reuse existing aminx.io.pdb loaders.
+  4. Run PottsModel forward: marginals = potts_model(geom_bundle).
+  5. Optionally sample: if n_samples > 0, call GibbsSampler or PTSampler.
+  6. Return dict {"marginals": ..., "log_probs": ..., "samples": ...} or a dataclass.
+
+Design decisions (locked):
+- eqx.Module pattern; no dataclasses for model state.
+- Weight loading: eqx.deserialise_filtered only.
+- Structure input: accept Protein or path to PDB; reuse existing loaders.
+- Output: json-serialisable scalars/arrays matching aminx run output conventions.
+- Smoke test gate: n<=50 residues, identity caliby, no sampling.
+
+## Acceptance criteria
+- `uv run pytest tests/potts/test_runner.py -x -q 2>&1 | tail -30` passes with smoke test:
+    (a) weight load from fixture .eqx.zst (or mock)
+    (b) forward pass marginals shape == (L, 20)
+    (c) log_probs are finite (jnp.isfinite check)
+- `uv run pytest tests/ -x -q 2>&1 | tail -30` — no regressions
+- `uv run ty check 2>&1 | tail -20` — clean
+- `uv run ruff check src/aminx/potts/runner.py 2>&1` — clean
+
+## Constraints
+- New file (runner.py) allowed; Edit only on existing files.
+- Do not add sampling until the non-sampling smoke test passes.
+- Do not touch host/kernel_dispatch.py, averaging.py, or xtrax code.
+"""
+reviewer_prompt = """
+task_id: 260616_host-gaps-potts-runloop
+workspace: /home/marielle/projects/aminx
+
+## Checks
+VERIFY: `uv run pytest tests/potts/test_runner.py -x -q 2>&1 | tail -30` — passes
+VERIFY: Smoke test covers: (a) weight load, (b) marginals shape (L, 20), (c) log_probs finite
+VERIFY: `uv run pytest tests/ -x -q 2>&1 | tail -30` — no regressions
+VERIFY: `uv run ty check 2>&1 | tail -20` — no new type errors
+VERIFY: `uv run ruff check src/aminx/potts/ 2>&1 | tail -10` — clean
+
+PASS if all VERIFY items are satisfied.
+FAIL if smoke test is missing, trivially passing, or any suite regresses.
+"""
+return_key = "1299"
+
+# ─────────────────────────────────────────────────────────────────
+# Track E — #1554: T2.5 multi-phase BatchPlanner in xtrax
+# ─────────────────────────────────────────────────────────────────
+[[tracks]]
+id = "e"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1554"
+phase_name = "Track E — [xtrax T2.5+2.5b] Multi-phase BatchPlanner + axis-injection seam (#1554)"
+fixer_prompt = """
+task_id: 260616_host-gaps-potts-runloop
+workspace: /home/marielle/projects/xtrax
+
+## Objective
+T2.5 + T2.5b: upgrade xtrax BatchPlanner to multi-phase budget planner and add axis-injection
+seam so protein axis identifiers (n_states, n_structures) remain in aminx and are passed in.
+
+## Spec reference (read first)
+/home/marielle/projects/aminx/.praxia/docs/specs/260611_aminx-xtrax-refactor.md
+(T2.5, T2.5b, AC-2, A5, B4 sections)
+
+## Key files
+- src/xtrax/tiling/planner.py — current BatchPlanner
+- src/xtrax/tiling/dispatch.py:77 — heterogeneous-axis guard (uses string 'state', must use param)
+- src/xtrax/tiling/carry.py — CarrySpec, CarryShape
+- src/xtrax/tiling/dedup.py — DedupSpec
+- /home/marielle/projects/aminx/src/aminx/host/plan.py lines 1-50 — aminx planner consumer
+  (line 18 mixes aminx-specific axes; B4 moves these to caller side)
+- /home/marielle/projects/aminx/src/aminx/tiling/axes.py — protein axis definitions
+- /home/marielle/projects/aminx/src/aminx/tiling/carry.py:21 — n_states/n_structures
+
+## Requirements
+AC-2: BatchPlanner supports phases 0, 0b, 1, 2, 3 with parametric budget allocation.
+
+B4 (axis-injection seam):
+  - BatchPlanner accepts axis_specs: list[AxisSpec] and heterogeneous_axes: set[str] as params.
+  - `grep -rn "n_states\\|n_structures" src/xtrax/` must return 0 results after the fix.
+  - aminx/host/plan.py must pass axis_specs and heterogeneous_axes explicitly to BatchPlanner.
+
+A5: dispatch.py:77 heterogeneous guard must use the heterogeneous_axes param, not 'state'.
+
+## Constraints
+- Edit only on existing files; new files in src/xtrax/tiling/ are allowed.
+- Update aminx/host/plan.py to pass axis_specs and heterogeneous_axes (aminx owns these).
+- Run `uv run pytest` from BOTH repos before declaring done.
+- Do not touch aminx/host/kernel_dispatch.py, averaging.py, or _sampling_helper.py.
+"""
+reviewer_prompt = """
+task_id: 260616_host-gaps-potts-runloop
+workspace: /home/marielle/projects/xtrax
+
+## Checks
+VERIFY: `cd /home/marielle/projects/xtrax && uv run pytest -x -q 2>&1 | tail -30` — passes
+VERIFY: `cd /home/marielle/projects/aminx && uv run pytest -x -q 2>&1 | tail -30` — no regression
+VERIFY: B4 seam — `grep -rn "n_states\\|n_structures" /home/marielle/projects/xtrax/src/xtrax/ 2>&1` — ZERO matches
+VERIFY: BatchPlanner accepts axis_specs and heterogeneous_axes parameters
+VERIFY: aminx/host/plan.py passes these to BatchPlanner explicitly (not hard-coded)
+VERIFY: dispatch.py:77 uses heterogeneous_axes param (not string 'state')
+VERIFY: `cd /home/marielle/projects/xtrax && uv run ty check 2>&1 | tail -20` — no new type errors
+
+PASS if all VERIFY items are satisfied.
+FAIL if protein axis names remain in xtrax or either test suite regresses.
+"""
+return_key = "1554"
+
+[orchestration]
+sequential = []
+concurrent = ["a", "b", "c", "d", "e"]

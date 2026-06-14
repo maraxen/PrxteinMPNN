@@ -1,6 +1,41 @@
 # Changelog
 
-## 0.1.0a6 (unreleased)
+## 0.1.0a6 (2026-06-14)
+
+### Added
+
+- **`PlannerTopology` sub-config in `RunSpec`** (RS-2): New `eqx.Module` sub-config wrapping
+  aminx kernel dispatch topology. `RunSpec.plan` carries a `PlannerTopology` with a single
+  field `use_unified_driver: bool` (default `True`, consistent with RS-5 fix in 0.1.0a5).
+  Module-level `topology_hash(plan)` produces a deterministic 16-char hex digest for
+  cache-key derivation.
+  ([`src/aminx/run/spec.py`](src/aminx/run/spec.py))
+
+  *Note:* `PlannerTopology` will gain an `xtrax.ExecutionProfile` field once xtrax reaches
+  multi-phase `BatchPlanner` parity (T2.5).
+
+### Performance
+
+- **`PoeModel.__call__`**: Replaced Python `for i in range(self.n_backbones)` loop with
+  `eqx.filter_vmap`, matching the pattern already used in `infer_all_params`. Backbone
+  inference is now fully vectorized via JAX rather than traced sequentially at Python level.
+  ([`src/aminx/potts/poe.py`](src/aminx/potts/poe.py))
+
+- **`PoeModel.joint_energy`**: Replaced Python `for h, j, w in params_list` loop with
+  `jax.vmap(PottsModel.log_prob, in_axes=(None, 0, 0, 0))` + `jnp.sum` over stacked params.
+  ([`src/aminx/potts/poe.py`](src/aminx/potts/poe.py))
+
+- **`_parallel_tempering_exchange`**: Replaced Python `for parity / while i` loops with
+  `jax.vmap` over non-overlapping replica-pair edges within each parity group. Even/odd
+  parity passes remain sequential (odd uses seqs updated by even). Keys split once per
+  parity group; results scattered back via `.at[...].set`.
+  ([`src/aminx/potts/sampling.py`](src/aminx/potts/sampling.py))
+
+### Gates
+
+- **G1 training parity gate**: All three criteria pass — pytest suite (8/8), checkpoint
+  round-trip smoke (`ResumableState` save → load, all leaves match to atol=1e-7), and
+  50-step overfit smoke (loss 3.14 → 0.00 over 50 steps).
 
 ### Breaking Changes
 

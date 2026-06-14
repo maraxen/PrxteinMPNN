@@ -203,10 +203,9 @@ def run_potts(
     backbone_noise=None,
   )
 
-  # Cast ProteinFeatures outputs to JAX arrays (ProteinFeatures may return numpy.ndarray).
-  # This satisfies jaxtyping annotations in PottsModel.infer_params.
-  edge_knn = jnp.asarray(edge_knn)
-  nei = jnp.asarray(nei)
+  # Cast to JAX arrays to ensure proper types for infer_params
+  edge_knn = jnp.asarray(edge_knn, dtype=jnp.float32)
+  nei = jnp.asarray(nei, dtype=jnp.int32)
 
   # Step 4: Infer Potts parameters via model.infer_params
   params = model.infer_params(

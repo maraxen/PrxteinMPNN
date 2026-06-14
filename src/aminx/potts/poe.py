@@ -166,26 +166,30 @@ class PoeModel(eqx.Module):
     # Split key for each backbone
     keys = jax.random.split(key, self.n_backbones)
 
-    # Infer marginals for each backbone via explicit iteration
-    # (JAX will trace through the loop at tracing time)
-    all_marginals = []
-    for i in range(self.n_backbones):
-      backbone = self.backbones[i]
-      key_b = keys[i]
-      edge_knn_b = edge_knn_stack[i]
-      nei_b = nei_stack[i]
-
-      # Call backbone.__call__ with precomputed k-NN graph features
+    # Define vmap over backbone index (dimension 0 of PyTree)
+    def call_single_backbone(
+      backbone: PottsModel,
+      key_b: PRNGKeyArray,
+      edge_knn_b: Float[Array, "n k e"],
+      nei_b: Int[Array, "n k"],
+    ) -> Float[Array, "n q"]:
+      """Call backbone and return marginals only."""
       marginals, _, _, _ = backbone(
         edge_knn=edge_knn_b,
         nei=nei_b,
         mask=mask,
         key=key_b,
       )
-      all_marginals.append(marginals)
+      return marginals
 
-    # Stack marginals: (B, N, q)
-    per_backbone_marginals = jnp.stack(all_marginals, axis=0)
+    # Use eqx.filter_vmap to vectorize over backbones (following infer_all_params pattern)
+    vmapped_call = eqx.filter_vmap(
+      call_single_backbone,
+      in_axes=(0, 0, 0, 0),  # vmap over backbone, key, edge_knn, nei
+    )
+
+    # Apply vmap: returns per_backbone_marginals (B, N, q)
+    per_backbone_marginals = vmapped_call(self.backbones, keys, edge_knn_stack, nei_stack)
 
     # Aggregate via Product of Experts: log_poe = sum_b log(marginals_b)
     # Then normalize via softmax to get final marginals
@@ -229,13 +233,20 @@ class PoeModel(eqx.Module):
       msg = f"Expected {self.n_backbones} parameter sets, got {len(params_list)}"
       raise ValueError(msg)
 
-    # Sum log probabilities across backbones
-    total_energy = 0.0
-    for h, j, w in params_list:
-      energy_b = PottsModel.log_prob(seq, h, j, w)
-      total_energy = total_energy + energy_b
+    # Stack parameters: h (B, N, q), j (B, N, N, q, q), w (B, N, N)
+    h_stack = jnp.stack([p[0] for p in params_list], axis=0)
+    j_stack = jnp.stack([p[1] for p in params_list], axis=0)
+    w_stack = jnp.stack([p[2] for p in params_list], axis=0)
 
-    return jnp.asarray(total_energy)
+    # Vectorize log_prob over the backbone axis (axis 0)
+    # in_axes: seq is not batched (None), h/j/w are batched (0)
+    energies = jax.vmap(
+      PottsModel.log_prob,
+      in_axes=(None, 0, 0, 0),
+    )(seq, h_stack, j_stack, w_stack)
+
+    # Sum energies across backbones
+    return jnp.sum(energies)
 
   def infer_all_params(
     self,

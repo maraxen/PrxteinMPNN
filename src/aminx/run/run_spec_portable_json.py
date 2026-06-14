@@ -25,6 +25,7 @@ from .spec import (
   IOConfig,
   LigandConfig,
   MultistateConfig,
+  PlannerTopology,
   PrecisionConfig,
   ResourceConfig,
   RunSpec,
@@ -140,7 +141,8 @@ def _placeholder_run_spec(
     average_encodings=None,
     state_weights=None,
   )
-  tree = RunSpec(
+  plan = PlannerTopology(use_unified_driver=True)
+  return RunSpec(
     io=io_final,
     resource=resource,
     multistate=multistate,
@@ -150,8 +152,8 @@ def _placeholder_run_spec(
     batching=batching,
     averaging=averaging,
     precision=precision,
+    plan=plan,
   )
-  return cast("RunSpec", tree)
 
 
 def run_spec_portable_to_dict(run_spec: RunSpec) -> dict[str, Any]:

@@ -6,6 +6,8 @@ See `.agents/REFACTOR_ROADMAP.md` §3.5. This module is the Equinox/pytree repre
 
 from __future__ import annotations
 
+import hashlib
+import json
 from os import PathLike, fspath
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -99,6 +101,16 @@ class PrecisionConfig(eqx.Module):
   compute: Literal["fp32", "fp16", "bf16"] = eqx.field(static=True)
 
 
+class PlannerTopology(eqx.Module):
+  """aminx kernel dispatch topology config.
+
+  Wraps aminx.tiling.BatchPlanner config fields for RunSpec.
+  Will gain xtrax.ExecutionProfile once xtrax BatchPlanner reaches multi-phase parity (T2.5).
+  """
+
+  use_unified_driver: bool = eqx.field(static=True)
+
+
 class RunSpec(eqx.Module):
   """Composed configuration for run/prep pipelines."""
 
@@ -111,6 +123,7 @@ class RunSpec(eqx.Module):
   batching: BatchingConfig
   averaging: AveragingConfig
   precision: PrecisionConfig
+  plan: PlannerTopology
 
 
 def _optional_path(value: object | None) -> Path | None:
@@ -215,6 +228,13 @@ def _infer_n_devices(spec: object) -> int:
     return 1
 
 
+def topology_hash(plan: PlannerTopology) -> str:
+  """Deterministic 16-char hex hash of PlannerTopology for cache-key derivation."""
+  payload = {"use_unified_driver": plan.use_unified_driver}
+  hash_input = json.dumps(payload, sort_keys=True).encode()
+  return hashlib.sha256(hash_input).hexdigest()[:16]
+
+
 def build_run_spec(spec: object) -> RunSpec:
   """Build a :class:`RunSpec` view from a :class:`RunSpecification` (or subclass) instance."""
   pre_idx = getattr(spec, "preprocessed_index_path", None)
@@ -295,7 +315,11 @@ def build_run_spec(spec: object) -> RunSpec:
 
   precision = PrecisionConfig(compute=_run_spec_precision_compute(spec))
 
-  tree = RunSpec(
+  plan = PlannerTopology(
+    use_unified_driver=bool(getattr(spec, "use_unified_driver", True)),
+  )
+
+  return RunSpec(
     io=io,
     resource=resource,
     multistate=multistate,
@@ -305,5 +329,5 @@ def build_run_spec(spec: object) -> RunSpec:
     batching=batching,
     averaging=averaging,
     precision=precision,
+    plan=plan,
   )
-  return cast("RunSpec", tree)

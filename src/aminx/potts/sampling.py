@@ -203,25 +203,68 @@ def _parallel_tempering_exchange(
   seq_cur = seqs
   key_cur = key
   accept_edge = jnp.zeros((k_rep - 1,), dtype=jnp.float32)
-  for parity in range(2):
-    start = parity
-    i = start
-    while i + 1 < k_rep:
-      key_cur, sk = jax.random.split(key_cur)
-      seq_cur, key_cur, acc = _attempt_adjacent_swap(
+
+  def process_parity(parity: int) -> tuple[Int[Array, "k n"], Float[Array, ""], Array]:
+    """Process one parity group (even or odd) using vmap over non-overlapping edges."""
+    nonlocal seq_cur, accept_edge, key_cur
+
+    # Compute edge indices for this parity: 0,2,4,... (even) or 1,3,5,... (odd)
+    edges = jnp.arange(parity, k_rep - 1, 2, dtype=jnp.int32)
+    n_edges = edges.shape[0]
+
+    if n_edges == 0:
+      return seq_cur, accept_edge, key_cur
+
+    # Split keys for each edge in this parity
+    keys = jax.random.split(key_cur, n_edges + 1)
+    key_cur_new, subkeys = keys[0], keys[1:]
+
+    # Helper function: perform one swap and return updated full seqs and accept
+    def swap_fn(sk: Array, edge_i: Int[Array, ""]) -> tuple[Int[Array, "k n"], Float[Array, ""]]:
+      """Swap edge_i and return updated seqs and accept scalar."""
+      seq_out, _, acc = _attempt_adjacent_swap(
         sk,
         seq_cur,
-        jnp.int32(i),
-        betas[i],
-        betas[i + 1],
+        edge_i,
+        betas[edge_i],
+        betas[edge_i + 1],
         h,
         j,
         w,
         mask,
         swap_pair_energy_only=swap_pair_energy_only,
       )
-      accept_edge = accept_edge.at[i].set(acc)
-      i += 2
+      return seq_out, acc
+
+    # Vmap over edges: in_axes: keys axis 0, edges axis 0; seq_cur is in_axes=None
+    vmapped_fn = jax.vmap(swap_fn)
+    seq_updates, accepts_per_edge = vmapped_fn(subkeys, edges)
+
+    # Merge all updates using lax.scan (JAX-friendly, JIT-compatible)
+    # seq_updates has shape (n_edges, k_rep, n) where seq_updates[idx] has full seqs with swaps at edges[idx], edges[idx]+1
+    def merge_update(seq_state: Int[Array, "k n"], idx_val: int) -> tuple[Int[Array, "k n"], None]:
+      # seq_updates[idx_val] is the full (k_rep, n) array with swap at edges[idx_val], edges[idx_val]+1
+      update_seq = seq_updates[idx_val]
+      edge_idx = edges[idx_val]
+      seq_state = seq_state.at[edge_idx].set(update_seq[edge_idx])
+      seq_state = seq_state.at[edge_idx + 1].set(update_seq[edge_idx + 1])
+      return seq_state, None
+
+    # Create indices array for lax.scan
+    indices = jnp.arange(n_edges, dtype=jnp.int32)
+    seq_updated, _ = jax.lax.scan(merge_update, seq_cur, indices)
+
+    # Build accept_edge for this parity
+    accept_edge_updated = accept_edge.at[edges].set(accepts_per_edge)
+
+    return seq_updated, accept_edge_updated, key_cur_new
+
+  # Process even parity (0, 2, 4, ...)
+  seq_cur, accept_edge, key_cur = process_parity(0)
+
+  # Process odd parity (1, 3, 5, ...) — uses seq_cur updated by even parity
+  seq_cur, accept_edge, key_cur = process_parity(1)
+
   return seq_cur, key_cur, accept_edge
 
 

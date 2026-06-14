@@ -147,3 +147,60 @@ def test_make_inference_plan_with_geometric_mean():
 
     plan = make_inference_plan(DummyModel(), GeoSpec())
     assert isinstance(plan.stage_set.logit_transform, GeometricMeanLogits)
+
+
+# ---------------------------------------------------------------------------
+# 5. STE (Straight-Through Estimator) decode mode routing
+# ---------------------------------------------------------------------------
+
+def test_make_inference_plan_straight_through_uses_ste_decode():
+    """make_inference_plan with sampling_strategy='straight_through' uses STEDecode mode."""
+    from aminx.host.plan import make_inference_plan
+    from aminx.inference.decode.ste import STEDecode
+    import equinox as eqx
+
+    # Create minimal model with decoder stubs
+    class DummyModel(eqx.Module):
+        decoder: object = None
+        w_s_embed: object = None
+
+    class STESpec:
+        sampling_strategy = "straight_through"
+        use_rolling_state = False
+        multi_state_strategy = "arithmetic_mean"
+        multi_state_temperature = 1.0
+        state_weights = None
+        temperature = [1.0]
+        average_node_features = False
+
+    model = DummyModel(decoder=object(), w_s_embed=type('obj', (object,), {'weight': None})())
+    plan = make_inference_plan(model, STESpec())
+    assert isinstance(plan.decode_fn, STEDecode), (
+        f"straight_through sampling_strategy should use STEDecode, "
+        f"got {type(plan.decode_fn)}"
+    )
+
+
+def test_make_inference_plan_temperature_uses_conditional_mode():
+    """make_inference_plan with sampling_strategy='temperature' uses ConditionalDecode."""
+    from aminx.host.plan import make_inference_plan
+    from aminx.inference.decode.conditional import ConditionalDecode
+    import equinox as eqx
+
+    class DummyModel(eqx.Module):
+        pass
+
+    class TempSpec:
+        sampling_strategy = "temperature"
+        use_rolling_state = False
+        multi_state_strategy = "arithmetic_mean"
+        multi_state_temperature = 1.0
+        state_weights = None
+        temperature = [1.0]
+        average_node_features = False
+
+    plan = make_inference_plan(DummyModel(), TempSpec())
+    assert isinstance(plan.decode_fn, ConditionalDecode), (
+        f"temperature sampling_strategy should use ConditionalDecode, "
+        f"got {type(plan.decode_fn)}"
+    )

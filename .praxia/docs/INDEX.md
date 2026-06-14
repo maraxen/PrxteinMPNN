@@ -6,6 +6,7 @@
 - [260508_active-roadmap](roadmaps/260508_active-roadmap.md) — **Active** — MODELINPUTS PR-4/5, EncoderPreFn/PostFn, multi_state_temperature
 
 ## Plans
+- [260615_sprint-potts-gates-runspec](plans/260615_sprint-potts-gates-runspec.md) — Sprint 260615: 6-track plan (P-06, P-05, G1, RS-2, T2.2-2.3, T2.4); T2.1 discovery + dispatch order
 - [260614_runspec-migration-map](plans/260614_runspec-migration-map.md) — RS-1 host-field inventory: 67 fields, 22 migrated, 16 to migrate, 9 RS-gaps, 21 protein-only
 - [260522_comp-new-sink-unify](plans/260522_comp-new-sink-unify.md) — COMP-NEW: unify result-sink topology; streaming_tensor_sink_session for non-streaming path
 - [260525_comp-unified-encoder-fusion](plans/260525_comp-unified-encoder-fusion.md) — COMP-UNIFIED: encoder fusion via InferencePlan; eliminate averaged-path branch

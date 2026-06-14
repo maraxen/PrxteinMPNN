@@ -17,6 +17,7 @@ forward pass or uses --dry-run mode. See !!HARD RULE in task description.
 
 from __future__ import annotations
 
+import io
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -25,6 +26,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
+import zstandard as zstd
 from jaxtyping import Array, Float, Int, PRNGKeyArray
 
 from aminx.potts.model import PottsModel, PottsParams
@@ -64,21 +66,22 @@ class TestPottsRunnerSmoke:
 
   @staticmethod
   def _create_minimal_potts_model(key: PRNGKeyArray, n: int = 3) -> PottsModel:
-    """Create a minimal PottsModel via eqx.tree_at (no real weights).
+    """Create a minimal PottsModel matching runner.py skeleton defaults.
 
     Args:
         key: JAX random key.
         n: Number of residues (default 3).
 
     Returns:
-        Tiny PottsModel with n=3, num_aa=4, hidden_dim=8.
+        PottsModel with standard dimensions (hidden_dim=128, num_aa=21)
+        matching _load_potts_model skeleton construction.
     """
     model = PottsModel(
-      hidden_dim=8,
-      num_aa=4,
+      hidden_dim=128,
+      num_aa=21,
       k_neighbors=2,
-      edge_features_dim=8,
-      trw_iters=2,
+      edge_features_dim=128,
+      trw_iters=15,
       key=key,
       training=False,
     )
@@ -111,14 +114,14 @@ class TestPottsRunnerSmoke:
     """Test that minimal PottsModel can be constructed."""
     model = self._create_minimal_potts_model(rng_key, n=3)
 
-    assert model.hidden_dim == 8
-    assert model.num_aa == 4
+    assert model.hidden_dim == 128
+    assert model.num_aa == 21
     assert model.k_neighbors == 2
     assert model.training is False
 
   def test_potts_result_construction(self) -> None:
     """Test PottsResult dataclass construction."""
-    n, q = 3, 4
+    n, q = 3, 21
     result = PottsResult(
       marginals=jnp.ones((n, q)) / q,
       h=jnp.zeros((n, q)),
@@ -167,9 +170,9 @@ class TestPottsRunnerSmoke:
       # Mock the infer_params call to avoid JAX compute
       def mock_infer_params(*args, **kwargs) -> PottsParams:
         return PottsParams(
-          marginals=jnp.ones((3, 4)) / 4,
-          h=jnp.zeros((3, 4)),
-          J=jnp.zeros((3, 3, 4, 4)),
+          marginals=jnp.ones((3, 21)) / 21,
+          h=jnp.zeros((3, 21)),
+          J=jnp.zeros((3, 3, 21, 21)),
           rho=jnp.zeros((3, 3)),
           W=jnp.ones((3, 3)),
         )
@@ -184,11 +187,11 @@ class TestPottsRunnerSmoke:
 
       # Verify PottsResult structure
       assert isinstance(result, PottsResult)
-      assert result.marginals.shape == (3, 4)
-      assert result.h.shape == (3, 4)
-      assert result.J.shape == (3, 3, 4, 4)
+      assert result.marginals.shape == (3, 21)
+      assert result.h.shape == (3, 21)
+      assert result.J.shape == (3, 3, 21, 21)
       assert result.rho.shape == (3, 3)
-      assert result.calibrated_marginals.shape == (3, 4)
+      assert result.calibrated_marginals.shape == (3, 21)
       assert result.n_backbones == 1
 
   def test_potts_runner_geometry_extraction_4_to_37(self) -> None:
@@ -245,11 +248,10 @@ class TestPottsRunnerSmoke:
 
       # Mock infer_params
       def mock_infer_params(*args, **kwargs) -> PottsParams:
-        marginals = jnp.array([[0.7, 0.1, 0.1, 0.1], [0.1, 0.7, 0.1, 0.1], [0.1, 0.1, 0.7, 0.1]])
         return PottsParams(
-          marginals=marginals,
-          h=jnp.zeros((3, 4)),
-          J=jnp.zeros((3, 3, 4, 4)),
+          marginals=jnp.ones((3, 21)) / 21,
+          h=jnp.zeros((3, 21)),
+          J=jnp.zeros((3, 3, 21, 21)),
           rho=jnp.zeros((3, 3)),
           W=jnp.ones((3, 3)),
         )
@@ -274,3 +276,206 @@ class TestPottsRunnerSmoke:
         k_neighbors=0,  # Invalid
         training=False,
       )
+
+  def test_spec_rejects_invalid_sampler_type(self) -> None:
+    """Test that PottsRunSpec rejects invalid sampler_type."""
+    with pytest.raises(ValueError, match="sampler_type.*must be 'gibbs' or 'pt'"):
+      PottsRunSpec(
+        n_backbones=1,
+        weights_path="/path/to/weights",
+        k_neighbors=2,
+        sampler_type="invalid",  # Invalid
+      )
+
+  def test_potts_result_with_samples(self) -> None:
+    """Test PottsResult construction with samples field."""
+    n, q = 3, 21
+    n_samples = 10
+    result = PottsResult(
+      marginals=jnp.ones((n, q)) / q,
+      h=jnp.zeros((n, q)),
+      J=jnp.zeros((n, n, q, q)),
+      rho=jnp.zeros((n, n)),
+      calibrated_marginals=jnp.ones((n, q)) / q,
+      n_backbones=1,
+      samples=jnp.zeros((n_samples, n), dtype=jnp.int32),
+    )
+
+    assert result.marginals.shape == (n, q)
+    assert result.samples is not None
+    assert result.samples.shape == (n_samples, n)
+    assert result.samples.dtype == jnp.int32
+
+  def test_potts_runner_with_gibbs_sampling_zstd(
+    self,
+    rng_key: PRNGKeyArray,
+  ) -> None:
+    """Smoke test: run_potts with Gibbs sampling using real zstd+eqx serialization.
+
+    This test exercises the full sampling path:
+    1. Creates minimal PottsModel
+    2. Serializes to .eqx.zst (real zstd compression)
+    3. Runs run_potts with n_samples > 0, sampler_type='gibbs'
+    4. Verifies PottsResult.samples has correct shape and dtype
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+      # Create and serialize model to .eqx.zst with zstd compression
+      weights_path = Path(tmpdir) / "model.eqx.zst"
+      model = self._create_minimal_potts_model(rng_key, n=3)
+
+      # Serialize to uncompressed buffer, then compress with zstd
+      buffer = io.BytesIO()
+      eqx.tree_serialise_leaves(buffer, model)
+      uncompressed = buffer.getvalue()
+
+      cctx = zstd.ZstdCompressor()
+      compressed = cctx.compress(uncompressed)
+
+      with open(weights_path, "wb") as f:
+        f.write(compressed)
+
+      # Create spec with Gibbs sampling
+      spec = PottsRunSpec(
+        n_backbones=1,
+        weights_path=str(weights_path),
+        caliby_path=None,
+        k_neighbors=2,
+        training=False,
+        n_samples=5,  # Request 5 samples
+        n_chains=2,  # 2 independent chains
+        sampler_type="gibbs",
+      )
+
+      geometry = self._create_minimal_geometry(n_residues=3, n_states=1)
+
+      # Mock infer_params to avoid expensive JAX compute
+      def mock_infer_params(*args, **kwargs) -> PottsParams:
+        return PottsParams(
+          marginals=jnp.ones((3, 21)) / 21,
+          h=jnp.zeros((3, 21)),
+          J=jnp.zeros((3, 3, 21, 21)),
+          rho=jnp.zeros((3, 3)),
+          W=jnp.ones((3, 3)),
+        )
+
+      with patch.object(
+        PottsModel,
+        "infer_params",
+        side_effect=mock_infer_params,
+      ):
+        result = run_potts(spec, geometry, rng_key)
+
+      # Verify PottsResult
+      assert isinstance(result, PottsResult)
+      assert result.samples is not None
+      # n_chains (2) * n_samples (5) = 10 samples total
+      assert result.samples.shape == (10, 3), f"Expected (10, 3), got {result.samples.shape}"
+      assert result.samples.dtype == jnp.int32
+      # All sample values should be in range [0, 21)
+      assert jnp.all(result.samples >= 0)
+      assert jnp.all(result.samples < 21)
+
+  def test_potts_runner_with_pt_sampling_zstd(
+    self,
+    rng_key: PRNGKeyArray,
+  ) -> None:
+    """Smoke test: run_potts with parallel tempering using real zstd+eqx serialization.
+
+    This test exercises the parallel tempering sampling path:
+    1. Creates minimal PottsModel
+    2. Serializes to .eqx.zst
+    3. Runs run_potts with n_samples > 0, sampler_type='pt'
+    4. Verifies PottsResult.samples has correct shape and dtype
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+      weights_path = Path(tmpdir) / "model.eqx.zst"
+      model = self._create_minimal_potts_model(rng_key, n=3)
+
+      # Serialize with zstd compression
+      buffer = io.BytesIO()
+      eqx.tree_serialise_leaves(buffer, model)
+      uncompressed = buffer.getvalue()
+
+      cctx = zstd.ZstdCompressor()
+      compressed = cctx.compress(uncompressed)
+
+      with open(weights_path, "wb") as f:
+        f.write(compressed)
+
+      # Create spec with parallel tempering sampling
+      spec = PottsRunSpec(
+        n_backbones=1,
+        weights_path=str(weights_path),
+        caliby_path=None,
+        k_neighbors=2,
+        training=False,
+        n_samples=3,  # Number of PT rounds (sweeps)
+        n_chains=2,  # 2 replicas for PT
+        sampler_type="pt",
+      )
+
+      geometry = self._create_minimal_geometry(n_residues=3, n_states=1)
+
+      def mock_infer_params(*args, **kwargs) -> PottsParams:
+        return PottsParams(
+          marginals=jnp.ones((3, 21)) / 21,
+          h=jnp.zeros((3, 21)),
+          J=jnp.zeros((3, 3, 21, 21)),
+          rho=jnp.zeros((3, 3)),
+          W=jnp.ones((3, 3)),
+        )
+
+      with patch.object(
+        PottsModel,
+        "infer_params",
+        side_effect=mock_infer_params,
+      ):
+        result = run_potts(spec, geometry, rng_key)
+
+      # Verify PottsResult
+      assert isinstance(result, PottsResult)
+      assert result.samples is not None
+      # PT returns cold replica only: shape (1, 3)
+      assert result.samples.shape == (1, 3), f"Expected (1, 3), got {result.samples.shape}"
+      assert result.samples.dtype == jnp.int32
+      # All sample values should be in range [0, 21)
+      assert jnp.all(result.samples >= 0)
+      assert jnp.all(result.samples < 21)
+
+  def test_potts_runner_no_sampling_when_n_samples_zero(
+    self,
+    rng_key: PRNGKeyArray,
+  ) -> None:
+    """Test that PottsResult.samples is None when n_samples=0."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+      weights_path = Path(tmpdir) / "model.eqx"
+      model = self._create_minimal_potts_model(rng_key, n=3)
+      eqx.tree_serialise_leaves(str(weights_path), model)
+
+      spec = PottsRunSpec(
+        n_backbones=1,
+        weights_path=str(weights_path),
+        k_neighbors=2,
+        training=False,
+        n_samples=0,  # No sampling
+      )
+
+      geometry = self._create_minimal_geometry(n_residues=3, n_states=1)
+
+      def mock_infer_params(*args, **kwargs) -> PottsParams:
+        return PottsParams(
+          marginals=jnp.ones((3, 21)) / 21,
+          h=jnp.zeros((3, 21)),
+          J=jnp.zeros((3, 3, 21, 21)),
+          rho=jnp.zeros((3, 3)),
+          W=jnp.ones((3, 3)),
+        )
+
+      with patch.object(
+        PottsModel,
+        "infer_params",
+        side_effect=mock_infer_params,
+      ):
+        result = run_potts(spec, geometry, rng_key)
+
+      assert result.samples is None

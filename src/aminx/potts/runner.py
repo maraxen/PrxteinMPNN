@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import equinox as eqx
+import jax
 import jax.numpy as jnp
 import zstandard as zstd
 from jaxtyping import Array, PRNGKeyArray
@@ -33,8 +34,9 @@ from jaxtyping import Array, PRNGKeyArray
 from aminx.model import ProteinFeatures
 from aminx.potts.calibration import load_calibration
 from aminx.potts.model import PottsModel
-from aminx.potts.spec import PottsRunSpec
-from aminx.types.bundles import GeometryBundle
+from aminx.potts.sampling import gibbs_sweep, parallel_tempering
+from aminx.potts.spec import PottsRunSpec  # noqa: TC001
+from aminx.types.bundles import GeometryBundle  # noqa: TC001
 
 
 @dataclass(frozen=False)
@@ -48,6 +50,7 @@ class PottsResult:
       rho: Tree-reweighting parameters (N, N)
       calibrated_marginals: Calibrated marginals (N, 21) after CalibrationModule
       n_backbones: Number of backbones in ensemble
+      samples: Sampled sequences (n_samples, N) with dtype int32. None if n_samples=0.
   """
 
   marginals: Array
@@ -56,6 +59,7 @@ class PottsResult:
   rho: Array
   calibrated_marginals: Array
   n_backbones: int
+  samples: Array | None = None
 
 
 def _load_potts_model(weights_path: str, spec: PottsRunSpec, key: PRNGKeyArray) -> PottsModel:
@@ -100,7 +104,7 @@ def _load_potts_model(weights_path: str, spec: PottsRunSpec, key: PRNGKeyArray) 
 
   # Load weights via zstd decompression if needed
   if weights_path.endswith(".zst"):
-    with open(weights_path, "rb") as f:
+    with Path(weights_path).open("rb") as f:
       dctx = zstd.ZstdDecompressor()
       decompressed = dctx.decompress(f.read())
       stream = io.BytesIO(decompressed)  # ty: ignore[unresolved-attribute]
@@ -214,7 +218,54 @@ def run_potts(
   # For now, single backbone: just use the inferred parameters directly
   # Future: construct PoeModel if spec.n_backbones > 1 and coords are multi-state
 
-  # Step 7: Return PottsResult
+  # Step 7: Sampling (if n_samples > 0)
+  samples: Array | None = None
+  if spec.n_samples > 0:
+    # Prepare mask and weight matrix for sampling
+    mask_sample = jnp.asarray(mask, dtype=jnp.float32)
+    w = params.W if hasattr(params, "W") else jnp.ones_like(params.rho)
+
+    # Initialize sequence at argmax of marginals
+    seq_init = jnp.argmax(params.marginals, axis=1).astype(jnp.int32)
+
+    if spec.sampler_type == "gibbs":
+      # Gibbs sampler: run multiple independent chains and collect samples
+      all_samples = []
+      for _ in range(spec.n_chains):
+        key_chain, key = jax.random.split(key)
+        seq_current = seq_init
+
+        for _ in range(spec.n_samples):
+          key_sweep, key_chain = jax.random.split(key_chain)
+          seq_current, _ = gibbs_sweep(
+            key_sweep,
+            seq_current,
+            h=params.h,
+            j=params.J,
+            w=w,
+            mask=mask_sample,
+          )
+          all_samples.append(seq_current)
+
+      # Stack all samples: shape (n_chains * n_samples, N)
+      samples = jnp.stack(all_samples, axis=0).astype(jnp.int32)
+
+    elif spec.sampler_type == "pt":
+      # Parallel tempering: single batch of samples from cold replica
+      seqs_final, _ = parallel_tempering(
+        key,
+        seq_init,
+        h=params.h,
+        j=params.J,
+        w=w,
+        mask=mask_sample,
+        n_replicas=spec.n_chains,
+        n_sweeps=spec.n_samples,
+      )
+      # Return samples from cold replica (last one)
+      samples = seqs_final[-1:, :].astype(jnp.int32)
+
+  # Step 8: Return PottsResult
   return PottsResult(
     marginals=params.marginals,
     h=params.h,
@@ -222,4 +273,5 @@ def run_potts(
     rho=params.rho,
     calibrated_marginals=calibrated_marginals,
     n_backbones=spec.n_backbones,
+    samples=samples,
   )

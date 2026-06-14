@@ -37,7 +37,8 @@ class PottsRunSpec:
   """Frozen config for Potts model inference run.
 
   Couples model checkpoint (weights_path), optional post-hoc calibration (caliby_path),
-  TRW numerics config (trw_spec), and metadata (n_backbones, k_neighbors, training mode).
+  TRW numerics config (trw_spec), sampling config (n_samples, n_chains, sampler_type),
+  and metadata (n_backbones, k_neighbors, training mode).
 
   Attributes:
       n_backbones: Number of backbones in the ensemble (default 1). Must be >= 1.
@@ -46,10 +47,14 @@ class PottsRunSpec:
       trw_spec: TRW numerics config (default: dense_pinv rho, dense messages, fori loop).
       k_neighbors: Number of nearest neighbours; must be > 0. Read from checkpoint metadata.
       training: If True, use training-safe TRW config (scan loop + checkpoint). Default False.
+      n_samples: Number of samples to draw. If > 0, sampling is triggered. Default 0 (no sampling).
+      n_chains: Number of independent Gibbs chains for sampling (default 4).
+      sampler_type: Sampling algorithm: 'gibbs' for Gibbs or 'pt' for parallel tempering (default 'gibbs').
 
   Raises:
       ValueError: If training=True and trw_spec.trw_loop='fori' (OOM risk in reverse-mode AD).
       ValueError: If n_backbones < 1.
+      ValueError: If sampler_type not in ['gibbs', 'pt'].
   """
 
   n_backbones: int = 1
@@ -58,6 +63,9 @@ class PottsRunSpec:
   trw_spec: PottsTRWRunSpec | None = None
   k_neighbors: int = 0
   training: bool = False
+  n_samples: int = 0
+  n_chains: int = 4
+  sampler_type: str = "gibbs"
 
   def __post_init__(self) -> None:
     """Validate spec fields and enforce safety constraints."""
@@ -81,6 +89,10 @@ class PottsRunSpec:
 
     if self.n_backbones < 1:
       msg = f"n_backbones must be >= 1, got {self.n_backbones}"
+      raise ValueError(msg)
+
+    if self.sampler_type not in ("gibbs", "pt"):
+      msg = f"sampler_type must be 'gibbs' or 'pt', got '{self.sampler_type}'"
       raise ValueError(msg)
 
   def to_json(self) -> str:

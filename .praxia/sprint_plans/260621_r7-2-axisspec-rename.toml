@@ -1,0 +1,179 @@
+[sprint]
+sprint_id = "260621_r7-2-axisspec-rename"
+sprint_num = 1
+name = "260621_r7-2-axisspec-rename"
+description = "R7-2: rename xtrax AxisSpec.batch_size → default_batch_size and granularity → tile_granularity"
+context = """
+R7-1 gate (#1926) decided canonical AxisSpec field names:
+  - default_batch_size  (replaces xtrax's batch_size; avoids collision with AxisDecision.batch_size output)
+  - tile_granularity    (replaces xtrax's granularity; disambiguates from bucket/sequence granularity)
+
+See: .praxia/docs/research/260616_axisspec-field-map.md
+
+Scope (xtrax repo only — /home/marielle/projects/xtrax):
+  - xtrax/tiling/plan.py: 2 AxisSpec field declarations + 16 spec.batch_size read sites
+  - xtrax/tests/tiling/: 62 AxisSpec(batch_size=...) constructions + 7 granularity= usages
+  - Add __getattr__ shim on AxisSpec for deprecated names (read-only backward compat)
+
+Out of scope:
+  - AxisDecision.batch_size — this is the OUTPUT field (final resolved batch size), NOT the AxisSpec input field; must NOT be renamed
+  - SafeMap(batch_size=...) / SafeMapIterator / dispatch.py strategy.batch_size — these are strategy fields, not AxisSpec
+  - aminx AxisSpec — aminx re-exports xtrax.tiling.AxisSpec; no separate class to update
+  - prolix AxisSpec — already uses default_batch_size/tile_granularity; no changes needed
+  - RunSpecification.batch_size in aminx (trainer.py, prep.py) — completely different field
+"""
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[[tracks]]
+id = "a"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1964"
+phase_name = "Track A — R7-2: Rename AxisSpec fields to canonical names (#1964)"
+fixer_prompt = """
+Fix #1964: Rename xtrax AxisSpec field names to match R7-1 canonical decisions.
+
+WORKING DIRECTORY: /home/marielle/projects/xtrax
+
+CRITICAL OUT-OF-SCOPE (do NOT touch):
+  - AxisDecision.batch_size — output field, different concept, stays as batch_size
+  - SafeMap(batch_size=...) / SafeMapIterator / strategy.batch_size — strategy fields, not AxisSpec
+  - aminx/src/ files (RunSpecification.batch_size is a different field entirely)
+
+--- STEP 1: Rename the two fields in xtrax/src/xtrax/tiling/plan.py ---
+
+In class AxisSpec (around line 26):
+
+Change field declarations:
+  batch_size: int
+  granularity: int = 1
+
+To:
+  default_batch_size: int
+  tile_granularity: int = 1
+
+Update the docstring Attributes section:
+  batch_size: ... → default_batch_size: Default batch size hint for SafeMap and Vmap threshold.
+  granularity: ... → tile_granularity: Alignment granularity (default 1, no constraint).
+
+--- STEP 2: Add __getattr__ shim for backward compat (read-only) ---
+
+Add this method to the AxisSpec class, AFTER __post_init__:
+
+  def __getattr__(self, name: str):
+      import warnings
+      if name == "batch_size":
+          warnings.warn(
+              "AxisSpec.batch_size is deprecated; use AxisSpec.default_batch_size",
+              DeprecationWarning,
+              stacklevel=2,
+          )
+          return object.__getattribute__(self, "default_batch_size")
+      if name == "granularity":
+          warnings.warn(
+              "AxisSpec.granularity is deprecated; use AxisSpec.tile_granularity",
+              DeprecationWarning,
+              stacklevel=2,
+          )
+          return object.__getattribute__(self, "tile_granularity")
+      raise AttributeError(f"type object 'AxisSpec' has no attribute {name!r}")
+
+--- STEP 3: Update all internal spec.batch_size reads in plan.py ---
+
+In plan.py, all occurrences of spec.batch_size (there are ~16) refer to AxisSpec.batch_size.
+Replace ALL of them with spec.default_batch_size.
+
+IMPORTANT: do NOT change:
+  - AxisDecision.batch_size (the output dataclass around line 77)
+  - SafeMap(batch_size=...) construction sites (these are SafeMap strategy fields)
+  - Any string in error messages like "batch_size={spec.default_batch_size}" is fine — just keep consistent
+
+Also replace any spec.granularity references with spec.tile_granularity (there may be 0 — verify with grep).
+
+--- STEP 4: Update all tests ---
+
+In xtrax/tests/tiling/test_plan.py:
+
+Use sed or Edit to replace ALL occurrences:
+  AxisSpec(..., batch_size=   →   AxisSpec(..., default_batch_size=
+  granularity=               →   tile_granularity=
+
+There are ~62 AxisSpec(batch_size=...) constructions and ~7 granularity= usages in the tests.
+Use: sed -i 's/AxisSpec(\\(.*\\)batch_size=/AxisSpec(\\1default_batch_size=/g' tests/tiling/test_plan.py
+
+Or read the file and use Edit with replace_all=true for each pattern.
+
+Also check for other test files:
+  grep -rn "AxisSpec(" tests/ | grep "batch_size=" to find any other test files
+
+--- STEP 5: Verify ---
+
+Run the full xtrax test suite:
+  cd /home/marielle/projects/xtrax && uv run pytest
+
+Verify the shim works:
+  uv run python -c "
+  import warnings
+  from xtrax.tiling import AxisSpec
+  spec = AxisSpec(name='batch', cardinality=32, default_batch_size=8)
+  assert spec.default_batch_size == 8
+  with warnings.catch_warnings(record=True) as w:
+      warnings.simplefilter('always')
+      val = spec.batch_size
+      assert len(w) == 1 and issubclass(w[0].category, DeprecationWarning)
+      assert val == 8
+  print('Shim OK — batch_size deprecated alias fires DeprecationWarning')
+  "
+
+Verify AxisDecision is untouched:
+  uv run python -c "
+  from xtrax.tiling.plan import AxisDecision, AxisSpec
+  spec = AxisSpec(name='b', cardinality=32, default_batch_size=8)
+  from xtrax.tiling.strategy import SafeMap
+  dec = AxisDecision(spec=spec, batch_size=8, reasoning='test', strategy=SafeMap(batch_size=8))
+  assert dec.batch_size == 8
+  print('AxisDecision.batch_size unchanged — OK')
+  "
+
+--- STEP 6: Check aminx tests still pass ---
+
+  cd /home/marielle/projects/aminx && uv run pytest
+
+--- STEP 7: Commit from xtrax directory ---
+
+  git add src/xtrax/tiling/plan.py tests/
+  git commit -m "refactor(R7-2): rename AxisSpec.batch_size→default_batch_size, granularity→tile_granularity; add deprecation shim (#1964)"
+"""
+reviewer_prompt = """
+Review R7-2: AxisSpec canonical field name migration.
+
+VERIFY 1: xtrax/src/xtrax/tiling/plan.py — AxisSpec has default_batch_size: int and tile_granularity: int = 1 (NOT batch_size or granularity)
+VERIFY 2: AxisSpec has __getattr__ method that returns default_batch_size for "batch_size" and tile_granularity for "granularity" with DeprecationWarning
+VERIFY 3: AxisDecision.batch_size is UNCHANGED — still named batch_size (it is the output field, not the input hint)
+VERIFY 4: All plan.py internal accesses use spec.default_batch_size (grep -n "spec\\.batch_size" src/xtrax/tiling/plan.py should return 0 hits for AxisSpec accesses)
+VERIFY 5: All tests use AxisSpec(..., default_batch_size=...) — no remaining batch_size= kwargs in AxisSpec constructions in test files
+VERIFY 6: cd /home/marielle/projects/xtrax && uv run pytest — full suite passes
+VERIFY 7: cd /home/marielle/projects/aminx && uv run pytest — full suite passes
+VERIFY 8: Deprecation shim smoke-check passes:
+  cd /home/marielle/projects/xtrax && uv run python -c "
+  import warnings; from xtrax.tiling import AxisSpec
+  spec = AxisSpec(name='b', cardinality=32, default_batch_size=8)
+  with warnings.catch_warnings(record=True) as w:
+      warnings.simplefilter('always')
+      val = spec.batch_size
+  assert len(w) == 1 and issubclass(w[0].category, DeprecationWarning) and val == 8
+  print('OK')
+  "
+
+PASS if all 8 satisfied.
+FAIL if batch_size or granularity remain as first-class AxisSpec fields, or if AxisDecision.batch_size was renamed.
+"""
+return_key = "1964"
+
+[orchestration]
+sequential = ["a"]
+concurrent = []

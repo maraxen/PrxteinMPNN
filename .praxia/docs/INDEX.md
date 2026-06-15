@@ -22,6 +22,7 @@
 
 ## Research
 - [260611_aminx-xtrax-refactor-codebase-model](research/260611_aminx-xtrax-refactor-codebase-model.md) — Wave-1+2 recon synthesis + validated resolutions (A1–A8) underpinning the xtrax refactor spec
+- [260616_axisspec-field-map](research/260616_axisspec-field-map.md) — R7-1 gate: canonical AxisSpec field names for RS-6 (default_batch_size, tile_granularity)
 
 ## Archives
 - [260604_example-notebook](archive/260604_example-notebook.md) — example_notebook.ipynb (API drift; pre-composable-inference)

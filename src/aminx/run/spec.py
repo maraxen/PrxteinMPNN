@@ -322,6 +322,10 @@ def build_run_spec(spec: object) -> RunSpec:
   )
 
   return RunSpec(
+    seed=getattr(spec, 'seed', 0),
+    axes=getattr(spec, 'axes', []),
+    carry_specs=getattr(spec, 'carry_specs', {}),
+    boundaries=getattr(spec, 'boundaries', None),
     io=io,
     resource=resource,
     multistate=multistate,

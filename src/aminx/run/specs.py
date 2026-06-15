@@ -6,8 +6,11 @@ import logging
 import warnings
 from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TextIO, cast
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TextIO, cast, runtime_checkable
+
+import jax.numpy as jnp
 
 from aminx.model.versions import MODEL_VERSION, MODEL_WEIGHTS
 
@@ -97,6 +100,55 @@ def _has_enabled(bundles: list[FeatureNoiseBundle], ftype: str) -> bool:
 
 
 _WRAPPED_DEPRECATED_INIT: set[type] = set()
+
+
+class AveragingMode(Enum):
+  """Enum for encoding averaging modes.
+
+  Members:
+    INPUTS: Average encodings only.
+    NOISE_LEVELS: Average noised encodings only.
+    INPUTS_AND_NOISE: Average both encodings and noised encodings.
+  """
+
+  INPUTS = "inputs"
+  NOISE_LEVELS = "noise_levels"
+  INPUTS_AND_NOISE = "inputs_and_noise"
+
+  def to_fn(self):
+    """Convert enum member to callable aggregation function.
+
+    Returns:
+      A callable (encodings, noised) -> array with averaged result.
+    """
+    if self == AveragingMode.INPUTS:
+      return lambda encodings, _: jnp.mean(encodings, axis=0)
+    elif self == AveragingMode.NOISE_LEVELS:
+      return lambda _, noised: jnp.mean(noised, axis=0)
+    else:  # INPUTS_AND_NOISE
+      return lambda encodings, noised: jnp.mean(
+          jnp.concatenate([encodings, noised], axis=0), axis=0
+      )
+
+
+@runtime_checkable
+class AggregationFn(Protocol):
+  """Protocol for encoding aggregation functions.
+
+  Callable signature: (encodings, noised) -> array.
+  """
+
+  def __call__(self, encodings, noised): ...
+
+
+@runtime_checkable
+class DecodeFn(Protocol):
+  """Protocol for decoding functions.
+
+  Callable signature: (output) -> decoded_result.
+  """
+
+  def __call__(self, output): ...
 
 
 def register_spec(cls: type) -> type:
@@ -250,6 +302,11 @@ class RunSpecification:
   fixed_mask: ArrayLike | None = None
   sidechain_conditioning: bool = False
 
+  # Encoding aggregation function (replaces average_encoding_mode)
+  encoding_aggregation_fn: AggregationFn = field(
+      default_factory=lambda: AveragingMode.INPUTS_AND_NOISE.to_fn()
+  )
+
   run_spec: RunSpec = field(init=False, repr=False)
   _run_spec_synced: bool = field(init=False, default=False)
 
@@ -372,6 +429,22 @@ class RunSpecification:
       raise ValueError(msg)
     self._sync_run_spec()
 
+  @classmethod
+  def with_averaging_mode(cls, mode: AveragingMode | str, **kwargs):
+    """Create specification with specified averaging mode.
+
+    Args:
+      mode: AveragingMode enum member or string ("inputs", "noise_levels", "inputs_and_noise").
+      **kwargs: Additional arguments to pass to the specification constructor.
+
+    Returns:
+      Instance of specification with encoding_aggregation_fn set to mode's to_fn().
+    """
+    if isinstance(mode, str):
+      mode = AveragingMode(mode)
+    kwargs["encoding_aggregation_fn"] = mode.to_fn()
+    return cls(**kwargs)
+
 
 @register_spec
 @dataclass
@@ -398,7 +471,6 @@ class ScoringSpecification(RunSpecification):
   return_all_scores: bool = False
   output_h5_path: str | Path | None = None
   average_node_features: bool = False
-  average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
   noise_batch_size: int = 4
   multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean"
 
@@ -442,7 +514,6 @@ class SamplingSpecification(RunSpecification):
   noise_batch_size: int = 1
   temperature_batch_size: int = 1
   average_node_features: bool = False
-  average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
   multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean"
   compute_pseudo_perplexity: bool = False
   state_weights: ArrayLike | None = None
@@ -456,7 +527,7 @@ class SamplingSpecification(RunSpecification):
   chunk_id: int | None = None
   sample_start: int | None = None
   sample_count: int | None = None
-  decode_fn: Any | None = None
+  decode_fn: DecodeFn | None = None
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
@@ -533,7 +604,6 @@ class JacobianSpecification(RunSpecification):
   noise_batch_size: int = 1
   jacobian_batch_size: int = 16
   average_encodings: bool = True
-  average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
   combine: bool = False
   combine_batch_size: int = 8
   combine_weights: ArrayLike | None = None

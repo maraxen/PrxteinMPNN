@@ -102,6 +102,8 @@ _NON_JSON_ROOT_FIELDS = frozenset(
     "decoding_order_fn",
     "foldcomp_database",
     "combine_fn",
+    "encoding_aggregation_fn",
+    "decode_fn",
   },
 )
 
@@ -122,6 +124,9 @@ def run_specification_to_json_dict(spec: RunSpecification) -> dict[str, Any]:
       continue
     if f.name in _NON_JSON_ROOT_FIELDS:
       val = getattr(spec, f.name)
+      # Skip non-None callable fields (they're reconstructed from configuration)
+      if callable(val):
+        continue
       if val is not None:
         msg = f"Field {f.name!r} must be None for JSON encoding (got {type(val).__name__})"
         raise SpecJSONEncodeError(msg)

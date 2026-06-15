@@ -15,6 +15,8 @@ from typing import Any, Literal, cast
 import equinox as eqx
 import jax
 
+from xtrax.run import RunSpec as _XtraxRunSpec
+
 
 class IOConfig(eqx.Module):
   """Output / manifest / sink selection (host-side)."""
@@ -111,7 +113,7 @@ class PlannerTopology(eqx.Module):
   use_unified_driver: bool = eqx.field(static=True)
 
 
-class RunSpec(eqx.Module):
+class RunSpec(_XtraxRunSpec):
   """Composed configuration for run/prep pipelines."""
 
   io: IOConfig

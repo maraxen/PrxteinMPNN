@@ -5,7 +5,12 @@ import jax.numpy as jnp
 import pytest
 from jaxtyping import Array, Float, Int
 
-from aminx.potts.sampling import gibbs_sweep, log_energy, parallel_tempering
+from aminx.potts.sampling import (
+    _parallel_tempering_exchange,
+    gibbs_sweep,
+    log_energy,
+    parallel_tempering,
+)
 
 
 class TestLogEnergy:
@@ -261,6 +266,87 @@ class TestParallelTempering:
 
     assert seqs_out.shape == (n_replicas, n)
     assert energies_out.shape == (n_replicas,)
+
+
+class TestParallelTemperingExchange:
+  """Test _parallel_tempering_exchange replica boundary conditions and parity logic."""
+
+  @pytest.mark.parametrize("n_replicas", [1, 2, 3, 4, 5])
+  def test_accept_edge_shape_matches_replicas(self, n_replicas: int) -> None:
+    """Test that accept_edge shape is always (n_replicas - 1,)."""
+    n, q = 4, 5
+    key = jax.random.PRNGKey(0)
+    seqs = jnp.ones((n_replicas, n), dtype=jnp.int32)
+    betas = jnp.linspace(0.1, 1.0, n_replicas, dtype=jnp.float32)
+    h = jnp.zeros((n, q), dtype=jnp.float32)
+    J = jnp.zeros((n, n, q, q), dtype=jnp.float32)
+    w = jnp.zeros((n, n), dtype=jnp.float32)
+    mask = jnp.ones((n,), dtype=jnp.float32)
+
+    seqs_out, key_out, accept_edge = _parallel_tempering_exchange(
+      key, seqs, betas, h, J, w, mask
+    )
+
+    assert accept_edge.shape == (n_replicas - 1,)
+    assert accept_edge.dtype == jnp.float32
+
+  def test_single_replica_no_swap(self) -> None:
+    """Test n_replicas=1: no swaps possible, sequence unchanged."""
+    n, q = 4, 5
+    key = jax.random.PRNGKey(0)
+    seqs = jnp.array([[0, 1, 2, 3]], dtype=jnp.int32)
+    betas = jnp.array([1.0], dtype=jnp.float32)
+    h = jnp.ones((n, q), dtype=jnp.float32)
+    J = jnp.zeros((n, n, q, q), dtype=jnp.float32)
+    w = jnp.zeros((n, n), dtype=jnp.float32)
+    mask = jnp.ones((n,), dtype=jnp.float32)
+
+    seqs_out, key_out, accept_edge = _parallel_tempering_exchange(
+      key, seqs, betas, h, J, w, mask
+    )
+
+    # Single replica: no edges to swap
+    assert jnp.array_equal(seqs_out, seqs)
+    assert accept_edge.shape == (0,)
+
+  def test_two_replicas_edge_processing(self) -> None:
+    """Test n_replicas=2: only even parity (edge 0) is active; odd is no-op."""
+    n, q = 4, 5
+    key = jax.random.PRNGKey(0)
+    seqs = jnp.ones((2, n), dtype=jnp.int32)
+    betas = jnp.array([0.5, 1.0], dtype=jnp.float32)
+    h = jnp.zeros((n, q), dtype=jnp.float32)
+    J = jnp.zeros((n, n, q, q), dtype=jnp.float32)
+    w = jnp.zeros((n, n), dtype=jnp.float32)
+    mask = jnp.ones((n,), dtype=jnp.float32)
+
+    seqs_out, key_out, accept_edge = _parallel_tempering_exchange(
+      key, seqs, betas, h, J, w, mask
+    )
+
+    # Two replicas: exactly one edge (0,1) with parity 0 (even)
+    assert accept_edge.shape == (1,)
+    assert 0.0 <= accept_edge[0] <= 1.0
+
+  @pytest.mark.parametrize("n_replicas", [1, 2, 3, 4, 5])
+  def test_exchange_completes_without_error(self, n_replicas: int) -> None:
+    """Test _parallel_tempering_exchange completes without error for all replica counts."""
+    n, q = 4, 5
+    key = jax.random.PRNGKey(0)
+    seqs = jnp.ones((n_replicas, n), dtype=jnp.int32)
+    betas = jnp.linspace(0.1, 1.0, n_replicas, dtype=jnp.float32)
+    h = jnp.ones((n, q), dtype=jnp.float32)
+    J = jnp.zeros((n, n, q, q), dtype=jnp.float32)
+    w = jnp.zeros((n, n), dtype=jnp.float32)
+    mask = jnp.ones((n,), dtype=jnp.float32)
+
+    # Should not raise
+    seqs_out, key_out, accept_edge = _parallel_tempering_exchange(
+      key, seqs, betas, h, J, w, mask
+    )
+
+    assert seqs_out.shape == seqs.shape
+    assert seqs_out.dtype == jnp.int32
 
 
 class TestExports:

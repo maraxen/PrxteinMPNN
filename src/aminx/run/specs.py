@@ -49,6 +49,8 @@ if TYPE_CHECKING:
   from jaxtyping import ArrayLike
   from proxide.io.parsing.foldcomp import FoldCompDatabase
 
+  from aminx.tiling.carry import CarrySpec
+  from aminx.tiling.dedup import DedupSpec
   from aminx.utils.catjac import CombineCatJacPairFn
   from aminx.utils.decoding_order import DecodingOrderFn
 
@@ -124,12 +126,12 @@ class AveragingMode(Enum):
     """
     if self == AveragingMode.INPUTS:
       return lambda encodings, _: jnp.mean(encodings, axis=0)
-    elif self == AveragingMode.NOISE_LEVELS:
+    if self == AveragingMode.NOISE_LEVELS:
       return lambda _, noised: jnp.mean(noised, axis=0)
-    else:  # INPUTS_AND_NOISE
-      return lambda encodings, noised: jnp.mean(
-          jnp.concatenate([encodings, noised], axis=0), axis=0
-      )
+    # INPUTS_AND_NOISE
+    return lambda encodings, noised: jnp.mean(
+        jnp.concatenate([encodings, noised], axis=0), axis=0,
+    )
 
 
 @runtime_checkable
@@ -324,7 +326,7 @@ class RunSpecification:
 
   # Encoding aggregation function (replaces average_encoding_mode)
   encoding_aggregation_fn: AggregationFn = field(
-      default_factory=lambda: AveragingMode.INPUTS_AND_NOISE.to_fn()
+      default_factory=lambda: AveragingMode.INPUTS_AND_NOISE.to_fn(),
   )
 
   run_spec: RunSpec = field(init=False, repr=False)
@@ -548,6 +550,8 @@ class SamplingSpecification(RunSpecification):
   sample_start: int | None = None
   sample_count: int | None = None
   decode_fn: DecodeFn | None = None
+  carry_specs: list[CarrySpec] | None = None
+  dedup_specs: list[DedupSpec] | None = None
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

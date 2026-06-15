@@ -67,9 +67,33 @@ TiedPositionMode = Literal["auto", "direct"] | None
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class FeatureNoiseBundle:
+  """Encapsulates noise schedule and mode for a single feature type (backbone/electrostatic/vdw)."""
+
+  feature_type: Literal["backbone", "electrostatic", "vdw"]
+  noise_levels: tuple[float, ...]
+  mode: Literal["direct", "thermal"] = "direct"
+  enabled: bool = True
+
+
 def _loader_inputs(inputs: Sequence[str | TextIO] | str | TextIO) -> Sequence[str | TextIO]:
   out = (inputs,) if not isinstance(inputs, Sequence) else inputs
   return cast("Sequence[str | TextIO]", out)
+
+
+def _extract_noise_levels(bundles: list[FeatureNoiseBundle], ftype: str) -> tuple[float, ...]:
+  """Extract noise_levels from a bundle matching the given feature_type."""
+  for b in bundles:
+    if b.feature_type == ftype and b.enabled:
+      return b.noise_levels
+  # Return default (no noise) if bundle not found or not enabled
+  return (0.0,) if ftype == "backbone" else ()
+
+
+def _has_enabled(bundles: list[FeatureNoiseBundle], ftype: str) -> bool:
+  """Check if any enabled bundle exists for the given feature_type."""
+  return any(b.feature_type == ftype and b.enabled for b in bundles)
 
 
 _WRAPPED_DEPRECATED_INIT: set[type] = set()
@@ -149,14 +173,17 @@ class RunSpecification:
   checkpoint_registry_path: str | Path | None = None
   ligand_mpnn_use_side_chain_context: bool | None = None
   batch_size: int = 32
-  backbone_noise: Sequence[float] | float = (0.0,)
-  backbone_noise_mode: Literal["direct", "thermal"] = "direct"
+  noise: list[FeatureNoiseBundle] = field(default_factory=list)
+  # Deprecated old noise fields (will be removed in next major version)
+  # These are kept for backward compatibility; prefer using 'noise' list
+  backbone_noise: Sequence[float] | float | None = None
+  backbone_noise_mode: Literal["direct", "thermal"] | None = None
   estat_noise: Sequence[float] | float | None = None
-  estat_noise_mode: Literal["direct", "thermal"] = "direct"
+  estat_noise_mode: Literal["direct", "thermal"] | None = None
   vdw_noise: Sequence[float] | float | None = None
-  vdw_noise_mode: Literal["direct", "thermal"] = "direct"
-  use_electrostatics: bool = False
-  use_vdw: bool = False
+  vdw_noise_mode: Literal["direct", "thermal"] | None = None
+  use_electrostatics: bool | None = None
+  use_vdw: bool | None = None
   foldcomp_database: FoldCompDatabase | None = None
   ar_mask: None | ArrayLike = None
   random_seed: int = 42
@@ -237,17 +264,99 @@ class RunSpecification:
     # Ensure guard flag is initialized for first-time use
     if not hasattr(self, "_run_spec_synced"):
       object.__setattr__(self, "_run_spec_synced", False)
+
+    # Handle backward compatibility: convert old-style noise params to noise list
+    bundles = list(self.noise)  # Start with provided bundles
+
+    # Backbone noise (always convert to bundle for consistency)
+    if self.backbone_noise is not None or not bundles or all(b.feature_type != "backbone" for b in bundles):
+      bb_noise = self.backbone_noise
+      if bb_noise is not None:
+        if isinstance(bb_noise, float):
+          bb_noise = (bb_noise,)
+        else:
+          bb_noise = tuple(bb_noise)
+      else:
+        bb_noise = (0.0,)
+
+      bb_mode = self.backbone_noise_mode or "direct"
+      bundles = [b for b in bundles if b.feature_type != "backbone"]
+      if bb_noise != (0.0,) or bb_mode != "direct":
+        bundles.append(FeatureNoiseBundle(
+          feature_type="backbone",
+          noise_levels=bb_noise,
+          mode=bb_mode,
+          enabled=True
+        ))
+
+    # Electrostatic noise
+    if self.estat_noise is not None or self.use_electrostatics:
+      bundles = [b for b in bundles if b.feature_type != "electrostatic"]
+      if self.estat_noise is not None:
+        estat_levels = self.estat_noise
+        if isinstance(estat_levels, float):
+          estat_levels = (estat_levels,)
+        else:
+          estat_levels = tuple(estat_levels)
+        bundles.append(FeatureNoiseBundle(
+          feature_type="electrostatic",
+          noise_levels=estat_levels,
+          mode=self.estat_noise_mode or "direct",
+          enabled=True
+        ))
+      elif self.use_electrostatics:
+        bundles.append(FeatureNoiseBundle(
+          feature_type="electrostatic",
+          noise_levels=(0.0,),
+          mode=self.estat_noise_mode or "direct",
+          enabled=True
+        ))
+
+    # VDW noise
+    if self.vdw_noise is not None or self.use_vdw:
+      bundles = [b for b in bundles if b.feature_type != "vdw"]
+      if self.vdw_noise is not None:
+        vdw_levels = self.vdw_noise
+        if isinstance(vdw_levels, float):
+          vdw_levels = (vdw_levels,)
+        else:
+          vdw_levels = tuple(vdw_levels)
+        bundles.append(FeatureNoiseBundle(
+          feature_type="vdw",
+          noise_levels=vdw_levels,
+          mode=self.vdw_noise_mode or "direct",
+          enabled=True
+        ))
+      elif self.use_vdw:
+        bundles.append(FeatureNoiseBundle(
+          feature_type="vdw",
+          noise_levels=(0.0,),
+          mode=self.vdw_noise_mode or "direct",
+          enabled=True
+        ))
+
+    # Update self.noise with merged bundles
+    object.__setattr__(self, "noise", bundles)
+
+    # Set backward-compat attributes from noise list
+    object.__setattr__(self, "backbone_noise", _extract_noise_levels(bundles, "backbone"))
+    object.__setattr__(self, "use_electrostatics", _has_enabled(bundles, "electrostatic"))
+    object.__setattr__(self, "use_vdw", _has_enabled(bundles, "vdw"))
+
+    # Also convert deprecated field attributes to tuples for backward compat
     if isinstance(self.backbone_noise, float):
       object.__setattr__(self, "backbone_noise", (self.backbone_noise,))
-    if isinstance(self.estat_noise, float):
-      object.__setattr__(self, "estat_noise", (self.estat_noise,))
     if self.estat_noise is not None:
-      object.__setattr__(self, "use_electrostatics", True)
-
-    if isinstance(self.vdw_noise, float):
-      object.__setattr__(self, "vdw_noise", (self.vdw_noise,))
+      if isinstance(self.estat_noise, float):
+        object.__setattr__(self, "estat_noise", (self.estat_noise,))
+      elif not isinstance(self.estat_noise, tuple):
+        object.__setattr__(self, "estat_noise", tuple(self.estat_noise))
     if self.vdw_noise is not None:
-      object.__setattr__(self, "use_vdw", True)
+      if isinstance(self.vdw_noise, float):
+        object.__setattr__(self, "vdw_noise", (self.vdw_noise,))
+      elif not isinstance(self.vdw_noise, tuple):
+        object.__setattr__(self, "vdw_noise", tuple(self.vdw_noise))
+
     if self.cache_path and isinstance(self.cache_path, str):
       object.__setattr__(self, "cache_path", Path(self.cache_path))
     if self.output_dir and isinstance(self.output_dir, str):

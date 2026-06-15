@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import field
 from os import PathLike, fspath
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -116,16 +117,16 @@ class PlannerTopology(eqx.Module):
 class RunSpec(_XtraxRunSpec):
   """Composed configuration for run/prep pipelines."""
 
-  io: IOConfig
-  resource: ResourceConfig
-  multistate: MultistateConfig
-  ligand: LigandConfig
-  tied: TiedPositionsConfig
-  grid: GridLineageConfig
-  batching: BatchingConfig
-  averaging: AveragingConfig
-  precision: PrecisionConfig
-  plan: PlannerTopology
+  io: IOConfig = field(default_factory=lambda: None)  # type: ignore
+  resource: ResourceConfig = field(default_factory=lambda: None)  # type: ignore
+  multistate: MultistateConfig = field(default_factory=lambda: None)  # type: ignore
+  ligand: LigandConfig = field(default_factory=lambda: None)  # type: ignore
+  tied: TiedPositionsConfig = field(default_factory=lambda: None)  # type: ignore
+  grid: GridLineageConfig = field(default_factory=lambda: None)  # type: ignore
+  batching: BatchingConfig = field(default_factory=lambda: None)  # type: ignore
+  averaging: AveragingConfig = field(default_factory=lambda: None)  # type: ignore
+  precision: PrecisionConfig = field(default_factory=lambda: None)  # type: ignore
+  plan: PlannerTopology = field(default_factory=lambda: None)  # type: ignore
 
 
 def _optional_path(value: object | None) -> Path | None:

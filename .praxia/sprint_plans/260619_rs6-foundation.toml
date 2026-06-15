@@ -1,0 +1,348 @@
+[sprint]
+sprint_id = "260619_rs6-foundation"
+sprint_num = 2
+name = "260619_rs6-foundation"
+description = "RS-6 foundation: xtrax/run/ module, AxisSpec naming gate, FuseFn __all__ cleanup"
+context = """
+Spec: .praxia/docs/specs/260615_runspec-xtrax-run-epic.md (RS-6 section)
+
+Key facts:
+- xtrax/run/ does NOT exist yet — Track A creates it from scratch
+- aminx RunSpec (eqx.Module) at aminx/run/spec.py:114 — fields: io, resource, multistate, ligand, tied, grid, batching, averaging, precision, plan
+- xtrax AxisSpec at xtrax/tiling/plan.py:43 — fields: name, cardinality, batch_size, granularity, heterogeneous, dedup_eligible, bucket_boundaries
+- prolix AxisSpec at prolix/tiling/planner.py:56 — fields: name, axis_index, cardinality, default_batch_size, tile_granularity, heterogeneous, doc
+- Naming conflicts: batch_size vs default_batch_size; granularity vs tile_granularity
+- Track C (R7-1) resolves naming conflicts and gates Track A field names
+- FuseFn class was already removed by H4 (commit bb8187d); __getattr__ shim already in xtrax/stages/__init__.py
+- FuseFn still in __all__ of xtrax/stages/__init__.py (line 6) and xtrax/__init__.py (lines 55, 111)
+- aminx/types/stages.py:68 FuseFn (logit transform, bias param) is DISTINCT and OUT OF SCOPE
+"""
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[[tracks]]
+id = "c"
+is_research = true
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1926"
+phase_name = "Track C — R7-1: AxisSpec field mapping table + naming decision (GATE) (#1926)"
+fixer_prompt = """
+Research task #1926: Produce the AxisSpec canonical field mapping table.
+
+This is a GATE item — Track A (R6-1) cannot commit RunSpec field names until you have delivered the naming decisions in this document.
+
+OUTPUT FILE: .praxia/docs/research/260616_axisspec-field-map.md
+
+STEP 1 — Read source definitions:
+- xtrax AxisSpec: xtrax/src/xtrax/tiling/plan.py starting at class AxisSpec (~line 30)
+  Fields: name, cardinality, batch_size, granularity, heterogeneous, dedup_eligible, bucket_boundaries
+- prolix AxisSpec: prolix/src/prolix/tiling/planner.py starting at class AxisSpec (~line 56)
+  Fields: name, axis_index, cardinality, default_batch_size, tile_granularity, heterogeneous, doc
+- Check if aminx has its own AxisSpec definition: grep -r "class AxisSpec" aminx/
+
+STEP 2 — Build the three-column table with this EXACT structure:
+
+| xtrax field | prolix field | canonical decision |
+|---|---|---|
+| name: str | name: str | name |
+| cardinality: int | cardinality: int | cardinality |
+| batch_size: int | default_batch_size: int | <decide here> |
+| granularity: int = 1 | tile_granularity: int | <decide here> |
+| heterogeneous: bool = False | heterogeneous: bool | heterogeneous |
+| dedup_eligible: bool = False | (absent) | dedup_eligible (xtrax-only) |
+| bucket_boundaries: tuple[int,...] | None = None | (absent) | bucket_boundaries (xtrax-only) |
+| (absent) | axis_index: int | axis_index (prolix-only, ordering metadata) |
+| (absent) | doc: str | doc (prolix-only, free-text) |
+
+STEP 3 — Make naming decisions for the two conflicts. Choose one name as canonical:
+
+Conflict 1 — batch_size vs default_batch_size:
+- xtrax uses batch_size (short; consistent with AxisDecision.batch_size output field)
+- prolix uses default_batch_size (explicit that 0 = vmap; the "default" qualifier prevents confusion with AxisDecision.batch_size)
+- Recommendation: use default_batch_size — clarifies the 0=vmap semantic and avoids collision with AxisDecision.batch_size output field
+- Read both definitions and check AxisDecision in xtrax/tiling/plan.py — does AxisDecision also have a batch_size field? If so, default_batch_size is clearly the right choice to avoid ambiguity.
+- Choose and commit. Do not write "TBD" or "deferred".
+
+Conflict 2 — granularity vs tile_granularity:
+- xtrax uses granularity (short)
+- prolix uses tile_granularity (domain-specific; Pallas/safe_map alignment context)
+- Recommendation: use tile_granularity — disambiguates from other granularity concepts (bucket granularity, sequence granularity)
+- Choose and commit. Do not write "TBD" or "deferred".
+
+STEP 4 — Write the naming gate section (REQUIRED):
+
+The LAST section of the document must be titled "## RS-6 RunSpec axis field names" and state:
+
+Based on the canonical decisions above, Track A (R6-1) MUST use these constructor kwarg names when creating xtrax/run/spec.py and any AxisSpec instantiation:
+- `default_batch_size=` (canonical, replaces batch_size=)
+- `tile_granularity=` (canonical, replaces granularity=)
+
+Also state whether the xtrax AxisSpec class itself needs to be renamed/migrated (SEPARATE WORK — do not do it in this task; just note it as R7-2 future work).
+
+STEP 5 — Commit:
+  git add .praxia/docs/research/260616_axisspec-field-map.md
+  git commit -m "research(R7-1): AxisSpec field mapping table + naming decisions (#1926)"
+
+Also update .praxia/docs/INDEX.md to add the new file under the Research section.
+"""
+reviewer_prompt = """
+Review R7-1: AxisSpec field mapping table.
+
+VERIFY 1: .praxia/docs/research/260616_axisspec-field-map.md exists and is committed
+VERIFY 2: The three-column table covers all 9 field entries (including xtrax-only bucket_boundaries and dedup_eligible; prolix-only axis_index and doc)
+VERIFY 3: BOTH naming conflicts are RESOLVED with explicit decisions — no "TBD" or "defer" in the canonical decision column
+VERIFY 4: The document ends with a "## RS-6 RunSpec axis field names" section that explicitly names the canonical kwargs (expected: default_batch_size and tile_granularity)
+VERIFY 5: .praxia/docs/INDEX.md updated with a Research entry for the new file
+
+PASS if all 5 VERIFY items are satisfied.
+FAIL if any naming decision is deferred or the RS-6 gate section is missing.
+"""
+return_key = "1926"
+
+[[tracks]]
+id = "b"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1925"
+phase_name = "Track B — R6-4: Remove FuseFn from xtrax __all__ exports (#1925)"
+fixer_prompt = """
+Fix #1925: Remove FuseFn from __all__ in xtrax/stages/__init__.py and xtrax/__init__.py.
+
+CONTEXT:
+- H4 already removed the FuseFn class from protocols.py (commit bb8187d)
+- A __getattr__ shim now exists in xtrax/stages/__init__.py (~line 10) that returns Fuse with DeprecationWarning
+- The shim means `from xtrax.stages import FuseFn` still WORKS (triggers warning) without __all__ listing it
+- But FuseFn is still in two __all__ declarations, which means `from xtrax.stages import *` imports it silently
+
+STEP 1 — Remove from xtrax/src/xtrax/stages/__init__.py:
+Find the __all__ list (around line 6). It currently contains "FuseFn" — remove ONLY that string.
+Leave TransformFn, RollingFn, Fuse, Tap, Sink, AxisBoundary, and all other entries.
+Do NOT touch the __getattr__ function below the __all__ list.
+
+STEP 2 — Remove from xtrax/src/xtrax/__init__.py:
+Around line 55: remove "FuseFn" from the __all__ list.
+Around line 111: remove the "FuseFn": "xtrax.stages" entry from the lazy-import module map.
+
+STEP 3 — Verify the deprecation path still works (inline check):
+  cd /home/marielle/projects/xtrax && uv run python -c "
+  import warnings
+  with warnings.catch_warnings(record=True) as w:
+      warnings.simplefilter('always')
+      from xtrax.stages import FuseFn
+      assert len(w) == 1 and issubclass(w[0].category, DeprecationWarning), f'Expected DeprecationWarning, got: {w}'
+  print('Deprecation path OK — DeprecationWarning fires correctly')
+  "
+
+STEP 4 — Verify FuseFn is NOT in star-import:
+  uv run python -c "
+  import xtrax.stages
+  assert 'FuseFn' not in xtrax.stages.__all__, 'FuseFn should not be in __all__'
+  print('FuseFn correctly absent from __all__')
+  "
+
+STEP 5 — Run tests:
+  cd /home/marielle/projects/xtrax && uv run pytest
+
+STEP 6 — Commit from xtrax directory:
+  git add src/xtrax/stages/__init__.py src/xtrax/__init__.py
+  git commit -m "refactor(R6-4): remove FuseFn from __all__; deprecated __getattr__ shim remains (#1925)"
+
+SCOPE NOTE: aminx/src/aminx/types/stages.py:68 has a SEPARATE FuseFn (logit transform protocol
+with a bias: Array parameter). Do NOT touch that file at all.
+"""
+reviewer_prompt = """
+Review R6-4: FuseFn __all__ cleanup.
+
+VERIFY 1: uv run pytest passes in xtrax (run from /home/marielle/projects/xtrax)
+VERIFY 2: "FuseFn" is NOT present in the __all__ list in xtrax/src/xtrax/stages/__init__.py
+VERIFY 3: "FuseFn" is NOT present in the __all__ list in xtrax/src/xtrax/__init__.py
+VERIFY 4: "FuseFn" is NOT present in the lazy-import module map in xtrax/src/xtrax/__init__.py
+VERIFY 5: `from xtrax.stages import FuseFn` still resolves at runtime (deprecated shim) and raises DeprecationWarning
+VERIFY 6: aminx/src/aminx/types/stages.py is UNCHANGED (logit-transform FuseFn is a different protocol, out of scope)
+
+PASS if all 6 VERIFY items are satisfied.
+FAIL if any item is not met.
+"""
+return_key = "1925"
+
+[[tracks]]
+id = "a"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1922"
+phase_name = "Track A — R6-1: Create xtrax/run/ module (#1922)"
+fixer_prompt = """
+Fix #1922: Create the xtrax/run/ module — the RS-6 foundation.
+
+PREREQUISITE: Track C (R7-1) must be complete. Read .praxia/docs/research/260616_axisspec-field-map.md
+before committing any field names. The document declares canonical kwarg names (expected: default_batch_size,
+tile_granularity) — use those names in any AxisSpec instantiation in this task.
+
+--- PART 1: Create xtrax/src/xtrax/run/ ---
+
+Create the directory and these files:
+
+FILE: xtrax/src/xtrax/run/__init__.py
+Content:
+  \"\"\"xtrax.run — execution-time configuration layer.\"\"\"
+  from xtrax.run.spec import RunSpec
+  from xtrax.run.resolver import FeatureBatch, InputResolver, RuntimeBundle
+  from xtrax.run.sink import SinkSpec
+
+  __all__ = ["RunSpec", "InputResolver", "RuntimeBundle", "FeatureBatch", "SinkSpec"]
+
+FILE: xtrax/src/xtrax/run/spec.py
+Content:
+  from __future__ import annotations
+  from typing import Any
+  import equinox as eqx
+  from xtrax.stages.boundaries import AxisBoundary
+  from xtrax.tiling import AxisSpec
+
+  class RunSpec(eqx.Module):
+      \"\"\"Base execution config. aminx.run.RunSpec (eqx.Module) extends this.\"\"\"
+      seed: int
+      axes: list[AxisSpec]
+      carry_specs: dict[str, Any] = eqx.field(default_factory=dict)
+      boundaries: list[AxisBoundary] | None = None
+
+FILE: xtrax/src/xtrax/run/resolver.py
+Content:
+  from __future__ import annotations
+  from dataclasses import dataclass
+  from typing import Any, NewType
+  from typing import Protocol, runtime_checkable
+  import equinox as eqx
+  from xtrax.run.spec import RunSpec
+
+  FeatureBatch = NewType("FeatureBatch", dict)
+
+  @dataclass
+  class RuntimeBundle:
+      \"\"\"Materialized execution context (produced before InputResolver fires).\"\"\"
+      iterator: Any
+      model: eqx.Module
+
+  @runtime_checkable
+  class InputResolver(Protocol):
+      \"\"\"Map (spec, materialized bundle) to a feature batch.
+
+      Do NOT make this a generic Protocol[S, T] over two TypeVars.
+      Use @functools.singledispatch for subclass-specific implementations.
+      \"\"\"
+      def __call__(self, spec: RunSpec, bundle: RuntimeBundle) -> FeatureBatch: ...
+
+FILE: xtrax/src/xtrax/run/sink.py
+Content:
+  from __future__ import annotations
+  from dataclasses import dataclass, field
+  from pathlib import Path
+  from typing import Literal
+
+  @dataclass
+  class SinkSpec:
+      \"\"\"Routing config for output sinks.\"\"\"
+      output_dir: Path | None = None
+      format: Literal["jsonl", "h5", "none"] = "jsonl"
+      flush_every: int = 1
+
+FILE: xtrax/src/xtrax/run/protocols.py
+Content:
+  from __future__ import annotations
+  from typing import Protocol, runtime_checkable
+
+  @runtime_checkable
+  class AggregationFn(Protocol):
+      def __call__(self, *args: object) -> object: ...
+
+  @runtime_checkable
+  class DecodeFn(Protocol):
+      def __call__(self, *args: object) -> object: ...
+
+  @runtime_checkable
+  class NoiseFn(Protocol):
+      def __call__(self, *args: object) -> object: ...
+
+--- PART 2: Update aminx RunSpec to extend xtrax.run.RunSpec ---
+
+FILE: aminx/src/aminx/run/spec.py
+Current line 114: class RunSpec(eqx.Module):
+
+Change ONLY the class definition line and add ONE import.
+Add near the top of the file (with other xtrax imports or after existing imports):
+  from xtrax.run import RunSpec as _XtraxRunSpec
+
+Change line 114 from:
+  class RunSpec(eqx.Module):
+to:
+  class RunSpec(_XtraxRunSpec):
+
+No other changes — the existing fields (io, resource, multistate, ligand, tied, grid, batching, averaging, precision, plan) remain exactly as-is.
+eqx.Module inheritance is valid — subclasses simply add fields; eqx.tree_flatten recurses correctly.
+
+--- PART 3: Tests ---
+
+Create xtrax/tests/run/test_spec.py:
+  from xtrax.run import RunSpec, InputResolver, RuntimeBundle, FeatureBatch, SinkSpec
+
+  def test_run_spec_constructs():
+      spec = RunSpec(seed=0, axes=[], carry_specs={}, boundaries=None)
+      assert spec.seed == 0
+
+  def test_sink_spec_defaults():
+      s = SinkSpec()
+      assert s.format == "jsonl"
+      assert s.flush_every == 1
+
+  def test_input_resolver_protocol():
+      class MyResolver:
+          def __call__(self, spec, bundle):
+              return FeatureBatch({})
+      assert isinstance(MyResolver(), InputResolver)
+
+Run: cd /home/marielle/projects/xtrax && uv run pytest tests/run/
+
+Also run all aminx tests to confirm no regression:
+  cd /home/marielle/projects/aminx && uv run pytest
+
+--- PART 4: Commit ---
+
+From xtrax directory:
+  git add src/xtrax/run/
+  git commit -m "feat(RS-6): add xtrax.run module — RunSpec, InputResolver, RuntimeBundle, SinkSpec (#1922)"
+
+From aminx directory:
+  git add src/aminx/run/spec.py
+  git commit -m "feat(RS-6): aminx RunSpec extends xtrax.run.RunSpec (#1922)"
+"""
+reviewer_prompt = """
+Review R6-1: xtrax/run/ module creation and aminx RunSpec inheritance.
+
+VERIFY 1: uv run pytest passes in xtrax (cd /home/marielle/projects/xtrax && uv run pytest)
+VERIFY 2: uv run pytest passes in aminx (cd /home/marielle/projects/aminx && uv run pytest)
+VERIFY 3: from xtrax.run import RunSpec, InputResolver, RuntimeBundle, FeatureBatch, SinkSpec — all resolve without ImportError
+VERIFY 4: RunSpec(seed=0, axes=[], carry_specs={}, boundaries=None) constructs; eqx.tree_flatten does not raise
+VERIFY 5: InputResolver is a @runtime_checkable Protocol; its __call__ is (self, spec: RunSpec, bundle: RuntimeBundle) -> FeatureBatch; NOT a generic over 2 TypeVars
+VERIFY 6: issubclass(aminx_RunSpec, xtrax_RunSpec) is True (import both and check)
+VERIFY 7: The xtrax/run/ tests in tests/run/test_spec.py exist and pass
+VERIFY 8: aminx/src/aminx/types/stages.py is UNCHANGED (out of scope)
+
+PASS if all 8 VERIFY items are satisfied.
+FAIL if any item is not met.
+"""
+return_key = "1922"
+
+[orchestration]
+# C (R7-1 gate) must complete before A (R6-1) so naming decisions are available.
+# B (R6-4 __all__ cleanup) is independent — runs concurrently with C.
+sequential = ["c", "b", "a"]
+concurrent = []

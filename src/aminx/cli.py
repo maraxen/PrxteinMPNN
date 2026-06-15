@@ -408,7 +408,6 @@ def run_sample(
       noise_batch_size=noise_batch_size,
       temperature_batch_size=temperature_batch_size,
       average_node_features=average_node_features,
-      average_encoding_mode=average_encoding_mode,  # type: ignore[arg-type]
       multi_state_strategy=multi_state_strategy,  # type: ignore[arg-type]
       compute_pseudo_perplexity=compute_pseudo_perplexity,
       ligand_conditioning=ligand_conditioning,
@@ -493,7 +492,6 @@ def run_score(
       return_all_scores=return_all_scores,
       output_h5_path=output_h5_path,
       average_node_features=average_node_features,
-      average_encoding_mode=average_encoding_mode,  # type: ignore[arg-type]
       noise_batch_size=noise_batch_size,
       multi_state_strategy=multi_state_strategy,  # type: ignore[arg-type]
     )
@@ -559,7 +557,6 @@ def run_jacobian(
       noise_batch_size=noise_batch_size,
       jacobian_batch_size=jacobian_batch_size,
       average_encodings=average_encodings,
-      average_encoding_mode=average_encoding_mode,  # type: ignore[arg-type]
       combine=combine,
       combine_batch_size=combine_batch_size,
       output_h5_path=output_h5_path,
@@ -847,7 +844,6 @@ def spec_emit_sample(
       noise_batch_size=noise_batch_size,
       temperature_batch_size=temperature_batch_size,
       average_node_features=average_node_features,
-      average_encoding_mode=average_encoding_mode,  # type: ignore[arg-type]
       multi_state_strategy=multi_state_strategy,  # type: ignore[arg-type]
       compute_pseudo_perplexity=compute_pseudo_perplexity,
       ligand_conditioning=ligand_conditioning,
@@ -926,7 +922,6 @@ def spec_emit_score(
       return_all_scores=return_all_scores,
       output_h5_path=output_h5_path,
       average_node_features=average_node_features,
-      average_encoding_mode=average_encoding_mode,  # type: ignore[arg-type]
       noise_batch_size=noise_batch_size,
       multi_state_strategy=multi_state_strategy,  # type: ignore[arg-type]
     )
@@ -986,7 +981,6 @@ def spec_emit_jacobian(
       noise_batch_size=noise_batch_size,
       jacobian_batch_size=jacobian_batch_size,
       average_encodings=average_encodings,
-      average_encoding_mode=average_encoding_mode,  # type: ignore[arg-type]
       combine=combine,
       combine_batch_size=combine_batch_size,
       output_h5_path=output_h5_path,

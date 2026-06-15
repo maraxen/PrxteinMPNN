@@ -220,6 +220,8 @@ class RunSpecification:
   tie_group_map: ArrayLike | None = None
   structure_mapping: ArrayLike | None = None
   multi_state_temperature: float = 1.0
+  fixed_mask: ArrayLike | None = None
+  sidechain_conditioning: bool = False
 
   run_spec: RunSpec = field(init=False, repr=False)
 
@@ -311,7 +313,6 @@ class SamplingSpecification(RunSpecification):
   use_unified_driver: bool = True
   bias: ArrayLike | None = None
   fixed_positions: ArrayLike | None = None
-  fixed_mask: ArrayLike | None = None
   fixed_tokens: ArrayLike | None = None
   iterations: int | None = None
   learning_rate: float | None = None
@@ -331,7 +332,6 @@ class SamplingSpecification(RunSpecification):
   compute_pseudo_perplexity: bool = False
   state_weights: ArrayLike | None = None
   ligand_conditioning: bool = False
-  sidechain_conditioning: bool = False
   campaign_mode: bool = False
   allow_logits_in_campaign: bool = False
   logits_memory_budget_mb: int | None = None

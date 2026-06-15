@@ -1,0 +1,168 @@
+[sprint]
+sprint_id = "260618_runspec-hygiene-p1"
+sprint_num = 1
+name = "260618_runspec-hygiene-p1"
+description = ""
+context = "[MANUAL: paste recon findings here before running emit-sprint]"
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[[tracks]]
+id = "a"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1920"
+phase_name = "Track A — H1: Move sidechain_conditioning + fixed_mask to RunSpecification base (#1920)"
+fixer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+Remove sidechain_conditioning (line 336) and fixed_mask (line 316) from SamplingSpecification. Add both to RunSpecification defaulted-field block (145-225) before run_spec = field(init=False) at line 226. Safe: build_run_spec reads via getattr MRO-agnostic; spec_json.py:186 already handles fixed_mask. Supersedes #1904 (which adds to InspectionSpec — wrong fix). Gate: pytest passes; round-trip test for ScoringSpec with fixed_mask; test asserts fields are on base not only SamplingSpec. LOC ~8.
+
+[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"""
+reviewer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+Remove sidechain_conditioning (line 336) and fixed_mask (line 316) from SamplingSpecification. Add both to RunSpecification defaulted-field block (145-225) before run_spec = field(init=False) at line 226. Safe: build_run_spec reads via getattr MRO-agnostic; spec_json.py:186 already handles fixed_mask. Supersedes #1904 (which adds to InspectionSpec — wrong fix). Gate: pytest passes; round-trip test for ScoringSpec with fixed_mask; test asserts fields are on base not only SamplingSpec. LOC ~8.
+
+REVIEWER CHECKLIST (fill in before running dw emit-sprint):
+VERIFY: cargo command or test that must pass — e.g. `cargo nextest run -p <crate>`
+VERIFY: observable assertion — e.g. "new test exists and calls the handler directly"
+VERIFY: no regression — e.g. "existing tests still pass"
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written."""
+return_key = "1920"
+
+[[tracks]]
+id = "b"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1921"
+phase_name = "Track B — H2: Fix chain_mask hardcode in _sampling_helper.py:346 (#1921)"
+fixer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+Replace jnp.ones hardcode with: if spec.fixed_mask is not None: fixed_mask_np = _broadcast_per_structure(spec.fixed_mask, batch_size=batch_size, expected_len=seq_len, dtype=jnp.float32, name='fixed_mask'); chain_mask = 1.0 - fixed_mask_np. Use _broadcast_per_structure (exists at lines 448-457) — do NOT use raw spec.fixed_mask directly (1-D, unpadded). Convention: chain_mask 1=designable 0=fixed; fixed_mask 1=fixed, hence complement. Gate: fixed_mask=None → all-ones (batch_size, seq_len); fixed_mask set → complement correct shape; assert chain_mask.dtype == jnp.float32. LOC ~15.
+
+[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"""
+reviewer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+Replace jnp.ones hardcode with: if spec.fixed_mask is not None: fixed_mask_np = _broadcast_per_structure(spec.fixed_mask, batch_size=batch_size, expected_len=seq_len, dtype=jnp.float32, name='fixed_mask'); chain_mask = 1.0 - fixed_mask_np. Use _broadcast_per_structure (exists at lines 448-457) — do NOT use raw spec.fixed_mask directly (1-D, unpadded). Convention: chain_mask 1=designable 0=fixed; fixed_mask 1=fixed, hence complement. Gate: fixed_mask=None → all-ones (batch_size, seq_len); fixed_mask set → complement correct shape; assert chain_mask.dtype == jnp.float32. LOC ~15.
+
+REVIEWER CHECKLIST (fill in before running dw emit-sprint):
+VERIFY: cargo command or test that must pass — e.g. `cargo nextest run -p <crate>`
+VERIFY: observable assertion — e.g. "new test exists and calls the handler directly"
+VERIFY: no regression — e.g. "existing tests still pass"
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written."""
+return_key = "1921"
+
+[[tracks]]
+id = "c"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1907"
+phase_name = "Track C — Promote Fuse/Tap/Sink/AxisBoundary to xtrax/stages/boundaries.py (#1907)"
+fixer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+Create xtrax/stages/boundaries.py exporting Fuse, Tap, Sink, AxisBoundary verbatim from aminx/types/boundaries.py. All four types remain @runtime_checkable. AxisBoundary fields remain eqx.field(static=True). Docstring cross-references added between FuseFn and Fuse (distinct protocols, different contexts).
+
+Update xtrax/stages/__init__.py to re-export: from xtrax.stages.boundaries import AxisBoundary, Fuse, Sink, Tap. FuseFn is NOT removed or merged.
+
+Acceptance criteria:
+- Given: from xtrax.stages import Fuse, Tap, Sink, AxisBoundary; Then: all four resolve without ImportError
+- Given: AxisBoundary() instance (all-None); When: eqx.tree_flatten(ab) called; Then: succeeds and round-trips
+- Given: a class with def __call__(self, stacked): ...; When: isinstance(obj, Fuse); Then: True
+- Given: from xtrax.stages import FuseFn; Then: still resolves (not broken)
+
+Pre-condition: grep aminx for isinstance.*(Fuse|Tap|Sink|AxisBoundary) — confirm zero matches before creating file.
+
+[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"""
+reviewer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+Create xtrax/stages/boundaries.py exporting Fuse, Tap, Sink, AxisBoundary verbatim from aminx/types/boundaries.py. All four types remain @runtime_checkable. AxisBoundary fields remain eqx.field(static=True). Docstring cross-references added between FuseFn and Fuse (distinct protocols, different contexts).
+
+Update xtrax/stages/__init__.py to re-export: from xtrax.stages.boundaries import AxisBoundary, Fuse, Sink, Tap. FuseFn is NOT removed or merged.
+
+Acceptance criteria:
+- Given: from xtrax.stages import Fuse, Tap, Sink, AxisBoundary; Then: all four resolve without ImportError
+- Given: AxisBoundary() instance (all-None); When: eqx.tree_flatten(ab) called; Then: succeeds and round-trips
+- Given: a class with def __call__(self, stacked): ...; When: isinstance(obj, Fuse); Then: True
+- Given: from xtrax.stages import FuseFn; Then: still resolves (not broken)
+
+Pre-condition: grep aminx for isinstance.*(Fuse|Tap|Sink|AxisBoundary) — confirm zero matches before creating file.
+
+REVIEWER CHECKLIST (fill in before running dw emit-sprint):
+VERIFY: cargo command or test that must pass — e.g. `cargo nextest run -p <crate>`
+VERIFY: observable assertion — e.g. "new test exists and calls the handler directly"
+VERIFY: no regression — e.g. "existing tests still pass"
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written."""
+return_key = "1907"
+
+[[tracks]]
+id = "d"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1908"
+phase_name = "Track D — Convert aminx/types/boundaries.py to shim re-export from xtrax.stages (#1908)"
+fixer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+After xtrax/stages/boundaries.py is created, replace aminx/types/boundaries.py contents with a one-line re-export shim:
+  from xtrax.stages.boundaries import AxisBoundary, Fuse, Sink, Tap  # noqa: F401
+  __all__ = ['AxisBoundary', 'Fuse', 'Sink', 'Tap']
+
+Acceptance criteria:
+- Given: from aminx.types.boundaries import Fuse; Then: aminx.types.boundaries.Fuse is xtrax.stages.Fuse (same object)
+- Given: from aminx.types import boundaries; boundaries.Fuse accessed; Then: resolves (module-level attribute access works)
+
+Depends on: xtrax/stages/boundaries.py created (item 1907)
+
+[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"""
+reviewer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+After xtrax/stages/boundaries.py is created, replace aminx/types/boundaries.py contents with a one-line re-export shim:
+  from xtrax.stages.boundaries import AxisBoundary, Fuse, Sink, Tap  # noqa: F401
+  __all__ = ['AxisBoundary', 'Fuse', 'Sink', 'Tap']
+
+Acceptance criteria:
+- Given: from aminx.types.boundaries import Fuse; Then: aminx.types.boundaries.Fuse is xtrax.stages.Fuse (same object)
+- Given: from aminx.types import boundaries; boundaries.Fuse accessed; Then: resolves (module-level attribute access works)
+
+Depends on: xtrax/stages/boundaries.py created (item 1907)
+
+REVIEWER CHECKLIST (fill in before running dw emit-sprint):
+VERIFY: cargo command or test that must pass — e.g. `cargo nextest run -p <crate>`
+VERIFY: observable assertion — e.g. "new test exists and calls the handler directly"
+VERIFY: no regression — e.g. "existing tests still pass"
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written."""
+return_key = "1908"
+
+[orchestration]
+sequential = []
+concurrent = []

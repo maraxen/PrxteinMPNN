@@ -1,0 +1,106 @@
+tracks = ["bug-fixes", "refactor"]
+
+[sprint]
+sprint_id = "260618_runspec-xtrax-run"
+sprint_num = 1
+name = "RunSpec hygiene + xtrax.run foundations"
+description = "P1 sprint: fix InspectionSpecification gaps (#1880/#1881) and the _sync_run_spec double-fire."
+context = "[MANUAL: paste recon findings here before running emit-sprint]"
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[orchestration]
+# 1904 and 1906 are independent — run concurrently.
+# 1905 depends on 1904 — run after 1904 completes.
+sequential = [["1904", "1905"]]
+concurrent = ["1906"]
+
+[[items]]
+id = 1904
+title = "#1880: Add sidechain_conditioning and fixed_mask to InspectionSpecification"
+priority = "P1"
+category = "bug"
+difficulty = "quick"
+depends_on = []
+pipeline = "quick-fix"
+fixer_prompt = """
+[STUB — edit before emit]
+
+Add `sidechain_conditioning: bool = False` and `fixed_mask: ArrayLike | None = None`
+to `InspectionSpecification`, matching the types already used on `SamplingSpecification`.
+The dataclass must round-trip through `__post_init__` without error.
+
+Acceptance:
+- Both fields present with correct types and defaults.
+- Existing `SamplingSpecification` round-trip tests still pass.
+- `uv run pytest` clean.
+"""
+reviewer_prompt = """
+[STUB — edit before emit]
+
+Verify:
+1. Field types match `SamplingSpecification` exactly (no narrowing/widening).
+2. `__post_init__` handles `fixed_mask=None` without error.
+3. No existing tests broken.
+"""
+
+[[items]]
+id = 1905
+title = "#1881: Thread chain_mask_fixed through SamplingSpecification and InspectionSpecification"
+priority = "P1"
+category = "bug"
+difficulty = "quick"
+depends_on = [1904]
+pipeline = "quick-fix"
+fixer_prompt = """
+[STUB — edit before emit]
+
+Add `chain_mask_fixed: ArrayLike | None = None` to both `SamplingSpecification`
+and `InspectionSpecification` (item 1904 must land first).
+
+The hardcoded `chain_mask` at `_sampling_helper.py:346` must become addressable via
+this field. When the field is `None`, preserve the data-derived fallback:
+all-ones `(batch_size, seq_len)` float32 tensor.
+
+Acceptance:
+- Field present on both specs with correct type and default.
+- `_sampling_helper.py` uses the field when not None, falls back otherwise.
+- `uv run pytest` clean.
+"""
+reviewer_prompt = """
+[STUB — edit before emit]
+
+Verify:
+1. Fallback path (field is None) produces correct all-ones tensor shape.
+2. Both spec classes carry the field; no asymmetry.
+3. No existing chain_mask logic is silently dropped.
+"""
+
+[[items]]
+id = 1906
+title = "Fix _sync_run_spec double-fire via guard-flag"
+priority = "P1"
+category = "refactor"
+difficulty = "quick"
+depends_on = []
+pipeline = "quick-fix"
+fixer_prompt = """
+[STUB — edit before emit]
+
+`_sync_run_spec` currently fires twice per construction. Add a guard-flag
+(e.g. `_synced: bool = False`) so it fires exactly once without removing
+`spec.run_spec` as a populated attribute.
+
+Acceptance:
+- `_sync_run_spec` fires exactly once per object construction in all code paths.
+- `spec.run_spec` remains a populated attribute after construction.
+- `uv run pytest` clean.
+"""
+reviewer_prompt = """
+[STUB — edit before emit]
+
+Verify:
+1. Guard flag is reset correctly if the object can be re-constructed.
+2. No path bypasses the guard and fires twice.
+3. `spec.run_spec` is non-None after a normal construction.
+"""

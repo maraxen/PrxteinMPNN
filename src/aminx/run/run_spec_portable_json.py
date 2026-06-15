@@ -143,6 +143,10 @@ def _placeholder_run_spec(
   )
   plan = PlannerTopology(use_unified_driver=True)
   return RunSpec(
+    seed=0,
+    axes=[],
+    carry_specs={},
+    boundaries=None,
     io=io_final,
     resource=resource,
     multistate=multistate,

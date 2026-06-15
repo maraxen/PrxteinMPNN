@@ -6,8 +6,11 @@ import logging
 import warnings
 from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TextIO, cast
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TextIO, cast, runtime_checkable
+
+import jax.numpy as jnp
 
 from aminx.model.versions import MODEL_VERSION, MODEL_WEIGHTS
 
@@ -20,6 +23,7 @@ _DEPRECATED_SPEC_KWARGS = frozenset(
     "average_logits",
     "combine_noise_batch_size",
     "gmm_min_iters",
+    "average_encoding_mode",
   },
 )
 
@@ -45,6 +49,8 @@ if TYPE_CHECKING:
   from jaxtyping import ArrayLike
   from proxide.io.parsing.foldcomp import FoldCompDatabase
 
+  from aminx.tiling.carry import CarrySpec
+  from aminx.tiling.dedup import DedupSpec
   from aminx.utils.catjac import CombineCatJacPairFn
   from aminx.utils.decoding_order import DecodingOrderFn
 
@@ -67,18 +73,92 @@ TiedPositionMode = Literal["auto", "direct"] | None
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class FeatureNoiseBundle:
+  """Encapsulates noise schedule and mode for a single feature type (backbone/electrostatic/vdw)."""
+
+  feature_type: Literal["backbone", "electrostatic", "vdw"]
+  noise_levels: tuple[float, ...]
+  mode: Literal["direct", "thermal"] = "direct"
+  enabled: bool = True
+
+
 def _loader_inputs(inputs: Sequence[str | TextIO] | str | TextIO) -> Sequence[str | TextIO]:
   out = (inputs,) if not isinstance(inputs, Sequence) else inputs
   return cast("Sequence[str | TextIO]", out)
 
 
+def _extract_noise_levels(bundles: list[FeatureNoiseBundle], ftype: str) -> tuple[float, ...]:
+  """Extract noise_levels from a bundle matching the given feature_type."""
+  for b in bundles:
+    if b.feature_type == ftype and b.enabled:
+      return b.noise_levels
+  # Return default (no noise) if bundle not found or not enabled
+  return (0.0,) if ftype == "backbone" else ()
+
+
+def _has_enabled(bundles: list[FeatureNoiseBundle], ftype: str) -> bool:
+  """Check if any enabled bundle exists for the given feature_type."""
+  return any(b.feature_type == ftype and b.enabled for b in bundles)
+
+
 _WRAPPED_DEPRECATED_INIT: set[type] = set()
+
+
+class AveragingMode(Enum):
+  """Enum for encoding averaging modes.
+
+  Members:
+    INPUTS: Average encodings only.
+    NOISE_LEVELS: Average noised encodings only.
+    INPUTS_AND_NOISE: Average both encodings and noised encodings.
+  """
+
+  INPUTS = "inputs"
+  NOISE_LEVELS = "noise_levels"
+  INPUTS_AND_NOISE = "inputs_and_noise"
+
+  def to_fn(self):
+    """Convert enum member to callable aggregation function.
+
+    Returns:
+      A callable (encodings, noised) -> array with averaged result.
+    """
+    if self == AveragingMode.INPUTS:
+      return lambda encodings, _: jnp.mean(encodings, axis=0)
+    if self == AveragingMode.NOISE_LEVELS:
+      return lambda _, noised: jnp.mean(noised, axis=0)
+    # INPUTS_AND_NOISE
+    return lambda encodings, noised: jnp.mean(
+        jnp.concatenate([encodings, noised], axis=0), axis=0,
+    )
+
+
+@runtime_checkable
+class AggregationFn(Protocol):
+  """Protocol for encoding aggregation functions.
+
+  Callable signature: (encodings, noised) -> array.
+  """
+
+  def __call__(self, encodings, noised): ...
+
+
+@runtime_checkable
+class DecodeFn(Protocol):
+  """Protocol for decoding functions.
+
+  Callable signature: (output) -> decoded_result.
+  """
+
+  def __call__(self, output): ...
 
 
 def register_spec(cls: type) -> type:
   """Decorator to wrap spec __init__ with deprecated kwarg warnings.
 
   Strips deprecated kwargs and emits DeprecationWarning for each removed key.
+  Handles special migration: average_encoding_mode → encoding_aggregation_fn.
   Safe to apply multiple times; idempotent via _WRAPPED_DEPRECATED_INIT tracking.
   """
   if cls in _WRAPPED_DEPRECATED_INIT:
@@ -88,6 +168,24 @@ def register_spec(cls: type) -> type:
 
   def patched_init(self: object, *args: object, **kwargs: object) -> None:
     kwargs.pop("run_spec", None)
+
+    # Special handling for average_encoding_mode → encoding_aggregation_fn migration
+    if "average_encoding_mode" in kwargs:
+      mode_str = kwargs.pop("average_encoding_mode")
+      if "encoding_aggregation_fn" not in kwargs:
+        try:
+          mode = AveragingMode(mode_str)
+          kwargs["encoding_aggregation_fn"] = mode.to_fn()
+        except (ValueError, KeyError):
+          # Invalid mode string; let original init fail with proper error
+          pass
+      warnings.warn(
+        "Specification kwarg 'average_encoding_mode' is deprecated. "
+        "Use 'encoding_aggregation_fn' with AveragingMode or with_averaging_mode classmethod instead.",
+        DeprecationWarning,
+        stacklevel=3,
+      )
+
     for key in list(kwargs):
       if key in _DEPRECATED_SPEC_KWARGS:
         kwargs.pop(key)
@@ -149,14 +247,17 @@ class RunSpecification:
   checkpoint_registry_path: str | Path | None = None
   ligand_mpnn_use_side_chain_context: bool | None = None
   batch_size: int = 32
-  backbone_noise: Sequence[float] | float = (0.0,)
-  backbone_noise_mode: Literal["direct", "thermal"] = "direct"
+  noise: list[FeatureNoiseBundle] = field(default_factory=list)
+  # Deprecated old noise fields (will be removed in next major version)
+  # These are kept for backward compatibility; prefer using 'noise' list
+  backbone_noise: Sequence[float] | float | None = None
+  backbone_noise_mode: Literal["direct", "thermal"] | None = None
   estat_noise: Sequence[float] | float | None = None
-  estat_noise_mode: Literal["direct", "thermal"] = "direct"
+  estat_noise_mode: Literal["direct", "thermal"] | None = None
   vdw_noise: Sequence[float] | float | None = None
-  vdw_noise_mode: Literal["direct", "thermal"] = "direct"
-  use_electrostatics: bool = False
-  use_vdw: bool = False
+  vdw_noise_mode: Literal["direct", "thermal"] | None = None
+  use_electrostatics: bool | None = None
+  use_vdw: bool | None = None
   foldcomp_database: FoldCompDatabase | None = None
   ar_mask: None | ArrayLike = None
   random_seed: int = 42
@@ -223,6 +324,11 @@ class RunSpecification:
   fixed_mask: ArrayLike | None = None
   sidechain_conditioning: bool = False
 
+  # Encoding aggregation function (replaces average_encoding_mode)
+  encoding_aggregation_fn: AggregationFn = field(
+      default_factory=lambda: AveragingMode.INPUTS_AND_NOISE.to_fn(),
+  )
+
   run_spec: RunSpec = field(init=False, repr=False)
   _run_spec_synced: bool = field(init=False, default=False)
 
@@ -237,17 +343,97 @@ class RunSpecification:
     # Ensure guard flag is initialized for first-time use
     if not hasattr(self, "_run_spec_synced"):
       object.__setattr__(self, "_run_spec_synced", False)
+
+    # Handle backward compatibility: convert old-style noise params to noise list
+    bundles = list(self.noise)  # Start with provided bundles
+
+    # Backbone noise (always convert to bundle for consistency)
+    if self.backbone_noise is not None or not bundles or all(b.feature_type != "backbone" for b in bundles):
+      bb_noise: tuple[float, ...] = (0.0,)
+      if self.backbone_noise is not None:
+        if isinstance(self.backbone_noise, float):
+          bb_noise = (self.backbone_noise,)
+        elif isinstance(self.backbone_noise, Sequence):
+          bb_noise = tuple(self.backbone_noise)  # type: ignore
+
+      bb_mode: Literal["direct", "thermal"] = self.backbone_noise_mode or "direct"
+      bundles = [b for b in bundles if b.feature_type != "backbone"]
+      if bb_noise != (0.0,) or bb_mode != "direct":
+        bundles.append(FeatureNoiseBundle(
+          feature_type="backbone",
+          noise_levels=bb_noise,
+          mode=bb_mode,
+          enabled=True,
+        ))
+
+    # Electrostatic noise
+    if self.estat_noise is not None or self.use_electrostatics:
+      bundles = [b for b in bundles if b.feature_type != "electrostatic"]
+      if self.estat_noise is not None:
+        estat_levels: tuple[float, ...] = (0.0,)
+        if isinstance(self.estat_noise, float):
+          estat_levels = (self.estat_noise,)
+        elif isinstance(self.estat_noise, Sequence):
+          estat_levels = tuple(self.estat_noise)  # type: ignore
+        bundles.append(FeatureNoiseBundle(
+          feature_type="electrostatic",
+          noise_levels=estat_levels,
+          mode=self.estat_noise_mode or "direct",
+          enabled=True,
+        ))
+      elif self.use_electrostatics:
+        bundles.append(FeatureNoiseBundle(
+          feature_type="electrostatic",
+          noise_levels=(0.0,),
+          mode=self.estat_noise_mode or "direct",
+          enabled=True,
+        ))
+
+    # VDW noise
+    if self.vdw_noise is not None or self.use_vdw:
+      bundles = [b for b in bundles if b.feature_type != "vdw"]
+      if self.vdw_noise is not None:
+        vdw_levels: tuple[float, ...] = (0.0,)
+        if isinstance(self.vdw_noise, float):
+          vdw_levels = (self.vdw_noise,)
+        elif isinstance(self.vdw_noise, Sequence):
+          vdw_levels = tuple(self.vdw_noise)  # type: ignore
+        bundles.append(FeatureNoiseBundle(
+          feature_type="vdw",
+          noise_levels=vdw_levels,
+          mode=self.vdw_noise_mode or "direct",
+          enabled=True,
+        ))
+      elif self.use_vdw:
+        bundles.append(FeatureNoiseBundle(
+          feature_type="vdw",
+          noise_levels=(0.0,),
+          mode=self.vdw_noise_mode or "direct",
+          enabled=True,
+        ))
+
+    # Update self.noise with merged bundles
+    object.__setattr__(self, "noise", bundles)
+
+    # Set backward-compat attributes from noise list
+    object.__setattr__(self, "backbone_noise", _extract_noise_levels(bundles, "backbone"))
+    object.__setattr__(self, "use_electrostatics", _has_enabled(bundles, "electrostatic"))
+    object.__setattr__(self, "use_vdw", _has_enabled(bundles, "vdw"))
+
+    # Also convert deprecated field attributes to tuples for backward compat
     if isinstance(self.backbone_noise, float):
       object.__setattr__(self, "backbone_noise", (self.backbone_noise,))
-    if isinstance(self.estat_noise, float):
-      object.__setattr__(self, "estat_noise", (self.estat_noise,))
     if self.estat_noise is not None:
-      object.__setattr__(self, "use_electrostatics", True)
-
-    if isinstance(self.vdw_noise, float):
-      object.__setattr__(self, "vdw_noise", (self.vdw_noise,))
+      if isinstance(self.estat_noise, float):
+        object.__setattr__(self, "estat_noise", (self.estat_noise,))
+      elif not isinstance(self.estat_noise, tuple) and isinstance(self.estat_noise, Sequence):
+        object.__setattr__(self, "estat_noise", tuple(self.estat_noise))
     if self.vdw_noise is not None:
-      object.__setattr__(self, "use_vdw", True)
+      if isinstance(self.vdw_noise, float):
+        object.__setattr__(self, "vdw_noise", (self.vdw_noise,))
+      elif not isinstance(self.vdw_noise, tuple) and isinstance(self.vdw_noise, Sequence):
+        object.__setattr__(self, "vdw_noise", tuple(self.vdw_noise))
+
     if self.cache_path and isinstance(self.cache_path, str):
       object.__setattr__(self, "cache_path", Path(self.cache_path))
     if self.output_dir and isinstance(self.output_dir, str):
@@ -264,6 +450,22 @@ class RunSpecification:
       )
       raise ValueError(msg)
     self._sync_run_spec()
+
+  @classmethod
+  def with_averaging_mode(cls, mode: AveragingMode | str, **kwargs):
+    """Create specification with specified averaging mode.
+
+    Args:
+      mode: AveragingMode enum member or string ("inputs", "noise_levels", "inputs_and_noise").
+      **kwargs: Additional arguments to pass to the specification constructor.
+
+    Returns:
+      Instance of specification with encoding_aggregation_fn set to mode's to_fn().
+    """
+    if isinstance(mode, str):
+      mode = AveragingMode(mode)
+    kwargs["encoding_aggregation_fn"] = mode.to_fn()
+    return cls(**kwargs)
 
 
 @register_spec
@@ -291,7 +493,6 @@ class ScoringSpecification(RunSpecification):
   return_all_scores: bool = False
   output_h5_path: str | Path | None = None
   average_node_features: bool = False
-  average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
   noise_batch_size: int = 4
   multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean"
 
@@ -335,7 +536,6 @@ class SamplingSpecification(RunSpecification):
   noise_batch_size: int = 1
   temperature_batch_size: int = 1
   average_node_features: bool = False
-  average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
   multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean"
   compute_pseudo_perplexity: bool = False
   state_weights: ArrayLike | None = None
@@ -349,7 +549,9 @@ class SamplingSpecification(RunSpecification):
   chunk_id: int | None = None
   sample_start: int | None = None
   sample_count: int | None = None
-  decode_fn: Any | None = None
+  decode_fn: DecodeFn | None = None
+  carry_specs: list[CarrySpec] | None = None
+  dedup_specs: list[DedupSpec] | None = None
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
@@ -426,7 +628,6 @@ class JacobianSpecification(RunSpecification):
   noise_batch_size: int = 1
   jacobian_batch_size: int = 16
   average_encodings: bool = True
-  average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
   combine: bool = False
   combine_batch_size: int = 8
   combine_weights: ArrayLike | None = None

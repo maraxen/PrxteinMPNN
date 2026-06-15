@@ -341,9 +341,20 @@ def _prepare_ligand_context(
     raise ValueError(msg)
 
   # Compute chain_mask: 1=designable, 0=fixed.
-  # Default is all-ones (all residues designable) unless overridden by spec.
-  # In the future, spec could have chain_mask or a derived method to set this per-chain.
-  chain_mask = jnp.ones((batch_size, seq_len), dtype=jnp.float32)
+  # Default is all-ones (all residues designable) unless overridden by fixed_mask.
+  # Convention: fixed_mask 1=fixed, chain_mask 1=designable → complement.
+  if spec.fixed_mask is not None:
+    fixed_mask_np = _broadcast_per_structure(
+      spec.fixed_mask,
+      batch_size=batch_size,
+      expected_len=seq_len,
+      dtype=jnp.float32,
+      name="fixed_mask",
+    )
+    chain_mask = 1.0 - fixed_mask_np
+    assert chain_mask.dtype == jnp.float32
+  else:
+    chain_mask = jnp.ones((batch_size, seq_len), dtype=jnp.float32)
 
   return {
     "Y": Y,
@@ -449,13 +460,14 @@ def _prepare_fixed_controls(
   fixed_tokens_np = np.zeros((batch_size, seq_len), dtype=np.int32)
 
   if spec.fixed_mask is not None:
-    fixed_mask_np = _broadcast_per_structure(
-      spec.fixed_mask,
-      batch_size=batch_size,
-      expected_len=seq_len,
-      dtype=jnp.float32,
-      name="fixed_mask",
-    )
+    fixed_mask_np = np.asarray(spec.fixed_mask, dtype=np.float32)
+    if fixed_mask_np.ndim == 1:
+      fixed_mask_np = np.broadcast_to(
+          fixed_mask_np[None, :], (batch_size, seq_len),
+      ).copy()
+    if fixed_mask_np.shape != (batch_size, seq_len):
+      msg = f"fixed_mask must have shape ({batch_size}, {seq_len}), got {fixed_mask_np.shape}"
+      raise ValueError(msg)
 
   if spec.fixed_positions is not None:
     fixed_pos = np.asarray(spec.fixed_positions, dtype=np.float32)
@@ -483,5 +495,15 @@ def _prepare_fixed_controls(
     if np.any(invalid_tokens & (fixed_mask_np > 0)):
       msg = f"fixed_tokens must be in [0, {AMINO_ACID_VOCAB_SIZE - 1}] at masked positions."
       raise ValueError(msg)
+
+  if spec.fixed_mask is not None:
+    fm_broadcast = _broadcast_per_structure(
+      np.asarray(spec.fixed_mask, dtype=np.float32),
+      batch_size=batch_size,
+      expected_len=seq_len,
+      dtype=jnp.float32,
+      name="fixed_mask",
+    )
+    fixed_mask_np = jnp.maximum(jnp.asarray(fixed_mask_np), fm_broadcast)
 
   return jnp.asarray(fixed_mask_np), jnp.asarray(fixed_tokens_np)

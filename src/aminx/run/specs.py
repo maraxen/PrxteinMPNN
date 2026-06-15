@@ -23,6 +23,7 @@ _DEPRECATED_SPEC_KWARGS = frozenset(
     "average_logits",
     "combine_noise_batch_size",
     "gmm_min_iters",
+    "average_encoding_mode",
   },
 )
 
@@ -155,6 +156,7 @@ def register_spec(cls: type) -> type:
   """Decorator to wrap spec __init__ with deprecated kwarg warnings.
 
   Strips deprecated kwargs and emits DeprecationWarning for each removed key.
+  Handles special migration: average_encoding_mode → encoding_aggregation_fn.
   Safe to apply multiple times; idempotent via _WRAPPED_DEPRECATED_INIT tracking.
   """
   if cls in _WRAPPED_DEPRECATED_INIT:
@@ -164,6 +166,24 @@ def register_spec(cls: type) -> type:
 
   def patched_init(self: object, *args: object, **kwargs: object) -> None:
     kwargs.pop("run_spec", None)
+
+    # Special handling for average_encoding_mode → encoding_aggregation_fn migration
+    if "average_encoding_mode" in kwargs:
+      mode_str = kwargs.pop("average_encoding_mode")
+      if "encoding_aggregation_fn" not in kwargs:
+        try:
+          mode = AveragingMode(mode_str)
+          kwargs["encoding_aggregation_fn"] = mode.to_fn()
+        except (ValueError, KeyError):
+          # Invalid mode string; let original init fail with proper error
+          pass
+      warnings.warn(
+        "Specification kwarg 'average_encoding_mode' is deprecated. "
+        "Use 'encoding_aggregation_fn' with AveragingMode or with_averaging_mode classmethod instead.",
+        DeprecationWarning,
+        stacklevel=3,
+      )
+
     for key in list(kwargs):
       if key in _DEPRECATED_SPEC_KWARGS:
         kwargs.pop(key)

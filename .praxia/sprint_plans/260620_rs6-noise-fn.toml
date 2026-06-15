@@ -1,0 +1,645 @@
+[sprint]
+sprint_id = "260620_rs6-noise-fn"
+sprint_num = 1
+name = "260620_rs6-noise-fn"
+description = "RS-6 continuation: FeatureNoiseBundle, Literal→Callable fn migration, double-fire guard, xtrax.run typing"
+context = """
+RS-6 epic context:
+  Spec: .praxia/docs/specs/260615_runspec-xtrax-run-epic.md
+
+Key facts carried from sprint 260619:
+- xtrax.run/ now exists: RunSpec (eqx.Module), InputResolver, RuntimeBundle, SinkSpec, FeatureBatch
+- aminx RunSpec (eqx.Module) at aminx/src/aminx/run/spec.py now extends xtrax.run.RunSpec
+- RunSpecification is a plain @dataclass (NOT eqx.Module) at aminx/src/aminx/run/specs.py
+- FuseFn removed from xtrax __all__ (R6-4 done)
+- aminx/types/stages.py:68 FuseFn (logit transform protocol, bias param) is DISTINCT and always OUT OF SCOPE
+
+Sprint 260620 scope:
+- Track E (#1953): Research gate — produce noise field mapping table (gates Track B)
+- Track D (#1952): Tighten xtrax/run/ typing (carry_specs: dict→list[CarrySpec], iterator: Any→union, FeatureBatch comment)
+- Track A (#1906): Fix _sync_run_spec double-fire via guard flag
+- Track B (#1923): R6-2 — FeatureNoiseBundle + logical grouping (depends on Track E gate doc)
+- Track C (#1924): R6-3 — Literal→Callable fn migration (depends on Track B)
+"""
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[[tracks]]
+id = "e"
+is_research = true
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1953"
+phase_name = "Track E — R6-2 gate: noise field mapping table (#1953)"
+fixer_prompt = """
+Research task #1953: Produce the noise field mapping table that gates FeatureNoiseBundle implementation.
+
+This is a GATE item — Track B (R6-2 FeatureNoiseBundle) cannot start code until you deliver this document.
+
+OUTPUT FILE: .praxia/docs/research/260616_noise-field-map.md
+
+STEP 1 — Read the 8 noise fields from aminx/src/aminx/run/specs.py:
+Read the RunSpecification class definition. Find these 8 fields and note their types, defaults, and docstrings:
+  - backbone_noise: Sequence[float] | float (default (0.0,))
+  - backbone_noise_mode: Literal["direct", "thermal"] (default "direct")
+  - estat_noise: Sequence[float] | float | None (default None)
+  - estat_noise_mode: Literal["direct", "thermal"] (default "direct")
+  - vdw_noise: Sequence[float] | float | None (default None)
+  - vdw_noise_mode: Literal["direct", "thermal"] (default "direct")
+  - use_electrostatics: bool (default False)
+  - use_vdw: bool (default False)
+
+Also check:
+  - aminx/src/aminx/run/specs.py __post_init__ (around line 228) to see how these are normalized
+  - grep for all usage sites: grep -rEn "backbone_noise|estat_noise|vdw_noise|use_electrostatics|use_vdw" aminx/src/
+
+STEP 2 — Build the mapping table with this EXACT structure:
+
+| old field | type | default | role | FeatureNoiseBundle slot |
+|---|---|---|---|---|
+| backbone_noise | Sequence[float] | float | (0.0,) | backbone geometry perturbation | noise_levels |
+| backbone_noise_mode | Literal["direct","thermal"] | "direct" | thermal vs direct noise injection | mode |
+| estat_noise | Sequence[float] | float | None | None | electrostatic potential noise | noise_levels (if enabled) |
+| estat_noise_mode | Literal["direct","thermal"] | "direct" | ... | mode |
+| vdw_noise | Sequence[float] | float | None | None | van der Waals noise | noise_levels (if enabled) |
+| vdw_noise_mode | Literal["direct","thermal"] | "direct" | ... | mode |
+| use_electrostatics | bool | False | whether estat noise is active | feature_type discriminator |
+| use_vdw | bool | False | whether vdw noise is active | feature_type discriminator |
+
+Adjust the slot assignments based on what you read from the actual field docstrings and __post_init__ logic.
+
+STEP 3 — Design FeatureNoiseBundle as a frozen dataclass:
+
+Based on the mapping, propose the FeatureNoiseBundle design:
+  - feature_type: Literal["backbone", "electrostatic", "vdw"]  ← discriminates the 3 noise domains
+  - noise_levels: tuple[float, ...]  ← replaces {backbone,estat,vdw}_noise (normalized to tuple in __post_init__)
+  - mode: Literal["direct", "thermal"]  ← replaces {backbone,estat,vdw}_noise_mode
+  - enabled: bool = True  ← replaces use_electrostatics / use_vdw
+
+Write the proposed dataclass definition in the doc. Note that FeatureNoiseBundle is a frozen @dataclass
+(NOT eqx.Module) because it lives on RunSpecification (serializable plain @dataclass).
+
+STEP 4 — Migration notes:
+
+Add a section "## Migration notes" that covers:
+  - How to convert old RunSpecification construction to new `noise=[...]` construction
+  - How build_run_spec() should transform list[FeatureNoiseBundle] → the existing host/model inputs
+  - Whether use_electrostatics / use_vdw should become deprecated aliases (yes — keep them as init=True kwargs that auto-populate noise= list for backward compat)
+
+STEP 5 — Commit:
+  git add .praxia/docs/research/260616_noise-field-map.md
+  git commit -m "research(R6-2): noise field mapping table + FeatureNoiseBundle design (#1953)"
+
+Also update .praxia/docs/INDEX.md to add the new file under the Research section.
+"""
+reviewer_prompt = """
+Review R6-2 gate: noise field mapping table.
+
+VERIFY 1: .praxia/docs/research/260616_noise-field-map.md exists and is committed
+VERIFY 2: All 8 old fields are accounted for in the table (backbone_noise, backbone_noise_mode, estat_noise, estat_noise_mode, vdw_noise, vdw_noise_mode, use_electrostatics, use_vdw)
+VERIFY 3: FeatureNoiseBundle dataclass definition is present with at minimum: feature_type, noise_levels, mode, enabled
+VERIFY 4: Migration notes section exists and explains how use_electrostatics / use_vdw map to the new design
+VERIFY 5: .praxia/docs/INDEX.md updated with the new Research entry
+
+PASS if all 5 VERIFY items are satisfied.
+FAIL if any field is missing from the table or FeatureNoiseBundle definition is absent.
+"""
+return_key = "1953"
+
+[[tracks]]
+id = "d"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1952"
+phase_name = "Track D — Tighten xtrax.run typing: replace Any with concrete types (#1952)"
+fixer_prompt = """
+Fix #1952: Tighten the xtrax/run/ module to replace `Any` with concrete types.
+
+WORKING DIRECTORY: /home/marielle/projects/xtrax
+
+Files to edit:
+  src/xtrax/run/spec.py
+  src/xtrax/run/resolver.py
+  aminx/src/aminx/run/spec.py (build_run_spec default fallback)
+
+--- FIX 1: RunSpec.carry_specs: dict[str, Any] → list[CarrySpec] ---
+
+File: xtrax/src/xtrax/run/spec.py
+
+Current:
+  carry_specs: dict[str, Any] = eqx.field(default_factory=dict)
+
+Change to:
+  carry_specs: list[CarrySpec] = eqx.field(default_factory=list)
+
+Add import at top (with other xtrax imports):
+  from xtrax.tiling import CarrySpec
+
+Rationale: aminx RunSpecification.carry_specs is list[CarrySpec]; BatchPlanner.carry_specs is
+list[CarrySpec] | None. dict[str, Any] was a placeholder — the domain type is list[CarrySpec].
+
+Also update aminx/src/aminx/run/spec.py — in build_run_spec(), the fallback for carry_specs is
+currently getattr(spec, 'carry_specs', {}) — change {} to [] (empty list):
+  carry_specs=getattr(spec, 'carry_specs', []),
+
+--- FIX 2: RuntimeBundle.iterator: Any → concrete union ---
+
+File: xtrax/src/xtrax/run/resolver.py
+
+The xtrax iterator types (all from xtrax.tiling):
+  VmapIterator, SafeMapIterator, JaxScanIterator, BucketIterator, MapIterator, ScanIterator
+
+Add import:
+  from xtrax.tiling import (
+      BucketIterator,
+      JaxScanIterator,
+      MapIterator,
+      SafeMapIterator,
+      ScanIterator,
+      VmapIterator,
+  )
+
+Change RuntimeBundle field:
+  iterator: Any
+to:
+  iterator: VmapIterator | SafeMapIterator | JaxScanIterator | BucketIterator | MapIterator | ScanIterator | None
+
+--- FIX 3: FeatureBatch — leave Any but add explanatory comment ---
+
+File: xtrax/src/xtrax/run/resolver.py
+
+Current:
+  FeatureBatch = NewType("FeatureBatch", dict[str, Any])
+
+Keep as-is but add a one-line comment ABOVE the NewType line:
+  # Values are JAX arrays, numpy arrays, or scalars — heterogeneous, so Any is intentional.
+  FeatureBatch = NewType("FeatureBatch", dict[str, Any])
+
+--- VERIFY ---
+
+STEP 1 — Run xtrax tests:
+  cd /home/marielle/projects/xtrax && uv run pytest
+
+STEP 2 — Run aminx tests:
+  cd /home/marielle/projects/aminx && uv run pytest
+
+STEP 3 — Smoke-check the types resolve:
+  cd /home/marielle/projects/xtrax && uv run python -c "
+  from xtrax.run import RunSpec, RuntimeBundle
+  from xtrax.tiling import CarrySpec, VmapIterator, SafeMapIterator
+  spec = RunSpec(seed=0, axes=[], carry_specs=[], boundaries=None)
+  print('carry_specs type:', type(spec.carry_specs))
+  assert isinstance(spec.carry_specs, list), 'carry_specs must be list'
+  print('OK — carry_specs is list[CarrySpec]')
+  "
+
+--- COMMIT ---
+
+From xtrax directory:
+  git add src/xtrax/run/spec.py src/xtrax/run/resolver.py
+  git commit -m "refactor(RS-6): tighten xtrax.run typing — carry_specs→list[CarrySpec], iterator→union, FeatureBatch comment (#1952)"
+
+From aminx directory:
+  git add src/aminx/run/spec.py
+  git commit -m "fix(RS-6): update build_run_spec carry_specs fallback to [] (matches list[CarrySpec]) (#1952)"
+"""
+reviewer_prompt = """
+Review #1952: xtrax.run typing tightening.
+
+VERIFY 1: xtrax/src/xtrax/run/spec.py — carry_specs field is list[CarrySpec] (not dict[str, Any]); imports CarrySpec from xtrax.tiling
+VERIFY 2: xtrax/src/xtrax/run/resolver.py — RuntimeBundle.iterator is the concrete iterator union (VmapIterator | SafeMapIterator | JaxScanIterator | BucketIterator | MapIterator | ScanIterator | None), NOT Any
+VERIFY 3: xtrax/src/xtrax/run/resolver.py — FeatureBatch stays dict[str, Any] NewType but has an explanatory comment above it
+VERIFY 4: aminx/src/aminx/run/spec.py — build_run_spec() uses getattr(spec, 'carry_specs', []) (empty list, not empty dict)
+VERIFY 5: uv run pytest passes in xtrax (cd /home/marielle/projects/xtrax && uv run pytest)
+VERIFY 6: uv run pytest passes in aminx (cd /home/marielle/projects/aminx && uv run pytest)
+VERIFY 7: RunSpec(seed=0, axes=[], carry_specs=[], boundaries=None) constructs without error
+
+PASS if all 7 VERIFY items are satisfied.
+FAIL if Any remains in carry_specs or iterator without a comment explaining why.
+"""
+return_key = "1952"
+
+[[tracks]]
+id = "a"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1906"
+phase_name = "Track A — Fix _sync_run_spec double-fire via guard-flag (#1906)"
+fixer_prompt = """
+Fix #1906: RunSpecification._sync_run_spec fires twice per construction due to both the base
+class __post_init__ and each subclass __post_init__ calling it.
+
+FILE: aminx/src/aminx/run/specs.py
+
+STEP 1 — Recon: understand the current call pattern.
+Read specs.py and find:
+  - class RunSpecification (base dataclass) — its __post_init__ and _sync_run_spec method
+  - class ScoringSpecification, SamplingSpecification, JacobianSpecification, InspectionSpecification
+  - For each subclass: does its __post_init__ call both super().__post_init__() AND _sync_run_spec?
+
+The expected pattern you will find:
+  RunSpecification.__post_init__ (around line 228) calls self._sync_run_spec()
+  Each subclass __post_init__ calls super().__post_init__() then self._sync_run_spec() again
+  → build_run_spec fires twice per construction
+
+STEP 2 — Add the guard flag to RunSpecification.
+
+In the RunSpecification dataclass, add ONE new field (after the last user-visible field, before
+any field(init=False) fields that exist):
+  _run_spec_synced: bool = field(init=False, default=False)
+
+STEP 3 — Modify _sync_run_spec to short-circuit.
+
+Find the _sync_run_spec method in RunSpecification. Wrap its body:
+
+  def _sync_run_spec(self) -> None:
+      if self._run_spec_synced:
+          return
+      object.__setattr__(self, "_run_spec_synced", True)
+      # ... existing body unchanged ...
+
+STEP 4 — Reset the flag at the start of each subclass __post_init__.
+
+For EACH of the 4 subclasses (ScoringSpecification, SamplingSpecification,
+JacobianSpecification, InspectionSpecification), add ONE line at the very start of their
+__post_init__, BEFORE the super().__post_init__() call:
+
+  def __post_init__(self) -> None:
+      object.__setattr__(self, "_run_spec_synced", False)  # reset so base fires, then we skip
+      super().__post_init__()
+      # ... remaining subclass body unchanged ...
+
+This ensures: subclass resets → super().__post_init__() fires _sync_run_spec (flag → True)
+→ subclass finishes → if subclass called _sync_run_spec directly, it short-circuits.
+
+STEP 5 — Write a test.
+
+Create (or add to) aminx/tests/run/test_sync_run_spec.py:
+
+  from unittest.mock import patch
+  from aminx.run.specs import SamplingSpecification
+
+  def test_sync_run_spec_fires_once():
+      with patch("aminx.run.specs.build_run_spec") as mock_build:
+          mock_build.return_value = None
+          SamplingSpecification(inputs=["dummy.pdb"], num_samples=4)
+      assert mock_build.call_count == 1, f"Expected 1 call, got {mock_build.call_count}"
+
+  def test_run_spec_populated_after_construction():
+      spec = SamplingSpecification(inputs=["dummy.pdb"], num_samples=4)
+      # run_spec attribute must exist and not raise AttributeError
+      assert hasattr(spec, "run_spec")
+
+Run: cd /home/marielle/projects/aminx && uv run pytest tests/run/test_sync_run_spec.py -v
+
+STEP 6 — Run full aminx test suite:
+  cd /home/marielle/projects/aminx && uv run pytest
+
+STEP 7 — Commit:
+  git add src/aminx/run/specs.py tests/run/test_sync_run_spec.py
+  git commit -m "fix(RS): guard _sync_run_spec double-fire with _run_spec_synced flag (#1906)"
+"""
+reviewer_prompt = """
+Review #1906: _sync_run_spec double-fire guard.
+
+VERIFY 1: RunSpecification has a _run_spec_synced: bool = field(init=False, default=False) field
+VERIFY 2: _sync_run_spec short-circuits (returns early) if _run_spec_synced is True; sets it True before running
+VERIFY 3: All 4 subclasses (Scoring, Sampling, Jacobian, Inspection) reset _run_spec_synced to False at the start of their __post_init__ before calling super()
+VERIFY 4: Test test_sync_run_spec_fires_once passes (mock_build.call_count == 1)
+VERIFY 5: uv run pytest passes in aminx (cd /home/marielle/projects/aminx && uv run pytest)
+
+PASS if all 5 VERIFY items are satisfied.
+FAIL if double-fire is still possible (i.e., any subclass __post_init__ can cause two build_run_spec calls).
+"""
+return_key = "1906"
+
+[[tracks]]
+id = "b"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1923"
+phase_name = "Track B — R6-2: RunSpecification logical grouping + FeatureNoiseBundle (#1923)"
+fixer_prompt = """
+Fix #1923: Replace 8 scattered noise fields on RunSpecification with a structured FeatureNoiseBundle list.
+
+PREREQUISITE: Track E (R6-2 gate) must be complete. Read .praxia/docs/research/260616_noise-field-map.md
+for the definitive FeatureNoiseBundle design BEFORE writing any code. Use the dataclass definition
+from that document exactly.
+
+FILE: aminx/src/aminx/run/specs.py
+
+--- PART 1: Define FeatureNoiseBundle ---
+
+Add near the top of specs.py (before RunSpecification), as a frozen @dataclass:
+(Use the exact fields from .praxia/docs/research/260616_noise-field-map.md — expected shape:)
+
+  @dataclass(frozen=True)
+  class FeatureNoiseBundle:
+      feature_type: Literal["backbone", "electrostatic", "vdw"]
+      noise_levels: tuple[float, ...]
+      mode: Literal["direct", "thermal"] = "direct"
+      enabled: bool = True
+
+(Adjust to match the research doc if it differs.)
+
+Also add to aminx/src/aminx/run/__init__.py exports (or aminx's public __init__.py wherever
+RunSpecification is exported):
+  from aminx.run.specs import FeatureNoiseBundle
+
+--- PART 2: Replace the 8 noise fields ---
+
+In RunSpecification, remove these 8 fields:
+  backbone_noise, backbone_noise_mode, estat_noise, estat_noise_mode,
+  vdw_noise, vdw_noise_mode, use_electrostatics, use_vdw
+
+Replace with ONE field:
+  noise: list[FeatureNoiseBundle] = field(default_factory=list)
+
+Default behavior: empty list means no feature noise applied.
+
+For backward compatibility, add deprecated init=False aliases in __post_init__:
+  # Deprecated single-field accessors — set from noise list for backward compat
+  object.__setattr__(self, "backbone_noise", _extract_noise_levels(self.noise, "backbone"))
+  object.__setattr__(self, "use_electrostatics", _has_enabled(self.noise, "electrostatic"))
+  object.__setattr__(self, "use_vdw", _has_enabled(self.noise, "vdw"))
+
+Add helper functions (module-level, not class methods):
+  def _extract_noise_levels(bundles, ftype):
+      for b in bundles:
+          if b.feature_type == ftype and b.enabled:
+              return b.noise_levels
+      return (0.0,)
+
+  def _has_enabled(bundles, ftype):
+      return any(b.feature_type == ftype and b.enabled for b in bundles)
+
+--- PART 3: Add sub-config dataclasses ---
+
+Add these two frozen dataclasses before RunSpecification:
+
+  @dataclass(frozen=True)
+  class ModelConfig:
+      precision: str = "float32"         # moves aminx RunSpec precision field (bridge only; keep existing field too)
+
+  @dataclass(frozen=True)
+  class ResourceConfig:
+      num_devices: int = 1
+      memory_fraction: float = 1.0
+
+Add optional fields to RunSpecification (do NOT remove existing precision/resource fields yet — bridge only):
+  model_config: ModelConfig | None = None
+  resource_config: ResourceConfig | None = None
+
+--- PART 4: SinkConfig bridge ---
+
+Add:
+  @dataclass(frozen=True)
+  class SinkConfig:
+      output_path: Path | None = None
+      format: Literal["jsonl", "h5", "none"] = "jsonl"
+      flush_every: int = 1
+
+Add to each subclass that has output_h5_path:
+  sink: SinkConfig | None = None
+
+In __post_init__ of those subclasses, populate from output_h5_path if sink is None:
+  if self.sink is None and self.output_h5_path is not None:
+      object.__setattr__(self, "sink", SinkConfig(output_path=Path(self.output_h5_path), format="h5"))
+
+(Check which subclasses have output_h5_path by reading specs.py.)
+
+--- PART 5: Tests ---
+
+Create aminx/tests/run/test_noise_bundle.py:
+
+  from aminx.run.specs import FeatureNoiseBundle, RunSpecification
+
+  def test_feature_noise_bundle_constructs():
+      b = FeatureNoiseBundle(feature_type="backbone", noise_levels=(0.1, 0.2))
+      assert b.feature_type == "backbone"
+      assert b.noise_levels == (0.1, 0.2)
+      assert b.mode == "direct"
+      assert b.enabled is True
+
+  def test_run_spec_noise_defaults_empty():
+      # Default construction has no noise bundles
+      spec = RunSpecification(inputs=["dummy.pdb"])
+      assert spec.noise == []
+
+  def test_run_spec_backbone_noise_bundle():
+      b = FeatureNoiseBundle(feature_type="backbone", noise_levels=(0.2, 0.5))
+      spec = RunSpecification(inputs=["dummy.pdb"], noise=[b])
+      # backward-compat accessor
+      assert spec.backbone_noise == (0.2, 0.5)
+
+Run: cd /home/marielle/projects/aminx && uv run pytest tests/run/test_noise_bundle.py -v
+
+Also run full test suite:
+  cd /home/marielle/projects/aminx && uv run pytest
+
+--- PART 6: Commit ---
+  git add src/aminx/run/specs.py tests/run/test_noise_bundle.py
+  git commit -m "feat(R6-2): replace 8 noise fields with FeatureNoiseBundle list; add ModelConfig/ResourceConfig/SinkConfig (#1923)"
+"""
+reviewer_prompt = """
+Review R6-2: FeatureNoiseBundle and RunSpecification logical grouping.
+
+VERIFY 1: FeatureNoiseBundle is a frozen @dataclass with at least feature_type, noise_levels, mode, enabled fields
+VERIFY 2: RunSpecification.noise: list[FeatureNoiseBundle] field exists; all 8 old noise fields are REMOVED from the field declarations
+VERIFY 3: Backward-compat accessor for backbone_noise (and use_electrostatics / use_vdw) is populated in __post_init__ from the noise list
+VERIFY 4: ModelConfig and ResourceConfig dataclasses exist and are added as optional fields to RunSpecification
+VERIFY 5: SinkConfig dataclass exists; relevant subclasses have a sink: SinkConfig | None field
+VERIFY 6: test_noise_bundle.py exists and all tests pass
+VERIFY 7: uv run pytest passes in aminx (cd /home/marielle/projects/aminx && uv run pytest)
+
+PASS if all 7 VERIFY items are satisfied.
+FAIL if any of the 8 old noise fields remain as first-class fields (they may exist as computed attributes but not as __init__ parameters).
+"""
+return_key = "1923"
+
+[[tracks]]
+id = "c"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1924"
+phase_name = "Track C — R6-3: Literal→Callable fn migration on RunSpec subclasses (#1924)"
+fixer_prompt = """
+Fix #1924: Replace Literal-typed averaging and decode fields on RunSpec subclasses with typed callables.
+
+PREREQUISITE: Track B (R6-2) must be complete — this touches the same subclasses.
+
+FILE: aminx/src/aminx/run/specs.py
+Also: xtrax/src/xtrax/run/spec.py (add from_spec classmethod)
+
+STEP 1 — Read the current averaging and decode field definitions:
+
+Grep: grep -En "average_encoding_mode|decode_fn|AveragingMode|AggregationFn" aminx/src/aminx/run/specs.py
+
+You will find:
+  - ScoringSpecification.average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise" (~line 287)
+  - SamplingSpecification.average_encoding_mode (~line 331) and decode_fn: Any | None (~line 346)
+  - JacobianSpecification.average_encoding_mode (~line 424)
+
+STEP 2 — Define AveragingMode enum + to_fn() shim:
+
+Add near the top of specs.py (before RunSpecification):
+
+  import jax.numpy as jnp
+  from enum import Enum
+  from typing import Callable
+  import jax
+
+  class AveragingMode(Enum):
+      INPUTS = "inputs"
+      NOISE_LEVELS = "noise_levels"
+      INPUTS_AND_NOISE = "inputs_and_noise"
+
+      def to_fn(self) -> Callable:
+          if self == AveragingMode.INPUTS:
+              return lambda encodings, _: jnp.mean(encodings, axis=0)
+          elif self == AveragingMode.NOISE_LEVELS:
+              return lambda _, noised: jnp.mean(noised, axis=0)
+          else:  # INPUTS_AND_NOISE
+              return lambda encodings, noised: jnp.mean(
+                  jnp.concatenate([encodings, noised], axis=0), axis=0
+              )
+
+STEP 3 — Define AggregationFn and DecodeFn protocols:
+
+SCOPE NOTE: Do NOT use AggregationFn or DecodeFn from xtrax/run/protocols.py — that file was
+DELETED in sprint 260619 (auditor cleanup). Define them locally in specs.py or import from
+a new aminx/run/protocols.py if preferred.
+
+  from typing import Protocol, runtime_checkable
+
+  @runtime_checkable
+  class AggregationFn(Protocol):
+      def __call__(self, encodings: Any, noised: Any) -> Any: ...
+
+  @runtime_checkable
+  class DecodeFn(Protocol):
+      def __call__(self, output: Any) -> Any: ...
+
+STEP 4 — Migrate average_encoding_mode in all 3 subclasses:
+
+For ScoringSpecification, SamplingSpecification, JacobianSpecification:
+
+Remove:
+  average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
+
+Add:
+  encoding_aggregation_fn: AggregationFn = field(
+      default_factory=lambda: AveragingMode.INPUTS_AND_NOISE.to_fn()
+  )
+
+For backward compat, also add in each subclass __post_init__:
+  # Deprecated: average_encoding_mode as Literal → encoding_aggregation_fn
+  # Accept average_encoding_mode kwarg via __init_subclass__ shim — NOT needed here;
+  # if callers pass average_encoding_mode=..., add a deprecated classmethod:
+
+Add a classmethod on RunSpecification (or as a module-level helper):
+  @classmethod
+  def with_averaging_mode(cls, mode: str | AveragingMode, **kwargs):
+      if isinstance(mode, str):
+          mode = AveragingMode(mode)
+      return cls(encoding_aggregation_fn=mode.to_fn(), **kwargs)
+
+STEP 5 — Migrate decode_fn in SamplingSpecification:
+
+Remove:
+  decode_fn: Any | None = None
+
+Add:
+  decode_fn: DecodeFn | None = None
+
+(Same field name, just tightened type — no logic change needed.)
+
+STEP 6 — Add RunSpec.from_spec classmethod:
+
+In xtrax/src/xtrax/run/spec.py, add:
+
+  @classmethod
+  def from_spec(cls, spec: "RunSpec") -> "RunSpec":
+      # Identity for already-built RunSpec; subclasses override to build from RunSpecification.
+      return spec
+
+(This is the base version — aminx subclass will override this in aminx/run/spec.py in a future sprint.)
+
+STEP 7 — Tests:
+
+Create aminx/tests/run/test_fn_migration.py:
+
+  from aminx.run.specs import AveragingMode, ScoringSpecification, SamplingSpecification
+
+  def test_averaging_mode_enum():
+      fn = AveragingMode.INPUTS_AND_NOISE.to_fn()
+      import jax.numpy as jnp
+      x = jnp.ones((4, 8))
+      result = fn(x, x)
+      assert result.shape == (8,)
+
+  def test_scoring_spec_has_aggregation_fn():
+      spec = ScoringSpecification(inputs=["dummy.pdb"])
+      assert callable(spec.encoding_aggregation_fn)
+
+  def test_sampling_spec_decode_fn_typed():
+      spec = SamplingSpecification(inputs=["dummy.pdb"], num_samples=4)
+      assert spec.decode_fn is None  # default
+
+  def test_with_averaging_mode_classmethod():
+      spec = ScoringSpecification.with_averaging_mode("inputs", inputs=["dummy.pdb"])
+      assert callable(spec.encoding_aggregation_fn)
+
+Run: cd /home/marielle/projects/aminx && uv run pytest tests/run/test_fn_migration.py -v
+
+Also run full test suite:
+  cd /home/marielle/projects/aminx && uv run pytest
+
+STEP 8 — Commits:
+
+From aminx directory:
+  git add src/aminx/run/specs.py tests/run/test_fn_migration.py
+  git commit -m "feat(R6-3): Literal→Callable fn migration — AveragingMode enum, AggregationFn/DecodeFn protocols, encoding_aggregation_fn field (#1924)"
+
+From xtrax directory:
+  git add src/xtrax/run/spec.py
+  git commit -m "feat(R6-3): add RunSpec.from_spec() identity classmethod (#1924)"
+"""
+reviewer_prompt = """
+Review R6-3: Literal→Callable fn migration.
+
+VERIFY 1: AveragingMode enum exists in specs.py with INPUTS, NOISE_LEVELS, INPUTS_AND_NOISE values and a to_fn() method
+VERIFY 2: ScoringSpecification, SamplingSpecification, JacobianSpecification all have encoding_aggregation_fn: AggregationFn (NOT average_encoding_mode: Literal)
+VERIFY 3: SamplingSpecification.decode_fn is DecodeFn | None (NOT Any | None)
+VERIFY 4: AggregationFn and DecodeFn are @runtime_checkable Protocols (NOT imported from xtrax.run.protocols — that file was deleted)
+VERIFY 5: RunSpec.from_spec() classmethod exists in xtrax/src/xtrax/run/spec.py
+VERIFY 6: test_fn_migration.py exists and all tests pass
+VERIFY 7: uv run pytest passes in aminx (cd /home/marielle/projects/aminx && uv run pytest)
+VERIFY 8: uv run pytest passes in xtrax (cd /home/marielle/projects/xtrax && uv run pytest)
+
+PASS if all 8 VERIFY items are satisfied.
+FAIL if average_encoding_mode: Literal remains as a first-class field on any subclass, or if protocols.py is imported (it was deleted).
+"""
+return_key = "1924"
+
+[orchestration]
+# E (noise field mapping research gate) must complete before B (FeatureNoiseBundle code).
+# B must complete before C (Fn migration — same files, same subclasses).
+# D (xtrax typing) and A (double-fire guard) are independent of each other and of the B/C chain.
+# Running all sequential avoids worktree isolation complexity.
+sequential = ["e", "d", "a", "b", "c"]
+concurrent = []

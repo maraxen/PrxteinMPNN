@@ -182,14 +182,24 @@ class PoeModel(eqx.Module):
       )
       return marginals
 
-    # Use eqx.filter_vmap to vectorize over backbones (following infer_all_params pattern)
+    # Stack backbones into a single batched pytree: separate dynamic arrays from static
+    # fields (Python ints/strings), stack arrays along axis 0 (n_backbones), recombine.
+    # Equinox ensemble idiom — raw tuple-of-modules cannot be vmapped because each
+    # leaf's natural axis 0 is a weight dim, not the backbone index.
+    _dyn_parts = [eqx.partition(bb, eqx.is_array)[0] for bb in self.backbones]
+    _static_part = eqx.partition(self.backbones[0], eqx.is_array)[1]
+    stacked_backbone = eqx.combine(
+      jax.tree.map(lambda *xs: jnp.stack(xs, axis=0), *_dyn_parts),
+      _static_part,
+    )
+
     vmapped_call = eqx.filter_vmap(
       call_single_backbone,
-      in_axes=(0, 0, 0, 0),  # vmap over backbone, key, edge_knn, nei
+      in_axes=(0, 0, 0, 0),
     )
 
     # Apply vmap: returns per_backbone_marginals (B, N, q)
-    per_backbone_marginals = vmapped_call(self.backbones, keys, edge_knn_stack, nei_stack)
+    per_backbone_marginals = vmapped_call(stacked_backbone, keys, edge_knn_stack, nei_stack)
 
     # Aggregate via Product of Experts: log_poe = sum_b log(marginals_b)
     # Then normalize via softmax to get final marginals
@@ -304,17 +314,20 @@ class PoeModel(eqx.Module):
         mask=mask,
       )
 
-    # Use eqx.filter_vmap to properly handle static fields in Equinox modules
-    # eqx.filter_vmap distinguishes between static (non-differentiable) and dynamic
-    # (differentiable) leaves, which jax.vmap does not.
-    vmapped_infer = eqx.filter_vmap(
-      infer_single_backbone,
-      in_axes=(0, 0, 0, 0),  # vmap over backbone, key, edge_knn, nei
+    # Stack backbones (same idiom as __call__): partition dynamic/static, stack, recombine.
+    _dyn_parts = [eqx.partition(bb, eqx.is_array)[0] for bb in self.backbones]
+    _static_part = eqx.partition(self.backbones[0], eqx.is_array)[1]
+    stacked_backbone = eqx.combine(
+      jax.tree.map(lambda *xs: jnp.stack(xs, axis=0), *_dyn_parts),
+      _static_part,
     )
 
-    # Apply vmap: pass self.backbones as batched pytree argument
-    # eqx.filter_vmap handles static fields automatically
-    params_list = vmapped_infer(self.backbones, keys, edge_knn_stack, nei_stack)
+    vmapped_infer = eqx.filter_vmap(
+      infer_single_backbone,
+      in_axes=(0, 0, 0, 0),
+    )
+
+    params_list = vmapped_infer(stacked_backbone, keys, edge_knn_stack, nei_stack)
 
     # Convert params_list (which may be batched PyTree from vmap) to list format
     return list(params_list)

@@ -740,3 +740,107 @@ class TestEdgeCases:
         assert spec.vdw_noise == (0.2,)
         assert isinstance(spec.output_dir, Path)
         assert spec.use_vdw is True
+
+
+# ============================================================================
+# Tests for fixed_mask and sidechain_conditioning on base RunSpecification
+# ============================================================================
+
+
+class TestRunSpecBaseFields:
+    """Tests that fixed_mask and sidechain_conditioning are on RunSpecification base."""
+
+    def test_fixed_mask_on_run_specification(self, minimal_run_spec_kwargs: dict) -> None:
+        """fixed_mask should be available on RunSpecification."""
+        spec = RunSpecification(
+            **minimal_run_spec_kwargs,
+            fixed_mask=[1, 0, 1, 0, 1],
+        )
+        assert spec.fixed_mask is not None
+
+    def test_sidechain_conditioning_on_run_specification(self, minimal_run_spec_kwargs: dict) -> None:
+        """sidechain_conditioning should be available on RunSpecification."""
+        spec = RunSpecification(
+            **minimal_run_spec_kwargs,
+            sidechain_conditioning=True,
+        )
+        assert spec.sidechain_conditioning is True
+
+    def test_fixed_mask_on_scoring_specification(self, minimal_scoring_kwargs: dict) -> None:
+        """fixed_mask should be available on ScoringSpecification."""
+        spec = ScoringSpecification(
+            **minimal_scoring_kwargs,
+            fixed_mask=[1, 0, 1],
+        )
+        assert spec.fixed_mask is not None
+
+    def test_sidechain_conditioning_on_scoring_specification(self, minimal_scoring_kwargs: dict) -> None:
+        """sidechain_conditioning should be available on ScoringSpecification."""
+        spec = ScoringSpecification(
+            **minimal_scoring_kwargs,
+            sidechain_conditioning=True,
+        )
+        assert spec.sidechain_conditioning is True
+
+    def test_fixed_mask_on_sampling_specification(self, minimal_sampling_kwargs: dict) -> None:
+        """fixed_mask should be available on SamplingSpecification."""
+        spec = SamplingSpecification(
+            **minimal_sampling_kwargs,
+            fixed_mask=[1, 0, 1],
+        )
+        assert spec.fixed_mask is not None
+
+    def test_sidechain_conditioning_on_sampling_specification(self, minimal_sampling_kwargs: dict) -> None:
+        """sidechain_conditioning should be available on SamplingSpecification."""
+        spec = SamplingSpecification(
+            **minimal_sampling_kwargs,
+            sidechain_conditioning=True,
+        )
+        assert spec.sidechain_conditioning is True
+
+
+# ============================================================================
+# Tests for spec_json round-trip with fixed_mask
+# ============================================================================
+
+
+class TestSpecJsonRoundTrip:
+    """Tests for JSON serialization round-trip with fixed_mask."""
+
+    def test_scoring_spec_json_roundtrip_with_fixed_mask(
+        self, minimal_scoring_kwargs: dict
+    ) -> None:
+        """ScoringSpecification with fixed_mask should survive JSON round-trip."""
+        from aminx.run.spec_json import (
+            run_specification_from_json_dict,
+            run_specification_to_json_dict,
+        )
+
+        spec = ScoringSpecification(
+            **minimal_scoring_kwargs,
+            fixed_mask=[1.0, 0.0, 1.0, 0.0],
+        )
+        json_dict = run_specification_to_json_dict(spec)
+        restored = run_specification_from_json_dict(json_dict)
+
+        assert restored.fixed_mask is not None
+        assert len(restored.fixed_mask) == 4
+
+    def test_sampling_spec_json_roundtrip_with_fixed_mask(
+        self, minimal_sampling_kwargs: dict
+    ) -> None:
+        """SamplingSpecification with fixed_mask should survive JSON round-trip."""
+        from aminx.run.spec_json import (
+            run_specification_from_json_dict,
+            run_specification_to_json_dict,
+        )
+
+        spec = SamplingSpecification(
+            **minimal_sampling_kwargs,
+            fixed_mask=[1.0, 0.0, 1.0],
+        )
+        json_dict = run_specification_to_json_dict(spec)
+        restored = run_specification_from_json_dict(json_dict)
+
+        assert restored.fixed_mask is not None
+        assert len(restored.fixed_mask) == 3

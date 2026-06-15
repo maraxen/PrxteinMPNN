@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TextIO, cast
 
 from aminx.model.versions import MODEL_VERSION, MODEL_WEIGHTS
+from aminx.tiling.carry import CarrySpec
+from aminx.tiling.dedup import DedupSpec
 
 from .spec import RunSpec, build_run_spec
 
@@ -342,6 +344,8 @@ class SamplingSpecification(RunSpecification):
   sample_start: int | None = None
   sample_count: int | None = None
   decode_fn: Any | None = None
+  carry_specs: list[CarrySpec] = field(default_factory=list)
+  dedup_specs: list[DedupSpec] = field(default_factory=list)
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

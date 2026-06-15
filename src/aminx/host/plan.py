@@ -15,7 +15,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from aminx.tiling.axes import N_NOISES, N_SAMPLES, N_STATES, N_STRUCTURES, N_TEMPERATURES
+from aminx.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
 from aminx.tiling.errors import TilingError
 from aminx.tiling.planner import BatchPlan, BatchPlanner, estimate_memory_theoretical
 
@@ -97,6 +97,8 @@ def make_sampling_planner(
     axes=axes,
     budget_bytes=budget,
     estimate_memory=lambda ds: estimate_memory_theoretical(ds, 1.0, activation_multiplier),
+    carries=getattr(spec, "carry_specs", []),
+    dedup_specs=getattr(spec, "dedup_specs", []),
   ).plan()
 
 

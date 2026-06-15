@@ -224,12 +224,19 @@ class RunSpecification:
   sidechain_conditioning: bool = False
 
   run_spec: RunSpec = field(init=False, repr=False)
+  _run_spec_synced: bool = field(init=False, default=False)
 
   def _sync_run_spec(self) -> None:
+    if self._run_spec_synced:
+      return
+    object.__setattr__(self, "_run_spec_synced", True)
     object.__setattr__(self, "run_spec", build_run_spec(self))
 
   def __post_init__(self) -> None:
     """Post-initialization processing and validation for tied-position logit averaging."""
+    # Ensure guard flag is initialized for first-time use
+    if not hasattr(self, "_run_spec_synced"):
+      object.__setattr__(self, "_run_spec_synced", False)
     if isinstance(self.backbone_noise, float):
       object.__setattr__(self, "backbone_noise", (self.backbone_noise,))
     if isinstance(self.estat_noise, float):
@@ -249,7 +256,7 @@ class RunSpecification:
       object.__setattr__(self, "model_local_path", Path(self.model_local_path))
     if self.checkpoint_registry_path and isinstance(self.checkpoint_registry_path, str):
       object.__setattr__(self, "checkpoint_registry_path", Path(self.checkpoint_registry_path))
-    # Validation for tied_positions and pass_mode
+    # Validation for tied-position logit averaging
     if self.tied_positions in ("auto", "direct") and self.pass_mode != "inter":  # noqa: S105
       msg = (
         f"If tied_positions is '{self.tied_positions}', pass_mode must be 'inter'. "
@@ -290,6 +297,7 @@ class ScoringSpecification(RunSpecification):
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
+    object.__setattr__(self, "_run_spec_synced", False)
     super().__post_init__()
     if not self.sequences_to_score:
       msg = (
@@ -345,6 +353,7 @@ class SamplingSpecification(RunSpecification):
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
+    object.__setattr__(self, "_run_spec_synced", False)
     super().__post_init__()
     if isinstance(self.temperature, float):
       object.__setattr__(self, "temperature", (self.temperature,))
@@ -431,6 +440,7 @@ class JacobianSpecification(RunSpecification):
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
+    object.__setattr__(self, "_run_spec_synced", False)
     super().__post_init__()
     if self.output_h5_path and isinstance(self.output_h5_path, str):
       object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
@@ -470,6 +480,7 @@ class InspectionSpecification(RunSpecification):
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
+    object.__setattr__(self, "_run_spec_synced", False)
     super().__post_init__()
     if self.output_h5_path and isinstance(self.output_h5_path, str):
       object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))

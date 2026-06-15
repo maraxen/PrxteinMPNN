@@ -25,6 +25,7 @@ repo_root = Path(__file__).parent.parent.parent
 src_path = repo_root / "src"
 sys.path.insert(0, str(src_path))
 
+from aminx.model import ProteinFeatures
 from aminx.potts.model import PottsModel, PottsParams
 from aminx.potts.poe import PoeModel
 from aminx.potts.sampling import _potts_log_unnormalized
@@ -112,7 +113,7 @@ def main() -> int:
     num_aa = 21  # Always use full alphabet (20 + X at idx 20)
     hidden_dim = 16
     k_neighbors = min(3, n - 1)  # Tiny k for synthetic data
-    edge_features_dim = 32
+    edge_features_dim = 128  # Must match ProteinFeatures output dimension
     trw_iters = 2
 
     try:
@@ -155,15 +156,40 @@ def main() -> int:
         chain_index = jnp.zeros(n, dtype=jnp.int32)  # Single chain
 
         logger.info(
-            f"Running infer_params on model1: coords shape {coords.shape}, mask shape {mask.shape}"
+            f"Running ProteinFeatures to compute k-NN graph: coords shape {coords.shape}, mask shape {mask.shape}"
+        )
+        key, key_features = jax.random.split(key)
+
+        # Compute k-NN graph features via ProteinFeatures
+        features = ProteinFeatures(
+            node_features=128,
+            edge_features=128,
+            k_neighbors=model1.k_neighbors,
+            key=key_features,
+        )
+
+        edge_knn, nei, _, _ = features(
+            key_features,
+            coords,
+            mask,
+            residue_index,
+            chain_index,
+            backbone_noise=None,
+        )
+
+        # Cast to JAX arrays to ensure proper types
+        edge_knn = jnp.asarray(edge_knn, dtype=jnp.float32)
+        nei = jnp.asarray(nei, dtype=jnp.int32)
+
+        logger.info(
+            f"Running infer_params on model1: edge_knn shape {edge_knn.shape}, nei shape {nei.shape}"
         )
         key, key_infer = jax.random.split(key)
         params1 = model1.infer_params(
             key=key_infer,
-            coords=coords,
+            edge_knn=edge_knn,
+            nei=nei,
             mask=mask,
-            residue_index=residue_index,
-            chain_index=chain_index,
         )
 
         logger.info(f"Inferred PottsParams: h shape {params1.h.shape}, J shape {params1.J.shape}")

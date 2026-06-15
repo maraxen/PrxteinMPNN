@@ -270,69 +270,67 @@ class RunSpecification:
 
     # Backbone noise (always convert to bundle for consistency)
     if self.backbone_noise is not None or not bundles or all(b.feature_type != "backbone" for b in bundles):
-      bb_noise = self.backbone_noise
-      if bb_noise is not None:
-        if isinstance(bb_noise, float):
-          bb_noise = (bb_noise,)
-        else:
-          bb_noise = tuple(bb_noise)
-      else:
-        bb_noise = (0.0,)
+      bb_noise: tuple[float, ...] = (0.0,)
+      if self.backbone_noise is not None:
+        if isinstance(self.backbone_noise, float):
+          bb_noise = (self.backbone_noise,)
+        elif isinstance(self.backbone_noise, Sequence):
+          bb_noise = tuple(self.backbone_noise)  # type: ignore
 
-      bb_mode = self.backbone_noise_mode or "direct"
+      bb_mode: Literal["direct", "thermal"] = self.backbone_noise_mode or "direct"
       bundles = [b for b in bundles if b.feature_type != "backbone"]
       if bb_noise != (0.0,) or bb_mode != "direct":
         bundles.append(FeatureNoiseBundle(
           feature_type="backbone",
           noise_levels=bb_noise,
           mode=bb_mode,
-          enabled=True
+          enabled=True,
         ))
 
     # Electrostatic noise
     if self.estat_noise is not None or self.use_electrostatics:
       bundles = [b for b in bundles if b.feature_type != "electrostatic"]
       if self.estat_noise is not None:
-        estat_levels = self.estat_noise
-        if isinstance(estat_levels, float):
-          estat_levels = (estat_levels,)
-        else:
-          estat_levels = tuple(estat_levels)
+        estat_levels: tuple[float, ...] = (0.0,)
+        if isinstance(self.estat_noise, float):
+          estat_levels = (self.estat_noise,)
+        elif isinstance(self.estat_noise, Sequence):
+          estat_levels = tuple(self.estat_noise)  # type: ignore
         bundles.append(FeatureNoiseBundle(
           feature_type="electrostatic",
           noise_levels=estat_levels,
           mode=self.estat_noise_mode or "direct",
-          enabled=True
+          enabled=True,
         ))
       elif self.use_electrostatics:
         bundles.append(FeatureNoiseBundle(
           feature_type="electrostatic",
           noise_levels=(0.0,),
           mode=self.estat_noise_mode or "direct",
-          enabled=True
+          enabled=True,
         ))
 
     # VDW noise
     if self.vdw_noise is not None or self.use_vdw:
       bundles = [b for b in bundles if b.feature_type != "vdw"]
       if self.vdw_noise is not None:
-        vdw_levels = self.vdw_noise
-        if isinstance(vdw_levels, float):
-          vdw_levels = (vdw_levels,)
-        else:
-          vdw_levels = tuple(vdw_levels)
+        vdw_levels: tuple[float, ...] = (0.0,)
+        if isinstance(self.vdw_noise, float):
+          vdw_levels = (self.vdw_noise,)
+        elif isinstance(self.vdw_noise, Sequence):
+          vdw_levels = tuple(self.vdw_noise)  # type: ignore
         bundles.append(FeatureNoiseBundle(
           feature_type="vdw",
           noise_levels=vdw_levels,
           mode=self.vdw_noise_mode or "direct",
-          enabled=True
+          enabled=True,
         ))
       elif self.use_vdw:
         bundles.append(FeatureNoiseBundle(
           feature_type="vdw",
           noise_levels=(0.0,),
           mode=self.vdw_noise_mode or "direct",
-          enabled=True
+          enabled=True,
         ))
 
     # Update self.noise with merged bundles
@@ -349,12 +347,12 @@ class RunSpecification:
     if self.estat_noise is not None:
       if isinstance(self.estat_noise, float):
         object.__setattr__(self, "estat_noise", (self.estat_noise,))
-      elif not isinstance(self.estat_noise, tuple):
+      elif not isinstance(self.estat_noise, tuple) and isinstance(self.estat_noise, Sequence):
         object.__setattr__(self, "estat_noise", tuple(self.estat_noise))
     if self.vdw_noise is not None:
       if isinstance(self.vdw_noise, float):
         object.__setattr__(self, "vdw_noise", (self.vdw_noise,))
-      elif not isinstance(self.vdw_noise, tuple):
+      elif not isinstance(self.vdw_noise, tuple) and isinstance(self.vdw_noise, Sequence):
         object.__setattr__(self, "vdw_noise", tuple(self.vdw_noise))
 
     if self.cache_path and isinstance(self.cache_path, str):

@@ -337,7 +337,16 @@ def _sample_batch(
         return _dispatch_axis(temp_decision.strategy, _dispatch_temp, temperatures)
 
       # Map decode over K fused encodings (use _safe_map for this axis as it has no AxisDecision)
-      return _safe_map(_call_decode_one_enc, fused_enc, batch_size=None)
+      stacked_sequences, stacked_logits = _safe_map(_call_decode_one_enc, fused_enc, batch_size=None)
+
+      # Apply decode fusion if specified (e.g. logit ensembling, best-of-K)
+      if plan.stage_set.decoding_fusion is not None:
+        from aminx.types.bundles import DecodeOutput
+        stacked_out = DecodeOutput(sequences=stacked_sequences, logits=stacked_logits)
+        fused_out = plan.stage_set.decoding_fusion(stacked_out)
+        stacked_sequences, stacked_logits = fused_out.sequences, fused_out.logits
+
+      return stacked_sequences, stacked_logits
 
     sampled_sequences, sampled_logits = _dispatch_axis(
       struct_decision.strategy,
@@ -498,9 +507,18 @@ def _sample_batch(
         return _safe_map(_dispatch_temp, temperatures, batch_size=temps_bs)
 
       # Map decode over K fused encodings
-      return _safe_map(_call_decode_one_enc, fused_enc, batch_size=None)
+      stacked_sequences, stacked_logits = _safe_map(_call_decode_one_enc, fused_enc, batch_size=None)
 
-    # shape: (B, K, T, N, L) and (B, K, T, N, L, 21)
+      # Apply decode fusion if specified (e.g. logit ensembling, best-of-K)
+      if plan.stage_set.decoding_fusion is not None:
+        from aminx.types.bundles import DecodeOutput
+        stacked_out = DecodeOutput(sequences=stacked_sequences, logits=stacked_logits)
+        fused_out = plan.stage_set.decoding_fusion(stacked_out)
+        stacked_sequences, stacked_logits = fused_out.sequences, fused_out.logits
+
+      return stacked_sequences, stacked_logits
+
+    # shape: (B, K, T, N, L) and (B, K, T, N, L, 21) [before decoding_fusion]
     sampled_sequences, sampled_logits = _safe_map(
       _call_structure_fused,
       jnp.arange(batch_size),

@@ -659,6 +659,18 @@ def make_inference_plan(model: ModelProtocol, spec: Any, packer: Any = None) -> 
       is_leaf=lambda x: x is None,
     )
 
+  # Wire decoding fusion if specified in the spec
+  decoding_fusion = getattr(spec, "decoding_fusion", None)
+  if decoding_fusion is not None:
+    import equinox as eqx
+
+    stage_set = eqx.tree_at(
+      lambda s: s.decoding_fusion,
+      stage_set,
+      decoding_fusion,
+      is_leaf=lambda x: x is None,
+    )
+
   # Wire STE (straight-through estimator) decode topology
   if getattr(spec, "sampling_strategy", None) == "straight_through":
     import equinox as eqx

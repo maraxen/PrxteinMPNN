@@ -1,0 +1,333 @@
+[sprint]
+sprint_id = "260616_rs6-fuse-refactor"
+sprint_num = 1
+name = "260616_rs6-fuse-refactor"
+description = "R6-5/6/7: remove dead AggregationFn/AveragingMode/DecodeFn; add Fuse-shaped EncodingFusionFn + DecodingFusionFn; wire both through RunSpecification and kernel_dispatch"
+context = """
+Research gate findings (from sprint 260620 post-mortem and encoding-aggregation research):
+
+1. AggregationFn, AveragingMode, DecodeFn in specs.py are dead — wrong binary signatures,
+   never called from dispatch. The real call site is kernel_dispatch.py:328:
+     fused_enc = plan.stage_set.encoding_fusion(stacked_enc)
+   which takes a single stacked EncoderOutput (unary — Fuse-shaped).
+
+2. The correct protocols already exist:
+   - EncodingFusionFn in aminx/types/stages.py:114 — Fuse[EncoderOutput, EncoderOutput]
+   - StageSet.encoding_fusion: EncodingFusionFn | None at stages.py:346 — already wired in dispatch
+   - ArithmeticMeanEncodingFusion in averaging.py — reference implementation
+
+3. build_run_spec() (spec.py:311-317) has dead AveragingConfig.average_encoding_mode path;
+   spec.encoding_fusion is never read or wired into StageSet.
+
+4. Decode fusion is a NEW step: after _safe_map(_call_decode_one_enc, fused_enc) at
+   kernel_dispatch.py:347 and :514, K decode outputs go directly to the transposed sink.
+   Inserting a fusion step here enables logit ensembling, best-of-K, etc.
+
+5. DecodeOutput bundle does not exist yet. DecodingFusionFn does not exist yet.
+
+Scope: src/aminx/ only. xtrax unchanged.
+"""
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[[tracks]]
+id = "a"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "2003"
+phase_name = "Track A — R6-5: Remove dead protocols; add DecodeOutput + DecodingFusionFn (#2003)"
+fixer_prompt = """
+Fix #2003: Remove dead code from specs.py and add new Fuse-shaped types.
+
+WORKING DIRECTORY: /home/marielle/projects/aminx
+
+--- STEP 1: Remove dead code from src/aminx/run/specs.py ---
+
+Remove these classes entirely:
+  - class AggregationFn(Protocol) — wrong binary signature, never called
+  - class AveragingMode(Enum) — produces lambdas with wrong signature, never called
+  - class DecodeFn(Protocol) — wrong unary untyped signature, never called
+
+Remove these fields from their dataclasses:
+  - RunSpecification.encoding_aggregation_fn (field with type AggregationFn | None)
+  - SamplingSpecification.decode_fn (field with type DecodeFn | None)
+
+Remove imports that become dead after deletion:
+  - "from enum import Enum" (if only used by AveragingMode)
+  - "import jax.numpy as jnp" (only used in AveragingMode.to_fn() lambdas)
+
+Keep:
+  - The register_spec decorator's average_encoding_mode backward-compat handling
+    (it strips the deprecated kwarg and emits a DeprecationWarning — this is still
+    needed for users migrating from the old API)
+  - All other fields, classes, and imports
+
+--- STEP 2: Add DecodeOutput to src/aminx/types/bundles.py ---
+
+Read the file first to understand its existing style, then add:
+
+  @dataclass(frozen=True)
+  class DecodeOutput:
+    sequences: Int[Array, "K L"]
+    logits: Float[Array, "K L V"]
+
+Use the jaxtyping imports already in the file (Int, Float, Array). If they are not
+present, add: from jaxtyping import Array, Float, Int
+
+--- STEP 3: Add DecodingFusionFn to src/aminx/types/stages.py ---
+
+Read the file. After EncodingFusionFn (around line 114), add:
+
+  class DecodingFusionFn(Protocol):
+    def __call__(self, stacked: DecodeOutput) -> DecodeOutput: ...
+
+Add the import for DecodeOutput at the top of stages.py:
+  from aminx.types.bundles import DecodeOutput
+
+Update __all__ in stages.py to include "DecodingFusionFn".
+
+--- STEP 4: Export from src/aminx/types/__init__.py ---
+
+Add DecodeOutput and DecodingFusionFn to the exports in aminx/types/__init__.py.
+Read the file first to match the existing export pattern.
+
+--- STEP 5: Verify ---
+
+  cd /home/marielle/projects/aminx && uv run pytest tests/ -x -q 2>&1 | tail -20
+
+Fix any import errors. The test suite should pass (or fail only on pre-existing failures).
+
+--- STEP 6: Commit ---
+
+  git add src/aminx/run/specs.py src/aminx/types/bundles.py src/aminx/types/stages.py src/aminx/types/__init__.py
+  git commit -m "refactor(R6-5): remove dead AggregationFn/AveragingMode/DecodeFn; add DecodeOutput + DecodingFusionFn (#2003)"
+
+When done, end with: verdict: done
+"""
+reviewer_prompt = """
+Review R6-5: dead protocol cleanup + new Fuse-shaped types.
+
+VERIFY 1: src/aminx/run/specs.py — AggregationFn class is GONE
+VERIFY 2: src/aminx/run/specs.py — AveragingMode class is GONE
+VERIFY 3: src/aminx/run/specs.py — DecodeFn class is GONE (the one defined IN specs.py; not any type alias elsewhere)
+VERIFY 4: src/aminx/run/specs.py — encoding_aggregation_fn field is GONE from RunSpecification
+VERIFY 5: src/aminx/run/specs.py — decode_fn field is GONE from SamplingSpecification
+VERIFY 6: src/aminx/run/specs.py — register_spec decorator still handles average_encoding_mode kwarg stripping (backward-compat preserved)
+VERIFY 7: src/aminx/types/bundles.py — DecodeOutput frozen dataclass exists with sequences and logits fields
+VERIFY 8: src/aminx/types/stages.py — DecodingFusionFn(Protocol) exists with __call__(self, stacked: DecodeOutput) -> DecodeOutput
+VERIFY 9: DecodingFusionFn is exported from aminx/types/__init__.py
+VERIFY 10: cd /home/marielle/projects/aminx && uv run pytest tests/ -q 2>&1 | tail -5 — passes (or same pre-existing failures as before)
+
+PASS if all 10 satisfied. FAIL if any dead class survives or new types are missing.
+"""
+return_key = "2003"
+
+[[tracks]]
+id = "b"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "2004"
+phase_name = "Track B — R6-6: Add encoding_fusion + decoding_fusion to RunSpecification; wire encoding_fusion (#2004)"
+fixer_prompt = """
+Fix #2004: Add Fuse-shaped fusion fields to RunSpecification and wire encoding_fusion through build_run_spec().
+
+WORKING DIRECTORY: /home/marielle/projects/aminx
+
+Prerequisites: Track A (#2003) is complete — DecodeOutput and DecodingFusionFn now exist in aminx.types.
+
+--- STEP 1: Add fields to RunSpecification in src/aminx/run/specs.py ---
+
+After the existing noise: list[FeatureNoiseBundle] field, add:
+
+  encoding_fusion: EncodingFusionFn | None = None
+  decoding_fusion: DecodingFusionFn | None = None
+
+Add imports at the top of specs.py:
+  from aminx.types.stages import EncodingFusionFn, DecodingFusionFn
+
+(EncodingFusionFn may already be imported — check first and only add what is missing.)
+
+--- STEP 2: Wire encoding_fusion in src/aminx/run/spec.py ---
+
+Read build_run_spec() (around line 311). There is a dead AveragingConfig construction
+that references average_encoding_mode. Find it.
+
+The AveragingConfig is used to build the RunSpec's averaging field. Replace the dead
+average_encoding_mode argument with nothing (remove it from the AveragingConfig call).
+Then, find where StageSet is constructed in build_run_spec() and add:
+
+  encoding_fusion=spec.encoding_fusion
+
+to the StageSet(...) constructor call. StageSet already has
+encoding_fusion: EncodingFusionFn | None = None (at stages.py:346), so this is just
+passing through the spec field.
+
+Also add to the RunSpec (or whichever structure carries plan-level fields):
+  decoding_fusion=spec.decoding_fusion  (if RunSpec has a decoding_fusion field, else skip — Track C will add it)
+
+If RunSpec does not yet have decoding_fusion, add:
+  decoding_fusion: DecodingFusionFn | None = eqx.field(static=True, default=None)
+to the RunSpec class (src/aminx/run/spec.py or wherever RunSpec is defined — check
+which file defines the aminx RunSpec eqx.Module).
+
+--- STEP 3: Verify ---
+
+  cd /home/marielle/projects/aminx && uv run pytest tests/ -x -q 2>&1 | tail -20
+
+--- STEP 4: Commit ---
+
+  git add src/aminx/run/specs.py src/aminx/run/spec.py
+  git commit -m "feat(R6-6): add encoding_fusion + decoding_fusion to RunSpecification; wire encoding_fusion -> StageSet (#2004)"
+
+When done, end with: verdict: done
+"""
+reviewer_prompt = """
+Review R6-6: RunSpecification fusion fields + build_run_spec() wiring.
+
+VERIFY 1: RunSpecification has encoding_fusion: EncodingFusionFn | None = None
+VERIFY 2: RunSpecification has decoding_fusion: DecodingFusionFn | None = None
+VERIFY 3: build_run_spec() passes spec.encoding_fusion into StageSet(encoding_fusion=...) — grep -n "encoding_fusion" src/aminx/run/spec.py should show this wiring
+VERIFY 4: Dead average_encoding_mode argument is removed from AveragingConfig construction in build_run_spec()
+VERIFY 5: RunSpec (eqx.Module) has decoding_fusion field (static=True, for passing to kernel_dispatch)
+VERIFY 6: cd /home/marielle/projects/aminx && uv run pytest tests/ -q 2>&1 | tail -5 — passes
+
+PASS if all 6 satisfied. FAIL if encoding_fusion is not wired into StageSet or fields are missing.
+"""
+return_key = "2004"
+
+[[tracks]]
+id = "c"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "2005"
+phase_name = "Track C — R6-7: Wire decoding_fusion in kernel_dispatch.py (#2005)"
+fixer_prompt = """
+Fix #2005: Insert decode fusion step in kernel_dispatch.py after K-decode collection.
+
+WORKING DIRECTORY: /home/marielle/projects/aminx
+
+Prerequisites: Tracks A + B are complete. RunSpec now has decoding_fusion: DecodingFusionFn | None field.
+
+--- THE INSERTION POINT ---
+
+In src/aminx/run/kernel_dispatch.py there are two decode dispatch paths:
+  1. Protein path: around line 347 — _safe_map(_call_decode_one_enc, fused_enc, batch_size=None)
+  2. Ligand path: around line 514 — similar _safe_map over decode
+
+After each _safe_map call that collects K stacked decode outputs (sequences + logits),
+and BEFORE the transpose step (around line 523), insert:
+
+  # Apply decode fusion if specified (e.g. logit ensembling, best-of-K)
+  if plan.decoding_fusion is not None:
+      from aminx.types.bundles import DecodeOutput
+      stacked_out = DecodeOutput(sequences=stacked_sequences, logits=stacked_logits)
+      fused_out = plan.decoding_fusion(stacked_out)
+      stacked_sequences, stacked_logits = fused_out.sequences, fused_out.logits
+
+Where stacked_sequences and stacked_logits are the variable names used at that point.
+Read the actual file around those lines to get the exact variable names before editing.
+
+NOTE: "plan" here is the RunSpec (or InferencePlan) object passed into the dispatch
+function. Check how it's referenced — it may be `spec`, `run_spec`, or `plan`. Use
+whatever variable name holds the RunSpec.
+
+If decoding_fusion is None (default), no change — K outputs pass through as before.
+
+--- STEP 2: Verify ---
+
+  cd /home/marielle/projects/aminx && uv run pytest tests/ -x -q 2>&1 | tail -20
+
+Run a quick smoke test to confirm the None path (current behaviour) still works:
+  uv run python -c "
+from aminx.run.specs import RunSpecification
+spec = RunSpecification(inputs=['tests/data/1bc8.pdb'])
+assert spec.decoding_fusion is None
+print('decoding_fusion=None default OK')
+"
+
+--- STEP 3: Commit ---
+
+  git add src/aminx/run/kernel_dispatch.py
+  git commit -m "feat(R6-7): wire decoding_fusion into kernel_dispatch — fusion step after K-decode (#2005)"
+
+When done, end with: verdict: done
+"""
+reviewer_prompt = """
+Review R6-7: decoding_fusion wiring in kernel_dispatch.py.
+
+VERIFY 1: kernel_dispatch.py has a fusion guard block (check for decoding_fusion is not None) after the K-decode _safe_map in BOTH protein and ligand paths
+VERIFY 2: The guard wraps sequences+logits into DecodeOutput, calls plan.decoding_fusion(stacked_out), and unpacks
+VERIFY 3: When decoding_fusion is None (default), the code path is identical to pre-patch — no change in output shape
+VERIFY 4: cd /home/marielle/projects/aminx && uv run pytest tests/ -q 2>&1 | tail -5 — passes
+
+PASS if all 4 satisfied. FAIL if fusion guard is missing in either dispatch path or if the None path changes behaviour.
+"""
+return_key = "2005"
+
+[[tracks]]
+id = "d"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "2005"
+phase_name = "Track D — Auditor closeout"
+fixer_prompt = """
+This is an auditor closeout track — no implementation needed.
+
+Run the full audit of the R6-5/6/7 sprint changes.
+
+Scope: src/aminx/run/specs.py, src/aminx/run/spec.py, src/aminx/run/kernel_dispatch.py,
+src/aminx/types/bundles.py, src/aminx/types/stages.py, src/aminx/types/__init__.py
+
+When done, end with: verdict: done
+"""
+reviewer_prompt = """
+You are the AUDITOR for sprint 260616_rs6-fuse-refactor. Review ALL changes together.
+
+AUDIT DIMENSIONS:
+
+A. CORRECTNESS
+  - DecodingFusionFn protocol matches Fuse[DecodeOutput, DecodeOutput] shape (unary, not binary)
+  - encoding_fusion wired into StageSet (not just stored on spec)
+  - decoding_fusion guard in kernel_dispatch handles None correctly (no-op)
+  - DecodeOutput field names and types match what kernel_dispatch actually produces
+  - AveragingMode backward-compat kwarg stripping still works in register_spec
+
+B. COMPLETENESS
+  - All three dead classes removed: AggregationFn, AveragingMode, DecodeFn
+  - Both dead fields removed: encoding_aggregation_fn, decode_fn
+  - Both new fields present on RunSpecification: encoding_fusion, decoding_fusion
+  - DecodeOutput exported from aminx.types
+  - DecodingFusionFn exported from aminx.types
+
+C. ARCHITECTURE
+  - EncodingFusionFn and DecodingFusionFn both follow Fuse[X, X] unary contract
+  - DecodeOutput bundle type is appropriate (frozen dataclass or eqx.Module matching pipeline output)
+  - build_run_spec() passes encoding_fusion to StageSet directly (not via AveragingConfig)
+
+D. TEST COVERAGE
+  - cd /home/marielle/projects/aminx && uv run pytest tests/ -q — passes
+  - Are there tests for the new encoding_fusion / decoding_fusion spec fields?
+  - Is the decoding_fusion=None default tested?
+
+E. REGRESSIONS
+  - grep -En "AggregationFn|AveragingMode|DecodeFn|encoding_aggregation_fn|decode_fn" src/aminx/run/specs.py should return 0 hits for class/field definitions
+
+Render PASS / NEEDS_WORK / FAIL with specific issues.
+"""
+return_key = "2005_audit"
+
+[orchestration]
+sequential = ["a", "b", "c", "d"]
+concurrent = []

@@ -7,7 +7,7 @@ import warnings
 from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Protocol, TextIO, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TextIO, cast
 
 from aminx.model.versions import MODEL_VERSION, MODEL_WEIGHTS
 

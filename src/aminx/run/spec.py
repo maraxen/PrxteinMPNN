@@ -16,6 +16,8 @@ from typing import Any, Literal, cast
 import equinox as eqx
 import jax
 from xtrax.run import RunSpec as _XtraxRunSpec
+from aminx.types.stages import DecodingFusionFn, EncodingFusionFn
+
 
 
 class IOConfig(eqx.Module):
@@ -126,6 +128,8 @@ class RunSpec(_XtraxRunSpec):
   averaging: AveragingConfig = field(default_factory=lambda: None)  # type: ignore
   precision: PrecisionConfig = field(default_factory=lambda: None)  # type: ignore
   plan: PlannerTopology = field(default_factory=lambda: None)  # type: ignore
+  encoding_fusion: EncodingFusionFn | None = eqx.field(static=True, default=None)
+  decoding_fusion: DecodingFusionFn | None = eqx.field(static=True, default=None)
 
 
 def _optional_path(value: object | None) -> Path | None:

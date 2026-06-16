@@ -6,11 +6,8 @@ import logging
 import warnings
 from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol, TextIO, cast, runtime_checkable
-
-import jax.numpy as jnp
 
 from aminx.model.versions import MODEL_VERSION, MODEL_WEIGHTS
 
@@ -51,6 +48,7 @@ if TYPE_CHECKING:
 
   from aminx.tiling.carry import CarrySpec
   from aminx.tiling.dedup import DedupSpec
+  from aminx.types.stages import DecodingFusionFn, EncodingFusionFn
   from aminx.utils.catjac import CombineCatJacPairFn
   from aminx.utils.decoding_order import DecodingOrderFn
 
@@ -105,55 +103,6 @@ def _has_enabled(bundles: list[FeatureNoiseBundle], ftype: str) -> bool:
 _WRAPPED_DEPRECATED_INIT: set[type] = set()
 
 
-class AveragingMode(Enum):
-  """Enum for encoding averaging modes.
-
-  Members:
-    INPUTS: Average encodings only.
-    NOISE_LEVELS: Average noised encodings only.
-    INPUTS_AND_NOISE: Average both encodings and noised encodings.
-  """
-
-  INPUTS = "inputs"
-  NOISE_LEVELS = "noise_levels"
-  INPUTS_AND_NOISE = "inputs_and_noise"
-
-  def to_fn(self):
-    """Convert enum member to callable aggregation function.
-
-    Returns:
-      A callable (encodings, noised) -> array with averaged result.
-    """
-    if self == AveragingMode.INPUTS:
-      return lambda encodings, _: jnp.mean(encodings, axis=0)
-    if self == AveragingMode.NOISE_LEVELS:
-      return lambda _, noised: jnp.mean(noised, axis=0)
-    # INPUTS_AND_NOISE
-    return lambda encodings, noised: jnp.mean(
-        jnp.concatenate([encodings, noised], axis=0), axis=0,
-    )
-
-
-@runtime_checkable
-class AggregationFn(Protocol):
-  """Protocol for encoding aggregation functions.
-
-  Callable signature: (encodings, noised) -> array.
-  """
-
-  def __call__(self, encodings, noised): ...
-
-
-@runtime_checkable
-class DecodeFn(Protocol):
-  """Protocol for decoding functions.
-
-  Callable signature: (output) -> decoded_result.
-  """
-
-  def __call__(self, output): ...
-
-
 def register_spec(cls: type) -> type:
   """Decorator to wrap spec __init__ with deprecated kwarg warnings.
 
@@ -171,17 +120,10 @@ def register_spec(cls: type) -> type:
 
     # Special handling for average_encoding_mode → encoding_aggregation_fn migration
     if "average_encoding_mode" in kwargs:
-      mode_str = kwargs.pop("average_encoding_mode")
-      if "encoding_aggregation_fn" not in kwargs:
-        try:
-          mode = AveragingMode(mode_str)
-          kwargs["encoding_aggregation_fn"] = mode.to_fn()
-        except (ValueError, KeyError):
-          # Invalid mode string; let original init fail with proper error
-          pass
+      kwargs.pop("average_encoding_mode")
       warnings.warn(
         "Specification kwarg 'average_encoding_mode' is deprecated. "
-        "Use 'encoding_aggregation_fn' with AveragingMode or with_averaging_mode classmethod instead.",
+        "Use 'encoding_aggregation_fn' instead.",
         DeprecationWarning,
         stacklevel=3,
       )
@@ -248,6 +190,8 @@ class RunSpecification:
   ligand_mpnn_use_side_chain_context: bool | None = None
   batch_size: int = 32
   noise: list[FeatureNoiseBundle] = field(default_factory=list)
+  encoding_fusion: EncodingFusionFn | None = None
+  decoding_fusion: DecodingFusionFn | None = None
   # Deprecated old noise fields (will be removed in next major version)
   # These are kept for backward compatibility; prefer using 'noise' list
   backbone_noise: Sequence[float] | float | None = None
@@ -323,11 +267,6 @@ class RunSpecification:
   multi_state_temperature: float = 1.0
   fixed_mask: ArrayLike | None = None
   sidechain_conditioning: bool = False
-
-  # Encoding aggregation function (replaces average_encoding_mode)
-  encoding_aggregation_fn: AggregationFn = field(
-      default_factory=lambda: AveragingMode.INPUTS_AND_NOISE.to_fn(),
-  )
 
   run_spec: RunSpec = field(init=False, repr=False)
   _run_spec_synced: bool = field(init=False, default=False)
@@ -451,22 +390,6 @@ class RunSpecification:
       raise ValueError(msg)
     self._sync_run_spec()
 
-  @classmethod
-  def with_averaging_mode(cls, mode: AveragingMode | str, **kwargs):
-    """Create specification with specified averaging mode.
-
-    Args:
-      mode: AveragingMode enum member or string ("inputs", "noise_levels", "inputs_and_noise").
-      **kwargs: Additional arguments to pass to the specification constructor.
-
-    Returns:
-      Instance of specification with encoding_aggregation_fn set to mode's to_fn().
-    """
-    if isinstance(mode, str):
-      mode = AveragingMode(mode)
-    kwargs["encoding_aggregation_fn"] = mode.to_fn()
-    return cls(**kwargs)
-
 
 @register_spec
 @dataclass
@@ -549,7 +472,6 @@ class SamplingSpecification(RunSpecification):
   chunk_id: int | None = None
   sample_start: int | None = None
   sample_count: int | None = None
-  decode_fn: DecodeFn | None = None
   carry_specs: list[CarrySpec] | None = None
   dedup_specs: list[DedupSpec] | None = None
 

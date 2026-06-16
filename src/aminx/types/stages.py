@@ -20,6 +20,7 @@ import jax
 from jaxtyping import Array, Float, Int
 
 if TYPE_CHECKING:
+  from aminx.inference.decode.protocols import DecoderSinkFn
   from aminx.inference.logits import (
     BatchLogitFn,
     TieGroupFuseFn,

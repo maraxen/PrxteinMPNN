@@ -117,12 +117,12 @@ def register_spec(cls: type) -> type:
   def patched_init(self: object, *args: object, **kwargs: object) -> None:
     kwargs.pop("run_spec", None)
 
-    # Special handling for average_encoding_mode → encoding_aggregation_fn migration
+    # Special handling for average_encoding_mode → encoding_fusion migration
     if "average_encoding_mode" in kwargs:
       kwargs.pop("average_encoding_mode")
       warnings.warn(
         "Specification kwarg 'average_encoding_mode' is deprecated. "
-        "Use 'encoding_aggregation_fn' instead.",
+        "Use 'encoding_fusion' (EncodingFusionFn) on RunSpecification instead.",
         DeprecationWarning,
         stacklevel=3,
       )

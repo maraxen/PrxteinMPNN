@@ -7,7 +7,7 @@ import warnings
 from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Protocol, TextIO, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TextIO, cast
 
 from aminx.model.versions import MODEL_VERSION, MODEL_WEIGHTS
 
@@ -118,12 +118,12 @@ def register_spec(cls: type) -> type:
   def patched_init(self: object, *args: object, **kwargs: object) -> None:
     kwargs.pop("run_spec", None)
 
-    # Special handling for average_encoding_mode → encoding_aggregation_fn migration
+    # Special handling for average_encoding_mode → encoding_fusion migration
     if "average_encoding_mode" in kwargs:
       kwargs.pop("average_encoding_mode")
       warnings.warn(
         "Specification kwarg 'average_encoding_mode' is deprecated. "
-        "Use 'encoding_aggregation_fn' instead.",
+        "Use 'encoding_fusion' (EncodingFusionFn) on RunSpecification instead.",
         DeprecationWarning,
         stacklevel=3,
       )

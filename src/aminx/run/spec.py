@@ -314,7 +314,7 @@ def build_run_spec(spec: object) -> RunSpec:
   avg_enc = getattr(spec, "average_encodings", None)
   averaging = AveragingConfig(
     average_node_features=bool(getattr(spec, "average_node_features", False)),
-    average_encoding_mode=str(getattr(spec, "average_encoding_mode", "inputs_and_noise")),
+    average_encoding_mode="",  # Dead field; kept for backward compat, never used
     average_encodings=(bool(avg_enc) if avg_enc is not None else None),
     state_weights=getattr(spec, "state_weights", None),
   )

@@ -102,7 +102,8 @@ _NON_JSON_ROOT_FIELDS = frozenset(
     "decoding_order_fn",
     "foldcomp_database",
     "combine_fn",
-    "encoding_aggregation_fn",
+    "encoding_fusion",
+    "decoding_fusion",
     "decode_fn",
   },
 )

@@ -97,8 +97,8 @@ def make_sampling_planner(
     axes=axes,
     budget_bytes=budget,
     estimate_memory=lambda ds: estimate_memory_theoretical(ds, 1.0, activation_multiplier),
-    carries=getattr(spec, "carry_specs", []),
-    dedup_specs=getattr(spec, "dedup_specs", []),
+    carries=getattr(spec, "carry_specs", None) or [],
+    dedup_specs=getattr(spec, "dedup_specs", None) or [],
   ).plan()
 
 

@@ -48,6 +48,7 @@ if TYPE_CHECKING:
 
   from aminx.tiling.carry import CarrySpec
   from aminx.tiling.dedup import DedupSpec
+  from aminx.types.stages import DecodingFusionFn, EncodingFusionFn
   from aminx.utils.catjac import CombineCatJacPairFn
   from aminx.utils.decoding_order import DecodingOrderFn
 
@@ -189,6 +190,8 @@ class RunSpecification:
   ligand_mpnn_use_side_chain_context: bool | None = None
   batch_size: int = 32
   noise: list[FeatureNoiseBundle] = field(default_factory=list)
+  encoding_fusion: EncodingFusionFn | None = None
+  decoding_fusion: DecodingFusionFn | None = None
   # Deprecated old noise fields (will be removed in next major version)
   # These are kept for backward compatibility; prefer using 'noise' list
   backbone_noise: Sequence[float] | float | None = None

@@ -1,106 +1,192 @@
-tracks = ["bug-fixes", "refactor"]
-
 [sprint]
 sprint_id = "260618_runspec-xtrax-run"
 sprint_num = 1
-name = "RunSpec hygiene + xtrax.run foundations"
-description = "P1 sprint: fix InspectionSpecification gaps (#1880/#1881) and the _sync_run_spec double-fire."
-context = "[MANUAL: paste recon findings here before running emit-sprint]"
+name = "260618_runspec-xtrax-run"
+description = "P1 sprint: wire fixed_mask through inspection path, add chain_mask_fixed, verify _sync_run_spec guard."
+context = """
+Recon findings (2026-06-16):
+
+1. FIELD LOCATIONS -- `fixed_mask: ArrayLike | None = None` (line 268) and
+   `sidechain_conditioning: bool = False` (line 269) are declared on BASE class
+   `RunSpecification` (src/aminx/run/specs.py:147). ALL subclasses, including
+   `InspectionSpecification` (line 580), already inherit them -- the fields are
+   NOT missing. But `runner.py` inspect() path (lines 548-559) does NOT pass
+   `spec.fixed_mask` or `spec.sidechain_conditioning` into `build_inference_bundle`.
+   They are silently ignored in the inspection code path. #1904 = fix wiring, not add fields.
+
+2. CHAIN_MASK WIRING -- `src/aminx/host/_sampling_helper.py:343-365` computes
+   chain_mask from `spec.fixed_mask` (complement) or all-ones fallback.
+   `build_inference_bundle` at `src/aminx/inference/bundle_builder.py:47` accepts
+   `chain_mask: jax.Array | None = None` but runner.py does not pass it.
+   `chain_mask_fixed` (#1905) is a NEW field that bypasses the derivation entirely.
+
+3. DOUBLE-FIRE -- Already fixed. `RunSpecification._sync_run_spec()` at specs.py:272-278
+   checks `self._run_spec_synced` before firing. Guard committed in e0791e4 (on main).
+   Item #1906 is verify-only -- no implementation needed.
+"""
 max_fix_retries = 1
 worktree_shadow_mode = false
 
-[orchestration]
-# 1904 and 1906 are independent — run concurrently.
-# 1905 depends on 1904 — run after 1904 completes.
-sequential = [["1904", "1905"]]
-concurrent = ["1906"]
+[[tracks]]
+id = "a"
+is_research = false
+worktree = false
+skip_worktree = false
 
-[[items]]
-id = 1904
-title = "#1880: Add sidechain_conditioning and fixed_mask to InspectionSpecification"
-priority = "P1"
-category = "bug"
-difficulty = "quick"
-depends_on = []
-pipeline = "quick-fix"
+[[tracks.items]]
+backlog_id = "1904"
+phase_name = "Track A-1 -- Wire fixed_mask into inspection runner path (#1880)"
 fixer_prompt = """
-[STUB — edit before emit]
+Fix #1880: the fields `fixed_mask` and `sidechain_conditioning` are already on
+`RunSpecification` (inherited by `InspectionSpecification`), but the inspection
+runner silently ignores them.
 
-Add `sidechain_conditioning: bool = False` and `fixed_mask: ArrayLike | None = None`
-to `InspectionSpecification`, matching the types already used on `SamplingSpecification`.
-The dataclass must round-trip through `__post_init__` without error.
+WORKING DIRECTORY: /home/marielle/projects/aminx
 
-Acceptance:
-- Both fields present with correct types and defaults.
-- Existing `SamplingSpecification` round-trip tests still pass.
-- `uv run pytest` clean.
+FILES TO CHANGE:
+- src/aminx/host/runner.py (inspection path, approx line 548)
+- src/aminx/inference/bundle_builder.py (check signature at line 47 before adding kwargs)
+
+WHAT TO DO:
+In runner.py's inspect() function, find every `build_inference_bundle(...)` call
+(around line 548). Add:
+
+  fixed_mask=getattr(spec, "fixed_mask", None),
+
+Check `bundle_builder.py:47` for whether `sidechain_conditioning` is also an accepted
+param. If yes, also add:
+  sidechain_conditioning=getattr(spec, "sidechain_conditioning", False)
+If not, leave a TODO comment for future wiring.
+
+Do NOT add new fields to any spec class -- they already exist on the base class.
+
+ACCEPTANCE:
+1. `InspectionSpecification(inputs=["x.pdb"], fixed_mask=None)` round-trips without error.
+2. runner.py inspect() path passes `fixed_mask` from spec to `build_inference_bundle`.
+3. `uv run pytest tests/ -q --ignore=tests/parity` clean.
+
+COMMIT:
+  git add src/aminx/host/runner.py
+  git commit -m "fix(#1880): thread fixed_mask into inspection runner path"
+
+When done, end with: verdict: done
 """
 reviewer_prompt = """
-[STUB — edit before emit]
+Review #1880 fix: inspect path fixed_mask wiring.
 
-Verify:
-1. Field types match `SamplingSpecification` exactly (no narrowing/widening).
-2. `__post_init__` handles `fixed_mask=None` without error.
-3. No existing tests broken.
+VERIFY 1: grep -n "fixed_mask" src/aminx/host/runner.py -- should appear at the
+  build_inference_bundle call site in inspect(), not just in comments.
+VERIFY 2: Field types on the call site match `build_inference_bundle` signature
+  at src/aminx/inference/bundle_builder.py:47 (jax.Array | None).
+VERIFY 3: `InspectionSpecification(inputs=["x.pdb"], fixed_mask=None)` does not raise.
+VERIFY 4: `uv run pytest tests/ -q --ignore=tests/parity` -- no regressions.
+
+PASS if all 4 satisfied. FAIL if fixed_mask is still silently dropped in inspect().
 """
+return_key = "1904"
 
-[[items]]
-id = 1905
-title = "#1881: Thread chain_mask_fixed through SamplingSpecification and InspectionSpecification"
-priority = "P1"
-category = "bug"
-difficulty = "quick"
-depends_on = [1904]
-pipeline = "quick-fix"
+[[tracks.items]]
+backlog_id = "1905"
+phase_name = "Track A-2 -- Add chain_mask_fixed to SamplingSpecification (#1881)"
 fixer_prompt = """
-[STUB — edit before emit]
+Fix #1881: add `chain_mask_fixed: ArrayLike | None = None` to `SamplingSpecification`
+and wire it as a direct-override priority in `_sampling_helper.py`.
 
-Add `chain_mask_fixed: ArrayLike | None = None` to both `SamplingSpecification`
-and `InspectionSpecification` (item 1904 must land first).
+WORKING DIRECTORY: /home/marielle/projects/aminx
 
-The hardcoded `chain_mask` at `_sampling_helper.py:346` must become addressable via
-this field. When the field is `None`, preserve the data-derived fallback:
-all-ones `(batch_size, seq_len)` float32 tensor.
+Prerequisites: Track A-1 (#1904) must be committed first.
 
-Acceptance:
-- Field present on both specs with correct type and default.
-- `_sampling_helper.py` uses the field when not None, falls back otherwise.
-- `uv run pytest` clean.
+STEP 1 -- Add field to SamplingSpecification:
+  File: src/aminx/run/specs.py, around line 476 (after `dedup_specs` field).
+  Add:
+    chain_mask_fixed: ArrayLike | None = None
+
+  `ArrayLike` is already imported in the file.
+
+STEP 2 -- Wire in _sampling_helper.py:
+  File: src/aminx/host/_sampling_helper.py, lines 343-365.
+  Current chain_mask computation block:
+    if spec.fixed_mask is not None:
+        fixed_mask_np = _broadcast_per_structure(...)
+        chain_mask = 1.0 - fixed_mask_np
+        assert chain_mask.dtype == jnp.float32
+    else:
+        chain_mask = jnp.ones((batch_size, seq_len), dtype=jnp.float32)
+
+  Prepend a new guard that fires FIRST:
+    if getattr(spec, "chain_mask_fixed", None) is not None:
+        chain_mask = _broadcast_per_structure(
+            spec.chain_mask_fixed, batch_size=batch_size, expected_len=seq_len,
+            dtype=jnp.float32, name="chain_mask_fixed",
+        )
+        assert chain_mask.dtype == jnp.float32
+    elif spec.fixed_mask is not None:
+        (existing logic unchanged)
+    else:
+        chain_mask = jnp.ones((batch_size, seq_len), dtype=jnp.float32)
+
+  Priority order: chain_mask_fixed > fixed_mask complement > all-ones fallback.
+
+ACCEPTANCE:
+1. `SamplingSpecification(inputs=..., chain_mask_fixed=None)` round-trips.
+2. When `chain_mask_fixed` is set, _sampling_helper uses it verbatim (not derived).
+3. When `chain_mask_fixed=None` and `fixed_mask` set, complement derivation unchanged.
+4. When both None, all-ones fallback unchanged.
+5. `uv run pytest tests/ -q --ignore=tests/parity` clean.
+
+COMMIT:
+  git add src/aminx/run/specs.py src/aminx/host/_sampling_helper.py
+  git commit -m "feat(#1881): add chain_mask_fixed to SamplingSpecification; wire in _sampling_helper"
+
+When done, end with: verdict: done
 """
 reviewer_prompt = """
-[STUB — edit before emit]
+Review #1881: chain_mask_fixed field + _sampling_helper wiring.
 
-Verify:
-1. Fallback path (field is None) produces correct all-ones tensor shape.
-2. Both spec classes carry the field; no asymmetry.
-3. No existing chain_mask logic is silently dropped.
+VERIFY 1: grep -n "chain_mask_fixed" src/aminx/run/specs.py -- appears in SamplingSpecification.
+VERIFY 2: grep -n "chain_mask_fixed" src/aminx/host/_sampling_helper.py -- appears before
+  the fixed_mask elif block (priority guard fires first).
+VERIFY 3: Fallback path (chain_mask_fixed=None, fixed_mask=None) produces all-ones float32.
+VERIFY 4: `uv run pytest tests/ -q --ignore=tests/parity` -- no regressions.
+
+PASS if all 4 satisfied. FAIL if chain_mask_fixed not wired or fallback broken.
 """
+return_key = "1905"
 
-[[items]]
-id = 1906
-title = "Fix _sync_run_spec double-fire via guard-flag"
-priority = "P1"
-category = "refactor"
-difficulty = "quick"
-depends_on = []
-pipeline = "quick-fix"
+[[tracks]]
+id = "b"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1906"
+phase_name = "Track B -- Verify _sync_run_spec double-fire guard (e0791e4, verify-only)"
 fixer_prompt = """
-[STUB — edit before emit]
+VERIFY ONLY -- this fix is already on main (commit e0791e4). No code changes needed.
 
-`_sync_run_spec` currently fires twice per construction. Add a guard-flag
-(e.g. `_synced: bool = False`) so it fires exactly once without removing
-`spec.run_spec` as a populated attribute.
+The guard-flag `_run_spec_synced: bool = field(init=False, default=False)` is at
+`src/aminx/run/specs.py:272`. The guard check is in `_sync_run_spec()` at lines 274-278.
 
-Acceptance:
-- `_sync_run_spec` fires exactly once per object construction in all code paths.
-- `spec.run_spec` remains a populated attribute after construction.
-- `uv run pytest` clean.
+ACTION: Run the two verify commands. If both pass, the fix is confirmed.
+
+  grep -n "_run_spec_synced" src/aminx/run/specs.py
+  uv run pytest tests/run/ -q
+
+If guard is present and tests pass: end with verdict: done
+If double-fire is still observable: fix by ensuring the reset in each subclass
+__post_init__ happens BEFORE super().__post_init__() (not after).
+
+When done, end with: verdict: done
 """
 reviewer_prompt = """
-[STUB — edit before emit]
+Review #1906: _sync_run_spec double-fire guard -- verify only.
 
-Verify:
-1. Guard flag is reset correctly if the object can be re-constructed.
-2. No path bypasses the guard and fires twice.
-3. `spec.run_spec` is non-None after a normal construction.
+VERIFY 1: specs.py line ~272 -- `_run_spec_synced: bool = field(init=False, default=False)` exists.
+VERIFY 2: `_sync_run_spec()` lines 274-278 -- first line is `if self._run_spec_synced: return`.
+VERIFY 3: Each subclass __post_init__ resets `_run_spec_synced` to False BEFORE super().__post_init__().
+VERIFY 4: `uv run pytest tests/run/ -q` -- all run-spec tests pass.
+
+PASS if guard is in place and tests are green.
 """
+return_key = "1906"

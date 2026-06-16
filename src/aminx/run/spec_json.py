@@ -104,7 +104,6 @@ _NON_JSON_ROOT_FIELDS = frozenset(
     "combine_fn",
     "encoding_fusion",
     "decoding_fusion",
-    "decode_fn",
   },
 )
 

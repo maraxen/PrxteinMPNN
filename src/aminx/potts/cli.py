@@ -209,6 +209,7 @@ def potts_run(
       "rho": result.rho.tolist(),
       "calibrated_marginals": result.calibrated_marginals.tolist(),
       "n_backbones": result.n_backbones,
+      "samples": result.samples.tolist() if result.samples is not None else None,
     }
     result_json = json.dumps(result_dict, indent=2)
     out.write_text(result_json, encoding="utf-8")

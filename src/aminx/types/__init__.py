@@ -47,9 +47,11 @@ from aminx.types.arrays import (
   TieGroupMap,
   TrainingMetrics,
 )
+from aminx.types.bundles import DecodeOutput
 from aminx.types.encodings import EncoderOutput
 from aminx.types.stages import (
   ConditionalDecodeStep,
+  DecodingFusionFn,
   StageSet,
   UnconditionalDecodeStep,
 )
@@ -74,6 +76,8 @@ __all__ = [
   "CategoricalJacobian",
   "ChainIndex",
   "ConditionalDecodeStep",
+  "DecodeOutput",
+  "DecodingFusionFn",
   "DecodingOrder",
   "DecodingOrderInputs",
   "DecodingOrderOutputs",

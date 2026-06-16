@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     TieGroupFuseFn,
   )
   from aminx.types.boundaries import AxisBoundary
-  from aminx.types.bundles import EncoderOutput
+  from aminx.types.bundles import DecodeOutput, EncoderOutput
 
 # Type variables for generic protocols
 In = TypeVar("In")
@@ -121,6 +121,19 @@ class EncodingFusionFn(Protocol):
   """
 
   def __call__(self, stacked: EncoderOutput) -> EncoderOutput: ...
+
+
+@runtime_checkable
+class DecodingFusionFn(Protocol):
+  """Fuse K decoded outputs into a single final DecodeOutput.
+
+  Called after decoding at K noise/sample levels, before final output.
+  Receives a stacked DecodeOutput with K outputs (sequences and logits)
+  and returns a DecodeOutput with fused results — enabling logit ensembling,
+  best-of-K selection, or other post-decode aggregation strategies.
+  """
+
+  def __call__(self, stacked: DecodeOutput) -> DecodeOutput: ...
 
 
 class ConditionalDecodeStep(eqx.Module):
@@ -351,6 +364,7 @@ __all__ = [
   "ARLogitTransformFn",
   "ConditionalDecodeFn",
   "ConditionalDecodeStep",
+  "DecodingFusionFn",
   "EncoderSinkFn",
   "EncoderStateFn",
   "EncoderStepFn",

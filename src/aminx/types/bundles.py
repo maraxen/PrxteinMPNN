@@ -72,11 +72,6 @@ class GeometryBundle(eqx.Module):
   # Side-chain atom validity mask: shape (S, L, 37).
   # None when side-chain context conditioning is disabled (no GPU transfer).
   atom_37_mask: Float[Array, "S L 37"] | None = None
-  # Chain mask for side-chain design gating: shape (S, L).
-  # Semantics: 1.0 = residue is designable (sidechain may be designed),
-  # 0.0 = residue is fixed (sidechain design gated off).
-  # None when side-chain context conditioning is disabled.
-  chain_mask: Float[Array, "S L"] | None = None
 
 
 class ConditioningBundle(eqx.Module):
@@ -484,3 +479,24 @@ class PackerBundle(eqx.Module):
   residue_index: Int[Array, L] | Int[Array, "S L"]
   chain_labels: Int[Array, L] | Int[Array, "S L"]
   backbone_noise: Float[Array, ""] = 0.0
+
+
+class DecodeOutput(eqx.Module):
+  """Stacked decoder outputs (sequences and logits) across K outputs.
+
+  Output of decode-step fusion containing sampled or scored sequences and
+  their corresponding logits. Used as input to post-decode fusion stages.
+
+  Parameters
+  ----------
+  sequences : Int[Array, "K L"]
+      Sampled or predicted amino acid sequences.
+      Shape: K = number of decoded outputs, L = sequence length.
+  logits : Float[Array, "K L V"]
+      Per-position per-amino-acid logit scores.
+      Shape: V = vocabulary size (21).
+
+  """
+
+  sequences: Int[Array, "K L"]
+  logits: Float[Array, "K L V"]

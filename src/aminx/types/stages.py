@@ -357,6 +357,7 @@ class StageSet(eqx.Module):
   encoder_sink: tuple[EncoderSinkFn, ...] = ()
   decoder_sink: tuple[DecoderSinkFn, ...] = eqx.field(static=True, default_factory=tuple)
   encoding_fusion: EncodingFusionFn | None = None
+  decoding_fusion: DecodingFusionFn | None = None
   axis_boundaries: dict[str, AxisBoundary] = eqx.field(static=True, default_factory=dict)
 
 

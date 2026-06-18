@@ -1,0 +1,136 @@
+[sprint]
+sprint_id = "260618_rs6a-samplingconfig"
+sprint_num = 1
+name = "RS-6a: SamplingConfig + io fields on RunSpec"
+description = "Add SamplingConfig sub-config + io.output_h5_path/io.cache_path to RunSpec; wire build_run_spec; parity tests. No caller migration, no lint (those are RS-6b #2226). Backlog #2225 (child of RS-6 #1625)."
+context = """
+RS-6a is the first half of RS-6 (#1625), split per loop decision 2026-06-18.
+Spec: .praxia/docs/specs/260611_runspec-unification.md (AC-RS-6). Inventory:
+.praxia/docs/plans/260614_runspec-migration-map.md (section 4 = the 16 fields to migrate).
+
+GOAL: extend the RunSpec PyTree so the generic sampling fields and two io fields have a
+home on run_spec.* . This UNBLOCKS RS-6b (caller migration) without touching any callers yet.
+
+Pattern to follow EXACTLY (src/aminx/run/spec.py):
+- Sub-configs are `eqx.Module` with `eqx.field(static=True)` for scalar/bool/str/tuple config.
+- Array-valued leaves are NON-static `Any = None` (see TiedPositionsConfig.tie_group_map:64,
+  AveragingConfig.state_weights:99) so they remain traced pytree leaves (no recompile-on-array).
+- build_run_spec() (spec.py:244-343) constructs each sub-config from getattr(spec, name, default)
+  and passes it into the final RunSpec(...) call (spec.py:328-343).
+- RunSpec class (spec.py:118-132) declares each sub-config field with default_factory=lambda: None.
+
+OUT OF SCOPE (do NOT do — that is RS-6b): editing any host/* caller, kernel_dispatch.py,
+streaming.py, runner.py, plan.py, _sampling_helper.py; adding any lint rule.
+"""
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[[tracks]]
+id = "a"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "2225"
+phase_name = "RS-6a: SamplingConfig + io fields + parity tests (TDD)"
+return_key = "2225"
+fixer_prompt = """
+task_id: 260618_autonomous-loop
+Edit only (Edit for spec.py; Write only for the NEW test file). ONE production file: src/aminx/run/spec.py.
+
+Work TDD-first.
+
+STEP 1 — Write failing parity tests. Create tests/run/test_run_spec_sampling_config.py.
+Build a representative spec and call build_run_spec on it, e.g.:
+  from aminx.run.specs import SamplingSpecification
+  from aminx.run.spec import build_run_spec
+  spec = SamplingSpecification(inputs=['f.pdb'], num_samples=4, temperature=[0.1, 0.5],
+                               backbone_noise=[0.0, 0.1], return_logits=True)
+  rs = build_run_spec(spec)
+Assert, for EACH migrated field, run_spec.sampling.<field> equals the flat spec value:
+  - rs.sampling.num_samples == spec.num_samples
+  - tuple(rs.sampling.temperature) == tuple(spec.temperature)
+  - tuple(rs.sampling.backbone_noise) == tuple(spec.backbone_noise)
+  - rs.sampling.return_logits == spec.return_logits
+  - rs.sampling.return_decoding_orders == bool(getattr(spec,'return_decoding_orders',False))
+  - rs.sampling.random_seed == int(getattr(spec,'random_seed',0))
+  - rs.sampling.compute_pseudo_perplexity == bool(getattr(spec,'compute_pseudo_perplexity',False))
+Also assert io fields populate: build a spec with output_h5_path set and assert
+rs.io.output_h5_path is not None; assert rs.io.cache_path round-trips when cache_path set.
+Run `uv run pytest tests/run/test_run_spec_sampling_config.py` and CONFIRM it fails (SamplingConfig/fields don't exist yet) — this is the red step.
+
+STEP 2 — Add SamplingConfig sub-config. In src/aminx/run/spec.py, after PlannerTopology (line ~115),
+add:
+  class SamplingConfig(eqx.Module):
+    \"\"\"Generic sampling knobs (per RS-1 migration map section 4).\"\"\"
+    num_samples: int = eqx.field(static=True)
+    random_seed: int = eqx.field(static=True)
+    return_logits: bool = eqx.field(static=True)
+    return_decoding_orders: bool = eqx.field(static=True)
+    compute_pseudo_perplexity: bool = eqx.field(static=True)
+    backbone_noise: tuple[float, ...] = eqx.field(static=True)
+    temperature: tuple[float, ...] = eqx.field(static=True)
+    bias: Any = None
+    fixed_mask: Any = None
+    fixed_positions: Any = None
+    fixed_tokens: Any = None
+(backbone_noise/temperature are static tuples because they set axis cardinality; bias/fixed_* are
+dynamic array leaves like TiedPositionsConfig.tie_group_map.)
+
+STEP 3 — Add io fields. In IOConfig (spec.py:23-28) add after manifest_path:
+    output_h5_path: Path | None = eqx.field(static=True)
+    cache_path: Path | None = eqx.field(static=True)
+
+STEP 4 — Wire build_run_spec (spec.py:244-343).
+  (a) In the IOConfig(...) construction (line 247-251) add:
+        output_h5_path=_output_h5_path(spec),
+        cache_path=_optional_path(getattr(spec, 'cache_path', None)),
+  (b) Before the final RunSpec(...) call, construct:
+        def _as_float_tuple(v): return tuple(float(x) for x in v) if v is not None else ()
+        sampling = SamplingConfig(
+          num_samples=int(getattr(spec, 'num_samples', 1) or 1),
+          random_seed=int(getattr(spec, 'random_seed', 0) or 0),
+          return_logits=bool(getattr(spec, 'return_logits', False)),
+          return_decoding_orders=bool(getattr(spec, 'return_decoding_orders', False)),
+          compute_pseudo_perplexity=bool(getattr(spec, 'compute_pseudo_perplexity', False)),
+          backbone_noise=_as_float_tuple(getattr(spec, 'backbone_noise', None)),
+          temperature=_as_float_tuple(getattr(spec, 'temperature', None)),
+          bias=getattr(spec, 'bias', None),
+          fixed_mask=getattr(spec, 'fixed_mask', None),
+          fixed_positions=getattr(spec, 'fixed_positions', None),
+          fixed_tokens=getattr(spec, 'fixed_tokens', None),
+        )
+  (c) Add `sampling=sampling,` to the RunSpec(...) keyword args (line 328-343).
+
+STEP 5 — Add the field to the RunSpec class (spec.py:118-132), after `plan`:
+    sampling: SamplingConfig = field(default_factory=lambda: None)  # type: ignore
+
+STEP 6 — Run gates and CONFIRM the test now passes (green):
+  uv run pytest tests/run/test_run_spec_sampling_config.py -q
+  uv run ty check && uv run ruff check . && uv run ruff format .
+Then run `uv run pytest -k 'run_spec or sampling_config' -q` to confirm no regression in adjacent RunSpec tests.
+
+STEP 7 — Commit with: `git add -A && git commit -m "feat(RS-6a): add SamplingConfig + io fields to RunSpec, wire build_run_spec (#2225)"`.
+Report the commit SHA and the exact gate outputs.
+"""
+reviewer_prompt = """
+task_id: 260618_autonomous-loop
+VERIFY checklist for RS-6a (#2225). Run commands; report PASS/FAIL per item with evidence.
+1. `uv run pytest tests/run/test_run_spec_sampling_config.py -q` — all parity tests PASS.
+2. The test file asserts run_spec.sampling.<field> == flat spec.<field> for: num_samples, temperature,
+   backbone_noise, return_logits, return_decoding_orders, random_seed, compute_pseudo_perplexity
+   (not a subset — each must be checked).
+3. `uv run pytest -k 'run_spec or sampling_config or specs' -q` — no regression.
+4. `uv run ty check` clean; `uv run ruff check .` clean.
+5. SCOPE DISCIPLINE: `git show --stat HEAD` touches ONLY src/aminx/run/spec.py and
+   tests/run/test_run_spec_sampling_config.py. ZERO changes to any host/* file, kernel_dispatch.py,
+   runner.py, streaming.py, plan.py, _sampling_helper.py. Any caller edit = FAIL (that is RS-6b).
+6. SamplingConfig array fields (bias, fixed_mask, fixed_positions, fixed_tokens) are NON-static
+   (Any = None), and scalar/tuple fields ARE eqx.field(static=True).
+PASS only if all 6 hold. Otherwise FAIL with the specific item.
+"""
+
+[orchestration]
+sequential = ["a"]
+concurrent = []

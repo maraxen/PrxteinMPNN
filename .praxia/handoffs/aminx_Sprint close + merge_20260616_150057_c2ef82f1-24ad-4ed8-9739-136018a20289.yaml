@@ -1,0 +1,53 @@
+---
+workspace: aminx
+session_id: 509b9e38-30da-47d3-997e-0547fb12e4a5
+status: complete
+immediately_relevant:
+- file: src/aminx/host/plan.py
+  lines:
+  - 96
+  - 102
+  reason: 'make_sampling_planner: carries/dedup_specs with or [] guard (NoneType fix)'
+- file: src/aminx/host/kernel_dispatch.py
+  lines:
+  - 340
+  - 360
+  reason: decoding_fusion guard after K-decode _safe_map — new this sprint
+- file: src/aminx/types/stages.py
+  lines:
+  - 127
+  - 135
+  reason: DecodingFusionFn protocol + StageSet.decoding_fusion field
+- file: src/aminx/types/bundles.py
+  lines:
+  - 70
+  - 80
+  reason: GeometryBundle.chain_mask — was missing (93 failures), now committed
+- file: .praxia/sprint_plans/260618_runspec-xtrax-run.toml
+  lines:
+  - 1
+  - 20
+  reason: Next sprint TOML — context field needs recon findings before emit
+active_dispatches: []
+task_id: 260616_rs6-fuse-refactor
+phase: Sprint close + merge
+goal_statement: Merge worktree-sprint-260616-compose (R6-5/6/7 fuse refactor) to main; fix NoneType test failures; all tests green.
+context_refs:
+- phase: Sprint R6-5/6/7
+  task_id: 260616_rs6-fuse-refactor
+  summary: Remove dead AggregationFn/AveragingMode/DecodeFn; add EncodingFusionFn + DecodingFusionFn; wire through RunSpecification and kernel_dispatch
+failed_attempts: []
+open_questions: []
+deferred:
+- description: '260618_runspec-xtrax-run: InspectionSpecification gaps (#1880/#1881) + _sync_run_spec double-fire fix'
+  rationale: Out of scope for this sprint; TOML composed and ready
+  recommended_phase: Next sprint
+- description: 'Untracked worktree docs: 260616_noise-field-map.md + 3 spec files'
+  rationale: Worktree cleanup deferred
+  recommended_phase: Next session
+lessons_refs: []
+next_steps:
+- 'Next sprint: 260618_runspec-xtrax-run (RunSpec hygiene + xtrax.run foundations). TOML exists at .praxia/sprint_plans/260618_runspec-xtrax-run.toml but needs recon findings pasted into context field before running praxia dw emit.'
+- 'Worktree worktree-sprint-260616-compose still has uncommitted changes but all content is already on main. Safe to remove: git worktree remove .claude/worktrees/sprint-260616-compose --force'
+- Review untracked docs in worktree (.praxia/docs/research/260616_noise-field-map.md and 3 spec files) — commit to main if still needed or drop.
+---

@@ -1,0 +1,90 @@
+[sprint]
+sprint_id = "260618_rs7a-temp-hdf5-defer"
+sprint_num = 2
+name = "RS-7a: scoring temperature N/A + HDF5 deferral (test-backed)"
+description = "Close AC-RS-7 secondary clauses: document temperature as N/A for scoring (+invariance test); make the HDF5-output deferral fail-fast + assert it. Backlog #2251 (child of RS-7 #1626). Independent of RS-7b #2252 per design 260618_rs7b-averaged-scoring-design.md."
+context = """
+RS-7a is the low-risk half of RS-7 (#1626), split per loop iteration 2 design pass.
+Spec AC-RS-7 (.praxia/docs/specs/260611_runspec-unification.md:152-154).
+Recon: scoring/score.py:71 accepts multi_state_temperature but never reads it; scoring is the
+NLL of a FIXED sequence, so temperature cannot change it (N/A). HDF5 output already raises
+NotImplementedError at host/runner.py:312-314 (but AFTER prep loads the model).
+OUT OF SCOPE: the average_node_features averaged-scoring kernel (that is RS-7b #2252).
+"""
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[[tracks]]
+id = "a"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "2251"
+phase_name = "RS-7a: temperature N/A doc+test + HDF5 fail-fast deferral test"
+return_key = "2251"
+fixer_prompt = """
+task_id: 260618_autonomous-loop
+Edit only (Edit for existing files; Write for the new test file). Three small changes.
+
+FIRST orient: read tests/scoring/test_score.py (it has a Mock model fixture + score_sequence usage)
+and src/aminx/scoring/score.py:56-125 (score_sequence; multi_state_temperature param at ~:71,
+never read) and src/aminx/host/runner.py:264-322 (score runner; HDF5 guard at :312-314).
+
+CHANGE 1 — docstring (src/aminx/run/specs.py, ScoringSpecification ~line 406):
+Add a one-line note to the class docstring: that `multi_state_temperature` / `temperature` is
+N/A for scoring — score() returns the negative log-likelihood of a FIXED sequence, which is
+invariant to temperature; the field is accepted for API symmetry but does not affect the score.
+
+CHANGE 2 — fail-fast HDF5 guard (src/aminx/host/runner.py): MOVE the
+`if spec.output_h5_path: raise NotImplementedError(...)` block (currently ~:312-314, which runs
+AFTER prep_protein_stream_and_model) to the TOP of score(), before prep — so it fails fast on the
+unsupported option without loading the model. Keep the SAME message. (Confirm there is exactly one
+such guard; do not duplicate.)
+
+CHANGE 3 — tests (new file tests/scoring/test_score_rs7a.py):
+  (a) test_score_temperature_invariant: reuse the mock-model fixture pattern from
+      tests/scoring/test_score.py. Call score_sequence(...) twice with identical inputs except
+      multi_state_temperature=1.0 vs =10.0; assert the returned nll arrays are equal
+      (jnp.array_equal or pytest.approx). This proves the N/A claim.
+  (b) test_score_hdf5_output_not_implemented: build a ScoringSpecification with output_h5_path set
+      (e.g. ScoringSpecification(inputs=['dummy.pdb'], sequences_to_score=['AAAA'],
+      output_h5_path='out.h5')) and assert `with pytest.raises(NotImplementedError): score(spec)`.
+      Because CHANGE 2 moved the guard before prep, this must NOT require real weights/structure.
+      If construction of ScoringSpecification needs other required args, supply minimal values.
+
+GATES (capture verbatim):
+  uv run pytest tests/scoring/test_score_rs7a.py -q          # GREEN
+  uv run pytest -k 'score' -q                                 # no regression
+  uv run ty check
+  uv run ruff check src/aminx/run/specs.py src/aminx/host/runner.py tests/scoring/test_score_rs7a.py
+  uv run ruff format <those files>
+(Pre-existing ruff/chex baseline errors are fine; introduce none.)
+
+COMMIT: git add -A && git commit -m "feat(RS-7a): document temperature N/A for scoring + fail-fast HDF5 deferral + tests (#2251)"
+REPORT: worktree path (pwd, git rev-parse --show-toplevel), branch, commit SHA, verbatim gate tails.
+If a gate fails after best effort, report it — do not claim success.
+"""
+reviewer_prompt = """
+task_id: 260618_autonomous-loop. Operate IN the fixer's worktree (cd there; do not branch fresh).
+VERIFY (PASS/NEEDS_WORK/FAIL, evidence per item):
+1. cd worktree && uv run pytest tests/scoring/test_score_rs7a.py -q — both tests PASS.
+2. test_score_temperature_invariant actually asserts equality of nll across two DIFFERENT
+   multi_state_temperature values (read the test).
+3. test_score_hdf5_output_not_implemented asserts NotImplementedError AND does not require real
+   model weights (guard moved before prep). Confirm runner.py has exactly ONE output_h5_path guard,
+   now before prep_protein_stream_and_model.
+4. cd worktree && uv run pytest -k 'score' -q — no regression.
+5. cd worktree && uv run ty check clean; uv run ruff check (changed files) introduces no NEW errors
+   vs main baseline.
+6. SCOPE: git show --stat HEAD touches only src/aminx/run/specs.py, src/aminx/host/runner.py,
+   tests/scoring/test_score_rs7a.py. ZERO changes to scoring/score.py BODY logic, score_conditional.py,
+   averaging.py, or any averaged-scoring kernel (that is RS-7b). A docstring-only change is allowed
+   on specs.py.
+PASS only if 1-6 hold.
+"""
+
+[orchestration]
+sequential = ["a"]
+concurrent = []

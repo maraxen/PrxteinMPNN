@@ -1,0 +1,73 @@
+workspace: aminx
+session_id: 509b9e38-30da-47d3-997e-0547fb12e4a5
+status: complete
+task_id: 260617_sprint-close-push
+phase: "Session close / xtrax P0 handoff"
+goal_statement: >
+  Close sprints 260616-260621, push to origin/main, read xtrax refactor spec,
+  identify P0 entry point.
+
+summary: >
+  Fixed NoneType guard in BatchPlanner (carry_specs/dedup_specs or [] guard),
+  merged worktree-sprint-260616-compose to main, ran sprint 260618_runspec-xtrax-run,
+  code-reviewed 50 commits (CONFIRMED: PottsResult.samples not serialized — fixed;
+  CONFIRMED: --average-encoding-mode silently dropped — deferred), pushed 50 commits
+  to origin/main, pruned compose worktree. Read xtrax refactor spec: all TBDs resolved
+  (T-R1-X=5%/0% target, T-R2=clean-break, T-R3b=YES prolix is consumer #2).
+  P0 is the unstarted entry point.
+
+next_steps:
+  - "Compose P0+P1 sprint for T0.1/T0.2/T0.4/T1.1/T1.2/T1.4 via: praxia dw compose-sprint --sprint-id 260617_xtrax-p0-p1"
+  - "Or go direct: bump aminx to py3.13 in pyproject.toml (T0.1) + add xtrax editable pin xtrax={path='../xtrax',editable=true} under [tool.uv.sources] (T0.2) + boundary-lint T0.4 ATOMIC with first xtrax import"
+  - "Review aminx-recapture-fix worktree (7 commits: CA-only recapture, PottsMPNN, SLURM partition fix) — merge or defer before P0"
+  - "File deferred code review finding: --average-encoding-mode CLI arg silently dropped (cli.py:361 parses, never passes to SamplingSpecification)"
+
+immediately_relevant:
+  - file: /home/marielle/projects/aminx/.praxia/docs/specs/260611_aminx-xtrax-refactor.md
+    lines: [172, 234]
+    reason: "Task DAG P0-P5 with all TBDs resolved. T0.1/T0.2/T0.4 are the first executable tasks. AC-0 Foundations at lines 136-138."
+  - file: /home/marielle/projects/aminx/pyproject.toml
+    lines: [1, 30]
+    reason: "requires-python must be bumped >=3.12->>=3.13 (T0.1). xtrax editable pin added under [tool.uv.sources] (T0.2)."
+
+context_refs:
+  - phase: Sprint 260616 close + merge
+    task_id: 260616_rs6-fuse-refactor
+    summary: >
+      Merged RS-6 fuse refactor: encoding/decoding fusion wired through
+      RunSpec + kernel_dispatch + spec_json; chain_mask from fixed_mask complement.
+      1133 tests. NoneType guard fix (carry_specs/dedup_specs or []).
+  - phase: xtrax refactor spec
+    task_id: 260611_xtrax-refactor-spec
+    summary: >
+      All TBDs resolved: T-R1-X=5% hard/0% target, T-R2=clean-break (no migration
+      CLI), T-R3b=YES prolix is consumer #2. Vertical-slice spine: P0 -> P1 training
+      -> P2 xtrax cross-repo (R1 DoD gate) -> P3 tiling -> P4 inference-runner -> P5
+      cutover. Off-ramp documented (idea 2/22) if R1 DoD fails.
+
+deferred:
+  - description: >
+      --average-encoding-mode CLI arg silently dropped: cli.py:361 accepts it but
+      never passes to SamplingSpecification/ScoringSpecification/JacobianSpecification.
+      DeprecationWarning in specs.py never fires.
+    rationale: Minor behavioral regression for CLI users; found in code review. Quick fix.
+    recommended_phase: Before next release
+  - description: >
+      Gibbs/PT sampler Python for-loop in potts/runner.py:238 (n_chains x n_samples).
+      Each call re-enters JIT. Should use gibbs_empirical_marginals() from
+      potts/sampling.py with lax.scan/vmap.
+    rationale: Efficiency finding from code review; not a correctness bug.
+    recommended_phase: Separate cleanup sprint
+
+open_questions:
+  - "Is ../xtrax currently at a commit with Scan.init/CarrySpec/DedupSpec shipped (P2 ready), or is P2 still future cross-repo xtrax work?"
+  - "Should aminx-recapture-fix worktree (7 commits: CA-only recapture + PottsMPNN) be merged before P0 starts?"
+
+git_state:
+  main_sha: 19ddba0
+  active_worktrees:
+    - name: aminx-recapture-fix
+      branch: worktree-aminx-recapture-fix
+      sha: 00fe490
+      commits_ahead_main: 7
+      status: "7 unmerged commits (CA-only recapture, PottsMPNN, SLURM partition fix)"

@@ -75,28 +75,36 @@ def score_from_encoding(
 
 
 def _stack_encoder_outputs(encs: Sequence[Any]) -> Any:  # noqa: ANN401
-  """Stack D encoder outputs along a leading D axis.
+  """Stack D encoder outputs along a new leading D axis.
 
-  Stacks a sequence of EncoderOutput objects returned by encode() into a single
-  PyTree with a leading D dimension. neighbor_indices and mask are taken from
-  the first entry (they are noise-invariant, so all should be identical).
+  All fields (node_features, edge_features, neighbor_indices, mask) are stacked
+  with a new leading D dimension, matching the sampling path convention in
+  kernel_dispatch.py:321-325. ArithmeticMeanEncodingFusion then reduces D to 1:
+  features via mean(axis=0), geometry via [0] indexing -- which correctly
+  recovers the noise-invariant geometry from the first stack entry.
 
   Args:
     encs: Sequence of D EncoderOutput objects from encode() calls.
 
   Returns:
-    A stacked EncoderOutput with leading D axis on features; geometry from encs[0].
+    A stacked EncoderOutput with leading D axis on all fields.
   """
-  # Stack node and edge features along new leading axis (D)
+  # Stack all fields along new leading D axis.
+  # node_features: (S,L,H) -> (D,S,L,H); same for edge_features.
+  # neighbor_indices: (S,L,K) -> (D,S,L,K); mask: (S,L) -> (D,S,L).
+  # This matches the convention in kernel_dispatch.py:321-325 (sampling path).
+  # ArithmeticMeanEncodingFusion then reduces D->1 via mean(axis=0) for features
+  # and [0] indexing for geometry, correctly recovering the noise-invariant geometry.
   node_features_stacked = jnp.stack([enc.node_features for enc in encs], axis=0)
   edge_features_stacked = jnp.stack([enc.edge_features for enc in encs], axis=0)
+  neighbor_indices_stacked = jnp.stack([enc.neighbor_indices for enc in encs], axis=0)
+  mask_stacked = jnp.stack([enc.mask for enc in encs], axis=0) if encs[0].mask is not None else None
 
-  # Use geometry (neighbor_indices, mask) from first encoding (noise-invariant)
   return EncoderOutput(
     node_features=node_features_stacked,
     edge_features=edge_features_stacked,
-    neighbor_indices=encs[0].neighbor_indices,
-    mask=encs[0].mask,
+    neighbor_indices=neighbor_indices_stacked,
+    mask=mask_stacked,
   )
 
 

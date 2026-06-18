@@ -5,10 +5,10 @@
 version            = "1.0"
 task_id            = "260618_autonomous-loop"
 current_phase      = "EXECUTE"
-last_subphase      = "gate_passed"
+last_subphase      = "remediate_attempt_2"
 last_artifact_path = ".praxia/sprint_plans/260618_rs7b-averaged-scoring.toml"
 iteration_count    = 3
-last_activation    = "2026-06-18T18:28:23Z"
+last_activation    = "2026-06-18T19:10:10Z"
 autonomy_level     = "L2"
 selected_item_ids  = [2252]
 selection_mode     = "p2_fallback"
@@ -18,7 +18,7 @@ next_phase         = "VERIFY"
 
 [loop.lock]
 token           = "7a694e7c-5615-49e5-9098-2af6005a24e8"
-expiry_ts       = "2026-06-18T19:13:23Z"
+expiry_ts       = "2026-06-18T19:55:10Z"
 timeout_minutes = 45
 
 [loop.gates]
@@ -32,7 +32,7 @@ backlog_items_closed_per_iteration   = 0
 consecutive_zero_progress_iterations = 0
 max_zero_progress                    = 3
 last_items_closed                    = 1
-remediate_attempt                    = 0
+remediate_attempt                    = 2
 
 [loop.fingerprint]
 recent_tool_hashes = []

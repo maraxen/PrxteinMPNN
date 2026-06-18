@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import jax
 import jax.numpy as jnp
@@ -283,13 +283,65 @@ def _make_averaged_score_fn(
   """
   from functools import partial  # noqa: PLC0415
 
+  import equinox as eqx  # noqa: PLC0415
+
   from aminx.inference.bundle_builder import build_inference_bundle  # noqa: PLC0415
   from aminx.inference.score_conditional import score_averaged  # noqa: PLC0415
   from aminx.scoring.score import _nll_from_logits  # noqa: PLC0415
-  from aminx.utils.autoregression import generate_ar_mask  # noqa: PLC0415
   from aminx.utils.decoding_order import random_decoding_order  # noqa: PLC0415
 
+  def _check_r3_invariance(bundles_per_noise: list) -> None:
+    """Check R3: all D bundles must share conditioning fields; only backbone_noise may vary.
+
+    Must be called on concrete (non-JIT-traced) bundles so eqx.tree_equal returns a
+    Python bool rather than an abstract tracer. The R3 check is moved here from the
+    JIT closure to guarantee it fires correctly on real values.
+    """
+    ref = bundles_per_noise[0]
+    for _d, _bnd in enumerate(bundles_per_noise[1:], start=1):
+      for _attr in ("conditioning", "geometry", "ligand", "wave"):
+        result = eqx.tree_equal(getattr(ref, _attr), getattr(_bnd, _attr))
+        # eqx.tree_equal returns True/False/None (or a concrete array) on real values.
+        # Cast to bool — if it's a JAX scalar, bool() concretizes it safely here (outside JIT).
+        if not bool(result):
+          msg = (
+            f"_make_averaged_score_fn: bundle[{_d}].{_attr} differs from bundle[0].{_attr}. "
+            f"D bundles must share all conditioning fields; only backbone_noise may vary. "
+            f"(R3 invariant)"
+          )
+          raise AssertionError(msg)
+
   @partial(jax.jit, static_argnames=("multi_state_strategy", "use_rolling_state"))
+  def _score_averaged_jit(
+    prng_key: jax.Array,
+    bundles_per_noise: list,
+    config_out: Any,  # noqa: ANN401
+    sequence: jax.Array,
+    mask: jax.Array,
+    multi_state_strategy: str = "arithmetic_mean",
+    use_rolling_state: bool = False,
+  ) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """JIT-compiled core: encode, fuse, decode. Receives pre-built concrete bundles."""
+    del use_rolling_state, multi_state_strategy
+
+    L = sequence.shape[0]
+    decoding_order, _key = random_decoding_order(prng_key, L, None, None)
+
+    # Encode at each noise level, fuse, decode
+    logits = score_averaged(
+      plan.model,
+      prng_key,
+      bundles_per_noise,
+      config_out,
+      plan.stage_set,
+      plan.stage_set.encoding_fusion,
+    )
+
+    # Compute NLL using the extracted helper
+    nll = _nll_from_logits(logits, sequence, mask)
+
+    return nll, logits, decoding_order
+
   def score_sequence_averaged(
     prng_key: jax.Array,
     sequence: jax.Array,
@@ -309,21 +361,22 @@ def _make_averaged_score_fn(
     ligand_coords: jax.Array | None = None,
     ligand_atom_types: jax.Array | None = None,
     ligand_mask: jax.Array | None = None,
-    **kwargs,
+    **kwargs: Any,  # noqa: ANN401
   ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Score using averaged-feature topology."""
-    del use_rolling_state, multi_state_strategy, multi_state_temperature
+    """Python-level wrapper: build bundles, check R3 on concrete arrays, call JIT core."""
+    del multi_state_temperature, backbone_noise  # backbone_noise is overridden by spec.backbone_noise
+    del kwargs
 
-    L = sequence.shape[0]
+    L = int(sequence.shape[0])
 
-    # Build decoding order
-    decoding_order, prng_key = random_decoding_order(prng_key, L, None, None)
-    if ar_mask is None:
-      ar_mask_single = generate_ar_mask(decoding_order)
-    else:
+    # Build decoding AR mask: use provided ar_mask or default full-context mask
+    if ar_mask is not None:
       ar_mask_single = ar_mask[0] if ar_mask.ndim == 3 else ar_mask
+    else:
+      ar_mask_single = None  # bundle_builder will create the default
 
-    # Build D bundles, one per backbone_noise level
+    # Build D bundles on concrete (Python-level) arrays — one per backbone_noise level.
+    # This runs OUTSIDE the JIT boundary so all arrays are concrete.
     backbone_noises = spec.backbone_noise or (0.0,)
     bundles_per_noise = []
     config_out = None
@@ -348,37 +401,22 @@ def _make_averaged_score_fn(
       )
       bundles_per_noise.append(bundle)
 
-    # R3 assertion: conditioning fields (everything except backbone_noise) must be
-    # noise-invariant across all D bundles. Only backbone_noise is allowed to vary.
-    # Checked at tracing time (Python-level) so it fires once per JIT compilation.
+    # R3 assertion: runs on concrete arrays (outside JIT) so eqx.tree_equal returns
+    # a Python bool, not an abstract tracer. This is the safe location for this check.
     if len(bundles_per_noise) > 1:
-      import equinox as eqx  # noqa: PLC0415
+      _check_r3_invariance(bundles_per_noise)
 
-      ref = bundles_per_noise[0]
-      for _d, _bnd in enumerate(bundles_per_noise[1:], start=1):
-        for _attr in ("conditioning", "geometry", "ligand", "wave"):
-          if not eqx.tree_equal(getattr(ref, _attr), getattr(_bnd, _attr)):
-            msg = (
-              f"_make_averaged_score_fn: bundle[{_d}].{_attr} differs from bundle[0].{_attr}. "
-              f"D bundles must share all conditioning fields; only backbone_noise may vary. "
-              f"(R3 invariant)"
-            )
-            raise AssertionError(msg)
-
-    # Encode at each noise level, fuse, decode
-    logits = score_averaged(
-      plan.model,
+    # Delegate to JIT-compiled core
+    del L  # unused after bundle build
+    return _score_averaged_jit(
       prng_key,
       bundles_per_noise,
-      cast("jax.Array", config_out),
-      plan.stage_set,
-      plan.stage_set.encoding_fusion,
+      cast("Any", config_out),
+      sequence,
+      mask,
+      multi_state_strategy=multi_state_strategy,
+      use_rolling_state=use_rolling_state,
     )
-
-    # Compute NLL using the extracted helper
-    nll = _nll_from_logits(cast("jax.Array", logits), sequence, mask)
-
-    return nll, logits, decoding_order
 
   return score_sequence_averaged
 

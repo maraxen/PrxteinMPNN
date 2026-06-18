@@ -5,13 +5,13 @@
 version            = "1.0"
 task_id            = "260618_autonomous-loop"
 current_phase      = "SPRINT_COMPOSE"
-last_subphase      = "design_dispatched"
+last_subphase      = "gate_pending"
 last_artifact_path = ".praxia/sprint_plans/260618_rs6a-samplingconfig.toml"
 iteration_count    = 1
 last_activation    = "2026-06-18T17:15:00Z"
 autonomy_level     = "L2"
 # Selection (TRIAGE outcome, human-confirmed 2026-06-18):
-selected_item_ids  = [1626]  # RS-7 (iteration 2, human-selected)
+selected_item_ids  = [2251]  # RS-7a (RS-7b #2252 designed+registered, deferred)
 selection_mode     = "p2_fallback"
 pcw_template       = "refactor_with_audit"  # RS-7
 brainstorm_needed  = false

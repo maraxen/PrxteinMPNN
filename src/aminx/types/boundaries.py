@@ -2,6 +2,6 @@
 
 Definitions live in xtrax.stages.boundaries. This shim exists for backward compatibility.
 """
-from xtrax.stages.boundaries import AxisBoundary, Fuse, Sink, Tap  # noqa: F401
+from xtrax.stages.boundaries import AxisBoundary, Fuse, Sink, Tap
 
 __all__ = ["AxisBoundary", "Fuse", "Sink", "Tap"]

@@ -4,8 +4,8 @@
 [loop]
 version            = "1.0"
 task_id            = "260618_autonomous-loop"
-current_phase      = "SPRINT_COMPOSE"
-last_subphase      = "gate_pending"
+current_phase      = "EXECUTE"
+last_subphase      = "fixer_dispatched"
 last_artifact_path = ".praxia/sprint_plans/260618_rs6a-samplingconfig.toml"
 iteration_count    = 1
 last_activation    = "2026-06-18T17:15:00Z"
@@ -17,8 +17,8 @@ pcw_template       = "refactor_with_audit"  # RS-7
 brainstorm_needed  = false
 
 [loop.lock]
-token           = ""
-expiry_ts       = ""
+token           = "tok_855f42e25eac"
+expiry_ts       = "2026-06-18T18:46:41Z"
 timeout_minutes = 45
 
 [loop.gates]

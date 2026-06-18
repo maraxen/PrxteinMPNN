@@ -348,6 +348,23 @@ def _make_averaged_score_fn(
       )
       bundles_per_noise.append(bundle)
 
+    # R3 assertion: conditioning fields (everything except backbone_noise) must be
+    # noise-invariant across all D bundles. Only backbone_noise is allowed to vary.
+    # Checked at tracing time (Python-level) so it fires once per JIT compilation.
+    if len(bundles_per_noise) > 1:
+      import equinox as eqx  # noqa: PLC0415
+
+      ref = bundles_per_noise[0]
+      for _d, _bnd in enumerate(bundles_per_noise[1:], start=1):
+        for _attr in ("conditioning", "geometry", "ligand", "wave"):
+          if not eqx.tree_equal(getattr(ref, _attr), getattr(_bnd, _attr)):
+            msg = (
+              f"_make_averaged_score_fn: bundle[{_d}].{_attr} differs from bundle[0].{_attr}. "
+              f"D bundles must share all conditioning fields; only backbone_noise may vary. "
+              f"(R3 invariant)"
+            )
+            raise AssertionError(msg)
+
     # Encode at each noise level, fuse, decode
     logits = score_averaged(
       plan.model,

@@ -1,0 +1,51 @@
+---
+workspace: aminx
+session_id: 260618_autonomous-loop-s1
+status: in_progress
+immediately_relevant:
+- file: .praxia/docs/specs/260618_rs7b-averaged-scoring-design.md
+  lines:
+  - 1
+  - 98
+  reason: Complete RS-7b design + DAG + parity oracle (interpretation A). Implement from this.
+- file: .praxia/docs/plans/260614_runspec-migration-map.md
+  lines:
+  - 130
+  - 193
+  reason: 'RS-1 inventory. RS-6b caller-migration targets: the 22 already-on-RunSpec fields + new SamplingConfig fields.'
+- file: .praxia/loop_state.toml
+  lines:
+  - 1
+  - 40
+  reason: 'Loop FSM state: phase TRIAGE, iteration_count 2, lock cleared, [run] + [model_routing] blocks.'
+- file: src/aminx/run/spec.py
+  lines:
+  - 118
+  - 160
+  reason: RS-6a landed SamplingConfig + io fields here; build_run_spec wires them.
+active_dispatches: []
+task_id: 260618_autonomous-loop
+phase: null
+goal_statement: Run the autonomous praxia dev loop (hitl_semi_autonomous). Triage backlog, advance the xtrax-refactor RS chain via composition-engine sprints with human gates.
+context_refs: []
+failed_attempts: []
+open_questions:
+- 'RS-6b: delete the fully-deprecated _sampling_averaged.py or exempt it from the flat-field lint?'
+- 'RS-6b: confirm ast-grep as the flat-field lint mechanism (ruff TID251 cannot gate attribute reads) - accept deviation from AC-RS-6 literal ''ruff banned-api'' wording?'
+deferred:
+- description: 'RS-6b #2226 open design Qs (deprecated _sampling_averaged.py delete/exempt; ast-grep vs ruff banned-api lint; prep.py exemption).'
+  rationale: Need PI calls (deletion is semi-destructive; lint mechanism deviates from literal spec) before composing RS-6b.
+  recommended_phase: Before composing RS-6b
+- description: 'praxia tooling bug #1865 (dw emit-sprint reviewer spawns fresh worktree from main, false-FAILs).'
+  rationale: Worked around via controlled-dispatch (reviewer runs IN the fixer worktree). praxia-repo fix, not aminx.
+  recommended_phase: praxia repo
+- description: '#1880 residual: sidechain_conditioning not threaded into build_inference_bundle (TODO per c9d654b).'
+  rationale: 'Small follow-up; unblocks Stage 3 targeted-SC inference. Kept #1880 open during triage.'
+  recommended_phase: Stage 3 SC inference
+lessons_refs: []
+next_steps:
+- 'PUSH/REVIEW: local main is 15 commits ahead of origin/main (unpushed) - review + git push when ready (push intentionally left to PI).'
+- 'RS-7b #2252 (averaged-scoring kernel): implement per design .praxia/docs/specs/260618_rs7b-averaged-scoring-design.md DAG RS7b-1..5. Start RS7b-1 (split score_conditional.kernel into encode + score_from_encoding) + RS7b-1b (extract _nll_from_logits). SHARED KERNEL - serialize. Parity-gated: D=1 bit-equal invariant is the hard gate.'
+- 'RS-6b #2226 (caller migration + ast-grep lint): 3 open design Qs (delete vs exempt deprecated _sampling_averaged.py; ast-grep lint mechanism vs spec ''ruff banned-api''; prep.py protein-only exemption) - resolve with PI before composing.'
+- 'Lighter alternatives: #1880 residual (thread sidechain_conditioning into build_inference_bundle), CLI #1202 (dir/glob inputs).'
+---

@@ -406,6 +406,7 @@ class ScoringSpecification(RunSpecification):
       average_node_features: Whether to average node features (default is False).
       average_encoding_mode: Mode for averaging encodings (default is "inputs_and_noise").
       noise_batch_size: The batch size for noise levels (default is 4).
+      multi_state_temperature: N/A for scoring; score() returns negative log-likelihood of a fixed sequence, invariant to temperature. Accepted for API symmetry but does not affect output.
 
   """
 

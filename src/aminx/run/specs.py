@@ -454,6 +454,7 @@ class SamplingSpecification(RunSpecification):
   output_h5_path: str | Path | None = None
   use_arrayrecord: bool = False
   return_logits: bool = True
+  return_decoding_orders: bool = False
   samples_batch_size: int = 16
   samples_chunk_size: int | None = None
   noise_batch_size: int = 1

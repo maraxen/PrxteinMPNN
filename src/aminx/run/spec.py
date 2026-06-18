@@ -16,8 +16,8 @@ from typing import Any, Literal, cast
 import equinox as eqx
 import jax
 from xtrax.run import RunSpec as _XtraxRunSpec
-from aminx.types.stages import DecodingFusionFn, EncodingFusionFn
 
+from aminx.types.stages import DecodingFusionFn, EncodingFusionFn
 
 
 class IOConfig(eqx.Module):
@@ -26,6 +26,8 @@ class IOConfig(eqx.Module):
   output_dir: Path | None = eqx.field(static=True)
   sink_kind: str = eqx.field(static=True)
   manifest_path: Path | None = eqx.field(static=True)
+  output_h5_path: Path | None = eqx.field(static=True)
+  cache_path: Path | None = eqx.field(static=True)
 
 
 class ResourceConfig(eqx.Module):
@@ -115,6 +117,22 @@ class PlannerTopology(eqx.Module):
   use_unified_driver: bool = eqx.field(static=True)
 
 
+class SamplingConfig(eqx.Module):
+  """Generic sampling knobs (RS-1 migration map section 4)."""
+
+  num_samples: int = eqx.field(static=True)
+  random_seed: int = eqx.field(static=True)
+  return_logits: bool = eqx.field(static=True)
+  compute_pseudo_perplexity: bool = eqx.field(static=True)
+  return_decoding_orders: bool = eqx.field(static=True)
+  backbone_noise: tuple[float, ...] = eqx.field(static=True)
+  temperature: tuple[float, ...] = eqx.field(static=True)
+  bias: Any = None
+  fixed_mask: Any = None
+  fixed_positions: Any = None
+  fixed_tokens: Any = None
+
+
 class RunSpec(_XtraxRunSpec):
   """Composed configuration for run/prep pipelines."""
 
@@ -128,8 +146,20 @@ class RunSpec(_XtraxRunSpec):
   averaging: AveragingConfig = field(default_factory=lambda: None)  # type: ignore
   precision: PrecisionConfig = field(default_factory=lambda: None)  # type: ignore
   plan: PlannerTopology = field(default_factory=lambda: None)  # type: ignore
+  sampling: SamplingConfig = field(default_factory=lambda: None)  # type: ignore
   encoding_fusion: EncodingFusionFn | None = eqx.field(static=True, default=None)
   decoding_fusion: DecodingFusionFn | None = eqx.field(static=True, default=None)
+
+
+def _as_float_tuple(v: object | None) -> tuple[float, ...]:
+  """Convert scalar or iterable (or None) to tuple of floats."""
+  if v is None:
+    return ()
+  # Handle scalar float/int case
+  if isinstance(v, (int, float)):
+    return (float(v),)
+  # Handle iterable case (guaranteed by elimination)
+  return tuple(float(x) for x in cast("Any", v))
 
 
 def _optional_path(value: object | None) -> Path | None:
@@ -248,6 +278,8 @@ def build_run_spec(spec: object) -> RunSpec:
     output_dir=_infer_output_dir(spec),
     sink_kind=_infer_sink_kind(spec),
     manifest_path=_optional_path(pre_idx),
+    output_h5_path=_output_h5_path(spec),
+    cache_path=_optional_path(getattr(spec, "cache_path", None)),
   )
 
   batch_size = int(getattr(spec, "batch_size", 32))
@@ -325,6 +357,20 @@ def build_run_spec(spec: object) -> RunSpec:
     use_unified_driver=bool(getattr(spec, "use_unified_driver", True)),
   )
 
+  sampling = SamplingConfig(
+    num_samples=int(getattr(spec, "num_samples", 1) or 1),
+    random_seed=int(getattr(spec, "random_seed", 42) or 42),
+    return_logits=bool(getattr(spec, "return_logits", False)),
+    compute_pseudo_perplexity=bool(getattr(spec, "compute_pseudo_perplexity", False)),
+    return_decoding_orders=bool(getattr(spec, "return_decoding_orders", False)),
+    backbone_noise=_as_float_tuple(getattr(spec, "backbone_noise", None)),
+    temperature=_as_float_tuple(getattr(spec, "temperature", None)),
+    bias=getattr(spec, "bias", None),
+    fixed_mask=getattr(spec, "fixed_mask", None),
+    fixed_positions=getattr(spec, "fixed_positions", None),
+    fixed_tokens=getattr(spec, "fixed_tokens", None),
+  )
+
   return RunSpec(
     seed=getattr(spec, "seed", 0),
     axes=getattr(spec, "axes", []),
@@ -340,4 +386,5 @@ def build_run_spec(spec: object) -> RunSpec:
     averaging=averaging,
     precision=precision,
     plan=plan,
+    sampling=sampling,
   )

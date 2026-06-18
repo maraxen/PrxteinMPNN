@@ -1,4 +1,4 @@
-"""Core user interface for the Aminx package."""  # noqa: INP001
+"""Core user interface for the Aminx package."""
 
 # COMP-NEW (2026-05-25): non-streaming path now drains via streaming_tensor_sink_session (§14 resolved).
 

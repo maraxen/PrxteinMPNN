@@ -1,0 +1,144 @@
+[sprint]
+sprint_id = "260618_rs7b-averaged-scoring"
+sprint_num = 2
+name = "RS-7b: averaged-topology scoring (average_node_features -> InferencePlan encode/fuse/score)"
+description = "Route score() through the InferencePlan averaging topology when average_node_features=True, sharing the sampling encode->fuse->decode path. Interpretation (A): mean node/edge features THEN score (one decode, one NLL). Backlog #2252 (child of RS-7 #1626 / EPIC #1541). Single sequential track: shared-kernel edits serialize, no fan-out."
+context = """
+RS-7b is the second half of RS-7 (#1626), the primary AC-RS-7 clause. RS-7a (#2251) is DONE/merged.
+Design doc (feasibility HIGH, READ IT FIRST): .praxia/docs/specs/260618_rs7b-averaged-scoring-design.md
+Parent spec: .praxia/docs/specs/260611_runspec-unification.md (AC-RS-7).
+
+VERIFIED ANCHORS (re-confirmed against live code this iteration):
+- src/aminx/inference/score_conditional.py:15-44 = kernel(): encode_fn(bundle,k_enc,config)->enc
+  at :32-33, then ConditionalDecode(...)(key,enc,bundle,config,stage_set) at :37-44. Clean seam.
+- src/aminx/scoring/score.py:114 kernel call; :117-123 NLL formula
+  (log_softmax[...,:20] -> -(seq[...,:20]*logp).sum(-1) -> masked sum / mask_sum) = _nll_from_logits.
+- src/aminx/host/runner.py:312-314 HDF5 NotImplementedError guard (off-ramp pattern to mirror);
+  :316-322 make_score_fn import + score_fn=make_score_fn(model) = the branch point;
+  :355-407 per-(structure,sequence) loop — UNCHANGED.
+- host/averaging.py:48-57 ArithmeticMeanEncodingFusion consumes/produces the SAME EncoderOutput type.
+- host/kernel_dispatch.py:309-328 sampling unified path B (leading-D stack exemplar at :321-325).
+- run/plan.py:652-662 make_inference_plan wires ArithmeticMeanEncodingFusion.
+- run/specs.py:197 backbone_noise default (0.0,); :406 score docstring to update.
+
+INTERPRETATION (HARD): (A) mean features then score. NOT (B) mean of D scalar NLLs (log_softmax is
+nonlinear, they differ). Tests MUST assert (A) and guard against (B).
+
+OFF-RAMP (if D=1 bit-equal parity Invariant-1 is unreachable): land only the RS7b-1/-1b extractions
+(behaviour-preserving), and in score()/runner raise NotImplementedError("averaged-feature scoring not
+yet supported; omit average_node_features") mirroring the HDF5 guard at runner.py:312-314, plus the
+docstring note. This satisfies AC-RS-7 'explicitly documented' as a degraded-but-clean close.
+"""
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[[tracks]]
+id = "a"
+is_research = false
+worktree = true
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "2252"
+phase_name = "RS-7b: encode/score_from_encoding split + score_averaged + runner branch + parity oracle"
+return_key = "2252"
+fixer_prompt = """
+task_id: 260618_autonomous-loop
+READ FIRST: .praxia/docs/specs/260618_rs7b-averaged-scoring-design.md (it has all signatures + invariants).
+Edit only on existing production files. Write ONLY for the new test file. Run the gates between steps.
+Keep behaviour byte-identical for existing non-averaged callers until the final wiring.
+
+STEP 1 (RS7b-1, score_conditional.py) — Split the kernel into encode + decode halves, NO behaviour change.
+  In src/aminx/inference/score_conditional.py extract two helpers from kernel() (currently :15-44):
+    def encode(model, key, bundle, config) -> EncoderOutput:
+        # body = current :32-33 (make_encode_fn(model, use_rolling_state=False); enc = encode_fn(bundle,key,config))
+    def score_from_encoding(model, key, enc, bundle, config, stage_set) -> Logits:
+        # body = current :35-44 (ConditionalDecode(model=..., state_iterator=VmapIterator())(key=...,enc=enc,...))
+  Rewrite kernel(...) to: k_enc,k_dec = jax.random.split(prng_key); enc = encode(model,k_enc,bundle,config);
+    return score_from_encoding(model,k_dec,enc,bundle,config,stage_set). Existing scoring tests must stay green.
+  GATE: uv run pytest tests/scoring -q  (and any test importing score_conditional) — all PASS unchanged.
+
+STEP 2 (RS7b-1b, scoring/score.py) — Extract the single-source NLL helper.
+  In src/aminx/scoring/score.py extract lines 117-123 into a module-level function:
+    def _nll_from_logits(logits, seq_one_hot, mask) -> jax.Array:
+        log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
+        score = -(seq_one_hot[..., :20] * log_probability).sum(-1)
+        mask_flat = _residue_mask_for_scoring(mask)
+        return (score * mask_flat).sum(-1) / (mask_flat.sum() + SCORE_EPS)
+  Replace the inline body in score_sequence with a call to _nll_from_logits(logits, sequence, mask)
+  so masked_score_sum/mask_sum is computed in exactly one place. score_sequence's return tuple unchanged.
+  GATE: uv run pytest tests/scoring -q — all PASS (NLL numerics identical).
+
+STEP 3 (RS7b-2, score_conditional.py) — Add the averaged path. After score_from_encoding add:
+    def _stack_encoder_outputs(encs) -> EncoderOutput:
+        # stack node_features/edge_features along a new leading D axis (mirror kernel_dispatch.py:321-325);
+        # neighbor_indices/mask taken from encs[0] (geometry is noise-invariant — assert identical if cheap).
+    def score_averaged(model, key, bundles_per_noise, config, stage_set, encoding_fusion) -> Logits:
+        # encode each bundle (split a key per D); stacked = _stack_encoder_outputs([...]);
+        # fused = encoding_fusion(stacked)  # D->1, type-preserving (host/averaging.py ArithmeticMeanEncodingFusion);
+        # return score_from_encoding(model, key, fused, bundles_per_noise[0], config, stage_set)
+  Do NOT make D a static jit arg (risk R2: recompile-per-D). Build the D bundles in host Python (concrete arrays).
+  GATE: uv run ty check && uv run ruff check . — clean (no runtime test yet).
+
+STEP 4 (RS7b-3, host/runner.py) — Branch the runner. At the make_score_fn site (:316-322), add:
+    if getattr(spec, 'average_node_features', False):
+        plan = make_inference_plan(model, spec)          # wires ArithmeticMeanEncodingFusion (plan.py:652-662)
+        score_fn = _make_averaged_score_fn(plan, spec)    # NEW closure (below)
+    else:
+        score_fn = make_score_fn(model)                   # unchanged
+  Add _make_averaged_score_fn(plan, spec): builds D bundles from spec.backbone_noise (default (0.0,),
+  specs.py:197) — assert all D bundles' CONDITIONING fields are identical (only backbone_noise varies, risk R3),
+  calls score_averaged(...), then nll via _nll_from_logits. The per-(structure,sequence) loop (:355-407) is UNCHANGED;
+  it still calls score_fn(subkey, seq_one_hot, coords, mask, residue_index, chain_index, ...).
+  GATE: uv run pytest tests/scoring tests/host -q — existing (non-averaged) paths PASS.
+
+STEP 5 (RS7b-4, NEW tests/scoring/test_averaged_parity.py) — BATHOS parity oracle. Write Invariants 1-3:
+  - Inv-3 (fusion math sanity, pure, ~30s): stacked node_features = stack([ones*1, ones*3]) -> fused == 2.0;
+    neighbor_indices/mask == stack[0]. (Write/run this FIRST — it needs no model.)
+  - Inv-1 (D=1 degenerate identity, HARD GATE, bit-equal): a spec with backbone_noise=(0.0,) and
+    average_node_features=True -> averaged-path logits AND nll MUST equal the current non-averaged score()
+    on the same (structure, sequence, key). Use jnp.array_equal; relax to atol=0, rtol<=1e-7 ONLY if XLA
+    layout forces it (else treat a mismatch as a real bug, not a tolerance issue).
+  - Inv-2 (A vs B, D=2 distinct noise): nll_A == hand-computed (encode both, mean features, decode, NLL);
+    nll_A != nll_B (mean of two independent scalar scores) on a non-degenerate fixture.
+  GATE: uv run pytest tests/scoring/test_averaged_parity.py -q — Inv-1/2/3 PASS.
+  *** If Inv-1 (D=1 bit-equal) CANNOT be made to pass after a genuine attempt: APPLY THE OFF-RAMP ***
+  (raise NotImplementedError in the averaged branch mirroring runner.py:312-314 + docstring), keep
+  Steps 1-2 (behaviour-preserving extractions), and report clearly that the off-ramp was taken and why.
+
+STEP 6 (RS7b-5) — Invariant-4 golden + docstring. Add a golden test: a small real structure + seq, D=3,
+  pin the scalar NLL (record the produced value). Update the score docstring (run/specs.py:406 and/or
+  scoring/score.py) to document averaged-feature scoring (Interpretation A) closing AC-RS-7.
+  GATE: uv run pytest tests/scoring -q && uv run ty check && uv run ruff check . && uv run ruff format .
+
+STEP 7 — Commit. git add -A && git commit -m "feat(RS-7b): averaged-topology scoring via InferencePlan encode/fuse/score (#2252)"
+  (If the off-ramp was taken, use: "feat(RS-7b): document averaged-scoring off-ramp (NotImplementedError) + kernel split (#2252)".)
+  Report the commit SHA, exact gate outputs, and whether the full path or the off-ramp landed.
+"""
+reviewer_prompt = """
+task_id: 260618_autonomous-loop
+VERIFY checklist for RS-7b (#2252). Run every command; report PASS/FAIL per item with evidence (paste output).
+1. uv run pytest tests/scoring -q  AND  uv run pytest tests/host -q — all PASS, no regression in existing scoring/host tests.
+2. INVARIANT-1 (HARD GATE): tests/scoring/test_averaged_parity.py contains a D=1 (backbone_noise=(0.0,))
+   identity test asserting averaged-path logits AND nll equal the non-averaged score() bit-for-bit
+   (jnp.array_equal, or atol=0/rtol<=1e-7 with a justification comment). It PASSES.
+   [If the OFF-RAMP was taken instead: verify score()/runner raises NotImplementedError for averaged mode
+    with a message mirroring runner.py:312-314, AND Steps 1-2 extractions still landed (kernel split +
+    _nll_from_logits) with all existing tests green. That is an ACCEPTABLE PASS.]
+3. INTERPRETATION (A) guard: the suite asserts nll_A == hand-computed mean-features-then-decode AND
+   nll_A != nll_B (mean-of-scores) on a non-degenerate D=2 fixture. Both assertions present and PASS.
+4. Inv-3 fusion sanity present (stack([ones*1,ones*3]) -> 2.0; neighbor_indices/mask from stack[0]) and PASSES.
+5. SINGLE-SOURCE NLL: scoring/score.py has exactly one _nll_from_logits and score_sequence calls it
+   (no duplicated log_softmax/masked-sum formula). score_from_encoding/encode exist in score_conditional.py
+   and kernel() composes them (existing non-averaged behaviour byte-identical).
+6. NO STATIC-D RECOMPILE: D is not a static jit arg; D bundles built in host Python (risk R2). Conditioning
+   fields asserted identical across the D bundles (risk R3).
+7. uv run ty check clean; uv run ruff check . clean; uv run ruff format . no diff.
+8. SCOPE: git show --stat HEAD touches only score_conditional.py, scoring/score.py, host/runner.py,
+   run/specs.py (docstring), and tests/scoring/test_averaged_parity.py (+ golden). No unrelated files.
+PASS only if all hold (item 2 satisfied by either the full path OR the documented off-ramp). Else FAIL with the specific item.
+"""
+
+[orchestration]
+sequential = ["a"]
+concurrent = []

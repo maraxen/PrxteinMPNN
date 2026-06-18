@@ -4,32 +4,31 @@
 [loop]
 version            = "1.0"
 task_id            = "260618_autonomous-loop"
-current_phase      = "TRIAGE"
-last_subphase      = ""
-last_artifact_path = ".praxia/sprint_plans/260618_rs6a-samplingconfig.toml"
-iteration_count    = 2
-last_activation    = "2026-06-18T17:15:00Z"
+current_phase      = "EXECUTE"
+last_subphase      = "gate_passed"
+last_artifact_path = ".praxia/sprint_plans/260618_rs7b-averaged-scoring.toml"
+iteration_count    = 3
+last_activation    = "2026-06-18T18:28:23Z"
 autonomy_level     = "L2"
-# Selection (TRIAGE outcome, human-confirmed 2026-06-18):
-selected_item_ids  = []  # RS-7a #2251 DONE (merged 23d38ba). Next: RS-7b #2252 (designed) or other P2.
+selected_item_ids  = [2252]
 selection_mode     = "p2_fallback"
-pcw_template       = "refactor_with_audit"  # RS-7
+pcw_template       = "refactor_with_audit"
 brainstorm_needed  = false
+next_phase         = "VERIFY"
 
 [loop.lock]
-token           = ""
-expiry_ts       = ""
+token           = "7a694e7c-5615-49e5-9098-2af6005a24e8"
+expiry_ts       = "2026-06-18T19:13:23Z"
 timeout_minutes = 45
 
 [loop.gates]
-spec_confirmed   = false
-spec_path        = ""
-sprint_approved  = false
-sprint_plan_path = ".praxia/sprint_plans/260618_rs6a-samplingconfig.toml"
+spec_confirmed   = true
+spec_path        = ".praxia/docs/specs/260618_rs7b-averaged-scoring-design.md"
+sprint_approved  = true
+sprint_plan_path = ".praxia/sprint_plans/260618_rs7b-averaged-scoring.toml"
 
 [loop.metrics]
-# 12 stale-but-done items closed during TRIAGE hygiene pass (R6 chain, #1906, dup pairs, xtrax renames).
-backlog_items_closed_per_iteration   = 1
+backlog_items_closed_per_iteration   = 0
 consecutive_zero_progress_iterations = 0
 max_zero_progress                    = 3
 last_items_closed                    = 1
@@ -39,29 +38,15 @@ remediate_attempt                    = 0
 recent_tool_hashes = []
 stall_threshold    = 3
 
-# ---------------------------------------------------------------------------
-# Run posture (added per PI directive 2026-06-18)
-# ---------------------------------------------------------------------------
 [run]
-mode            = "hitl_semi_autonomous"   # human-in-the-loop, semi-autonomous
-human_available = true                     # PI is around for decision points this run
+mode            = "hitl_semi_autonomous"
+human_available = true
 
-# ---------------------------------------------------------------------------
-# Model routing (source of truth: global CLAUDE.md TRANSDUCTION v3 + PI directive).
-# Set opts.model EXPLICITLY on every dispatch — never default to Opus.
-#   - Haiku  → most token churn: recon, implementation (fixer/codemod), formatters,
-#              mechanical/codemod edits, general churn.
-#   - Sonnet → small / in-sprint review gates: reviewer, auditor, security-auditor,
-#              plan-auditor.
-#   - Opus   → synthesis + big review gates: audit-synthesis, oracle, staff,
-#              spec/architecture, adversarial spec review, contemplex synthesizer,
-#              AND composing sprints / orchestrating.
-# ---------------------------------------------------------------------------
 [model_routing]
 default_policy = "set_explicitly_per_dispatch"
-churn          = "claude-haiku-4-5-20251001"  # recon, fixer, codemod, formatters, churn
-review_gate    = "claude-sonnet-4-6"          # reviewer, auditor, security-auditor, plan-auditor
-synthesis      = "claude-opus-4-8"            # synthesis, big review gates, sprint compose + orchestrate
+churn          = "claude-haiku-4-5-20251001"
+review_gate    = "claude-sonnet-4-6"
+synthesis      = "claude-opus-4-8"
 
 [model_routing.roles]
 recon              = "claude-haiku-4-5-20251001"

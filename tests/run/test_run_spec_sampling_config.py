@@ -62,6 +62,20 @@ class TestSamplingConfigBasics:
     rs = build_run_spec(spec)
     assert rs.sampling.compute_pseudo_perplexity is True
 
+  def test_sampling_config_return_decoding_orders_default(self):
+    """return_decoding_orders defaults to False."""
+    spec = SamplingSpecification(inputs=['f.pdb'], num_samples=1)
+    rs = build_run_spec(spec)
+    assert rs.sampling.return_decoding_orders is False
+
+  def test_sampling_config_return_decoding_orders_set(self):
+    """return_decoding_orders can be set to True."""
+    spec = SamplingSpecification(
+      inputs=['f.pdb'], num_samples=1, return_decoding_orders=True
+    )
+    rs = build_run_spec(spec)
+    assert rs.sampling.return_decoding_orders is True
+
 
 class TestIOConfigPaths:
   """Verify IOConfig output_h5_path and cache_path wiring."""
@@ -104,3 +118,16 @@ class TestIOConfigPaths:
     rs = build_run_spec(spec)
     rs2 = build_run_spec(spec)
     assert rs.io.cache_path == rs2.io.cache_path
+
+
+class TestSamplingConfigArrayLeaves:
+  """Verify non-static array leaves accept arrays."""
+
+  def test_sampling_config_array_leaves_accept_arrays(self):
+    """fixed_mask can accept array values."""
+    import jax.numpy as jnp
+    spec = SamplingSpecification(
+      inputs=['f.pdb'], num_samples=1, fixed_mask=jnp.ones((10,))
+    )
+    rs = build_run_spec(spec)
+    assert rs.sampling.fixed_mask is not None

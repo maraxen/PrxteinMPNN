@@ -1,0 +1,76 @@
+# .praxia/loop_state.toml — written by the autonomous-praxia-dev-loop skill
+# Atomic tmp-rename writes only (never the Write tool). Path: project-root relative.
+
+[loop]
+version            = "1.0"
+task_id            = "260618_autonomous-loop"
+current_phase      = "TRIAGE"
+last_subphase      = ""
+last_artifact_path = ""
+iteration_count    = 0
+last_activation    = "2026-06-18T16:56:42Z"
+# L2 = two human gates (spec_confirmed, sprint_approved). Matches run.mode below.
+autonomy_level     = "L2"
+
+[loop.lock]
+token           = ""
+expiry_ts       = ""
+timeout_minutes = 45
+
+[loop.gates]
+spec_confirmed   = false
+spec_path        = ""
+sprint_approved  = false
+sprint_plan_path = ""
+
+[loop.metrics]
+backlog_items_closed_per_iteration   = 0
+consecutive_zero_progress_iterations = 0
+max_zero_progress                    = 3
+last_items_closed                    = 0
+remediate_attempt                    = 0
+
+[loop.fingerprint]
+recent_tool_hashes = []
+stall_threshold    = 3
+
+# ---------------------------------------------------------------------------
+# Run posture (added per PI directive 2026-06-18)
+# ---------------------------------------------------------------------------
+[run]
+mode            = "hitl_semi_autonomous"   # human-in-the-loop, semi-autonomous
+human_available = true                     # PI is around for decision points this run
+
+# ---------------------------------------------------------------------------
+# Model routing (source of truth: global CLAUDE.md TRANSDUCTION v3 + PI directive).
+# Set opts.model EXPLICITLY on every dispatch — never default to Opus.
+#   - Haiku  → most token churn: recon, implementation (fixer/codemod), formatters,
+#              mechanical/codemod edits, general churn.
+#   - Sonnet → small / in-sprint review gates: reviewer, auditor, security-auditor,
+#              plan-auditor.
+#   - Opus   → synthesis + big review gates: audit-synthesis, oracle, staff,
+#              spec/architecture, adversarial spec review, contemplex synthesizer,
+#              AND composing sprints / orchestrating.
+# ---------------------------------------------------------------------------
+[model_routing]
+default_policy = "set_explicitly_per_dispatch"
+churn          = "claude-haiku-4-5-20251001"  # recon, fixer, codemod, formatters, churn
+review_gate    = "claude-sonnet-4-6"          # reviewer, auditor, security-auditor, plan-auditor
+synthesis      = "claude-opus-4-8"            # synthesis, big review gates, sprint compose + orchestrate
+
+[model_routing.roles]
+recon              = "claude-haiku-4-5-20251001"
+fixer              = "claude-haiku-4-5-20251001"
+codemod            = "claude-haiku-4-5-20251001"
+formatters         = "claude-haiku-4-5-20251001"
+reviewer           = "claude-sonnet-4-6"
+auditor            = "claude-sonnet-4-6"
+security-auditor   = "claude-sonnet-4-6"
+plan-auditor       = "claude-sonnet-4-6"
+audit-synthesis    = "claude-opus-4-8"
+oracle             = "claude-opus-4-8"
+staff              = "claude-opus-4-8"
+specification      = "claude-opus-4-8"
+spec-challenger    = "claude-opus-4-8"
+spec-defender      = "claude-opus-4-8"
+sprint-composer    = "claude-opus-4-8"

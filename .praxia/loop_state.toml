@@ -4,32 +4,32 @@
 [loop]
 version            = "1.0"
 task_id            = "260618_autonomous-loop"
-current_phase      = "EXECUTE"
-last_subphase      = "fixer_dispatched"
+current_phase      = "TRIAGE"
+last_subphase      = ""
 last_artifact_path = ".praxia/sprint_plans/260618_rs6a-samplingconfig.toml"
-iteration_count    = 1
+iteration_count    = 2
 last_activation    = "2026-06-18T17:15:00Z"
 autonomy_level     = "L2"
 # Selection (TRIAGE outcome, human-confirmed 2026-06-18):
-selected_item_ids  = [2251]  # RS-7a (RS-7b #2252 designed+registered, deferred)
+selected_item_ids  = []  # RS-7a #2251 DONE (merged 23d38ba). Next: RS-7b #2252 (designed) or other P2.
 selection_mode     = "p2_fallback"
 pcw_template       = "refactor_with_audit"  # RS-7
 brainstorm_needed  = false
 
 [loop.lock]
-token           = "tok_855f42e25eac"
-expiry_ts       = "2026-06-18T18:46:41Z"
+token           = ""
+expiry_ts       = ""
 timeout_minutes = 45
 
 [loop.gates]
 spec_confirmed   = false
 spec_path        = ""
-sprint_approved  = true
+sprint_approved  = false
 sprint_plan_path = ".praxia/sprint_plans/260618_rs6a-samplingconfig.toml"
 
 [loop.metrics]
 # 12 stale-but-done items closed during TRIAGE hygiene pass (R6 chain, #1906, dup pairs, xtrax renames).
-backlog_items_closed_per_iteration   = 0
+backlog_items_closed_per_iteration   = 1
 consecutive_zero_progress_iterations = 0
 max_zero_progress                    = 3
 last_items_closed                    = 1

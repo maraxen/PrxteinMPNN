@@ -261,6 +261,111 @@ INSPECTION_SCHEMA_VERSION = "inspection_v1"
 JACOBIAN_SCHEMA_VERSION = "jacobian_v1"
 
 
+def _make_averaged_score_fn(
+  plan: Any,  # noqa: ANN401
+  spec: Any,  # noqa: ANN401
+) -> Any:  # noqa: ANN401
+  """Create a scoring function that averages over backbone noise levels.
+
+  Builds D InferenceBundle objects from spec.backbone_noise, encodes each,
+  fuses node/edge features via plan.stage_set.encoding_fusion, then decodes
+  once to produce logits. Uses _nll_from_logits for the NLL calculation.
+
+  Args:
+    plan: InferencePlan with encode, decode, stage_set, and encoding_fusion.
+    spec: ScoringSpecification with backbone_noise field.
+
+  Returns:
+    A scoring function with signature matching make_score_fn output.
+
+  Raises:
+    AssertionError: If bundles' conditioning fields are not noise-invariant.
+  """
+  from functools import partial  # noqa: PLC0415
+
+  from aminx.inference.bundle_builder import build_inference_bundle  # noqa: PLC0415
+  from aminx.inference.score_conditional import score_averaged  # noqa: PLC0415
+  from aminx.scoring.score import _nll_from_logits  # noqa: PLC0415
+  from aminx.utils.autoregression import generate_ar_mask  # noqa: PLC0415
+  from aminx.utils.decoding_order import random_decoding_order  # noqa: PLC0415
+
+  @partial(jax.jit, static_argnames=("multi_state_strategy", "use_rolling_state"))
+  def score_sequence_averaged(
+    prng_key: jax.Array,
+    sequence: jax.Array,
+    structure_coordinates: jax.Array,
+    mask: jax.Array,
+    residue_index: jax.Array,
+    chain_index: jax.Array,
+    backbone_noise: float | None = None,
+    ar_mask: jax.Array | None = None,
+    structure_mapping: jax.Array | None = None,
+    tie_group_map: jax.Array | None = None,
+    multi_state_strategy: str = "arithmetic_mean",
+    multi_state_temperature: float = 1.0,
+    state_weights: jax.Array | None = None,
+    bias: jax.Array | None = None,
+    use_rolling_state: bool = False,
+    ligand_coords: jax.Array | None = None,
+    ligand_atom_types: jax.Array | None = None,
+    ligand_mask: jax.Array | None = None,
+    **kwargs,
+  ) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """Score using averaged-feature topology."""
+    del use_rolling_state, multi_state_strategy, multi_state_temperature
+
+    L = sequence.shape[0]
+
+    # Build decoding order
+    decoding_order, prng_key = random_decoding_order(prng_key, L, None, None)
+    if ar_mask is None:
+      ar_mask_single = generate_ar_mask(decoding_order)
+    else:
+      ar_mask_single = ar_mask[0] if ar_mask.ndim == 3 else ar_mask
+
+    # Build D bundles, one per backbone_noise level
+    backbone_noises = spec.backbone_noise or (0.0,)
+    bundles_per_noise = []
+    config_out = None
+    for noise_val in backbone_noises:
+      bundle, config_out = build_inference_bundle(
+        coords=structure_coordinates,
+        mask=mask,
+        residue_index=residue_index,
+        chain_index=chain_index,
+        sequence=sequence,
+        backbone_noise=float(noise_val),
+        ar_mask=ar_mask_single,
+        structure_mapping=structure_mapping,
+        tie_group_map=tie_group_map,
+        state_weights=state_weights,
+        bias=bias,
+        ligand_coords=ligand_coords,
+        ligand_atom_types=ligand_atom_types,
+        ligand_mask=ligand_mask,
+        mode="score_conditional",
+        inference=True,
+      )
+      bundles_per_noise.append(bundle)
+
+    # Encode at each noise level, fuse, decode
+    logits = score_averaged(
+      plan.model,
+      prng_key,
+      bundles_per_noise,
+      cast("jax.Array", config_out),
+      plan.stage_set,
+      plan.stage_set.encoding_fusion,
+    )
+
+    # Compute NLL using the extracted helper
+    nll = _nll_from_logits(cast("jax.Array", logits), sequence, mask)
+
+    return nll, logits, decoding_order
+
+  return score_sequence_averaged
+
+
 def score(  # noqa: PLR0915
   spec: ScoringSpecification | None = None,
   **kwargs: Any,  # noqa: ANN401
@@ -318,8 +423,14 @@ def score(  # noqa: PLR0915
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
-  # Build score function once
-  score_fn = make_score_fn(model)  # type: ignore[arg-type]
+  # Build score function: standard or averaged-feature
+  if spec.average_node_features:
+    from aminx.host.plan import make_inference_plan  # noqa: PLC0415
+
+    plan = make_inference_plan(model, spec)
+    score_fn = _make_averaged_score_fn(plan, spec)  # type: ignore[arg-type]
+  else:
+    score_fn = make_score_fn(model)  # type: ignore[arg-type]
 
   # Convert string sequences to integer indices
   sequence_indices_list = []
@@ -409,7 +520,11 @@ def score(  # noqa: PLR0915
       batch_scores.append(jnp.stack(struct_scores))
       if spec.return_logits and batch_logits is not None and struct_logits_list:
         batch_logits.append(jnp.stack(struct_logits_list))
-      if spec.return_decoding_orders and batch_decoding_orders is not None and struct_decoding_orders_list:
+      if (
+        spec.return_decoding_orders
+        and batch_decoding_orders is not None
+        and struct_decoding_orders_list
+      ):
         batch_decoding_orders.append(jnp.stack(struct_decoding_orders_list))
 
     all_scores.append(jnp.stack(batch_scores))
@@ -566,7 +681,9 @@ def inspect(  # noqa: PLR0915
           if hasattr(batched_ensemble, "aatype") and batched_ensemble.aatype is not None:
             native_seq = batched_ensemble.aatype[struct_idx]
           else:
-            msg = "Structure does not contain sequence information; cannot compute conditional_logits"
+            msg = (
+              "Structure does not contain sequence information; cannot compute conditional_logits"
+            )
             raise ValueError(msg)
 
           cond_logits_fn = make_conditional_logits_fn(model)
@@ -814,9 +931,7 @@ def jacobian(
   else:
     _run_structure_loop(stage_to_sink=False)
 
-  result_key = (
-    "score_gradients" if spec.jacobian_mode == "reverse" else "categorical_jacobians"
-  )
+  result_key = "score_gradients" if spec.jacobian_mode == "reverse" else "categorical_jacobians"
   jacobian_payload: list[Any] = (
     stacked_host if use_io_sink and stacked_host is not None else all_jacobians
   )

@@ -4,16 +4,16 @@
 [loop]
 version            = "1.0"
 task_id            = "260618_autonomous-loop"
-current_phase      = "TRIAGE"
-last_subphase      = ""
+current_phase      = "SPRINT_COMPOSE"
+last_subphase      = "design_dispatched"
 last_artifact_path = ".praxia/sprint_plans/260618_rs6a-samplingconfig.toml"
 iteration_count    = 1
 last_activation    = "2026-06-18T17:15:00Z"
 autonomy_level     = "L2"
 # Selection (TRIAGE outcome, human-confirmed 2026-06-18):
-selected_item_ids  = []  # RS-6a #2225 DONE (merged ab82482); RS-6b #2226 + RS-7 #1626 now executable
+selected_item_ids  = [1626]  # RS-7 (iteration 2, human-selected)
 selection_mode     = "p2_fallback"
-pcw_template       = "refactor_with_audit"
+pcw_template       = "refactor_with_audit"  # RS-7
 brainstorm_needed  = false
 
 [loop.lock]
@@ -29,10 +29,10 @@ sprint_plan_path = ".praxia/sprint_plans/260618_rs6a-samplingconfig.toml"
 
 [loop.metrics]
 # 12 stale-but-done items closed during TRIAGE hygiene pass (R6 chain, #1906, dup pairs, xtrax renames).
-backlog_items_closed_per_iteration   = 1
+backlog_items_closed_per_iteration   = 0
 consecutive_zero_progress_iterations = 0
 max_zero_progress                    = 3
-last_items_closed                    = 12
+last_items_closed                    = 1
 remediate_attempt                    = 0
 
 [loop.fingerprint]

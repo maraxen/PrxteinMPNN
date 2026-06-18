@@ -162,7 +162,7 @@ Step 2: For each discovered branch, check for new commits
   If the output is non-empty, the branch has commits to integrate.
 
 Step 3: DO NOT MERGE. Per mission.md, merge-to-main is a MANUAL human action — never autonomous.
-  For each branch with new commits, report the branch name and `git log main..<branch> --oneline`.
+  For each branch with new commits, report the branch name and the output of: git log main..<branch> --oneline .
   Leave ALL branches unmerged on disk for the human to merge + push manually. Run NO git merge.
 
 Step 4: Write manifest JSON

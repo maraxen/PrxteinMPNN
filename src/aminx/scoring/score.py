@@ -26,6 +26,34 @@ def _residue_mask_for_scoring(mask: jax.Array) -> jax.Array:
   return mask[0]
 
 
+def _nll_from_logits(
+  logits: jax.Array,
+  seq_one_hot: jax.Array,
+  mask: jax.Array,
+) -> jax.Array:
+  """Compute negative log-likelihood from logits and one-hot sequence.
+
+  Computes masked-average NLL using the first 20 amino acids (excluding X/UNK).
+
+  Args:
+    logits: Model output logits, shape (..., 21) where last axis is vocab.
+    seq_one_hot: One-hot encoded sequence, shape (..., 21).
+    mask: Per-residue mask for scoring. If 2-D (S, L), uses first state's mask.
+
+  Returns:
+    Scalar NLL (negative log-likelihood), masked and averaged.
+  """
+  log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
+  score = -(seq_one_hot[..., :20] * log_probability).sum(-1)
+
+  # Use the first state's mask when batched (S, L); use full vector when 1-D (L,).
+  mask_flat = _residue_mask_for_scoring(mask)
+  masked_score_sum = (score * mask_flat).sum(-1)
+  mask_sum = mask_flat.sum() + SCORE_EPS
+
+  return masked_score_sum / mask_sum
+
+
 def make_score_fn(
   model: ModelProtocol,
   decoding_order_fn: DecodingOrderFn = _DEFAULT_DECODING_ORDER_FN,
@@ -66,7 +94,9 @@ def make_score_fn(
     structure_mapping: jax.Array | None = None,
     tie_group_map: jax.Array | None = None,
     multi_state_strategy: Literal[
-      "arithmetic_mean", "geometric_mean", "product",
+      "arithmetic_mean",
+      "geometric_mean",
+      "product",
     ] = "arithmetic_mean",
     multi_state_temperature: float = 1.0,
     state_weights: jax.Array | None = None,
@@ -113,16 +143,10 @@ def make_score_fn(
 
     logits = score_conditional.kernel(model, prng_key, bundle, config, stage_set)
 
-    # Compute score
-    log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
-    score = -(sequence[..., :20] * log_probability).sum(-1)
+    # Compute score using single-source NLL formula
+    nll = _nll_from_logits(logits, sequence, mask)
 
-    # Use the first state's mask when batched (S, L); use full vector when 1-D (L,).
-    mask_flat = _residue_mask_for_scoring(mask)
-    masked_score_sum = (score * mask_flat).sum(-1)
-    mask_sum = mask_flat.sum() + SCORE_EPS
-
-    return masked_score_sum / mask_sum, logits, decoding_order
+    return nll, logits, decoding_order
 
   return cast("ScoreFn", score_sequence)
 

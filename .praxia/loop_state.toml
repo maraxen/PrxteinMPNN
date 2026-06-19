@@ -5,7 +5,7 @@
 version            = "1.0"
 task_id            = "260618_autonomous-loop"
 current_phase      = "SPRINT_COMPOSE"
-last_subphase      = "recon_started"
+last_subphase      = "toml_authored"
 last_artifact_path = ".praxia/sprint_plans/260618_rs7b-averaged-scoring.toml"
 iteration_count    = 4
 last_activation    = "2026-06-18T19:32:57Z"
@@ -23,9 +23,9 @@ timeout_minutes = 45
 
 [loop.gates]
 spec_confirmed   = true
-spec_path        = ".praxia/docs/specs/260618_rs7b-averaged-scoring-design.md"
+spec_path        = ".praxia/docs/plans/260614_runspec-migration-map.md"
 sprint_approved  = true
-sprint_plan_path = ".praxia/sprint_plans/260618_rs7b-averaged-scoring.toml"
+sprint_plan_path = ".praxia/sprint_plans/260618_rs6b-host-migration.toml"
 
 [loop.metrics]
 backlog_items_closed_per_iteration   = 1

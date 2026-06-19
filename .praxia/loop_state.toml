@@ -5,7 +5,7 @@
 version            = "1.0"
 task_id            = "260618_autonomous-loop"
 current_phase      = "TRIAGE"
-last_subphase      = "rs7b_done_awaiting_manual_merge"
+last_subphase      = "holding_for_rs7b_merge_then_rs6b"
 last_artifact_path = ".praxia/sprint_plans/260618_rs7b-averaged-scoring.toml"
 iteration_count    = 4
 last_activation    = "2026-06-18T19:32:57Z"

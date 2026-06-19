@@ -15,6 +15,7 @@ FIELD -> SUBCONFIG MAP (the ONLY fields to migrate):
                      fixed_mask, fixed_positions, fixed_tokens, compute_pseudo_perplexity,
                      return_logits, return_decoding_orders
   run_spec.io:       output_h5_path, cache_path
+  run_spec.plan:     use_unified_driver   (kernel_dispatch ~:172; default True both flat and via run_spec -> SAFE/mechanical)
 
 TARGET FILES (migrate every flat read of the above fields; rg is ground truth — line numbers
 below are recon-time and may have shifted, esp runner.py post-RS-7b):
@@ -27,10 +28,11 @@ flat spec (with normalization: backbone_noise/temperature -> float tuple, random
 return_* -> bool). Preserve the surrounding expression EXACTLY (e.g. `len(...)`,
 `... or (0.0,)`, `... or 42`, `... is not None`, `np.asarray(...)`). No behavior change.
 
+use_unified_driver IS IN SCOPE: kernel_dispatch.py ~:172 reads getattr(spec,'use_unified_driver',True);
+run_spec.plan.use_unified_driver also defaults True -> migrating is semantics-preserving. Migrate it to
+spec.run_spec.plan.use_unified_driver and ADD it to the ast-grep banned set.
+
 EXPLICITLY OUT OF SCOPE (deferred to follow-ups; do NOT touch):
-  - use_unified_driver (kernel_dispatch.py ~:172): migrating flat getattr(...,False) to
-    run_spec.plan.use_unified_driver (default True) is a BEHAVIOR change, not a pure migration.
-    LEAVE IT FLAT. Do NOT add it to the ast-grep banned set.
   - src/aminx/host/_sampling_averaged.py: DEAD (not imported). Do NOT delete (no-auto-delete)
     and do NOT migrate. It is exempt from the gate (or untouched).
   - prep.py: migrate cache_path ONLY; its 21 protein-only flat reads stay flat. prep.py is
@@ -57,7 +59,7 @@ STEP 1 — Migrate flat reads in each host file. For EACH target file, use rg to
 read of a migrated field, then replace spec.<field> -> spec.run_spec.<subconfig>.<field> per the
 FIELD->SUBCONFIG MAP in the sprint context. Preserve the surrounding expression byte-for-byte
 (only the attribute path changes). Files (ground-truth via rg, not fixed counts):
-  src/aminx/host/kernel_dispatch.py  (backbone_noise,temperature,bias,compute_pseudo_perplexity)
+  src/aminx/host/kernel_dispatch.py  (backbone_noise,temperature,bias,compute_pseudo_perplexity,use_unified_driver->run_spec.plan)
   src/aminx/host/streaming.py        (output_h5_path,return_logits,backbone_noise,temperature)
   src/aminx/host/runner.py           (return_logits,return_decoding_orders,random_seed,output_h5_path,backbone_noise)
   src/aminx/host/plan.py             (num_samples)
@@ -65,8 +67,8 @@ FIELD->SUBCONFIG MAP in the sprint context. Preserve the surrounding expression 
   src/aminx/host/_sampling_grid_lineage.py (num_samples,random_seed,temperature,backbone_noise)
   src/aminx/host/campaign.py         (temperature,backbone_noise)
   src/aminx/host/prep.py             (cache_path ONLY — leave the 21 protein-only flat reads)
-DO NOT migrate use_unified_driver (leave flat). DO NOT touch _sampling_averaged.py.
-To find sites: `rg -n 'spec\\.(backbone_noise|temperature|num_samples|random_seed|bias|fixed_mask|fixed_positions|fixed_tokens|compute_pseudo_perplexity|return_logits|return_decoding_orders|output_h5_path|cache_path)\\b' src/aminx/host/`
+Migrate use_unified_driver (kernel_dispatch:172) -> spec.run_spec.plan.use_unified_driver. DO NOT touch _sampling_averaged.py.
+To find sites: `rg -n 'spec\\.(backbone_noise|temperature|num_samples|random_seed|bias|fixed_mask|fixed_positions|fixed_tokens|compute_pseudo_perplexity|return_logits|return_decoding_orders|output_h5_path|cache_path|use_unified_driver)\\b' src/aminx/host/`
 After migrating, re-run that rg over each file (except prep.py protein lines / use_unified_driver) and confirm ZERO remaining flat reads of the migrated fields.
 GATE after STEP 1: `uv run pytest tests/host tests/scoring -q` — ALL pass (semantics preserved, no behavior change). If any test changes value, you broke a wrapped expression — fix it.
 
@@ -98,10 +100,10 @@ task_id: 260618_autonomous-loop
 VERIFY checklist for RS-6b (#2226). Run every command; report PASS/FAIL per item with evidence.
 1. `uv run pytest tests/host tests/scoring -q` — ALL pass, NO regression. (RS-6b is semantics-preserving;
    any changed test VALUE is a FAIL — a wrapped expression like `len(...)`/`or (0.0,)`/`is not None` got broken.)
-2. NO REMAINING FLAT READS: `rg -n 'spec\\.(backbone_noise|temperature|num_samples|random_seed|bias|fixed_mask|fixed_positions|fixed_tokens|compute_pseudo_perplexity|return_logits|return_decoding_orders|output_h5_path|cache_path)\\b' src/aminx/host/` returns ONLY: prep.py protein-only lines (none of these fields except cache_path which must be migrated) — i.e. zero hits for the migrated fields in kernel_dispatch/streaming/runner/plan/_sampling_helper/_sampling_grid_lineage/campaign, and prep.py cache_path migrated. Any stray flat read = FAIL.
+2. NO REMAINING FLAT READS: `rg -n 'spec\\.(backbone_noise|temperature|num_samples|random_seed|bias|fixed_mask|fixed_positions|fixed_tokens|compute_pseudo_perplexity|return_logits|return_decoding_orders|output_h5_path|cache_path|use_unified_driver)\\b' src/aminx/host/` returns ONLY: prep.py protein-only lines (none of these fields except cache_path which must be migrated) — i.e. zero hits for the migrated fields in kernel_dispatch/streaming/runner/plan/_sampling_helper/_sampling_grid_lineage/campaign, and prep.py cache_path migrated. Any stray flat read = FAIL.
 3. AST-GREP GATE: .ast-grep/rules/rs6b-host-flat-field-ban.yml exists, scoped to src/aminx/host/**/*.py with prep.py excluded, bans the migrated field set (NOT use_unified_driver). `ast-grep scan src/aminx/host/` reports 0 violations.
 4. RULE FIRES: the new test plants a `spec.temperature` host-path violation and asserts ast-grep flags it (the gate actually works, not a no-op). Test PASSES.
-5. OUT-OF-SCOPE UNTOUCHED: `git show --stat HEAD` shows NO changes to _sampling_averaged.py; use_unified_driver remains a flat read (kernel_dispatch) and is NOT in the banned set; prep.py's 21 protein-only reads unchanged.
+5. OUT-OF-SCOPE UNTOUCHED: `git show --stat HEAD` shows NO changes to _sampling_averaged.py; prep.py's 21 protein-only reads unchanged. use_unified_driver IS migrated (kernel_dispatch -> run_spec.plan) and IS in the banned set.
 6. uv run ty check clean; uv run ruff check . clean; uv run ruff format . no diff.
 7. SCOPE: HEAD touches only src/aminx/host/*.py, .ast-grep/rules/rs6b-host-flat-field-ban.yml, and the new test. No unrelated files.
 PASS only if all 7 hold. Else FAIL with the specific item.

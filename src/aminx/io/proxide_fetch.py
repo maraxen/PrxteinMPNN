@@ -1,0 +1,220 @@
+"""Fetch wrappers for remote sources (RCSB, AlphaFold, MD-CATH) with aminx-controlled cache.
+
+The cache layout is:
+  cache_dir/<scheme>/<accession>[/<fmt>]/
+
+Cache HIT = subdir exists and contains >= 1 non-empty file; no fetcher call.
+Cache MISS = subdir absent or empty; fetcher called, subdir populated.
+
+Partial-download cleanup (M1): on any fetcher exception, the per-accession subdir
+is deleted before re-raising as InputResolutionError.
+
+Mock boundary (M4): fetchers are called via module attribute (proxide.io.fetch_*),
+not imported directly, so tests can patch aminx.io.proxide_fetch.proxide.io.*.
+"""
+
+from __future__ import annotations
+
+import logging
+import shutil
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import proxide.io
+
+if TYPE_CHECKING:
+  from .input_uri import PDBFormat
+
+logger = logging.getLogger(__name__)
+
+
+class InputResolutionError(Exception):
+  """Typed error for input-resolution failures (fetch, cache, network, offline).
+
+  Raised when:
+  - A fetcher fails (network, offline, 404, malformed)
+  - Cache mkdir/write fails (permission, full-disk)
+  - Post-resolution validation fails
+
+  Callers (resolver, runner guard) catch this and emit actionable messages.
+  """
+
+
+def fetch_pdb(
+  pdb_id: str,
+  cache_dir: Path | str,
+  fmt: PDBFormat = "mmcif",
+) -> Path:
+  """Fetch a PDB structure from RCSB with aminx-controlled cache.
+
+  Args:
+    pdb_id: 4-letter PDB accession (e.g., '1A3A').
+    cache_dir: Root cache directory.
+    fmt: 'pdb' or 'mmcif' (default).
+
+  Returns:
+    Path to the cached/fetched file.
+
+  Raises:
+    InputResolutionError: On fetch failure, I/O error, or offline.
+  """
+  cache_dir = Path(cache_dir)
+  subdir = cache_dir / "pdb" / pdb_id / fmt
+
+  # Check for cache hit
+  hit_path = _check_cache_hit(subdir)
+  if hit_path:
+    return hit_path
+
+  # Cache miss: create subdir, fetch, cache result
+  try:
+    subdir.mkdir(parents=True, exist_ok=True)
+  except (PermissionError, OSError) as exc:
+    raise InputResolutionError(
+      f"cannot write input cache at {cache_dir}: {exc.__class__.__name__} — "
+      f"check permissions / free space",
+    ) from exc
+
+  try:
+    # M4: module attribute call for test patchability
+    fetched_path = proxide.io.fetch_rcsb(pdb_id, output_dir=str(subdir), format_type=fmt)
+    return Path(fetched_path)
+  except Exception as exc:
+    # M1: partial-download cleanup before re-raise
+    _cleanup_subdir(subdir)
+    raise InputResolutionError(
+      f"failed to fetch pdb://{pdb_id} from RCSB into cache {cache_dir}: {exc}; "
+      f"remote fetches require network access at CLI/submit time; "
+      f"resolve on a connected host, then submit with the cached local path "
+      f"(cluster compute nodes are offline)",
+    ) from exc
+
+
+def fetch_afdb(
+  uniprot_id: str,
+  cache_dir: Path | str,
+) -> Path:
+  """Fetch an AlphaFold structure from AfDB with aminx-controlled cache.
+
+  Args:
+    uniprot_id: UniProt accession (e.g., 'P12345').
+    cache_dir: Root cache directory.
+
+  Returns:
+    Path to the cached/fetched file.
+
+  Raises:
+    InputResolutionError: On fetch failure, I/O error, or offline.
+  """
+  cache_dir = Path(cache_dir)
+  subdir = cache_dir / "afdb" / uniprot_id
+
+  # Check for cache hit
+  hit_path = _check_cache_hit(subdir)
+  if hit_path:
+    return hit_path
+
+  # Cache miss: create subdir, fetch, cache result
+  try:
+    subdir.mkdir(parents=True, exist_ok=True)
+  except (PermissionError, OSError) as exc:
+    raise InputResolutionError(
+      f"cannot write input cache at {cache_dir}: {exc.__class__.__name__} — "
+      f"check permissions / free space",
+    ) from exc
+
+  try:
+    # M4: module attribute call for test patchability
+    fetched_path = proxide.io.fetch_afdb(uniprot_id, output_dir=str(subdir), version=4)
+    return Path(fetched_path)
+  except Exception as exc:
+    # M1: partial-download cleanup before re-raise
+    _cleanup_subdir(subdir)
+    raise InputResolutionError(
+      f"failed to fetch afdb://{uniprot_id} from AfDB into cache {cache_dir}: {exc}; "
+      f"remote fetches require network access at CLI/submit time; "
+      f"resolve on a connected host, then submit with the cached local path "
+      f"(cluster compute nodes are offline)",
+    ) from exc
+
+
+def fetch_md_cath(
+  md_cath_id: str,
+  cache_dir: Path | str,
+) -> Path:
+  """Fetch an MD-CATH structure with aminx-controlled cache.
+
+  Args:
+    md_cath_id: MD-CATH accession (e.g., '1abcA00').
+    cache_dir: Root cache directory.
+
+  Returns:
+    Path to the cached/fetched .h5 file.
+
+  Raises:
+    InputResolutionError: On fetch failure, I/O error, or offline.
+  """
+  cache_dir = Path(cache_dir)
+  subdir = cache_dir / "mdcath" / md_cath_id
+
+  # Check for cache hit
+  hit_path = _check_cache_hit(subdir)
+  if hit_path:
+    return hit_path
+
+  # Cache miss: create subdir, fetch, cache result
+  try:
+    subdir.mkdir(parents=True, exist_ok=True)
+  except (PermissionError, OSError) as exc:
+    raise InputResolutionError(
+      f"cannot write input cache at {cache_dir}: {exc.__class__.__name__} — "
+      f"check permissions / free space",
+    ) from exc
+
+  try:
+    # M4: module attribute call for test patchability
+    fetched_path = proxide.io.fetch_md_cath(md_cath_id, output_dir=str(subdir))
+    return Path(fetched_path)
+  except Exception as exc:
+    # M1: partial-download cleanup before re-raise
+    _cleanup_subdir(subdir)
+    raise InputResolutionError(
+      f"failed to fetch mdcath://{md_cath_id} from MD-CATH into cache {cache_dir}: {exc}; "
+      f"remote fetches require network access at CLI/submit time; "
+      f"resolve on a connected host, then submit with the cached local path "
+      f"(cluster compute nodes are offline)",
+    ) from exc
+
+
+def _check_cache_hit(subdir: Path) -> Path | None:
+  """Check if cache subdir exists and contains >= 1 non-empty file (B1 cache hit).
+
+  Args:
+    subdir: Per-accession cache subdirectory.
+
+  Returns:
+    Path to the (first) cached file, or None if miss.
+  """
+  if not subdir.exists():
+    return None
+
+  # Check for >= 1 non-empty file in subdir
+  for item in subdir.iterdir():
+    if item.is_file() and item.stat().st_size > 0:
+      return item
+
+  return None
+
+
+def _cleanup_subdir(subdir: Path) -> None:
+  """Delete a per-accession subdir (used on partial-download failure, M1).
+
+  Args:
+    subdir: Per-accession cache subdirectory to delete.
+  """
+  try:
+    if subdir.exists():
+      shutil.rmtree(subdir)
+  except OSError as exc:
+    # Best-effort cleanup; log but don't raise on cleanup failure
+    logger.warning("cleanup failed for %s: %s", subdir, exc)

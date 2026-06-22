@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
+import re
 import warnings
 from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol, TextIO, cast
 
+from aminx.io.proxide_fetch import InputResolutionError
 from aminx.model.versions import MODEL_VERSION, MODEL_WEIGHTS
 
 from .spec import RunSpec, build_run_spec
@@ -82,8 +84,50 @@ class FeatureNoiseBundle:
 
 
 def _loader_inputs(inputs: Sequence[str | TextIO] | str | TextIO) -> Sequence[str | TextIO]:
+  """Normalize inputs to a sequence; guard against unresolved URIs.
+
+  Raises InputResolutionError if any string input token matches the URI scheme
+  grammar (^[a-z][a-z0-9+.-]*://), indicating it bypassed CLI-time resolution.
+  TextIO handles are passed through unchecked (they are already file handles).
+
+  Args:
+    inputs: Single or sequence of file paths/URIs or TextIO handles.
+
+  Returns:
+    Normalized sequence of the same inputs.
+
+  Raises:
+    InputResolutionError: If any string token carries an unresolved :// scheme.
+  """
+  # Scheme grammar from §3 of spec (input_uri.py source of truth)
+  # Pattern: ^[a-z][a-z0-9+.-]*://
+  uri_scheme_pattern = re.compile(r"^[a-z][a-z0-9+.-]*://")
+
+  # Special handling for string inputs: they're Sequences in Python,
+  # but we need to check the whole string, not iterate through characters.
+  if isinstance(inputs, str):
+    if uri_scheme_pattern.match(inputs):
+      raise InputResolutionError(
+        f"inputs must be resolved to local paths before the runner; "
+        f"unresolved token: {inputs!r}. "
+        f"re-run input resolution on a connected host.",
+      )
+    return inputs
+
+  # TextIO is not a Sequence, so wrap it
   out = (inputs,) if not isinstance(inputs, Sequence) else inputs
-  return cast("Sequence[str | TextIO]", out)
+  normalized = cast("Sequence[str | TextIO]", out)
+
+  # Guard: scan for unresolved URIs (string tokens only, skip TextIO handles)
+  for token in normalized:
+    if isinstance(token, str) and uri_scheme_pattern.match(token):
+      raise InputResolutionError(
+        f"inputs must be resolved to local paths before the runner; "
+        f"unresolved token: {token!r}. "
+        f"re-run input resolution on a connected host.",
+      )
+
+  return normalized
 
 
 def _extract_noise_levels(bundles: list[FeatureNoiseBundle], ftype: str) -> tuple[float, ...]:
@@ -287,7 +331,11 @@ class RunSpecification:
     bundles = list(self.noise)  # Start with provided bundles
 
     # Backbone noise (always convert to bundle for consistency)
-    if self.backbone_noise is not None or not bundles or all(b.feature_type != "backbone" for b in bundles):
+    if (
+      self.backbone_noise is not None
+      or not bundles
+      or all(b.feature_type != "backbone" for b in bundles)
+    ):
       bb_noise: tuple[float, ...] = (0.0,)
       if self.backbone_noise is not None:
         if isinstance(self.backbone_noise, float):
@@ -298,12 +346,14 @@ class RunSpecification:
       bb_mode: Literal["direct", "thermal"] = self.backbone_noise_mode or "direct"
       bundles = [b for b in bundles if b.feature_type != "backbone"]
       if bb_noise != (0.0,) or bb_mode != "direct":
-        bundles.append(FeatureNoiseBundle(
-          feature_type="backbone",
-          noise_levels=bb_noise,
-          mode=bb_mode,
-          enabled=True,
-        ))
+        bundles.append(
+          FeatureNoiseBundle(
+            feature_type="backbone",
+            noise_levels=bb_noise,
+            mode=bb_mode,
+            enabled=True,
+          )
+        )
 
     # Electrostatic noise
     if self.estat_noise is not None or self.use_electrostatics:
@@ -314,19 +364,23 @@ class RunSpecification:
           estat_levels = (self.estat_noise,)
         elif isinstance(self.estat_noise, Sequence):
           estat_levels = tuple(self.estat_noise)  # type: ignore
-        bundles.append(FeatureNoiseBundle(
-          feature_type="electrostatic",
-          noise_levels=estat_levels,
-          mode=self.estat_noise_mode or "direct",
-          enabled=True,
-        ))
+        bundles.append(
+          FeatureNoiseBundle(
+            feature_type="electrostatic",
+            noise_levels=estat_levels,
+            mode=self.estat_noise_mode or "direct",
+            enabled=True,
+          )
+        )
       elif self.use_electrostatics:
-        bundles.append(FeatureNoiseBundle(
-          feature_type="electrostatic",
-          noise_levels=(0.0,),
-          mode=self.estat_noise_mode or "direct",
-          enabled=True,
-        ))
+        bundles.append(
+          FeatureNoiseBundle(
+            feature_type="electrostatic",
+            noise_levels=(0.0,),
+            mode=self.estat_noise_mode or "direct",
+            enabled=True,
+          )
+        )
 
     # VDW noise
     if self.vdw_noise is not None or self.use_vdw:
@@ -337,19 +391,23 @@ class RunSpecification:
           vdw_levels = (self.vdw_noise,)
         elif isinstance(self.vdw_noise, Sequence):
           vdw_levels = tuple(self.vdw_noise)  # type: ignore
-        bundles.append(FeatureNoiseBundle(
-          feature_type="vdw",
-          noise_levels=vdw_levels,
-          mode=self.vdw_noise_mode or "direct",
-          enabled=True,
-        ))
+        bundles.append(
+          FeatureNoiseBundle(
+            feature_type="vdw",
+            noise_levels=vdw_levels,
+            mode=self.vdw_noise_mode or "direct",
+            enabled=True,
+          )
+        )
       elif self.use_vdw:
-        bundles.append(FeatureNoiseBundle(
-          feature_type="vdw",
-          noise_levels=(0.0,),
-          mode=self.vdw_noise_mode or "direct",
-          enabled=True,
-        ))
+        bundles.append(
+          FeatureNoiseBundle(
+            feature_type="vdw",
+            noise_levels=(0.0,),
+            mode=self.vdw_noise_mode or "direct",
+            enabled=True,
+          )
+        )
 
     # Update self.noise with merged bundles
     object.__setattr__(self, "noise", bundles)
@@ -570,8 +628,6 @@ class JacobianSpecification(RunSpecification):
     if self.output_h5_path and isinstance(self.output_h5_path, str):
       object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
     self._sync_run_spec()
-
-
 
 
 MIN_PAIR = 2

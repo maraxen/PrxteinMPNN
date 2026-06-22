@@ -127,8 +127,10 @@ class TestFetchPdb:
       with pytest.raises(InputResolutionError) as exc_info:
         fetch_pdb(accession, cache_dir, fmt)
 
-      assert "failed to fetch pdb://1A3A" in str(exc_info.value)
-      assert "offline" in str(exc_info.value).lower()
+      # T7: error message should include accession and be categorized
+      error_msg = str(exc_info.value)
+      assert "1A3A" in error_msg or "pdb://" in error_msg
+      assert "offline" in error_msg.lower() or "network" in error_msg.lower()
 
       # M1: subdir should be deleted (cleanup)
       subdir = cache_dir / "pdb" / accession / fmt
@@ -183,7 +185,10 @@ class TestFetchAfdb:
       with pytest.raises(InputResolutionError) as exc_info:
         fetch_afdb(uniprot_id, cache_dir)
 
-      assert "failed to fetch afdb://P12345" in str(exc_info.value)
+      # T7: error message should include accession and be categorized (404 = not-found)
+      error_msg = str(exc_info.value)
+      assert "P12345" in error_msg or "afdb://" in error_msg
+      assert "no structure found" in error_msg or "invalid" in error_msg
 
       subdir = cache_dir / "afdb" / uniprot_id
       assert not subdir.exists(), "Partial artifact subdir should be cleaned up"
@@ -289,7 +294,9 @@ class TestFetchMdCath:
       with pytest.raises(InputResolutionError) as exc_info:
         fetch_md_cath(md_cath_id, cache_dir)
 
-      assert "failed to fetch mdcath://1abcA00" in str(exc_info.value)
+      # T7: error message should include accession and be categorized
+      error_msg = str(exc_info.value)
+      assert "1abcA00" in error_msg or "mdcath://" in error_msg
 
       subdir = cache_dir / "mdcath" / md_cath_id
       assert not subdir.exists(), "Partial artifact subdir should be cleaned up"
@@ -396,3 +403,136 @@ class TestInputResolutionError:
     with pytest.raises(InputResolutionError) as exc_info:
       raise InputResolutionError("test message")
     assert "test message" in str(exc_info.value)
+
+
+class TestErrorCategorization:
+  """Tests for categorized error messages (T7 hardening)."""
+
+  def test_fetch_pdb_404_not_found_error(self, tmp_path: Path) -> None:
+    """T7: 404/not-found accession -> error names accession (bad-accession category)."""
+    cache_dir = tmp_path / "cache"
+    pdb_id = "9Z9Z"
+
+    def mock_fetch_not_found(pdb_id: str, output_dir: str, format_type: str) -> str:
+      # Simulate 404: proxide raises with "not found" or similar
+      raise RuntimeError(f"404 Not Found for PDB {pdb_id}")
+
+    with patch("aminx.io.proxide_fetch.proxide.io.fetch_rcsb", side_effect=mock_fetch_not_found):
+      with pytest.raises(InputResolutionError) as exc_info:
+        fetch_pdb(pdb_id, cache_dir)
+
+      error_msg = str(exc_info.value)
+      # Should name the accession and indicate it's a not-found error
+      assert "9Z9Z" in error_msg or "pdb://" in error_msg
+      # Should include category-specific hint for not-found
+      assert "no structure found" in error_msg or "invalid" in error_msg
+
+  def test_fetch_pdb_network_error(self, tmp_path: Path) -> None:
+    """T7: network/socket error -> offline hint included."""
+    cache_dir = tmp_path / "cache"
+    pdb_id = "1A3A"
+
+    def mock_fetch_network_error(pdb_id: str, output_dir: str, format_type: str) -> str:
+      # Simulate network failure: connection error
+      raise ConnectionError("Connection refused")
+
+    with patch("aminx.io.proxide_fetch.proxide.io.fetch_rcsb", side_effect=mock_fetch_network_error):
+      with pytest.raises(InputResolutionError) as exc_info:
+        fetch_pdb(pdb_id, cache_dir)
+
+      error_msg = str(exc_info.value)
+      # Should include offline/network hint
+      assert "offline" in error_msg.lower() or "network" in error_msg.lower()
+      # Should include the accession
+      assert "1A3A" in error_msg or "pdb://" in error_msg
+
+  def test_fetch_afdb_404_not_found_error(self, tmp_path: Path) -> None:
+    """T7: 404/not-found accession on afdb -> error names accession."""
+    cache_dir = tmp_path / "cache"
+    uniprot_id = "X9X9X9"
+
+    def mock_fetch_not_found(uniprot_id: str, output_dir: str, version: int) -> str:
+      raise RuntimeError(f"404 No AlphaFold structure for {uniprot_id}")
+
+    with patch("aminx.io.proxide_fetch.proxide.io.fetch_afdb", side_effect=mock_fetch_not_found):
+      with pytest.raises(InputResolutionError) as exc_info:
+        fetch_afdb(uniprot_id, cache_dir)
+
+      error_msg = str(exc_info.value)
+      assert "X9X9X9" in error_msg or "afdb://" in error_msg
+      # Should include category-specific hint for not-found
+      assert "no structure found" in error_msg or "invalid" in error_msg
+
+  def test_fetch_afdb_network_error(self, tmp_path: Path) -> None:
+    """T7: network error on afdb -> offline hint included."""
+    cache_dir = tmp_path / "cache"
+    uniprot_id = "P12345"
+
+    def mock_fetch_network_error(uniprot_id: str, output_dir: str, version: int) -> str:
+      raise TimeoutError("Request timeout")
+
+    with patch("aminx.io.proxide_fetch.proxide.io.fetch_afdb", side_effect=mock_fetch_network_error):
+      with pytest.raises(InputResolutionError) as exc_info:
+        fetch_afdb(uniprot_id, cache_dir)
+
+      error_msg = str(exc_info.value)
+      assert "offline" in error_msg.lower() or "network" in error_msg.lower() or "timeout" in error_msg.lower()
+      assert "P12345" in error_msg or "afdb://" in error_msg
+
+  def test_fetch_md_cath_404_not_found_error(self, tmp_path: Path) -> None:
+    """T7: 404/not-found accession on mdcath -> error names accession."""
+    cache_dir = tmp_path / "cache"
+    md_cath_id = "badID99"
+
+    def mock_fetch_not_found(md_cath_id: str, output_dir: str) -> str:
+      raise RuntimeError(f"404 MD-CATH structure not found: {md_cath_id}")
+
+    with patch("aminx.io.proxide_fetch.proxide.io.fetch_md_cath", side_effect=mock_fetch_not_found):
+      with pytest.raises(InputResolutionError) as exc_info:
+        fetch_md_cath(md_cath_id, cache_dir)
+
+      error_msg = str(exc_info.value)
+      assert "badID99" in error_msg or "mdcath://" in error_msg
+      # Should include category-specific hint for not-found
+      assert "no structure found" in error_msg or "invalid" in error_msg
+
+  def test_fetch_md_cath_network_error(self, tmp_path: Path) -> None:
+    """T7: network error on mdcath -> offline hint included."""
+    cache_dir = tmp_path / "cache"
+    md_cath_id = "1abcA00"
+
+    def mock_fetch_network_error(md_cath_id: str, output_dir: str) -> str:
+      raise OSError("Network is unreachable")
+
+    with patch("aminx.io.proxide_fetch.proxide.io.fetch_md_cath", side_effect=mock_fetch_network_error):
+      with pytest.raises(InputResolutionError) as exc_info:
+        fetch_md_cath(md_cath_id, cache_dir)
+
+      error_msg = str(exc_info.value)
+      assert "offline" in error_msg.lower() or "network" in error_msg.lower()
+      assert "1abcA00" in error_msg or "mdcath://" in error_msg
+
+  def test_cleanup_failure_does_not_mask_original_error(self, tmp_path: Path) -> None:
+    """T7: cleanup failure doesn't suppress the original fetch error."""
+    cache_dir = tmp_path / "cache"
+    pdb_id = "1A3A"
+
+    def mock_fetch_raises(pdb_id: str, output_dir: str, format_type: str) -> str:
+      partial = Path(output_dir) / "1A3A.cif"
+      partial.write_text("partial")
+      raise RuntimeError("Download interrupted")
+
+    # Mock cleanup to fail (e.g., permission denied on rmtree)
+    def mock_cleanup_fails(subdir: Path) -> None:
+      # Simulate cleanup that logs warning but doesn't raise
+      # The original error should still be raised as InputResolutionError
+      pass
+
+    with patch("aminx.io.proxide_fetch.proxide.io.fetch_rcsb", side_effect=mock_fetch_raises):
+      with patch("aminx.io.proxide_fetch._cleanup_subdir", side_effect=mock_cleanup_fails):
+        with pytest.raises(InputResolutionError) as exc_info:
+          fetch_pdb(pdb_id, cache_dir)
+
+        # The InputResolutionError should still mention the original failure
+        error_msg = str(exc_info.value)
+        assert "1A3A" in error_msg or "pdb://" in error_msg

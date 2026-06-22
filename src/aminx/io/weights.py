@@ -157,6 +157,7 @@ def load_model(
   use_electrostatics: bool = False,
   use_vdw: bool = False,
   dropout_rate: float = 0.1,
+  use_side_chain_context: bool = False,
   # legacy parameter for backwards compatibility
   model_version: str | None = None,
   ligand_l_chunk: int | None = None,
@@ -219,6 +220,7 @@ def load_model(
       k_neighbors=topo["k_neighbors"],
       num_positional_embeddings=topo["num_positional_embeddings"],
       num_context_layers=NUM_LIGAND_CONTEXT_LAYERS,
+      ligand_mpnn_use_side_chain_context=use_side_chain_context,
       **ligand_skeleton_kw,
       key=key,
     )

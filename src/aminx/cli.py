@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import dataclasses
+import glob as _glob_module
 import json
+import warnings
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any, cast
@@ -85,6 +87,81 @@ def _parse_tied_positions(
       raise typer.BadParameter(msg)
     pairs.append((int(parts[0]), int(parts[1])))
   return pairs
+
+
+_STRUCTURE_EXTS = frozenset({".pdb", ".cif"})
+_GLOB_CHARS = frozenset("*?[")
+
+
+def _expand_inputs(inputs: list[str], *, fail_fast: bool = False) -> list[str]:
+  """Expand --inputs entries to a flat, deduped list of concrete structure file paths.
+
+  Each entry is expanded as follows:
+  - Directory: all ``*.pdb`` / ``*.cif`` files directly inside it (case-insensitive, sorted).
+  - Glob (contains ``*``, ``?``, or ``[``): expanded via glob, keeping only ``.pdb``/``.cif`` matches.
+  - Otherwise: treated as a concrete file path and passed through unchanged.
+
+  Deduplication preserves first-seen order.
+
+  Args:
+    inputs: Raw list of path/directory/glob strings from the CLI.
+    fail_fast: If True, exit 1 on the first invalid/empty entry. If False (default),
+      warn and skip non-existent / non-structure entries.
+
+  Returns:
+    Flat, deduped list of concrete file path strings.
+
+  Raises:
+    typer.Exit(code=1): If expansion is empty or (in fail_fast mode) on first bad entry.
+  """
+  seen: dict[str, None] = {}  # ordered set via dict
+
+  for entry in inputs:
+    p = Path(entry)
+
+    if p.is_dir():
+      # Expand all structure files directly inside the directory (non-recursive, sorted)
+      found: list[str] = [
+        str(candidate)
+        for candidate in sorted(p.iterdir())
+        if candidate.suffix.lower() in _STRUCTURE_EXTS
+      ]
+      if not found:
+        msg = f"--inputs: directory {entry!r} contains no .pdb or .cif files"
+        if fail_fast:
+          typer.echo(msg, err=True)
+          raise typer.Exit(code=1)
+        warnings.warn(msg, stacklevel=2)
+        continue
+      for f in found:
+        seen.setdefault(f, None)
+
+    elif any(c in entry for c in _GLOB_CHARS):
+      # Glob expansion — keep only structure files
+      matches = sorted(
+        m for m in _glob_module.glob(entry)  # noqa: PTH207
+        if Path(m).suffix.lower() in _STRUCTURE_EXTS
+      )
+      if not matches:
+        msg = f"--inputs: glob {entry!r} matched no .pdb or .cif files"
+        if fail_fast:
+          typer.echo(msg, err=True)
+          raise typer.Exit(code=1)
+        warnings.warn(msg, stacklevel=2)
+        continue
+      for f in matches:
+        seen.setdefault(f, None)
+
+    else:
+      # Concrete path — pass through unchanged (backward-compatible behaviour).
+      # Existence is not checked here; the downstream runner validates files.
+      seen.setdefault(entry, None)
+
+  result = list(seen.keys())
+  if not result:
+    typer.echo("--inputs: no valid structure files found after expansion", err=True)
+    raise typer.Exit(code=1)
+  return result
 
 
 def _emit_or_run(
@@ -334,6 +411,10 @@ def run_sample(
     list[str],
     _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
   ],
+  inputs_fail_fast: Annotated[
+    bool,
+    _OPT("--inputs-fail-fast", help="Exit 1 on first invalid --inputs entry instead of warning and skipping"),
+  ] = False,
   emit_json: Annotated[
     bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0"),
   ] = False,
@@ -381,6 +462,7 @@ def run_sample(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
+  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
 
   b: _RunBase = ctx.obj
   temperature_parsed = _parse_float_tuple(temperature)
@@ -449,6 +531,10 @@ def run_score(
     list[str],
     _OPT("--sequences-to-score", help="Amino acid sequences to score (repeatable, required)"),
   ],
+  inputs_fail_fast: Annotated[
+    bool,
+    _OPT("--inputs-fail-fast", help="Exit 1 on first invalid --inputs entry instead of warning and skipping"),
+  ] = False,
   emit_json: Annotated[
     bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0"),
   ] = False,
@@ -470,6 +556,7 @@ def run_score(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
+  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
   if not sequences_to_score:
     typer.echo("--sequences-to-score is required", err=True)
     raise typer.Exit(code=2)
@@ -518,6 +605,10 @@ def run_jacobian(
     list[str],
     _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
   ],
+  inputs_fail_fast: Annotated[
+    bool,
+    _OPT("--inputs-fail-fast", help="Exit 1 on first invalid --inputs entry instead of warning and skipping"),
+  ] = False,
   emit_json: Annotated[
     bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0"),
   ] = False,
@@ -545,6 +636,7 @@ def run_jacobian(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
+  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
 
   b: _RunBase = ctx.obj
 
@@ -588,6 +680,10 @@ def run_inspect(
     list[str],
     _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
   ],
+  inputs_fail_fast: Annotated[
+    bool,
+    _OPT("--inputs-fail-fast", help="Exit 1 on first invalid --inputs entry instead of warning and skipping"),
+  ] = False,
   emit_json: Annotated[
     bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0"),
   ] = False,
@@ -616,6 +712,7 @@ def run_inspect(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
+  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
 
   b: _RunBase = ctx.obj
 
@@ -772,6 +869,10 @@ def spec_emit_sample(
     list[str],
     _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
   ],
+  inputs_fail_fast: Annotated[
+    bool,
+    _OPT("--inputs-fail-fast", help="Exit 1 on first invalid --inputs entry instead of warning and skipping"),
+  ] = False,
   out: Annotated[Path | None, _OPT(help="Write JSON to this file instead of stdout")] = None,
   compact: Annotated[bool, _OPT("--compact", help="Single-line JSON")] = False,
   # Sample-specific
@@ -817,6 +918,7 @@ def spec_emit_sample(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
+  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
 
   b: _RunBase = ctx.obj
   temperature_parsed = _parse_float_tuple(temperature)
@@ -881,6 +983,10 @@ def spec_emit_score(
     list[str],
     _OPT("--sequences-to-score", help="Amino acid sequences to score (repeatable, required)"),
   ],
+  inputs_fail_fast: Annotated[
+    bool,
+    _OPT("--inputs-fail-fast", help="Exit 1 on first invalid --inputs entry instead of warning and skipping"),
+  ] = False,
   out: Annotated[Path | None, _OPT(help="Write JSON to this file instead of stdout")] = None,
   compact: Annotated[bool, _OPT("--compact", help="Single-line JSON")] = False,
   # Score-specific
@@ -900,6 +1006,7 @@ def spec_emit_score(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
+  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
   if not sequences_to_score:
     typer.echo("--sequences-to-score is required", err=True)
     raise typer.Exit(code=2)
@@ -944,6 +1051,10 @@ def spec_emit_jacobian(
     list[str],
     _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
   ],
+  inputs_fail_fast: Annotated[
+    bool,
+    _OPT("--inputs-fail-fast", help="Exit 1 on first invalid --inputs entry instead of warning and skipping"),
+  ] = False,
   out: Annotated[Path | None, _OPT(help="Write JSON to this file instead of stdout")] = None,
   compact: Annotated[bool, _OPT("--compact", help="Single-line JSON")] = False,
   # Jacobian-specific
@@ -969,6 +1080,7 @@ def spec_emit_jacobian(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
+  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
 
   b: _RunBase = ctx.obj
 
@@ -1008,6 +1120,10 @@ def spec_emit_inspect(
     list[str],
     _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
   ],
+  inputs_fail_fast: Annotated[
+    bool,
+    _OPT("--inputs-fail-fast", help="Exit 1 on first invalid --inputs entry instead of warning and skipping"),
+  ] = False,
   out: Annotated[Path | None, _OPT(help="Write JSON to this file instead of stdout")] = None,
   compact: Annotated[bool, _OPT("--compact", help="Single-line JSON")] = False,
   # Inspect-specific
@@ -1034,6 +1150,7 @@ def spec_emit_inspect(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
+  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
 
   b: _RunBase = ctx.obj
 

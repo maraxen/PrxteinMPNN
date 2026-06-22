@@ -5,7 +5,7 @@
 version            = "1.0"
 task_id            = "260618_autonomous-loop"
 current_phase      = "EXECUTE"
-last_subphase      = "gate_passed"
+last_subphase      = "rs6b_execute + sc_fix_parallel(2447,task 260622_sc-fix)"
 last_artifact_path = ".praxia/sprint_plans/260618_rs7b-averaged-scoring.toml"
 iteration_count    = 4
 last_activation    = "2026-06-22T13:42:46Z"

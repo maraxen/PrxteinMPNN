@@ -80,6 +80,43 @@ class TestTopologyHash:
         hashes = [topology_hash(pt) for _ in range(5)]
         assert len(set(hashes)) == 1  # All hashes identical
 
+    def test_topology_hash_value_stable(self) -> None:
+        """topology_hash value is stable and backward-compatible.
+
+        Regression test: verify reflective derivation produces the same hash as the
+        old hand-maintained implementation for the current single-field topology.
+        """
+        # Compute expected value using the original hand-maintained logic
+        expected = hashlib.sha256(
+            json.dumps({"use_unified_driver": True}, sort_keys=True).encode()
+        ).hexdigest()[:16]
+
+        # Actual reflective implementation should produce identical hash
+        actual = topology_hash(PlannerTopology(use_unified_driver=True))
+        assert actual == expected
+
+    def test_topology_hash_reflective_picks_up_new_fields(self) -> None:
+        """topology_hash picks up new fields via reflection (anti-regression).
+
+        This test proves that the implementation is truly reflective. If it were
+        still hand-maintained, adding a new field would NOT affect the hash.
+        With reflection, all dataclass fields are automatically included.
+        """
+        from typing import cast
+
+        import equinox as eqx
+
+        # Define a probe topology with two fields to demonstrate reflectivity
+        class _ProbeTopology(eqx.Module):
+            a: bool = eqx.field(static=True)
+            b: int = eqx.field(static=True)
+
+        # Hash should differ when second field changes
+        # Cast to PlannerTopology for type checking (they're both eqx.Module with dataclass fields)
+        h1 = topology_hash(cast(PlannerTopology, _ProbeTopology(a=True, b=1)))
+        h2 = topology_hash(cast(PlannerTopology, _ProbeTopology(a=True, b=2)))
+        assert h1 != h2, "Second field 'b' must affect hash (proves reflection)"
+
 
 class TestBuildRunSpecPlan:
     """Tests for build_run_spec populating plan field."""

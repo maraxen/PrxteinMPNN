@@ -508,9 +508,29 @@ def _run_base(
   multi_state_temperature: Annotated[float, _OPT(help="Multi-state temperature")] = 1.0,
   input_type: Annotated[
     str,
-    _OPT(help="Input type override: 'auto' (detect scheme), 'file' (force local), or 'pdb'/'afdb'/'mdcath'"),
+    _OPT(
+      help=(
+        "Override URI scheme detection: 'auto' (default, detect scheme per entry), "
+        "'file' (treat all entries as local paths, suppress scheme detection), "
+        "or 'pdb'/'afdb'/'mdcath' (apply to schemeless entries only, hard error on conflicting explicit scheme). "
+        "Accepted URI forms: bare path (e.g., /data/1ubq.pdb), "
+        "file:///path, pdb://<RCSB-id>, afdb://<UniProt-id>, mdcath://<id>. "
+        "Remote sources are fetched to --cache-dir at CLI time; compute nodes remain offline-safe."
+      ),
+    ),
   ] = "auto",
-  input_cache_dir: Annotated[Path | None, _OPT(help="Cache directory for fetched structures")] = None,
+  input_cache_dir: Annotated[
+    Path | None,
+    _OPT(
+      help=(
+        "Cache directory for remotely-fetched structures. "
+        "Precedence: --cache-dir (explicit), AMINX_CACHE_DIR (env), "
+        "$XDG_CACHE_HOME/aminx/inputs, or ~/.cache/aminx/inputs (XDG default). "
+        "Each remote URI is fetched to a per-accession subdir and cached for reuse. "
+        "Cache hits skip network access entirely (cluster compute nodes remain offline-safe)."
+      ),
+    ),
+  ] = None,
 ) -> None:
   """Build and dispatch run specifications.
 
@@ -1058,9 +1078,13 @@ def _spec_base(
   multi_state_temperature: Annotated[float, _OPT(help="Multi-state temperature")] = 1.0,
   input_type: Annotated[
     str,
-    _OPT(help="Input type override: 'auto' (detect scheme), 'file' (force local), or 'pdb'/'afdb'/'mdcath'"),
+    _OPT(
+      help="Input type override: 'auto' (detect scheme), 'file' (force local), or 'pdb'/'afdb'/'mdcath'"
+    ),
   ] = "auto",
-  input_cache_dir: Annotated[Path | None, _OPT(help="Cache directory for fetched structures")] = None,
+  input_cache_dir: Annotated[
+    Path | None, _OPT(help="Cache directory for fetched structures")
+  ] = None,
 ) -> None:
   """Run specification JSON (see aminx.run.spec_json).
 

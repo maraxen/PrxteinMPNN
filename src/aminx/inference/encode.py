@@ -58,6 +58,17 @@ class _VmapEncode(eqx.Module):
     xyz37 = geo.atom_37  # None when side-chain conditioning disabled
     xyz37_m = geo.atom_37_mask  # None when side-chain conditioning disabled
 
+    # Compute chain_mask_stack once before vmap when SC is active.
+    # fixed_mask is (L,) or (S, L); broadcast to (S, L) so vmap can slice axis 0.
+    # Shape (S, N): per-state designability mask (0 = fixed/visible, 1 = designable).
+    if xyz37 is not None:
+      fm = bundle.conditioning.fixed_mask
+      if fm.ndim == 1:
+        fm = jnp.broadcast_to(fm[None, :], (S, fm.shape[0]))
+      chain_mask_stack: jax.Array | None = 1.0 - fm
+    else:
+      chain_mask_stack = None
+
     def encode_one(
       coords: jax.Array,
       mask: jax.Array,
@@ -71,6 +82,7 @@ class _VmapEncode(eqx.Module):
       pf: jax.Array | None,
       sc_xyz: jax.Array | None,
       sc_xyz_m: jax.Array | None,
+      chain_mask: jax.Array | None,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
       """Encode a single state: features + encoder."""
       kwargs: dict[str, Any] = dict(
@@ -86,8 +98,8 @@ class _VmapEncode(eqx.Module):
       if pf is not None:
         kwargs["initial_node_features"] = pf
       if sc_xyz is not None and sc_xyz_m is not None:
-        # Gate side chains to fixed residues (1-designable_mask)
-        chain_mask = 1.0 - bundle.conditioning.fixed_mask
+        # chain_mask is the per-state (N,) slice passed as a mapped input — do NOT
+        # recompute from bundle here (bundle.conditioning.fixed_mask is (S,N) inside vmap).
         kwargs["atom_37"] = sc_xyz
         kwargs["atom_37_mask"] = sc_xyz_m
         kwargs["chain_mask"] = chain_mask
@@ -95,8 +107,14 @@ class _VmapEncode(eqx.Module):
       return node_f, edge_f, edge_i
 
     # Parallel vmap over S states; physics axis is 0 when present, None (broadcast) when absent.
-    # atom_37 and atom_37_mask: axis 0 when present, None (broadcast) when absent.
-    in_axes = (0, 0, 0, 0, 0, 0, 0, 0, 0, None if phys is None else 0, None if xyz37 is None else 0, None if xyz37_m is None else 0)
+    # atom_37, atom_37_mask, and chain_mask_stack: axis 0 when SC is active, None otherwise.
+    in_axes = (
+      0, 0, 0, 0, 0, 0, 0, 0, 0,
+      None if phys is None else 0,
+      None if xyz37 is None else 0,
+      None if xyz37_m is None else 0,
+      None if chain_mask_stack is None else 0,
+    )
     node_f, edge_f, nei_f = jax.vmap(encode_one, in_axes=in_axes)(
       geo.coords,
       geo.mask,
@@ -110,6 +128,7 @@ class _VmapEncode(eqx.Module):
       phys,
       xyz37,
       xyz37_m,
+      chain_mask_stack,
     )
     return EncoderOutput(
       node_features=node_f,
@@ -143,6 +162,17 @@ class _ScanEncode(eqx.Module):
     xyz37 = geo.atom_37  # None when side-chain conditioning disabled
     xyz37_m = geo.atom_37_mask  # None when side-chain conditioning disabled
 
+    # Compute chain_mask_stack once before scan when SC is active.
+    # fixed_mask is (L,) or (S, L); broadcast to (S, L) so scan can slice axis 0.
+    # Shape (S, N): per-state designability mask (0 = fixed/visible, 1 = designable).
+    if xyz37 is not None:
+      fm = bundle.conditioning.fixed_mask
+      if fm.ndim == 1:
+        fm = jnp.broadcast_to(fm[None, :], (S, fm.shape[0]))
+      chain_mask_stack: jax.Array | None = 1.0 - fm
+    else:
+      chain_mask_stack = None
+
     def encode_one(
       coords: jax.Array,
       mask: jax.Array,
@@ -156,6 +186,7 @@ class _ScanEncode(eqx.Module):
       pf: jax.Array | None,
       sc_xyz: jax.Array | None,
       sc_xyz_m: jax.Array | None,
+      chain_mask: jax.Array | None,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
       """Encode a single state: features + encoder."""
       kwargs: dict[str, Any] = dict(
@@ -171,8 +202,8 @@ class _ScanEncode(eqx.Module):
       if pf is not None:
         kwargs["initial_node_features"] = pf
       if sc_xyz is not None and sc_xyz_m is not None:
-        # Gate side chains to fixed residues (1-designable_mask)
-        chain_mask = 1.0 - bundle.conditioning.fixed_mask
+        # chain_mask is the per-state (N,) slice passed as a scan input — do NOT
+        # recompute from bundle here (bundle.conditioning.fixed_mask is (S,N) inside scan).
         kwargs["atom_37"] = sc_xyz
         kwargs["atom_37_mask"] = sc_xyz_m
         kwargs["chain_mask"] = chain_mask
@@ -182,8 +213,8 @@ class _ScanEncode(eqx.Module):
     if phys is not None or xyz37 is not None:
 
       def scan_body(carry: Any, per_state: Any) -> tuple[Any, EncoderOutput]:
-        c, m, ri, ci, l_coords, l_types, l_mask, sm, n, pf, sxyz, sxyz_m = per_state
-        node_f, edge_f, edge_i = encode_one(c, m, ri, ci, l_coords, l_types, l_mask, sm, n, pf, sxyz, sxyz_m)
+        c, m, ri, ci, l_coords, l_types, l_mask, sm, n, pf, sxyz, sxyz_m, cm = per_state
+        node_f, edge_f, edge_i = encode_one(c, m, ri, ci, l_coords, l_types, l_mask, sm, n, pf, sxyz, sxyz_m, cm)
         return carry, EncoderOutput(
           node_features=node_f, edge_features=edge_f, neighbor_indices=edge_i,
         )
@@ -201,12 +232,13 @@ class _ScanEncode(eqx.Module):
         phys,
         xyz37,
         xyz37_m,
+        chain_mask_stack,
       )
     else:
 
       def scan_body(carry: Any, per_state: Any) -> tuple[Any, EncoderOutput]:  # type: ignore[misc]
         c, m, ri, ci, l_coords, l_types, l_mask, sm, n = per_state
-        node_f, edge_f, edge_i = encode_one(c, m, ri, ci, l_coords, l_types, l_mask, sm, n, None, None, None)
+        node_f, edge_f, edge_i = encode_one(c, m, ri, ci, l_coords, l_types, l_mask, sm, n, None, None, None, None)
         return carry, EncoderOutput(
           node_features=node_f, edge_features=edge_f, neighbor_indices=edge_i,
         )

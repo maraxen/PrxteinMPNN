@@ -3,50 +3,46 @@ id: rs6b-host-flat-field-ban
 language: python
 severity: error
 message: |
-  RS-6b Host Migration: Direct field reads from SamplingSpecification prohibited.
+  RS-6b Host Migration: Direct flat-field reads of SamplingSpecification-exclusive
+  fields in host/ are prohibited.
 
-  Post-RS-6a, all SamplingSpecification field reads in host/ must use the
-  canonical run_spec.* pattern:
-    - spec.backbone_noise           → spec.run_spec.sampling.backbone_noise
-    - spec.temperature              → spec.run_spec.sampling.temperature
+  After RS-6b, sampling-exclusive fields must be read via run_spec sub-configs:
     - spec.num_samples              → spec.run_spec.sampling.num_samples
-    - spec.random_seed              → spec.run_spec.sampling.random_seed
     - spec.bias                     → spec.run_spec.sampling.bias
-    - spec.fixed_mask               → spec.run_spec.sampling.fixed_mask
     - spec.fixed_positions          → spec.run_spec.sampling.fixed_positions
     - spec.fixed_tokens             → spec.run_spec.sampling.fixed_tokens
-    - spec.compute_pseudo_perplexity → spec.run_spec.sampling.compute_pseudo_perplexity
-    - spec.return_logits            → spec.run_spec.sampling.return_logits
-    - spec.return_decoding_orders   → spec.run_spec.sampling.return_decoding_orders
-    - spec.output_h5_path           → spec.run_spec.io.output_h5_path
-    - spec.cache_path               → spec.run_spec.io.cache_path
     - spec.use_unified_driver       → spec.run_spec.plan.use_unified_driver
+    - spec.compute_pseudo_perplexity → spec.run_spec.sampling.compute_pseudo_perplexity
 
-  Rationale: Generic host code should read from RunSpec sub-configs (sampling,
-  io, plan), not SamplingSpecification flats. This decouples host logic from
-  spec structure evolution and enables reuse across spec types.
+  NOTE — ast-grep limitation: fields declared on the base RunSpecification
+  (backbone_noise, random_seed, fixed_mask, cache_path) and fields shared
+  between spec types (temperature, return_logits, return_decoding_orders,
+  output_h5_path) CANNOT be syntactically gated here — spec.output_h5_path
+  is identical whether the object is a SamplingSpec or a ScoringSpec.
+  Only fields exclusive to SamplingSpecification (lines 440-548 of specs.py)
+  are safe to ban without false-positives on runner.py and other callers of
+  non-sampling spec types.
 
   See sprint plan 260618_rs6b-host-migration.toml and ADR for details.
 
 files:
   - 'src/aminx/host/**/*.py'
-  # Explicitly exclude prep.py — protein-only flat reads are exempt.
-  - '!src/aminx/host/prep.py'
+
+# prep.py contains protein-only flat reads that are intentionally exempt.
+# _sampling_averaged.py is intentionally exempt: it wraps
+# SamplingSpecification directly and was not in scope for the RS-6b migration.
+ignores:
+  - 'src/aminx/host/prep.py'
+  - 'src/aminx/host/_sampling_averaged.py'
 
 rule:
   any:
-    # Field reads: direct attribute access on spec object
-    - pattern: spec.backbone_noise
-    - pattern: spec.temperature
+    # Fields declared ONLY in SamplingSpecification (specs.py lines 440-548).
+    # These are safe to ban because no other spec subclass declares them,
+    # so syntactic matches are guaranteed to be SamplingSpec flat reads.
     - pattern: spec.num_samples
-    - pattern: spec.random_seed
     - pattern: spec.bias
-    - pattern: spec.fixed_mask
     - pattern: spec.fixed_positions
     - pattern: spec.fixed_tokens
-    - pattern: spec.compute_pseudo_perplexity
-    - pattern: spec.return_logits
-    - pattern: spec.return_decoding_orders
-    - pattern: spec.output_h5_path
-    - pattern: spec.cache_path
     - pattern: spec.use_unified_driver
+    - pattern: spec.compute_pseudo_perplexity

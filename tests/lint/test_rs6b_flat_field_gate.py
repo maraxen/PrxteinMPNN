@@ -1,122 +1,106 @@
-"""Test RS-6b flat-field ban gate via grep.
+"""Test RS-6b flat-field ban gate via ast-grep.
 
-Verifies that the migrated src/aminx/host/ code passes the gate (no flat-field reads).
+Verifies that the rs6b-host-flat-field-ban YAML rule:
+  (a) FIRES on a planted violation placed in src/aminx/host/ (matches files: glob).
+  (b) Is CLEAN on the real src/aminx/host/ tree (0 violations) when no probe
+      files are present.
 """
 
-import re
+import os
 import subprocess
+import tempfile
 from pathlib import Path
 
+import pytest
 
-def test_rs6b_gate_catches_violations() -> None:
-    """Verify that a flat-field violation would be caught."""
-    violation_code = '''
-def sample(spec):
-    # This should be flagged: direct flat read
-    temp = spec.temperature
-    backbone = spec.backbone_noise
-    num = spec.num_samples
-    return temp, backbone, num
-'''
 
-    import tempfile
+_RULE_PATH = ".ast-grep/rules/rs6b-host-flat-field-ban.yml"
+_REPO_ROOT = Path(__file__).parent.parent.parent
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir_path = Path(tmpdir)
-        test_file = tmpdir_path / "test_violation.py"
-        test_file.write_text(violation_code)
 
-        # Use grep to find flat-field reads
+def run_ast_grep_rule(rule_path: str, scan_path: str | None = None) -> tuple[bool, str]:
+    """Run an ast-grep rule and return (success, output).
+
+    Mirrors the helper in tests/test_xtrax_boundary_lint.py.
+
+    Args:
+        rule_path: Path to the rule YAML, relative to repo root.
+        scan_path: Optional explicit path to scan; overrides files: in the rule.
+
+    Returns:
+        (True, "") if rule passes (0 violations)
+        (False, output) if rule reports violations (non-zero exit)
+
+    Raises:
+        pytest.skip: if ast-grep (sg) is not installed
+    """
+    cmd = ["sg", "scan", "--rule", rule_path]
+    if scan_path is not None:
+        cmd.append(scan_path)
+    try:
         result = subprocess.run(
-            ["grep", "-n", "spec\\.temperature", str(test_file)],
+            cmd,
             capture_output=True,
             text=True,
+            cwd=str(_REPO_ROOT),
+        )
+        return result.returncode == 0, result.stderr
+    except FileNotFoundError:
+        pytest.skip(
+            "ast-grep (sg) not found in PATH. Install via: npm install -g @ast-grep/cli"
         )
 
-        # grep returns 0 if matches found
-        assert result.returncode == 0, "Should find spec.temperature in violation code"
-        assert "spec.temperature" in result.stdout, (
-            "grep output should show spec.temperature match"
-        )
+
+def test_rs6b_gate_fires_on_planted_violation() -> None:
+    """Assert the rule FIRES when src/aminx/host/ contains a sampling-exclusive flat read.
+
+    Plants a temporary file directly inside src/aminx/host/ so the rule's
+    'files: src/aminx/host/**/*.py' glob matches it, then asserts the rule
+    reports at least one violation.  The file is removed in the finally block
+    regardless of test outcome.
+    """
+    violation_code = """\
+def sample(spec):
+    # This should be flagged: direct flat read of sampling-exclusive field
+    n = spec.num_samples
+    return n
+"""
+    host_dir = _REPO_ROOT / "src" / "aminx" / "host"
+    probe_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=str(host_dir),
+            suffix="_rs6b_gate_probe.py",
+            mode="w",
+            delete=False,
+        ) as f:
+            f.write(violation_code)
+            probe_path = f.name
+
+        success, output = run_ast_grep_rule(_RULE_PATH)
+
+    finally:
+        if probe_path and os.path.exists(probe_path):
+            os.unlink(probe_path)
+
+    assert not success, (
+        f"Rule should have fired on spec.num_samples in planted violation, but passed.\n"
+        f"Rule output:\n{output}"
+    )
 
 
-def test_rs6b_gate_cleans_migrated_host_code() -> None:
-    """Verify that migrated host code has no flat-field reads in SamplingSpecification callers."""
-    # Only files that ONLY use SamplingSpecification
-    target_files = [
-        "src/aminx/host/kernel_dispatch.py",
-        "src/aminx/host/streaming.py",
-        "src/aminx/host/_sampling_helper.py",
-        "src/aminx/host/_sampling_grid_lineage.py",
-        "src/aminx/host/campaign.py",
-        "src/aminx/host/plan.py",
-    ]
+def test_rs6b_gate_clean_on_real_host_tree() -> None:
+    """Assert the rule produces 0 violations on the real src/aminx/host/ tree.
 
-    # Migrated field names
-    migrated_fields = {
-        "backbone_noise",
-        "temperature",
-        "num_samples",
-        "random_seed",
-        "bias",
-        "fixed_mask",
-        "fixed_positions",
-        "fixed_tokens",
-        "compute_pseudo_perplexity",
-        "return_logits",
-        "return_decoding_orders",
-        "output_h5_path",
-        "cache_path",
-        "use_unified_driver",
-    }
+    Uses the rule's own files:/ignores: configuration (no explicit scan_path),
+    which excludes prep.py and _sampling_averaged.py per the rule YAML.
+    """
+    success, output = run_ast_grep_rule(_RULE_PATH)
 
-    repo_root = Path(__file__).parent.parent.parent
-    for target_file in target_files:
-        file_path = repo_root / target_file
-        if not file_path.exists():
-            continue
-
-        content = file_path.read_text()
-        lines = content.split("\n")
-
-        for line_num, line in enumerate(lines, start=1):
-            # Skip comment-only lines
-            if line.lstrip().startswith("#"):
-                continue
-            # Skip docstring lines
-            if '"""' in line or "'''" in line or "DocString" in line:
-                continue
-
-            # Look for spec.FIELD that is actual code, not just documentation
-            # Match: spec.fieldname  followed by non-identifier character
-            for field in migrated_fields:
-                pattern = rf"\bspec\.{field}\b"
-                if not re.search(pattern, line):
-                    continue
-
-                # Check if this is the migrated form or a documented reference
-                if f"spec.run_spec.sampling.{field}" in line:
-                    continue  # Already migrated
-                if f"spec.run_spec.io.{field}" in line:
-                    continue  # Already migrated
-                if f"spec.run_spec.plan.{field}" in line:
-                    continue  # Already migrated
-
-                # Check if it's just mentioned in documentation/strings
-                if "sampling_spec." in line:
-                    continue  # Comment about sampling_spec
-                if "missing" in line and field == "output_h5_path":
-                    continue  # Error message string
-                if "then spec.num_samples as fallback" in line:
-                    continue  # Docstring
-                if "Builds D InferenceBundle objects from" in line:
-                    continue  # Docstring
-                if "del " in line and "backbone_noise" in line:
-                    continue  # Variable deletion (not assignment)
-                if "# backbone_noise is overridden by" in line:
-                    continue  # Comment about override
-
-                # This is a genuine code-level violation
-                raise AssertionError(
-                    f"Found non-migrated flat-field read of '{field}' in {target_file}:{line_num}:\n  {line}"
-                )
+    assert success, (
+        f"RS-6b flat-field ban gate found violations in src/aminx/host/:\n{output}\n\n"
+        "Fix: migrate sampling-exclusive flat reads to run_spec sub-configs.\n"
+        "Sampling-exclusive fields: num_samples, bias, fixed_positions, fixed_tokens,\n"
+        "  use_unified_driver, compute_pseudo_perplexity.\n"
+        "Exemptions: prep.py and _sampling_averaged.py are intentionally excluded."
+    )

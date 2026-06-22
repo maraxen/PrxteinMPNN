@@ -161,13 +161,13 @@ def sample(
   # Construct inference plan once before routing to streaming or non-streaming path
   plan: InferencePlan = make_inference_plan(model, spec)
 
-  if spec.output_h5_path:
+  if spec.run_spec.io.output_h5_path:
     return _sample_streaming(spec, protein_iterator, plan, _sample_batch)
 
   # Non-streaming path uses io_callback staging via streaming_tensor_sink_session;
   # drains per-batch via take_staging_sequences_logits.
   all_sequences, all_pseudo_perplexities = [], []
-  all_logits = [] if spec.return_logits else None
+  all_logits = [] if spec.run_spec.sampling.return_logits else None
   canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
   resolved_structure_ids: list[str] = []
   structure_offset = 0
@@ -199,7 +199,7 @@ def sample(
         target_for_batch,
       )
       all_sequences.append(jnp.asarray(sampled_sequences_np))
-      if spec.return_logits and all_logits is not None:
+      if spec.run_spec.sampling.return_logits and all_logits is not None:
         all_logits.append(jnp.asarray(sampled_logits_np))
       if pseudo_perplexity is not None:
         all_pseudo_perplexities.append(pseudo_perplexity)
@@ -229,7 +229,7 @@ def sample(
       "structure_ids": resolved_structure_ids,
     },
   }
-  if spec.return_logits and all_logits is not None:
+  if spec.run_spec.sampling.return_logits and all_logits is not None:
     results["logits"] = aggregate_logits(all_logits, max_len)
   if all_pseudo_perplexities:
     results["pseudo_perplexity"] = aggregate_pseudo_perplexities(all_pseudo_perplexities)
@@ -377,7 +377,7 @@ def _make_averaged_score_fn(
 
     # Build D bundles on concrete (Python-level) arrays — one per backbone_noise level.
     # This runs OUTSIDE the JIT boundary so all arrays are concrete.
-    backbone_noises = spec.backbone_noise or (0.0,)
+    backbone_noises = spec.run_spec.sampling.backbone_noise or (0.0,)
     bundles_per_noise = []
     config_out = None
     for noise_val in backbone_noises:
@@ -504,7 +504,7 @@ def score(  # noqa: PLR0915
   structure_offset = 0
 
   # Prepare random key
-  prng_key = jax.random.PRNGKey(spec.random_seed or 42)
+  prng_key = jax.random.PRNGKey(spec.run_spec.sampling.random_seed or 42)
 
   for _batch_idx, batched_ensemble in enumerate(protein_iterator):
     batch_size = batched_ensemble.coordinates.shape[0]
@@ -515,8 +515,8 @@ def score(  # noqa: PLR0915
     )
 
     batch_scores = []
-    batch_logits = [] if spec.return_logits else None
-    batch_decoding_orders = [] if spec.return_decoding_orders else None
+    batch_logits = [] if spec.run_spec.sampling.return_logits else None
+    batch_decoding_orders = [] if spec.run_spec.sampling.return_decoding_orders else None
 
     for struct_idx in range(batch_size):
       struct_coords = batched_ensemble.coordinates[struct_idx]
@@ -526,8 +526,8 @@ def score(  # noqa: PLR0915
 
       struct_len = struct_coords.shape[0]
       struct_scores = []
-      struct_logits_list = [] if spec.return_logits else None
-      struct_decoding_orders_list = [] if spec.return_decoding_orders else None
+      struct_logits_list = [] if spec.run_spec.sampling.return_logits else None
+      struct_decoding_orders_list = [] if spec.run_spec.sampling.return_decoding_orders else None
 
       for seq_idx in sequence_indices_list:
         # The structure may be padded to max_length by the loader; the user
@@ -567,25 +567,25 @@ def score(  # noqa: PLR0915
         )
 
         struct_scores.append(nll)
-        if spec.return_logits and struct_logits_list is not None:
+        if spec.run_spec.sampling.return_logits and struct_logits_list is not None:
           struct_logits_list.append(logits)
-        if spec.return_decoding_orders and struct_decoding_orders_list is not None:
+        if spec.run_spec.sampling.return_decoding_orders and struct_decoding_orders_list is not None:
           struct_decoding_orders_list.append(decoding_order)
 
       batch_scores.append(jnp.stack(struct_scores))
-      if spec.return_logits and batch_logits is not None and struct_logits_list:
+      if spec.run_spec.sampling.return_logits and batch_logits is not None and struct_logits_list:
         batch_logits.append(jnp.stack(struct_logits_list))
       if (
-        spec.return_decoding_orders
+        spec.run_spec.sampling.return_decoding_orders
         and batch_decoding_orders is not None
         and struct_decoding_orders_list
       ):
         batch_decoding_orders.append(jnp.stack(struct_decoding_orders_list))
 
     all_scores.append(jnp.stack(batch_scores))
-    if spec.return_logits and all_logits is not None and batch_logits:
+    if spec.run_spec.sampling.return_logits and all_logits is not None and batch_logits:
       all_logits.append(jnp.stack(batch_logits))
-    if spec.return_decoding_orders and all_decoding_orders is not None and batch_decoding_orders:
+    if spec.run_spec.sampling.return_decoding_orders and all_decoding_orders is not None and batch_decoding_orders:
       all_decoding_orders.append(jnp.stack(batch_decoding_orders))
 
     resolved_structure_ids.extend(batch_structure_ids)
@@ -605,11 +605,11 @@ def score(  # noqa: PLR0915
     },
   }
 
-  if spec.return_logits and all_logits is not None:
+  if spec.run_spec.sampling.return_logits and all_logits is not None:
     # Shape: (num_structures, num_sequences, L, 21)
     results["logits"] = jnp.concatenate(all_logits, axis=0)
 
-  if spec.return_decoding_orders and all_decoding_orders is not None:
+  if spec.run_spec.sampling.return_decoding_orders and all_decoding_orders is not None:
     # Shape: (num_structures, num_sequences, L)
     results["decoding_orders"] = jnp.concatenate(all_decoding_orders, axis=0)
 
@@ -694,7 +694,7 @@ def inspect(  # noqa: PLR0915
   structure_offset = 0
 
   # Prepare random key
-  prng_key = jax.random.PRNGKey(spec.random_seed or 42)
+  prng_key = jax.random.PRNGKey(spec.run_spec.sampling.random_seed or 42)
 
   for _batch_idx, batched_ensemble in enumerate(protein_iterator):
     batch_size = batched_ensemble.coordinates.shape[0]
@@ -911,7 +911,7 @@ def jacobian(
   canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
   resolved_structure_ids: list[str] = []
   structure_offset = 0
-  prng_key = jax.random.PRNGKey(spec.random_seed or 42)
+  prng_key = jax.random.PRNGKey(spec.run_spec.sampling.random_seed or 42)
   use_io_sink = spec.output_h5_path is not None
   stacked_host: list[Any] | None = None
 

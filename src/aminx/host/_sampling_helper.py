@@ -343,9 +343,9 @@ def _prepare_ligand_context(
   # Compute chain_mask: 1=designable, 0=fixed.
   # Default is all-ones (all residues designable) unless overridden by fixed_mask.
   # Convention: fixed_mask 1=fixed, chain_mask 1=designable → complement.
-  if spec.fixed_mask is not None:
+  if spec.run_spec.sampling.fixed_mask is not None:
     fixed_mask_np = _broadcast_per_structure(
-      spec.fixed_mask,
+      spec.run_spec.sampling.fixed_mask,
       batch_size=batch_size,
       expected_len=seq_len,
       dtype=jnp.float32,
@@ -459,8 +459,8 @@ def _prepare_fixed_controls(
   fixed_mask_np = np.zeros((batch_size, seq_len), dtype=np.float32)
   fixed_tokens_np = np.zeros((batch_size, seq_len), dtype=np.int32)
 
-  if spec.fixed_mask is not None:
-    fixed_mask_np = np.asarray(spec.fixed_mask, dtype=np.float32)
+  if spec.run_spec.sampling.fixed_mask is not None:
+    fixed_mask_np = np.asarray(spec.run_spec.sampling.fixed_mask, dtype=np.float32)
     if fixed_mask_np.ndim == 1:
       fixed_mask_np = np.broadcast_to(
           fixed_mask_np[None, :], (batch_size, seq_len),
@@ -469,8 +469,8 @@ def _prepare_fixed_controls(
       msg = f"fixed_mask must have shape ({batch_size}, {seq_len}), got {fixed_mask_np.shape}"
       raise ValueError(msg)
 
-  if spec.fixed_positions is not None:
-    fixed_pos = np.asarray(spec.fixed_positions, dtype=np.float32)
+  if spec.run_spec.sampling.fixed_positions is not None:
+    fixed_pos = np.asarray(spec.run_spec.sampling.fixed_positions, dtype=np.float32)
     fixed_pos_mask = _broadcast_per_structure(
       fixed_pos,
       batch_size=batch_size,
@@ -481,8 +481,8 @@ def _prepare_fixed_controls(
     # Union: combine fixed_positions with fixed_mask (if both are set)
     fixed_mask_np = np.maximum(fixed_mask_np, fixed_pos_mask)
 
-  if spec.fixed_tokens is not None:
-    fixed_tok = np.asarray(spec.fixed_tokens, dtype=np.int32)
+  if spec.run_spec.sampling.fixed_tokens is not None:
+    fixed_tok = np.asarray(spec.run_spec.sampling.fixed_tokens, dtype=np.int32)
     fixed_tokens_np = _broadcast_per_structure(
       fixed_tok,
       batch_size=batch_size,
@@ -496,9 +496,9 @@ def _prepare_fixed_controls(
       msg = f"fixed_tokens must be in [0, {AMINO_ACID_VOCAB_SIZE - 1}] at masked positions."
       raise ValueError(msg)
 
-  if spec.fixed_mask is not None:
+  if spec.run_spec.sampling.fixed_mask is not None:
     fm_broadcast = _broadcast_per_structure(
-      np.asarray(spec.fixed_mask, dtype=np.float32),
+      np.asarray(spec.run_spec.sampling.fixed_mask, dtype=np.float32),
       batch_size=batch_size,
       expected_len=seq_len,
       dtype=jnp.float32,

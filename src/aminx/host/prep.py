@@ -126,8 +126,8 @@ def prep_protein_stream_and_model(
   elif reg_path := _resolve_local_checkpoint_from_registry(spec):
     local_ckpt = reg_path
 
-  if spec.cache_path is not None:
-    jax.config.update("jax_compilation_cache_dir", str(spec.cache_path))
+  if spec.run_spec.io.cache_path is not None:
+    jax.config.update("jax_compilation_cache_dir", str(spec.run_spec.io.cache_path))
 
   if spec.checkpoint_id is not None:
     model = load_model(

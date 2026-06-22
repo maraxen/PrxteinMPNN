@@ -9,6 +9,9 @@ Cache MISS = subdir absent or empty; fetcher called, subdir populated.
 Partial-download cleanup (M1): on any fetcher exception, the per-accession subdir
 is deleted before re-raising as InputResolutionError.
 
+Categorized error messages (T7): exceptions are classified by type/message pattern
+(404/not-found vs network/offline vs other) to provide distinct, actionable hints.
+
 Mock boundary (M4): fetchers are called via module attribute (proxide.io.fetch_*),
 not imported directly, so tests can patch aminx.io.proxide_fetch.proxide.io.*.
 """
@@ -38,6 +41,69 @@ class InputResolutionError(Exception):
 
   Callers (resolver, runner guard) catch this and emit actionable messages.
   """
+
+
+def _categorize_fetch_error(exc: Exception, uri: str) -> str:
+  """Categorize a fetcher exception and return an actionable error message.
+
+  Args:
+    exc: The exception raised by the fetcher.
+    uri: The URI being fetched (e.g., 'pdb://1A3A' or 'afdb://P12345').
+
+  Returns:
+    A categorized, actionable error message.
+  """
+  exc_type = type(exc).__name__
+  exc_msg = str(exc).lower()
+
+  # Classify by exception type and message pattern
+  is_network_error = isinstance(
+    exc,
+    (
+      ConnectionError,
+      TimeoutError,
+      OSError,
+    ),
+  ) or any(
+    kw in exc_msg
+    for kw in [
+      "connection",
+      "timeout",
+      "network",
+      "unreachable",
+      "refused",
+      "reset",
+    ]
+  )
+
+  is_not_found_error = any(
+    kw in exc_msg
+    for kw in [
+      "404",
+      "not found",
+      "does not exist",
+      "no structure",
+    ]
+  )
+
+  # Return categorized message
+  if is_not_found_error:
+    return (
+      f"no structure found for {uri} — the accession may be invalid or "
+      f"not available in the remote database. verify the accession and "
+      f"check the source documentation (RCSB/AlphaFold/MD-CATH)."
+    )
+  if is_network_error:
+    return (
+      f"network error fetching {uri}: {exc_type}. remote fetches require "
+      f"network access at CLI/submit time. resolve on a connected host, "
+      f"then submit with the cached local path (cluster compute nodes are offline)."
+    )
+  return (
+    f"unexpected error fetching {uri}: {exc_type}. remote fetches require "
+    f"network access at CLI/submit time. resolve on a connected host, "
+    f"then submit with the cached local path."
+  )
 
 
 def fetch_pdb(
@@ -82,12 +148,10 @@ def fetch_pdb(
   except Exception as exc:
     # M1: partial-download cleanup before re-raise
     _cleanup_subdir(subdir)
-    raise InputResolutionError(
-      f"failed to fetch pdb://{pdb_id} from RCSB into cache {cache_dir}: {exc}; "
-      f"remote fetches require network access at CLI/submit time; "
-      f"resolve on a connected host, then submit with the cached local path "
-      f"(cluster compute nodes are offline)",
-    ) from exc
+    # T7: categorized error message by failure type
+    uri = f"pdb://{pdb_id}"
+    message = _categorize_fetch_error(exc, uri)
+    raise InputResolutionError(message) from exc
 
 
 def fetch_afdb(
@@ -130,12 +194,10 @@ def fetch_afdb(
   except Exception as exc:
     # M1: partial-download cleanup before re-raise
     _cleanup_subdir(subdir)
-    raise InputResolutionError(
-      f"failed to fetch afdb://{uniprot_id} from AfDB into cache {cache_dir}: {exc}; "
-      f"remote fetches require network access at CLI/submit time; "
-      f"resolve on a connected host, then submit with the cached local path "
-      f"(cluster compute nodes are offline)",
-    ) from exc
+    # T7: categorized error message by failure type
+    uri = f"afdb://{uniprot_id}"
+    message = _categorize_fetch_error(exc, uri)
+    raise InputResolutionError(message) from exc
 
 
 def fetch_md_cath(
@@ -178,12 +240,10 @@ def fetch_md_cath(
   except Exception as exc:
     # M1: partial-download cleanup before re-raise
     _cleanup_subdir(subdir)
-    raise InputResolutionError(
-      f"failed to fetch mdcath://{md_cath_id} from MD-CATH into cache {cache_dir}: {exc}; "
-      f"remote fetches require network access at CLI/submit time; "
-      f"resolve on a connected host, then submit with the cached local path "
-      f"(cluster compute nodes are offline)",
-    ) from exc
+    # T7: categorized error message by failure type
+    uri = f"mdcath://{md_cath_id}"
+    message = _categorize_fetch_error(exc, uri)
+    raise InputResolutionError(message) from exc
 
 
 def _check_cache_hit(subdir: Path) -> Path | None:

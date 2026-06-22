@@ -4,13 +4,13 @@
 [loop]
 version            = "1.0"
 task_id            = "260618_autonomous-loop"
-current_phase      = "EXECUTE"
-last_subphase      = "1860_plannertopology_docstrings(haiku)"
+current_phase      = "TRIAGE"
+last_subphase      = "1860_merged; session compacted"
 last_artifact_path = ".praxia/sprint_plans/260618_rs7b-averaged-scoring.toml"
-iteration_count    = 7
+iteration_count    = 8
 last_activation    = "2026-06-22T13:42:46Z"
 autonomy_level     = "L2"
-selected_item_ids  = [1860]  # PlannerTopology docstrings (unblocks #1863). #1202 merged 80b9ea7.  # CLI dir/glob --inputs (direct dispatch). #1880 BLOCKED on loader-atom37 (see recon 260622_1880_blocked).  # RS-6b #2226 + SC #2447 both DONE+MERGED to main  # RS-6b host caller migration to run_spec.* + ast-grep gate (RS-7b merged 480b1fa)  # RS-7b #2252 DONE+MERGED (480b1fa, verified green on main). Next: RS-6b #2226.  # RS-7b #2252 DONE+verified (branch worktree-wf_a895fb67-4ec-4, awaiting manual merge). Next: RS-6b #2226.
+selected_item_ids  = []  # all merged: RS-7b/RS-6b/SC/#1202/#1860. Next: #1304/#1627/#1199. #1880 blocked.  # PlannerTopology docstrings (unblocks #1863). #1202 merged 80b9ea7.  # CLI dir/glob --inputs (direct dispatch). #1880 BLOCKED on loader-atom37 (see recon 260622_1880_blocked).  # RS-6b #2226 + SC #2447 both DONE+MERGED to main  # RS-6b host caller migration to run_spec.* + ast-grep gate (RS-7b merged 480b1fa)  # RS-7b #2252 DONE+MERGED (480b1fa, verified green on main). Next: RS-6b #2226.  # RS-7b #2252 DONE+verified (branch worktree-wf_a895fb67-4ec-4, awaiting manual merge). Next: RS-6b #2226.
 selection_mode     = "p2_fallback"
 pcw_template       = "refactor_with_audit"
 brainstorm_needed  = false

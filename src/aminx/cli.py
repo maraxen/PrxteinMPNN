@@ -236,7 +236,7 @@ def _dispatch_and_resolve_entry(
   if input_type == "file":
     scheme = "local"
   elif input_type in ("pdb", "afdb", "mdcath"):
-    if parsed.scheme != "local":
+    if parsed.scheme not in ("local", input_type):
       msg = (
         f"--input-type {input_type} conflicts with explicit scheme {parsed.scheme}:// in {entry!r}"
       )
@@ -441,6 +441,8 @@ class _RunBase:
   tied_position: list[str]
   pass_mode: str
   multi_state_temperature: float
+  input_type: str
+  input_cache_dir: Path | None
 
 
 @run_app.callback()
@@ -504,6 +506,11 @@ def _run_base(
   ] = [],  # noqa: B006
   pass_mode: Annotated[str, _OPT(help="Pass mode: inter or intra")] = "intra",
   multi_state_temperature: Annotated[float, _OPT(help="Multi-state temperature")] = 1.0,
+  input_type: Annotated[
+    str,
+    _OPT(help="Input type override: 'auto' (detect scheme), 'file' (force local), or 'pdb'/'afdb'/'mdcath'"),
+  ] = "auto",
+  input_cache_dir: Annotated[Path | None, _OPT(help="Cache directory for fetched structures")] = None,
 ) -> None:
   """Build and dispatch run specifications.
 
@@ -550,6 +557,8 @@ def _run_base(
     tied_position=list(tied_position),
     pass_mode=pass_mode,
     multi_state_temperature=multi_state_temperature,
+    input_type=input_type,
+    input_cache_dir=input_cache_dir,
   )
 
 
@@ -670,9 +679,14 @@ def run_sample(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
-  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
 
   b: _RunBase = ctx.obj
+  inputs = resolve_inputs(
+    inputs,
+    input_type=b.input_type,
+    cache_dir=b.input_cache_dir,
+    fail_fast=inputs_fail_fast,
+  )
   temperature_parsed = _parse_float_tuple(temperature)
 
   from aminx.run.specs import SamplingSpecification  # noqa: PLC0415
@@ -769,7 +783,14 @@ def run_score(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
-  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
+
+  b: _RunBase = ctx.obj
+  inputs = resolve_inputs(
+    inputs,
+    input_type=b.input_type,
+    cache_dir=b.input_cache_dir,
+    fail_fast=inputs_fail_fast,
+  )
   if not sequences_to_score:
     typer.echo("--sequences-to-score is required", err=True)
     raise typer.Exit(code=2)
@@ -853,9 +874,14 @@ def run_jacobian(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
-  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
 
   b: _RunBase = ctx.obj
+  inputs = resolve_inputs(
+    inputs,
+    input_type=b.input_type,
+    cache_dir=b.input_cache_dir,
+    fail_fast=inputs_fail_fast,
+  )
 
   from aminx.run.specs import JacobianSpecification  # noqa: PLC0415
 
@@ -936,9 +962,14 @@ def run_inspect(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
-  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
 
   b: _RunBase = ctx.obj
+  inputs = resolve_inputs(
+    inputs,
+    input_type=b.input_type,
+    cache_dir=b.input_cache_dir,
+    fail_fast=inputs_fail_fast,
+  )
 
   from aminx.run.specs import InspectionSpecification  # noqa: PLC0415
 
@@ -1025,6 +1056,11 @@ def _spec_base(
   ] = [],  # noqa: B006
   pass_mode: Annotated[str, _OPT(help="Pass mode: inter or intra")] = "intra",
   multi_state_temperature: Annotated[float, _OPT(help="Multi-state temperature")] = 1.0,
+  input_type: Annotated[
+    str,
+    _OPT(help="Input type override: 'auto' (detect scheme), 'file' (force local), or 'pdb'/'afdb'/'mdcath'"),
+  ] = "auto",
+  input_cache_dir: Annotated[Path | None, _OPT(help="Cache directory for fetched structures")] = None,
 ) -> None:
   """Run specification JSON (see aminx.run.spec_json).
 
@@ -1071,6 +1107,8 @@ def _spec_base(
     tied_position=list(tied_position),
     pass_mode=pass_mode,
     multi_state_temperature=multi_state_temperature,
+    input_type=input_type,
+    input_cache_dir=input_cache_dir,
   )
 
 
@@ -1154,9 +1192,14 @@ def spec_emit_sample(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
-  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
 
   b: _RunBase = ctx.obj
+  inputs = resolve_inputs(
+    inputs,
+    input_type=b.input_type,
+    cache_dir=b.input_cache_dir,
+    fail_fast=inputs_fail_fast,
+  )
   temperature_parsed = _parse_float_tuple(temperature)
 
   from aminx.run.specs import SamplingSpecification  # noqa: PLC0415
@@ -1246,7 +1289,14 @@ def spec_emit_score(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
-  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
+
+  b: _RunBase = ctx.obj
+  inputs = resolve_inputs(
+    inputs,
+    input_type=b.input_type,
+    cache_dir=b.input_cache_dir,
+    fail_fast=inputs_fail_fast,
+  )
   if not sequences_to_score:
     typer.echo("--sequences-to-score is required", err=True)
     raise typer.Exit(code=2)
@@ -1323,9 +1373,14 @@ def spec_emit_jacobian(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
-  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
 
   b: _RunBase = ctx.obj
+  inputs = resolve_inputs(
+    inputs,
+    input_type=b.input_type,
+    cache_dir=b.input_cache_dir,
+    fail_fast=inputs_fail_fast,
+  )
 
   from aminx.run.specs import JacobianSpecification  # noqa: PLC0415
 
@@ -1399,9 +1454,14 @@ def spec_emit_inspect(
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
-  inputs = _expand_inputs(inputs, fail_fast=inputs_fail_fast)
 
   b: _RunBase = ctx.obj
+  inputs = resolve_inputs(
+    inputs,
+    input_type=b.input_type,
+    cache_dir=b.input_cache_dir,
+    fail_fast=inputs_fail_fast,
+  )
 
   from aminx.run.specs import InspectionSpecification  # noqa: PLC0415
 

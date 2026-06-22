@@ -316,6 +316,52 @@ aminx run score --inputs structure.pdb --sequences-to-score ACDEFGHIKLMNPQRSTVWY
 
 All four subcommands (`sample`, `score`, `jacobian`, `inspect`) share the same base option surface: `--inputs`, `--model-weights`, `--model-version`, `--model-family`, `--batch-size`, `--backbone-noise`, `--random-seed`, and the full `RunSpecification` field set. Spec construction failures exit 1; an unwired runner exits 2.
 
+##### Heterogeneous inputs — local files and remote structures
+
+The `--inputs` flag accepts multiple URI schemes, allowing you to mix local files and remote-fetched structures in a single command. Remote sources are fetched at CLI time to a local cache directory, making the resolved spec safely reproducible on cluster compute nodes (which are offline).
+
+**Accepted URI forms:**
+
+| Form | Example | Source | Behavior |
+|------|---------|--------|----------|
+| Bare path | `/data/1ubq.pdb`, `./structures/*.cif`, `data/` | Local | Files and glob patterns expanded as today; directories scanned for `.pdb`/`.cif` files. |
+| `file://` | `file:///data/1ubq.pdb`, `file://localhost/data/1ubq.pdb` | Local | Explicit file URI; host portion (if present) is stripped; remainder is treated as a local path. |
+| `pdb://` | `pdb://1A3A`, `pdb://1A3A.pdb`, `pdb://1A3A.cif` | RCSB | Fetch PDB structure by ID. Default format `mmcif`; suffix `.pdb` or `.cif` overrides. |
+| `afdb://` | `afdb://P12345` | AlphaFold DB | Fetch AlphaFold v4 structure by UniProt ID. |
+| `mdcath://` | `mdcath://1abcA00` | MD-CATH | Fetch MD-CATH HDF5 structure by ID. |
+
+**Example — mixed local and remote inputs:**
+
+```bash
+# Fetch two RCSB structures and one AlphaFold structure; combine with a local directory
+aminx run sample \
+  --inputs pdb://1A3A \
+  --inputs pdb://2ABC.pdb \
+  --inputs afdb://P12345 \
+  --inputs ./local_structures/ \
+  --model-version v_48_020 \
+  --num-samples 10
+```
+
+All remote sources are fetched to a cache directory (default: `~/.cache/aminx/inputs` or `$XDG_CACHE_HOME/aminx/inputs`). Subsequent runs with the same accession reuse cached files and skip the network call entirely — the resolved spec is fully deterministic and cluster-safe.
+
+**Cache control and URI scheme override:**
+
+```bash
+# Override cache directory
+aminx run sample --inputs pdb://1A3A --cache-dir /tmp/aminx_cache --num-samples 10
+
+# Force all --inputs entries to be treated as local paths (suppress scheme detection)
+aminx run sample --inputs "pdb://1A3A" --input-type file --num-samples 10
+# ^ Treats "pdb://1A3A" as a literal local filename, does not fetch
+
+# Apply a default scheme to schemeless tokens
+aminx run sample --inputs 1A3A --input-type pdb --num-samples 10
+# ^ Treats "1A3A" as pdb://1A3A; fetches from RCSB
+```
+
+**Error handling:** Empty accessions (e.g., `pdb://`), unknown schemes (e.g., `s3://`, `http://`), and fetch failures raise clear errors naming the problematic entry. Use `--inputs-fail-fast` to exit on first error, or omit it to warn and skip individual entries.
+
 #### `aminx campaign` — design campaign orchestration
 
 ```bash

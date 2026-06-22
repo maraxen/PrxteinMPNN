@@ -49,6 +49,50 @@ def parse_input_uri(token: str) -> ParsedInput:
 
   Returns:
     ParsedInput with scheme, accession, and format.
+
+  Examples:
+    Bare local paths resolve to 'local' scheme:
+
+    >>> parse_input_uri("/data/1ubq.pdb")
+    ParsedInput(scheme='local', accession='/data/1ubq.pdb', fmt=None)
+
+    >>> parse_input_uri("./mydir")
+    ParsedInput(scheme='local', accession='./mydir', fmt=None)
+
+    >>> parse_input_uri("*.cif")
+    ParsedInput(scheme='local', accession='*.cif', fmt=None)
+
+    file:// URIs resolve to 'file' scheme:
+
+    >>> parse_input_uri("file:///data/1ubq.pdb")
+    ParsedInput(scheme='file', accession='/data/1ubq.pdb', fmt=None)
+
+    >>> parse_input_uri("file://localhost/data/1ubq.pdb")
+    ParsedInput(scheme='file', accession='/data/1ubq.pdb', fmt=None)
+
+    pdb:// URIs with format suffixes:
+
+    >>> parse_input_uri("pdb://1A3A")
+    ParsedInput(scheme='pdb', accession='1A3A', fmt='mmcif')
+
+    >>> parse_input_uri("pdb://1A3A.pdb")
+    ParsedInput(scheme='pdb', accession='1A3A', fmt='pdb')
+
+    >>> parse_input_uri("pdb://1A3A.cif")
+    ParsedInput(scheme='pdb', accession='1A3A', fmt='mmcif')
+
+    afdb:// and mdcath:// URIs:
+
+    >>> parse_input_uri("afdb://P12345")
+    ParsedInput(scheme='afdb', accession='P12345', fmt=None)
+
+    >>> parse_input_uri("mdcath://1abcA00")
+    ParsedInput(scheme='mdcath', accession='1abcA00', fmt=None)
+
+    Windows paths (C:\\) are treated as local paths, not schemes:
+
+    >>> parse_input_uri("C:\\\\data\\\\protein.pdb")
+    ParsedInput(scheme='local', accession='C:\\\\data\\\\protein.pdb', fmt=None)
   """
   # Check for URI scheme: ^[a-z][a-z0-9+.-]*://
   scheme_match = re.match(r"^([a-z][a-z0-9+.-]*)://", token)

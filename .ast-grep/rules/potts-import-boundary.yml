@@ -15,7 +15,10 @@ message: |
   and Aminx (MPNN stageset).
 
 files:
-  - 'src/aminx/potts/(?!designer\.py)'
+  - 'src/aminx/potts/**/*.py'
+
+ignores:
+  - 'src/aminx/potts/designer.py'
 
 rule:
   any:

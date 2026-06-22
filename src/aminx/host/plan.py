@@ -193,7 +193,7 @@ def resolve_target_samples(
   elif grid_lineage is not None:
     target = int(grid_lineage["sample_count"])
   else:
-    target = int(spec.num_samples)
+    target = int(spec.run_spec.sampling.num_samples)
 
   if target <= 0:
     msg = "num_samples must be positive."

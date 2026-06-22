@@ -20,6 +20,20 @@ from aminx.host.campaign import (
 
 
 @dataclass
+class DummySamplingConfig:
+    """Minimal sampling config stub."""
+    temperature: list[float] = field(default_factory=lambda: [1.0])
+    backbone_noise: list[float] = field(default_factory=lambda: [0.0])
+    return_logits: bool = False
+
+
+@dataclass
+class DummyRunSpec:
+    """Minimal run_spec stub."""
+    sampling: DummySamplingConfig = field(default_factory=DummySamplingConfig)
+
+
+@dataclass
 class DummySpec:
     """Minimal spec stub for testing manifest functions."""
 
@@ -38,6 +52,21 @@ class DummySpec:
     multi_state_strategy: str = "arithmetic_mean"
     campaign_mode: bool = False
     return_logits: bool = False
+    run_spec: DummyRunSpec = None
+
+    def __post_init__(self):
+        if self.run_spec is None:
+            object.__setattr__(
+                self,
+                "run_spec",
+                DummyRunSpec(
+                    sampling=DummySamplingConfig(
+                        temperature=self.temperature,
+                        backbone_noise=self.backbone_noise,
+                        return_logits=self.return_logits,
+                    )
+                ),
+            )
 
 
 def _make_row(**kwargs):

@@ -68,8 +68,8 @@ def build_manifest_row(
   Returns a dict ready for plan_campaign_manifest to extend with
   output_h5_path and sampling_spec.
   """
-  temperature_list = list(spec.temperature) if spec.temperature else []
-  backbone_noise_list = list(spec.backbone_noise) if spec.backbone_noise else []
+  temperature_list = list(spec.run_spec.sampling.temperature) if spec.run_spec.sampling.temperature else []
+  backbone_noise_list = list(spec.run_spec.sampling.backbone_noise) if spec.run_spec.sampling.backbone_noise else []
   hash_payload = {
     "schema_version": MANIFEST_ROW_SCHEMA_VERSION,
     "campaign_id": campaign_id,

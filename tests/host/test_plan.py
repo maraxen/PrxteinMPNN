@@ -20,6 +20,31 @@ from aminx.host.plan import (
 )
 
 
+# Minimal stub for RunSpec subconfigs
+@dataclass
+class MinimalSamplingConfig:
+    """Minimal stub for sampling sub-config."""
+    num_samples: int = 100
+    temperature: list[float] | tuple[float, ...] = None
+    backbone_noise: list[float] | tuple[float, ...] = None
+
+    def __post_init__(self):
+        if self.temperature is None:
+            object.__setattr__(self, "temperature", [0.1, 1.0])
+        if self.backbone_noise is None:
+            object.__setattr__(self, "backbone_noise", [0.0])
+
+
+@dataclass
+class MinimalRunSpec:
+    """Minimal stub for RunSpec with sub-configs."""
+    sampling: MinimalSamplingConfig = None
+
+    def __post_init__(self):
+        if self.sampling is None:
+            object.__setattr__(self, "sampling", MinimalSamplingConfig())
+
+
 # Minimal stub for SamplingSpecification for testing
 @dataclass
 class MinimalSamplingSpec:
@@ -30,12 +55,25 @@ class MinimalSamplingSpec:
     backbone_noise: list[float] | tuple[float, ...] = None
     num_samples: int = 100
     samples_chunk_size: int | None = None
+    run_spec: MinimalRunSpec = None
 
     def __post_init__(self):
         if self.temperature is None:
             object.__setattr__(self, "temperature", [0.1, 1.0])
         if self.backbone_noise is None:
             object.__setattr__(self, "backbone_noise", [0.0])
+        if self.run_spec is None:
+            object.__setattr__(
+                self,
+                "run_spec",
+                MinimalRunSpec(
+                    sampling=MinimalSamplingConfig(
+                        num_samples=self.num_samples,
+                        temperature=self.temperature,
+                        backbone_noise=self.backbone_noise,
+                    )
+                ),
+            )
 
 
 class TestResolveTargetSamples:

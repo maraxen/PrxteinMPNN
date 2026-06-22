@@ -13,7 +13,7 @@ GRID_SCHEMA_VERSION = "grid_v1"
 def _resolve_grid_lineage(spec: SamplingSpecification) -> dict[str, int | str] | None:
   if not spec.grid_mode:
     return None
-  sample_count = int(spec.sample_count if spec.sample_count is not None else spec.num_samples)
+  sample_count = int(spec.sample_count if spec.sample_count is not None else spec.run_spec.sampling.num_samples)
   if sample_count <= 0:
     msg = "sample_count must be positive when grid_mode=True."
     raise ValueError(msg)
@@ -25,7 +25,7 @@ def _resolve_grid_lineage(spec: SamplingSpecification) -> dict[str, int | str] |
   if chunk_id < 0:
     msg = "chunk_id must be non-negative when grid_mode=True."
     raise ValueError(msg)
-  job_id = spec.job_id or f"grid_{spec.random_seed}"
+  job_id = spec.job_id or f"grid_{spec.run_spec.sampling.random_seed}"
   return {
     "job_id": job_id,
     "chunk_id": chunk_id,
@@ -95,8 +95,8 @@ def _grid_manifest_row_hash(
     "ligand_conditioning": bool(spec.ligand_conditioning),
     "sidechain_conditioning": bool(spec.sidechain_conditioning),
     "multi_state_strategy": spec.multi_state_strategy,
-    "temperature": _canonical_float_strings(spec.temperature),
-    "backbone_noise": _canonical_float_strings(spec.backbone_noise),
+    "temperature": _canonical_float_strings(spec.run_spec.sampling.temperature),
+    "backbone_noise": _canonical_float_strings(spec.run_spec.sampling.backbone_noise),
   }
   return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
 
@@ -112,8 +112,8 @@ def _grid_job_seed_hash(
     "ligand_conditioning": bool(spec.ligand_conditioning),
     "sidechain_conditioning": bool(spec.sidechain_conditioning),
     "multi_state_strategy": spec.multi_state_strategy,
-    "temperature": _canonical_float_strings(spec.temperature),
-    "backbone_noise": _canonical_float_strings(spec.backbone_noise),
+    "temperature": _canonical_float_strings(spec.run_spec.sampling.temperature),
+    "backbone_noise": _canonical_float_strings(spec.run_spec.sampling.backbone_noise),
   }
   return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
 
@@ -132,7 +132,7 @@ def _base_sampling_key(
   *,
   grid_lineage: dict[str, int | str] | None,
 ) -> jax.Array:
-  key = jax.random.key(spec.random_seed)
+  key = jax.random.key(spec.run_spec.sampling.random_seed)
   if grid_lineage is None:
     return key
   seed_hash = _grid_job_seed_hash(spec, grid_lineage)

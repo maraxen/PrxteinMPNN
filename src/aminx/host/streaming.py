@@ -83,7 +83,7 @@ def _sample_streaming(
   # Phase 5g PR4 tensor hook + streaming sink: ``_dispatch_sampling_tensor_batch_io`` stages host
   # sequences/logits under ``(batch_idx, chunk_start, chunk_count)``; ``take_staging_sequences_logits``
   # drains after ``jax.effects_barrier()`` (``TODO_io_callback.txt`` — perplexity stays return-path).
-  with streaming_tensor_sink_session(), h5py.File(spec.output_h5_path, "w") as f:
+  with streaming_tensor_sink_session(), h5py.File(spec.run_spec.io.output_h5_path, "w") as f:
     f.attrs["schema_version"] = GRID_SCHEMA_VERSION if spec.grid_mode else SAMPLING_SCHEMA_VERSION
     f.attrs["model_family"] = spec.model_family
     f.attrs["ligand_conditioning"] = int(spec.ligand_conditioning)
@@ -138,7 +138,7 @@ def _sample_streaming(
         for i in range(sampled_sequences_np.shape[0]):
           grp = f.create_group(f"structure_{structure_idx}")
           grp.create_dataset("sequences", data=sampled_sequences_np[i], dtype="i4")
-          if spec.return_logits:
+          if spec.run_spec.sampling.return_logits:
             grp.create_dataset("logits", data=sampled_logits_np[i], dtype="f4")
           if pseudo_perplexity is not None:
             grp.create_dataset("pseudo_perplexity", data=pseudo_perplexity[i], dtype="f4")
@@ -163,8 +163,8 @@ def _sample_streaming(
           grp.attrs["structure_index"] = structure_idx
           grp.attrs["structure_id"] = batch_structure_ids[i]
           grp.attrs["num_samples"] = total_num_samples
-          grp.attrs["num_noise_levels"] = len(spec.backbone_noise)
-          grp.attrs["num_temperatures"] = len(spec.temperature)
+          grp.attrs["num_noise_levels"] = len(spec.run_spec.sampling.backbone_noise)
+          grp.attrs["num_temperatures"] = len(spec.run_spec.sampling.temperature)
           grp.attrs["sequence_length"] = batched_ensemble.coordinates.shape[1]
           if grid_lineage is not None:
             grp.attrs["job_id"] = str(grid_lineage["job_id"])
@@ -212,7 +212,7 @@ def _sample_streaming(
             seq_ds.resize(seq_ds.shape[0] + seq_chunk.shape[0], axis=0)
             seq_ds[-seq_chunk.shape[0] :] = seq_chunk
 
-            if spec.return_logits:
+            if spec.run_spec.sampling.return_logits:
               logits_chunk = sampled_logits_np[i].astype(np.float32, copy=False)
               if "logits" not in grp:
                 grp.create_dataset(
@@ -244,7 +244,7 @@ def _sample_streaming(
     f.flush()
 
   results = {
-    "output_h5_path": str(spec.output_h5_path),
+    "output_h5_path": str(spec.run_spec.io.output_h5_path),
     "schema_version": GRID_SCHEMA_VERSION if spec.grid_mode else SAMPLING_SCHEMA_VERSION,
     "metadata": {
       "specification": spec,
@@ -290,7 +290,7 @@ def _sample_streaming_arrayrecord(
   structure_batch_count_ar = StreamingBatchHost.structure_batch_count(protein_iterator)
 
   # Generate output base path (strip .h5 if present, use .arrayrecord)
-  output_base = spec.output_h5_path
+  output_base = spec.run_spec.io.output_h5_path
   if str(output_base).endswith(".h5"):
     output_base = Path(str(output_base)[:-3])
 
@@ -349,7 +349,7 @@ def _sample_streaming_arrayrecord(
             seq_chunk = sampled_sequences_np[structure_batch_idx].astype(np.uint8, copy=False)
             logits_chunk = (
               sampled_logits_np[structure_batch_idx].astype(np.float32, copy=False)
-              if spec.return_logits
+              if spec.run_spec.sampling.return_logits
               else None
             )
 

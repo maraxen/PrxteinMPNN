@@ -107,8 +107,8 @@ def _sample_batch(
   base_key = _base_sampling_key(spec, grid_lineage=grid_lineage)
   target_num_samples = resolve_target_samples(spec, chunk_sample_count, grid_lineage)
 
-  noises = jnp.asarray(spec.backbone_noise)
-  temperatures = jnp.asarray(spec.temperature)
+  noises = jnp.asarray(spec.run_spec.sampling.backbone_noise)
+  temperatures = jnp.asarray(spec.run_spec.sampling.temperature)
 
   seq_len = batched_ensemble.coordinates.shape[1]
   batch_size = batched_ensemble.coordinates.shape[0]
@@ -169,7 +169,7 @@ def _sample_batch(
 
   # 4. Dispatch — two paths based on whether encoding_fusion is wired (Python-level static check)
   # Check spec for unified driver flag (defaults to True since S5-D10; legacy path kept as fallback)
-  _use_unified = getattr(spec, "use_unified_driver", True)
+  _use_unified = spec.run_spec.plan.use_unified_driver
 
   if _use_unified and plan.stage_set.encoding_fusion is None:
     # -------------------------------------------------------------------------
@@ -197,7 +197,7 @@ def _sample_batch(
         backbone_noise=noise_val,
         fixed_mask=fm,
         fixed_tokens=ft,
-        bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
+        bias=jnp.asarray(spec.run_spec.sampling.bias, dtype=jnp.float32) if spec.run_spec.sampling.bias is not None else None,
         tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
         state_weights=state_weights,
         ligand_coords=ligand_context["Y"][structure_idx]
@@ -277,7 +277,7 @@ def _sample_batch(
           backbone_noise=noise_val,
           fixed_mask=fm,
           fixed_tokens=ft,
-          bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
+          bias=jnp.asarray(spec.run_spec.sampling.bias, dtype=jnp.float32) if spec.run_spec.sampling.bias is not None else None,
           tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
           state_weights=state_weights,
           ligand_coords=ligand_context["Y"][structure_idx]
@@ -307,7 +307,7 @@ def _sample_batch(
         )
 
       # Step 1: encode at each noise level using the noise axis strategy
-      noise_indices = jnp.arange(len(spec.backbone_noise), dtype=jnp.int32)
+      noise_indices = jnp.arange(len(spec.run_spec.sampling.backbone_noise), dtype=jnp.int32)
 
       def _encode_at_noise(noise_and_idx):
         noise_val, noise_idx = noise_and_idx
@@ -381,7 +381,7 @@ def _sample_batch(
         backbone_noise=noise_val,
         fixed_mask=fm,
         fixed_tokens=ft,
-        bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
+        bias=jnp.asarray(spec.run_spec.sampling.bias, dtype=jnp.float32) if spec.run_spec.sampling.bias is not None else None,
         tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
         state_weights=state_weights,
         ligand_coords=ligand_context["Y"][structure_idx]
@@ -457,7 +457,7 @@ def _sample_batch(
           backbone_noise=noise_val,
           fixed_mask=fm,
           fixed_tokens=ft,
-          bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
+          bias=jnp.asarray(spec.run_spec.sampling.bias, dtype=jnp.float32) if spec.run_spec.sampling.bias is not None else None,
           tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
           state_weights=state_weights,
           ligand_coords=ligand_context["Y"][structure_idx]
@@ -487,7 +487,7 @@ def _sample_batch(
         )
 
       # Step 1: encode at each noise level
-      noise_indices = jnp.arange(len(spec.backbone_noise), dtype=jnp.int32)
+      noise_indices = jnp.arange(len(spec.run_spec.sampling.backbone_noise), dtype=jnp.int32)
 
       def encode_at_noise(noise_and_idx):
         noise_val, noise_idx = noise_and_idx
@@ -568,7 +568,7 @@ def _sample_batch(
     )
 
   # 8. IO & Metadata
-  if spec.compute_pseudo_perplexity:
+  if spec.run_spec.sampling.compute_pseudo_perplexity:
     mask = batched_ensemble.mask
     if mask is None:
       mask = jnp.ones(batched_ensemble.coordinates.shape[:2], dtype=jnp.float32)

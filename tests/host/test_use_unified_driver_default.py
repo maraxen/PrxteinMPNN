@@ -86,11 +86,12 @@ def test_sampling_spec_use_unified_driver_defaults_true():
 
 
 def test_kernel_dispatch_getattr_use_unified_driver_defaults_true():
-    """getattr fallback in _sample_batch must default to True (RS-5)."""
+    """After RS-6b: _sample_batch uses spec.run_spec.plan.use_unified_driver (RS-5 default applied in RunSpec)."""
     from aminx.host import kernel_dispatch
 
     src = inspect.getsource(kernel_dispatch._sample_batch)
-    assert 'getattr(spec, "use_unified_driver", True)' in src
+    # RS-6b migrated to read from run_spec.plan
+    assert 'spec.run_spec.plan.use_unified_driver' in src
 
 
 def test_kernel_dispatch_unified_path_when_spec_lacks_attr(monkeypatch):
@@ -135,6 +136,16 @@ def test_kernel_dispatch_unified_path_when_spec_lacks_attr(monkeypatch):
         structure_mapping=None,
         state_weights=None,
         compute_pseudo_perplexity=False,
+        run_spec=SimpleNamespace(
+            sampling=SimpleNamespace(
+                backbone_noise=[0.0],
+                temperature=[1.0],
+                compute_pseudo_perplexity=False,
+            ),
+            plan=SimpleNamespace(
+                use_unified_driver=True,
+            ),
+        ),
     )
 
     _sample_batch(

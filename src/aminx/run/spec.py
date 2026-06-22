@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import field
+from dataclasses import field, fields
 from os import PathLike, fspath
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -280,13 +280,11 @@ def topology_hash(plan: PlannerTopology) -> str:
   Hashes PlannerTopology fields to produce a stable cache key for static-field identity.
   Used to detect recompile requirements when topology changes between runs.
 
-  KNOWN LIMITATION (issue #1863): The payload dict is hand-maintained. If PlannerTopology
-  gains or loses a field, the hash payload dict must be updated manually, or the hash will
-  silently miss the field addition/removal. A reflective derivation is tracked as a T2.5
-  follow-up (see `.agents/REFACTOR_ROADMAP.md` §3.5).
+  The payload dict is derived reflectively from PlannerTopology fields via dataclasses.fields(),
+  so new/removed fields are picked up automatically without manual updates.
   """
-  payload = {"use_unified_driver": plan.use_unified_driver}
-  hash_input = json.dumps(payload, sort_keys=True).encode()
+  payload = {f.name: getattr(plan, f.name) for f in fields(plan)}
+  hash_input = json.dumps(payload, sort_keys=True, default=str).encode()
   return hashlib.sha256(hash_input).hexdigest()[:16]
 
 

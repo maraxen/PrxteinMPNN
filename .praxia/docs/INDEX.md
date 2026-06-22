@@ -12,6 +12,7 @@
 - [260527_sprint6-decode-axis-composability](superpowers/plans/260527_sprint6-decode-axis-composability.md) — Sprint 6 COMPLETE ✅: composable decode modes (ConditionalDecode/AR/STE), iterator injection, driver.py retired
 
 ## Specs
+- [260622_1203_proxide-heterogeneous-inputs](specs/260622_1203_proxide-heterogeneous-inputs.md) — #1203 SPEC_DRAFT: URI-scheme heterogeneous inputs (pdb://, afdb://, mdcath://) resolved to local paths at CLI; offline-cluster-safe; no schema break. Task DAG T1-T9. Pending challenger/defender.
 - [260618_rs7b-averaged-scoring-design](specs/260618_rs7b-averaged-scoring-design.md) — RS-7b averaged-topology scoring design (AC-RS-7)
 - [260611_aminx-xtrax-refactor](specs/260611_aminx-xtrax-refactor.md) — **Active** — xtrax vertical-slice refactor (T0–T5), gates, prolix second-consumer API
 - [260611_runspec-unification](specs/260611_runspec-unification.md) — **Active** — RunSpec + PlannerTopology addendum (RS track); blocks T4.1

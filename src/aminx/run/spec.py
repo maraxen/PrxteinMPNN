@@ -2,6 +2,9 @@
 
 See `.agents/REFACTOR_ROADMAP.md` §3.5. This module is the Equinox/pytree representation;
 `run.specs.RunSpecification` remains the public dataclass façade for one minor version.
+
+PlannerTopology (added in RS-2) configures the amino-acid kernel dispatch topology for the
+planner/sampler. Use `topology_hash()` to derive cache keys from PlannerTopology fields.
 """
 
 from __future__ import annotations
@@ -110,11 +113,18 @@ class PrecisionConfig(eqx.Module):
 class PlannerTopology(eqx.Module):
   """aminx kernel dispatch topology config.
 
-  Wraps aminx.tiling.BatchPlanner config fields for RunSpec.
-  Will gain xtrax.ExecutionProfile once xtrax BatchPlanner reaches multi-phase parity (T2.5).
+  Configures planner and sampler dispatch topology knobs for RunSpec. Wraps
+  aminx.tiling.BatchPlanner config fields. Will gain xtrax.ExecutionProfile once
+  xtrax BatchPlanner reaches multi-phase parity (T2.5).
+
+  The `use_unified_driver` field selects between the unified plan-driven sampling
+  dispatch (True) and the legacy fallback sampling dispatch (False). Default is True.
+
+  See `topology_hash()` below for deterministic cache-key derivation from these fields.
   """
 
   use_unified_driver: bool = eqx.field(static=True)
+  """Select unified plan-driven dispatch (True) or legacy fallback (False). Default: True."""
 
 
 class SamplingConfig(eqx.Module):
@@ -265,7 +275,16 @@ def _infer_n_devices(spec: object) -> int:
 
 
 def topology_hash(plan: PlannerTopology) -> str:
-  """Deterministic 16-char hex hash of PlannerTopology for cache-key derivation."""
+  """Deterministic 16-char hex hash of PlannerTopology for cache-key derivation.
+
+  Hashes PlannerTopology fields to produce a stable cache key for static-field identity.
+  Used to detect recompile requirements when topology changes between runs.
+
+  KNOWN LIMITATION (issue #1863): The payload dict is hand-maintained. If PlannerTopology
+  gains or loses a field, the hash payload dict must be updated manually, or the hash will
+  silently miss the field addition/removal. A reflective derivation is tracked as a T2.5
+  follow-up (see `.agents/REFACTOR_ROADMAP.md` §3.5).
+  """
   payload = {"use_unified_driver": plan.use_unified_driver}
   hash_input = json.dumps(payload, sort_keys=True).encode()
   return hashlib.sha256(hash_input).hexdigest()[:16]

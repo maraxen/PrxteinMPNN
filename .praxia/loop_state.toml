@@ -5,10 +5,10 @@
 version            = "1.0"
 task_id            = "260618_autonomous-loop"
 current_phase      = "EXECUTE"
-last_subphase      = "#1203: 8/10 merged (+T9). T7=adda3cf5 (proxide_fetch.py) still in flight; then final T8 join."
+last_subphase      = "#1203: 9/10 merged (+T7) on REATTACHED main 6292e3c (was detached). Final T8 join dispatching."
 last_artifact_path = ".praxia/sprint_plans/260618_rs7b-averaged-scoring.toml"
 iteration_count    = 11
-last_activation    = "2026-06-22T17:25:36Z"
+last_activation    = "2026-06-22T17:28:31Z"
 autonomy_level     = "L2"
 selected_item_ids  = [1203]  # PI direction: spec-first #1203 proxide inputs. RESEARCH done -> DESIGN -> spec-review -> register DAG.
 selection_mode     = "p2_fallback"

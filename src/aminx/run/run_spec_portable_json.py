@@ -9,7 +9,10 @@ Full Equinox / PyTree serialization is out of scope. Wire format versions:
   :func:`build_run_spec` defaults for a minimal single-GPU
   :class:`~aminx.run.specs.RunSpecification`-style inference stub.
 
-:func:`run_spec_portable_to_dict` always emits **v2**.
+:func:`run_spec_portable_to_dict` always emits **v2**. Note: :func:`run_spec_portable_to_dict`
+raises :exc:`ValueError` when serializing specs with ``grid.grid_mode=True`` or
+``ligand.model_family='ligandmpnn'`` (not representable in v2 wire format until v3 is
+defined); use the full spec_json (campaign path) for such specs.
 """
 
 from __future__ import annotations
@@ -100,7 +103,15 @@ def _placeholder_run_spec(
 ) -> RunSpec:
   """Defaults mirror :func:`build_run_spec` for a bare ``RunSpecification``-like spec."""
   io_final = (
-    io if io is not None else IOConfig(output_dir=None, sink_kind="none", manifest_path=None)
+    io
+    if io is not None
+    else IOConfig(
+      output_dir=None,
+      sink_kind="none",
+      manifest_path=None,
+      output_h5_path=None,
+      cache_path=None,
+    )
   )
   ligand = LigandConfig(
     model_family="proteinmpnn",
@@ -162,6 +173,22 @@ def _placeholder_run_spec(
 
 def run_spec_portable_to_dict(run_spec: RunSpec) -> dict[str, Any]:
   """Export JSON-native fields from ``run_spec`` (static scalar subset only)."""
+  # Guard: grid_mode runs are not representable in v2 portable format
+  if run_spec.grid.grid_mode:
+    msg = (
+      "[portable_run_spec] grid_mode runs are not representable in the v2 portable "
+      "wire format (v3 not yet defined); use the full spec_json (campaign) path instead."
+    )
+    raise ValueError(msg)
+
+  # Guard: ligandmpnn runs are not representable in v2 portable format
+  if run_spec.ligand.model_family == "ligandmpnn":
+    msg = (
+      "[portable_run_spec] ligandmpnn runs are not representable in the v2 portable "
+      "wire format (v3 not yet defined); use the full spec_json (campaign) path instead."
+    )
+    raise ValueError(msg)
+
   return {
     "version": PORTABLE_RUN_SPEC_VERSION,
     "io": {
@@ -253,6 +280,8 @@ def run_spec_portable_from_dict(data: Mapping[str, Any]) -> RunSpec:
         output_dir=_optional_path_str("io.output_dir", iom.get("output_dir", None)),
         sink_kind=_as_str("io.sink_kind", iom["sink_kind"]),
         manifest_path=_optional_path_str("io.manifest_path", iom.get("manifest_path", None)),
+        output_h5_path=None,
+        cache_path=None,
       ),
     )
 

@@ -1,0 +1,53 @@
+---
+workspace: aminx
+session_id: 26303fe6-31e2-4843-90af-38a7a50bf10f
+status: in_progress
+immediately_relevant:
+- file: .praxia/loop_state.toml
+  lines:
+  - 1
+  - 20
+  reason: 'Loop FSM state: current_phase=EXECUTE, iteration_count=7, selected_item_ids=[1860]. Use ABSOLUTE path for all writes (cwd-footgun: relative writes land in a worktree).'
+- file: .praxia/docs/specs/260622_sc-encode-vmap-and-load-model-flag.md
+  lines:
+  - 1
+  - 98
+  reason: The SC fix spec (DONE+merged v0.1.0a7). Cluster-propagation note at the bottom is the one open side-decision.
+- file: src/aminx/run/spec.py
+  lines:
+  - 110
+  - 233
+  reason: 'PlannerTopology class + topology_hash — the #1860 docstring target (in flight).'
+- file: src/aminx/inference/bundle_builder.py
+  lines:
+  - 56
+  - 58
+  reason: 'build_inference_bundle already accepts atom_37/atom_37_mask/chain_mask; relevant to the #1880 blocker (loader doesn''t PRODUCE atom_37).'
+active_dispatches:
+- abae93a55535d9939
+task_id: 260618_autonomous-loop
+phase: loop iteration 7 (EXECUTE)
+goal_statement: 'Autonomous praxia dev loop on aminx: close executable backlog items end-to-end (recon->fix->verify->merge), advancing the xtrax/RunSpec refactor epic #1541 and servicing injected priorities. Run posture: hitl_semi_autonomous; merges to main AUTHORIZED this session; orchestrate subagents DIRECTLY (no dw emit-sprint workflows — token churn).'
+context_refs: []
+failed_attempts: []
+open_questions:
+- 'SC fix cluster propagation: source rsync''d to engaging (verified v0.1.0a7 present). If tev_design cluster venv installs aminx editable from ~/projects/aminx it''s already live; if it pins a published version they must repin to 0.1.0a7. tev_design-side decision — surface, do not block.'
+deferred:
+- description: '#1880 InspectionSpecification sidechain_conditioning + fixed_mask wiring'
+  rationale: 'BLOCKED: loader (src/aminx/io/) produces backbone-only coords (L,4,3); no atom_37 side-chain coords to wire. build_inference_bundle + encode (post-SC-fix) are ready to RECEIVE atom_37, but #1880 needs an upstream loader atom37-extraction prerequisite. Re-scope before executing. See recon 260622_1880_blocked.'
+  recommended_phase: re-scope before next TRIAGE pick
+- description: '#2446 delete dead src/aminx/host/_sampling_averaged.py'
+  rationale: Confirmed unimported during RS-6b; left untouched (no-auto-delete). Needs explicit delete authorization.
+  recommended_phase: any (P3, trivial)
+- description: '#2289 + #1865 dw emit-sprint emitter bugs (praxia repo, cross-repo)'
+  rationale: Opus git-plumbing dispatches unpinned; reviewer no-commit guard checks HEAD not fixer branch (false-FAILed RS-7b + RS-6b track reviewers; repointed auditors did the real review). Fix belongs in praxia.
+  recommended_phase: separate praxia-workspace session
+lessons_refs:
+- ~/.claude/projects/-home-marielle-projects-aminx/memory/feedback_loop-state-absolute-path.md
+- ~/.claude/projects/-home-marielle-projects-aminx/memory/feedback_orchestrate-not-emit-workflows.md
+next_steps:
+- 'Resume #1860: the fixer-completion notification (and a ScheduleWakeup) will fire. Verify the #1860 branch (worktree-agent-abae93a55535d9939) is DOCSTRINGS-ONLY via `git diff main...<branch>` (only src/aminx/run/spec.py; no logic/field/signature change), run `uv run pytest -k ''spec or run_spec or planner'' -q` + ty/ruff no-new-errors.'
+- 'If #1860 PASS -> merge --no-ff to main (clean uv.lock + any leaked .praxia untracked artifacts first), mark #1860 completed via backlog update; it unblocks #1863.'
+- 'TRIAGE next clean aminx item: candidates #1304 (potts boundary ast-grep rule; confirm dep #1303 closed first), #1627 (RS-8 export InspectionSpecification + portable JSON guard), #1199 (restore ty allowed-unresolved-imports). Avoid #1880 (blocked, see deferred).'
+- 'Per-item pattern: recon directly, dispatch ONE fixer Agent(isolation:''worktree'', model: Haiku churn / Sonnet correctness), verify gates yourself with Bash, merge if green. NO emitted workflows.'
+---

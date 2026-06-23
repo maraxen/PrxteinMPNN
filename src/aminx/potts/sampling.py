@@ -89,6 +89,109 @@ def _conditional_logits_site(
   return inv * logits
 
 
+def dlmc_sweep(
+  key: Array,
+  seq: Int[Array, " n"],
+  h: Float[Array, "n q"],
+  j: Float[Array, "n n q q"],
+  w: Float[Array, "n n"],
+  mask: Float[Array, " n"],
+  site_order: Int[Array, " n"] | None = None,
+  n_steps: int = 1,
+) -> Int[Array, " n"]:
+  """Discrete Langevin Monte Carlo (DLMC) with Zanella locally-balanced proposals.
+
+  Uses Zanella balancing weights w(s'|x_i) = exp(0.5 * (logits_i[s'] - logits_i[x_i]))
+  to construct a symmetric proposal distribution, enabling efficient Metropolis-Hastings
+  updates that respect the conditional Potts distribution.
+
+  Args:
+    key: JAX random key
+    seq: Current sequence of shape (n,)
+    h: Field energies of shape (n, q)
+    j: Pairwise couplings of shape (n, n, q, q)
+    w: Contact weights of shape (n, n)
+    mask: Site activity mask of shape (n,)
+    site_order: Visitation order of shape (n,); if None, uses [0, 1, ..., n-1]
+    n_steps: Number of DLMC sweeps (default 1)
+
+  Returns:
+    Updated sequence after n_steps DLMC rounds
+  """
+  n = int(seq.shape[0])
+  if site_order is None:
+    site_order = jnp.arange(n, dtype=jnp.int32)
+
+  def one_sweep(seq_in: Int[Array, " n"], key_in: Array) -> tuple[Int[Array, " n"], Array]:
+    """One full sweep: visit each site and perform DLMC MH update."""
+    def step(
+      carry: tuple[Int[Array, " n"], Array], idx: Int[Array, ""],
+    ) -> tuple[tuple[Int[Array, " n"], Array], None]:
+      seq_curr, k_curr = carry
+      i = site_order[idx]
+      k_split, k_prop, k_accept = jax.random.split(k_curr, 3)
+
+      # Compute conditional logits at site i
+      logits_i = _conditional_logits_site(h, j, w, seq_curr, mask, i)
+
+      # Zanella balancing: w(s'|x_i) = exp(0.5 * (logits_i[s'] - logits_i[x_i]))
+      current_state = seq_curr[i]
+      logits_balanced = 0.5 * (logits_i - logits_i[current_state])
+      weights = jnp.exp(jnp.clip(logits_balanced, -30.0, 30.0))
+
+      # Normalize to proposal distribution q(s'|x_i)
+      weights_sum = jnp.sum(weights)
+      q_proposal = weights / (weights_sum + 1e-12)
+
+      # Sample proposal state s'
+      proposal_state = jax.random.categorical(k_prop, jnp.log(q_proposal + 1e-12))
+
+      # Reverse proposal probability: q(x_i|s')
+      logits_balanced_rev = 0.5 * (logits_i - logits_i[proposal_state])
+      weights_rev = jnp.exp(jnp.clip(logits_balanced_rev, -30.0, 30.0))
+      weights_rev_sum = jnp.sum(weights_rev)
+      q_reverse = weights_rev[current_state] / (weights_rev_sum + 1e-12)
+
+      # MH acceptance: log alpha = logits[s'] - logits[x_i] - log q(s'|x_i) + log q(x_i|s')
+      log_alpha = (
+        logits_i[proposal_state]
+        - logits_i[current_state]
+        - jnp.log(q_proposal[proposal_state] + 1e-12)
+        + jnp.log(q_reverse + 1e-12)
+      )
+      u = jax.random.uniform(k_accept, dtype=h.dtype)
+      accept = u < jnp.exp(jnp.minimum(0.0, log_alpha))
+
+      # Update sequence
+      new_state = jnp.where(accept, proposal_state, current_state)
+      active = mask[i] > 0.5
+      new_state_eff = jnp.where(active, new_state, seq_curr[i])
+      seq_new = seq_curr.at[i].set(new_state_eff)
+
+      return (seq_new, k_split), None
+
+    (seq_out, k_out), _ = jax.lax.scan(
+      step, (seq_in, key_in), jnp.arange(int(site_order.shape[0]), dtype=jnp.int32),
+    )
+    return seq_out, k_out
+
+  # Perform n_steps DLMC sweeps
+  def body(
+    _i: Int[Array, ""], carry: tuple[Int[Array, " n"], Array],
+  ) -> tuple[Int[Array, " n"], Array]:
+    seq_in, k_in = carry
+    seq_out, k_out = one_sweep(seq_in, k_in)
+    return seq_out, k_out
+
+  seq_final, _ = jax.lax.fori_loop(
+    jnp.int32(0),
+    jnp.int32(n_steps),
+    body,
+    (seq, key),
+  )
+  return seq_final
+
+
 def gibbs_sweep(
   key: Array,
   seq: Int[Array, " n"],

@@ -364,7 +364,10 @@ def _make_averaged_score_fn(
     **kwargs: Any,  # noqa: ANN401
   ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Python-level wrapper: build bundles, check R3 on concrete arrays, call JIT core."""
-    del multi_state_temperature, backbone_noise  # backbone_noise is overridden by spec.backbone_noise
+    del (
+      multi_state_temperature,
+      backbone_noise,
+    )  # backbone_noise is overridden by spec.backbone_noise
     del kwargs
 
     L = int(sequence.shape[0])
@@ -569,7 +572,9 @@ def score(  # noqa: PLR0915
         struct_scores.append(nll)
         if spec.run_spec.sampling.return_logits and struct_logits_list is not None:
           struct_logits_list.append(logits)
-        if spec.run_spec.sampling.return_decoding_orders and struct_decoding_orders_list is not None:
+        if (
+          spec.run_spec.sampling.return_decoding_orders and struct_decoding_orders_list is not None
+        ):
           struct_decoding_orders_list.append(decoding_order)
 
       batch_scores.append(jnp.stack(struct_scores))
@@ -585,7 +590,11 @@ def score(  # noqa: PLR0915
     all_scores.append(jnp.stack(batch_scores))
     if spec.run_spec.sampling.return_logits and all_logits is not None and batch_logits:
       all_logits.append(jnp.stack(batch_logits))
-    if spec.run_spec.sampling.return_decoding_orders and all_decoding_orders is not None and batch_decoding_orders:
+    if (
+      spec.run_spec.sampling.return_decoding_orders
+      and all_decoding_orders is not None
+      and batch_decoding_orders
+    ):
       all_decoding_orders.append(jnp.stack(batch_decoding_orders))
 
     resolved_structure_ids.extend(batch_structure_ids)
@@ -715,6 +724,23 @@ def inspect(  # noqa: PLR0915
       for feature_name in spec.inspection_features:
         if feature_name == "unconditional_logits":
           # Build inference bundle and compute unconditional logits
+          # Prepare atom_37 data if sidechain conditioning is enabled
+          if spec.sidechain_conditioning and hasattr(batched_ensemble, "coordinates"):
+            atom_37 = batched_ensemble.coordinates[struct_idx]
+            atom_37_mask = (
+              batched_ensemble.atom_mask[struct_idx]
+              if hasattr(batched_ensemble, "atom_mask") and batched_ensemble.atom_mask is not None
+              else (
+                batched_ensemble.full_atom_mask[struct_idx]
+                if hasattr(batched_ensemble, "full_atom_mask")
+                and batched_ensemble.full_atom_mask is not None
+                else None
+              )
+            )
+          else:
+            atom_37 = None
+            atom_37_mask = None
+
           bundle, config = build_inference_bundle(
             coords=struct_coords,
             mask=struct_mask,
@@ -724,7 +750,9 @@ def inspect(  # noqa: PLR0915
             backbone_noise=0.0,
             ar_mask=None,
             structure_mapping=None,
-            fixed_mask=getattr(spec, "fixed_mask", None),
+            fixed_mask=spec.fixed_mask,
+            atom_37=atom_37,
+            atom_37_mask=atom_37_mask,
             mode="score_unconditional",
             inference=True,
           )

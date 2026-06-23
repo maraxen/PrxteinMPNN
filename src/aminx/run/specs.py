@@ -658,6 +658,8 @@ class InspectionSpecification(RunSpecification):
     "gdt_ha",
     "cosine",
   ] = "rmsd"
+  sidechain_conditioning: bool = False
+  fixed_mask: ArrayLike | None = None
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

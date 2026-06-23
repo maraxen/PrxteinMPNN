@@ -1,0 +1,118 @@
+[sprint]
+sprint_id = "260623_sc-inspection-batchplan"
+sprint_num = 1
+name = "260623_sc-inspection-batchplan"
+description = ""
+context = "[MANUAL: paste recon findings here before running emit-sprint]"
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[[tracks]]
+id = "a"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1880"
+phase_name = "Track A — InspectionSpecification: add sidechain_conditioning + fixed_mask fields wired to build_inference_bundle (#1880)"
+fixer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+InspectionSpecification has no sidechain_conditioning or fixed_mask fields. The unconditional_logits and conditional_logits runner paths hard-code atom_37=None, so SC context cannot be passed for logit inspection at all. Fix: add sidechain_conditioning: bool and fixed_mask: ArrayLike | None to InspectionSpecification; wire through the runner into build_inference_bundle(atom_37=..., atom_37_mask=..., chain_mask=1-fixed_mask). Unblocks Stage 3 targeted-SC inference (uncond + cond with targeted SC).
+
+[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"""
+reviewer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+InspectionSpecification has no sidechain_conditioning or fixed_mask fields. The unconditional_logits and conditional_logits runner paths hard-code atom_37=None, so SC context cannot be passed for logit inspection at all. Fix: add sidechain_conditioning: bool and fixed_mask: ArrayLike | None to InspectionSpecification; wire through the runner into build_inference_bundle(atom_37=..., atom_37_mask=..., chain_mask=1-fixed_mask). Unblocks Stage 3 targeted-SC inference (uncond + cond with targeted SC).
+
+REVIEWER CHECKLIST (fill in before running dw emit-sprint):
+VERIFY: cargo command or test that must pass — e.g. `cargo nextest run -p <crate>`
+VERIFY: observable assertion — e.g. \"new test exists and calls the handler directly\"
+VERIFY: no regression — e.g. \"existing tests still pass\"
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written."""
+return_key = "1880"
+
+[[tracks]]
+id = "b"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1909"
+phase_name = "Track B — Promote _BatchPlanWrapper to xtrax/tiling/_plan_wrapper.py (#1909)"
+fixer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+Move _BatchPlanWrapper from prolix/fitting/config.py:28 to xtrax/tiling/_plan_wrapper.py. Re-export as shim from prolix/fitting/config.py. Update aminx imports if any.
+
+Hash contract must be preserved exactly: __hash__ returns hash(self._id) where self._id = id(plan). Two wrappers around the same plan object hash equal; two wrappers around different plan objects hash unequal.
+
+Acceptance criteria:
+- Given: from xtrax.tiling import _BatchPlanWrapper; Then: resolves without ImportError
+- Given: from prolix.fitting.config import _BatchPlanWrapper; Then: still resolves (shim)
+- Given: plan_a = make_plan(); plan_b = make_plan(); w1 = _BatchPlanWrapper(plan_a); w2 = _BatchPlanWrapper(plan_a); w3 = _BatchPlanWrapper(plan_b); Then: hash(w1) == hash(w2) and hash(w1) != hash(w3) and hash(w1) == hash(w1)
+
+[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"""
+reviewer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+Move _BatchPlanWrapper from prolix/fitting/config.py:28 to xtrax/tiling/_plan_wrapper.py. Re-export as shim from prolix/fitting/config.py. Update aminx imports if any.
+
+Hash contract must be preserved exactly: __hash__ returns hash(self._id) where self._id = id(plan). Two wrappers around the same plan object hash equal; two wrappers around different plan objects hash unequal.
+
+Acceptance criteria:
+- Given: from xtrax.tiling import _BatchPlanWrapper; Then: resolves without ImportError
+- Given: from prolix.fitting.config import _BatchPlanWrapper; Then: still resolves (shim)
+- Given: plan_a = make_plan(); plan_b = make_plan(); w1 = _BatchPlanWrapper(plan_a); w2 = _BatchPlanWrapper(plan_a); w3 = _BatchPlanWrapper(plan_b); Then: hash(w1) == hash(w2) and hash(w1) != hash(w3) and hash(w1) == hash(w1)
+
+REVIEWER CHECKLIST (fill in before running dw emit-sprint):
+VERIFY: cargo command or test that must pass — e.g. `cargo nextest run -p <crate>`
+VERIFY: observable assertion — e.g. \"new test exists and calls the handler directly\"
+VERIFY: no regression — e.g. \"existing tests still pass\"
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written."""
+return_key = "1909"
+
+[[tracks]]
+id = "c"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1864"
+phase_name = "Track C — [debt] xtrax DedupSpec.__post_init__ validates k==len(unique_indices) but not shape consistency with CarrySpec axes (#1864)"
+fixer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+DedupSpec.__post_init__ (dedup.py:73) checks k==len(unique_indices) but does not cross-validate that the CarrySpec axes it will be paired with are consistent in shape. A mismatch raises a cryptic JAX tracer error at JIT time rather than a clean validation error at construction time.
+
+[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"""
+reviewer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+DedupSpec.__post_init__ (dedup.py:73) checks k==len(unique_indices) but does not cross-validate that the CarrySpec axes it will be paired with are consistent in shape. A mismatch raises a cryptic JAX tracer error at JIT time rather than a clean validation error at construction time.
+
+REVIEWER CHECKLIST (fill in before running dw emit-sprint):
+VERIFY: cargo command or test that must pass — e.g. `cargo nextest run -p <crate>`
+VERIFY: observable assertion — e.g. \"new test exists and calls the handler directly\"
+VERIFY: no regression — e.g. \"existing tests still pass\"
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written."""
+return_key = "1864"
+
+[orchestration]
+sequential = []
+concurrent = []
+
+[deprecation]

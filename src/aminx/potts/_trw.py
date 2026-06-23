@@ -22,6 +22,23 @@ from aminx.potts._trw_flashmd import prod_pow_messages_axis0_tiled
 from aminx.potts._trw_spec import PottsTRWRunSpec
 
 
+def lcp_regularizer(
+    J: Float[Array, "n n q q"],  # noqa: N803
+    *,
+    lambda_lcp: float = 1e-3,
+) -> Float[Array, ""]:
+    """Locally-constrained prior (LCP): L2 regularizer on coupling strengths.
+
+    Args:
+        J: Pairwise coupling matrix of shape (n, n, q, q)
+        lambda_lcp: Regularization strength (default 1e-3)
+
+    Returns:
+        Regularization loss: lambda_lcp * ||J||_2^2 (sum of squared entries)
+    """
+    return jnp.asarray(lambda_lcp, dtype=J.dtype) * jnp.sum(J**2)
+
+
 def rho_from_l_pinv(
     W: Float[Array, "n n"],  # noqa: N803
     *,
@@ -201,13 +218,16 @@ class DifferentiableTRW(eqx.Module):
         W: Float[Array, "n n"],  # noqa: N803
         J: Float[Array, "n n q q"],  # noqa: N803
         h: Float[Array, "n q"],
+        *,
+        lambda_lcp: float = 0.0,
     ) -> tuple[Array, Array]:
-        """Run TRW belief propagation on Potts MRF.
+        """Run TRW belief propagation on Potts MRF with optional LCP regularization.
 
         Args:
             W: Graph adjacency (binary, symmetric), shape (n, n).
             J: Pairwise potentials, shape (n, n, q, q).
             h: Node potentials, shape (n, q).
+            lambda_lcp: LCP L2 regularization strength (default 0.0, disabled).
 
         Returns:
             Tuple of:
@@ -222,7 +242,9 @@ class DifferentiableTRW(eqx.Module):
         m = jnp.ones((n, n, self.q), dtype=W.dtype) / float(self.q)
 
         safe_rho = jnp.maximum(rho, self.rho_floor)
-        energy = (1.0 / safe_rho[..., None, None]) * J + h[:, None, :, None]
+        # Add LCP regularization term if lambda_lcp > 0
+        lcp_reg = lcp_regularizer(J, lambda_lcp=lambda_lcp) if lambda_lcp > 0.0 else 0.0
+        energy = (1.0 / safe_rho[..., None, None]) * J + h[:, None, :, None] + lcp_reg
         exp_energy = jnp.exp(jnp.clip(energy, -30.0, 30.0))
 
         spec = self.spec

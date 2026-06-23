@@ -1079,11 +1079,11 @@ def _spec_base(
   input_type: Annotated[
     str,
     _OPT(
-      help="Input type override: 'auto' (detect scheme), 'file' (force local), or 'pdb'/'afdb'/'mdcath'"
+      help="Input type override: 'auto' (detect scheme), 'file' (force local), or 'pdb'/'afdb'/'mdcath'",
     ),
   ] = "auto",
   input_cache_dir: Annotated[
-    Path | None, _OPT(help="Cache directory for fetched structures")
+    Path | None, _OPT(help="Cache directory for fetched structures"),
   ] = None,
 ) -> None:
   """Run specification JSON (see aminx.run.spec_json).

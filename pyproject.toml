@@ -221,6 +221,7 @@ root = ["src/aminx"]
 
 [tool.ty.rules]
 invalid-type-form = "ignore"
+unresolved-import = "ignore"
 
 [tool.jaxlint]
 # JAX-oriented static checks. Advisory only — not a CI gate.

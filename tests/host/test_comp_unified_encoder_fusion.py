@@ -535,7 +535,6 @@ def test_runner_averaged_path_removed():
 def test_deprecation_warning_legacy_fns():
     """Each deprecated stub emits DeprecationWarning."""
     import aminx.host.averaging as avg_mod
-    import aminx.host._sampling_averaged as sampled_mod
     import aminx.host.streaming as streaming_mod
 
     # 1. get_averaged_encodings
@@ -552,21 +551,7 @@ def test_deprecation_warning_legacy_fns():
         except Exception:
             pass
 
-    # 3. _sample_batch_averaged
-    with pytest.warns(DeprecationWarning):
-        try:
-            sampled_mod._sample_batch_averaged()
-        except Exception:
-            pass
-
-    # 4. _internal_sample_averaged
-    with pytest.warns(DeprecationWarning, match="_internal_sample_averaged"):
-        try:
-            sampled_mod._internal_sample_averaged(None, None, None, None, None, None)
-        except Exception:
-            pass
-
-    # 5. _sample_streaming_averaged (removed — must use unified _sample_streaming path)
+    # 3. _sample_streaming_averaged (removed — must use unified _sample_streaming path)
     with pytest.raises(NotImplementedError, match="_sample_streaming_averaged"):
         streaming_mod._sample_streaming_averaged(None, None, None, None)
 

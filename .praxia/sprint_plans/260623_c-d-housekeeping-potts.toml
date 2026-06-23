@@ -1,0 +1,194 @@
+[sprint]
+sprint_id = "260623_c-d-housekeeping-potts"
+sprint_num = 1
+name = "260623_c-d-housekeeping-potts"
+description = ""
+context = "[MANUAL: paste recon findings here before running emit-sprint]"
+max_fix_retries = 1
+worktree_shadow_mode = false
+
+[[tracks]]
+id = "a"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1199"
+phase_name = "Track A — Restore allowed-unresolved-imports for proxide/prolix after ty config migration (#1199)"
+fixer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+The invalid [tool.ty.analysis] section was removed in 84373ba but the allowed-unresolved-imports = [\"proxide.**\",\"prolix.**\"] setting was dropped rather than migrated. The setting was already non-functional (ty rejected the section), but should be re-added under the correct config key once the supported ty config schema is confirmed for the installed version.
+
+[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"""
+reviewer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+The invalid [tool.ty.analysis] section was removed in 84373ba but the allowed-unresolved-imports = [\"proxide.**\",\"prolix.**\"] setting was dropped rather than migrated. The setting was already non-functional (ty rejected the section), but should be re-added under the correct config key once the supported ty config schema is confirmed for the installed version.
+
+REVIEWER CHECKLIST (fill in before running dw emit-sprint):
+VERIFY: cargo command or test that must pass — e.g. `cargo nextest run -p <crate>`
+VERIFY: observable assertion — e.g. \"new test exists and calls the handler directly\"
+VERIFY: no regression — e.g. \"existing tests still pass\"
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written."""
+return_key = "1199"
+
+[[tracks]]
+id = "b"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1859"
+phase_name = "Track B — [debt] xtrax: New tiling API (CarrySpec, CarryShape, DedupSpec, factory) — zero docstrings; API surface undocumented (#1859)"
+fixer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+CarrySpec, CarryShape, DedupSpec, and make_axis_dispatch were added in T2.1–T2.4 with no module-level or class-level docstrings. The public API surface is effectively undocumented. Add docstrings before T2.5 ships so downstream users aren't flying blind.
+
+[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"""
+reviewer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+CarrySpec, CarryShape, DedupSpec, and make_axis_dispatch were added in T2.1–T2.4 with no module-level or class-level docstrings. The public API surface is effectively undocumented. Add docstrings before T2.5 ships so downstream users aren't flying blind.
+
+REVIEWER CHECKLIST (fill in before running dw emit-sprint):
+VERIFY: cargo command or test that must pass — e.g. `cargo nextest run -p <crate>`
+VERIFY: observable assertion — e.g. \"new test exists and calls the handler directly\"
+VERIFY: no regression — e.g. \"existing tests still pass\"
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written."""
+return_key = "1859"
+
+[[tracks]]
+id = "c"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "2488"
+phase_name = "Track C — Fix _MinimalScoringSpec stub gap — add run_spec duck type for RS-7b runner test (#2488)"
+fixer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+test_runner_averaged_score_fn_e2e_d1 fails because _MinimalScoringSpec (tests/scoring/test_averaged_parity.py:403) lacks run_spec. Runner reads run_spec.sampling.{return_logits, backbone_noise, random_seed, return_decoding_orders} and run_spec.io.output_h5_path unconditionally. Add a nested duck-type object to the stub to satisfy all access sites.
+
+[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"""
+reviewer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+test_runner_averaged_score_fn_e2e_d1 fails because _MinimalScoringSpec (tests/scoring/test_averaged_parity.py:403) lacks run_spec. Runner reads run_spec.sampling.{return_logits, backbone_noise, random_seed, return_decoding_orders} and run_spec.io.output_h5_path unconditionally. Add a nested duck-type object to the stub to satisfy all access sites.
+
+REVIEWER CHECKLIST (fill in before running dw emit-sprint):
+VERIFY: cargo command or test that must pass — e.g. `cargo nextest run -p <crate>`
+VERIFY: observable assertion — e.g. \"new test exists and calls the handler directly\"
+VERIFY: no regression — e.g. \"existing tests still pass\"
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written."""
+return_key = "2488"
+
+[[tracks]]
+id = "d"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1298"
+phase_name = "Track D — P-02: Weight recapture — caliby corrections → caliby_<id>.eqx.zst (bathos-tracked) (#1298)"
+fixer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+Bathos-tracked calibration run that produces caliby_<id>.eqx.zst. Caliby is a learned scalar/vector correction to TRW marginals (not analytically derivable from Potts energies). Design: caliby module is an eqx.Module with array parameters (never a Python-level scalar — must be a jit-safe pytree leaf). When caliby_path is None in PottsRunSpec, inference uses an identity CalibrationModule (zero bias / pass-through) so the run loop is not blocked. Independently versioned from potts_<id>.eqx.zst. Loaded via same zstd/skeleton machinery as PottsModel. If calibration dataset is cluster-only, this is a bathos cluster job (L1/L2/L3 gates apply). Must confirm whether dataset is locally reproducible for L2 smoke test before submission.
+
+[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"""
+reviewer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+Bathos-tracked calibration run that produces caliby_<id>.eqx.zst. Caliby is a learned scalar/vector correction to TRW marginals (not analytically derivable from Potts energies). Design: caliby module is an eqx.Module with array parameters (never a Python-level scalar — must be a jit-safe pytree leaf). When caliby_path is None in PottsRunSpec, inference uses an identity CalibrationModule (zero bias / pass-through) so the run loop is not blocked. Independently versioned from potts_<id>.eqx.zst. Loaded via same zstd/skeleton machinery as PottsModel. If calibration dataset is cluster-only, this is a bathos cluster job (L1/L2/L3 gates apply). Must confirm whether dataset is locally reproducible for L2 smoke test before submission.
+
+REVIEWER CHECKLIST (fill in before running dw emit-sprint):
+VERIFY: cargo command or test that must pass — e.g. `cargo nextest run -p <crate>`
+VERIFY: observable assertion — e.g. \"new test exists and calls the handler directly\"
+VERIFY: no regression — e.g. \"existing tests still pass\"
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written."""
+return_key = "1298"
+
+[[tracks]]
+id = "e"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1301"
+phase_name = "Track E — P-11: MpnnPottsDesigner(eqx.Module) — MPNN-guided Potts coordinator (#1301)"
+fixer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+Implement MpnnPottsDesigner(eqx.Module) holding an Aminx (MPNN) instance and a PottsModel instance. run_design(key, coords, mask, ...) runs: (1) Aminx forward pass to get per-position logits (q=21), (2) apply static alphabet_map permutation (from P-10 decision) to align logit indices to Potts state indices, (3) seed Gibbs initial sequence from MPNN per-position marginals (using gumbel sampling or argmax — seeding mode must be a static PottsRunSpec field), (4) run aminx.potts.sampling Gibbs/PT chain from seeded state. Seeding semantics decision (from P-10): whether to use unconditional per-position logits or order-averaged estimate — this must be recorded as an explicit decision in the spec before implementation begins. Alphabet_map is a static field (Int array, load-time assertion on idx20 semantics). Both Aminx and PottsModel weights are loaded independently and held as separate pytrees. Advisory note: MPNN logits from a single AR pass carry decoding-order bias; unconditional per-position logits are preferred for seeding unless a specific AR ordering is required.
+
+[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"""
+reviewer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+Implement MpnnPottsDesigner(eqx.Module) holding an Aminx (MPNN) instance and a PottsModel instance. run_design(key, coords, mask, ...) runs: (1) Aminx forward pass to get per-position logits (q=21), (2) apply static alphabet_map permutation (from P-10 decision) to align logit indices to Potts state indices, (3) seed Gibbs initial sequence from MPNN per-position marginals (using gumbel sampling or argmax — seeding mode must be a static PottsRunSpec field), (4) run aminx.potts.sampling Gibbs/PT chain from seeded state. Seeding semantics decision (from P-10): whether to use unconditional per-position logits or order-averaged estimate — this must be recorded as an explicit decision in the spec before implementation begins. Alphabet_map is a static field (Int array, load-time assertion on idx20 semantics). Both Aminx and PottsModel weights are loaded independently and held as separate pytrees. Advisory note: MPNN logits from a single AR pass carry decoding-order bias; unconditional per-position logits are preferred for seeding unless a specific AR ordering is required.
+
+REVIEWER CHECKLIST (fill in before running dw emit-sprint):
+VERIFY: cargo command or test that must pass — e.g. `cargo nextest run -p <crate>`
+VERIFY: observable assertion — e.g. \"new test exists and calls the handler directly\"
+VERIFY: no regression — e.g. \"existing tests still pass\"
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written."""
+return_key = "1301"
+
+[[tracks]]
+id = "f"
+is_research = false
+worktree = false
+skip_worktree = false
+
+[[tracks.items]]
+backlog_id = "1479"
+phase_name = "Track F — Implement DLMC sampler + LCP regularizer for Caliby-style inference in aminx.potts (#1479)"
+fixer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+PoeModel already supports Product-of-Experts energy summation over K backbones. Missing for full Caliby-style inference (Shuai et al. 2025): (1) DLMC (discrete Langevin Monte Carlo) sampler as an alternative to Gibbs sweeps in MpnnPottsDesigner, (2) LCP (local consistency projection) regularizer on the Potts energies. Reference: Caliby Fig 2 benchmark uses DLMC+LCP vs our current Gibbs+TRW. Both live in aminx.potts.sampling and aminx.potts.runner respectively. Prerequisite: converted PottsMPNN weights in outputs/weights/pottsmpnn/ (job 15771565).
+
+[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"""
+reviewer_prompt = """
+# DRAFT — requires human review before dw emit-sprint
+
+BACKLOG DESCRIPTION:
+PoeModel already supports Product-of-Experts energy summation over K backbones. Missing for full Caliby-style inference (Shuai et al. 2025): (1) DLMC (discrete Langevin Monte Carlo) sampler as an alternative to Gibbs sweeps in MpnnPottsDesigner, (2) LCP (local consistency projection) regularizer on the Potts energies. Reference: Caliby Fig 2 benchmark uses DLMC+LCP vs our current Gibbs+TRW. Both live in aminx.potts.sampling and aminx.potts.runner respectively. Prerequisite: converted PottsMPNN weights in outputs/weights/pottsmpnn/ (job 15771565).
+
+REVIEWER CHECKLIST (fill in before running dw emit-sprint):
+VERIFY: cargo command or test that must pass — e.g. `cargo nextest run -p <crate>`
+VERIFY: observable assertion — e.g. \"new test exists and calls the handler directly\"
+VERIFY: no regression — e.g. \"existing tests still pass\"
+PASS if all VERIFY items are satisfied.
+FAIL if any VERIFY item is not met or untestable as written."""
+return_key = "1479"
+
+[orchestration]
+sequential = []
+concurrent = []
+
+[deprecation]

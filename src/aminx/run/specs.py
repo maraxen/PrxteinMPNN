@@ -352,7 +352,7 @@ class RunSpecification:
             noise_levels=bb_noise,
             mode=bb_mode,
             enabled=True,
-          )
+          ),
         )
 
     # Electrostatic noise
@@ -370,7 +370,7 @@ class RunSpecification:
             noise_levels=estat_levels,
             mode=self.estat_noise_mode or "direct",
             enabled=True,
-          )
+          ),
         )
       elif self.use_electrostatics:
         bundles.append(
@@ -379,7 +379,7 @@ class RunSpecification:
             noise_levels=(0.0,),
             mode=self.estat_noise_mode or "direct",
             enabled=True,
-          )
+          ),
         )
 
     # VDW noise
@@ -397,7 +397,7 @@ class RunSpecification:
             noise_levels=vdw_levels,
             mode=self.vdw_noise_mode or "direct",
             enabled=True,
-          )
+          ),
         )
       elif self.use_vdw:
         bundles.append(
@@ -406,7 +406,7 @@ class RunSpecification:
             noise_levels=(0.0,),
             mode=self.vdw_noise_mode or "direct",
             enabled=True,
-          )
+          ),
         )
 
     # Update self.noise with merged bundles

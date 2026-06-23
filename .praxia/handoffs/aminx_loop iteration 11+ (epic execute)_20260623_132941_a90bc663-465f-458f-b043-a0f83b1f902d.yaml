@@ -1,0 +1,59 @@
+---
+workspace: aminx
+session_id: f30e0327-6f76-4894-a577-c5894281895d
+status: complete
+immediately_relevant:
+- file: .praxia/docs/specs/260622_1203_proxide-heterogeneous-inputs.md
+  lines:
+  - 1
+  - 40
+  reason: 'Reconciled #1203 spec (URI scheme, resolver architecture, 10-task DAG, gates) — source of truth for the shipped feature'
+- file: src/aminx/cli.py
+  lines:
+  - 96
+  - 240
+  reason: 'resolve_inputs() + helpers (T3/T4/T5): URI-aware resolution, scheme dispatch, pre-fetch dedup, --input-type/--cache-dir'
+- file: src/aminx/io/proxide_fetch.py
+  lines:
+  - 34
+  - 76
+  reason: fetch_pdb/afdb/md_cath + InputResolutionError + per-accession cache + categorized errors (T2/T6/T7)
+- file: src/aminx/run/specs.py
+  lines:
+  - 84
+  - 130
+  reason: _loader_inputs runner-side unresolved-URI guard (T7b) — offline-cluster safety chokepoint
+active_dispatches: []
+task_id: 260618_autonomous-loop
+phase: loop iteration 11+ (epic execute)
+goal_statement: 'Autonomous praxia dev loop on aminx: close highest-priority executable backlog items end-to-end (recon→plan→fix→audit→merge); for unspecced work run the epic pipeline (research→design→adversarial spec review→register DAG→implement). hitl_semi_autonomous; merges to main authorized this session.'
+context_refs:
+- phase: loop iterations 1-10 (prior + early this session)
+  task_id: 260618_autonomous-loop
+  summary: 'RS-7b #2252, RS-6b #2226, SC #2447, #1202, #1860 merged earlier; this session added #1304, #1863, #1627, #1199(obsolete), #2446(corrected), #1203(epic)'
+failed_attempts:
+- attempt_id: git-checkout-baseline
+  description: Ran `git checkout <parent-commit>` / `git stash` in the PRIMARY checkout to compute ruff/ty error-count baselines during the verify→merge cycle
+  outcome: Detached HEAD and orphaned two fresh merge commits (T3 ea620e4, T7b 66084b1); main silently advanced without their code — broken collection state
+  reason_failed: checkout in the primary worktree moves HEAD off the branch tip; subsequent commits build on the wrong parent, orphaning merges
+  do_not_retry: true
+  evidence_ref: 'memory: feedback_no-git-checkout-during-merge-workflow.md'
+open_questions:
+- 'What next? Clean backlog drained. Options: (a) heavy/cluster potts features (#1298/#1301/#1479 — need cluster weights), (b) provide a brainstorm seed for a new epic, (c) address pre-existing test debt, (d) pause.'
+- 'SC cluster propagation decision (tev_design): publish aminx 0.1.0a7 or rsync+editable-install on engaging — still open from earlier'
+- 'Should #2446 deprecation cycle be closed (remove _sampling_averaged stub + its deprecation-warning test together)? Needs PI call.'
+deferred:
+- description: 'SMILES/FASTA input schemes for #1203'
+  rationale: proxide v0.1.0a9 has no SMILES/FASTA loaders — building scheme handlers now would be vaporware
+  recommended_phase: when proxide>=0.2 ships SMILES/FASTA support
+- description: '#1203 inputs_metadata provenance field'
+  rationale: Deferred during spec reconciliation to keep the slice minimal; re-resolution is reproducible from the deterministic cache
+  recommended_phase: 'future #1203 follow-up if provenance tracking is needed'
+lessons_refs:
+- /home/marielle/.claude/projects/-home-marielle-projects-aminx/memory/feedback_no-git-checkout-during-merge-workflow.md
+- /home/marielle/.claude/projects/-home-marielle-projects-aminx/memory/feedback_loop-state-absolute-path.md
+next_steps:
+- Await PI direction for next work — clean backlog is drained; remaining items need decisions (see open_questions)
+- 'If continuing: candidate items are heavy/cluster (#1298 weight-recapture bathos, #1301 MpnnPottsDesigner, #1479 DLMC+LCP — need cluster-converted PottsMPNN weights) or a new brainstorm seed (staging+ideas currently empty)'
+- 'Pre-existing repo health (NOT regressions, surface if prioritized): 3 full-suite failures — test_averaged_parity::test_runner_averaged_score_fn_e2e_d1 (_MinimalScoringSpec lacks run_spec, RS-7b stub gap) + 2 tests/parity/test_parity_ci.py checkpoint-load failures (equinox dropout2.inference leaf); ~24 tests/utils chex ImportError collection errors'
+---

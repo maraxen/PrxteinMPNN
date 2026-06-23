@@ -29,11 +29,8 @@ files:
   - 'src/aminx/host/**/*.py'
 
 # prep.py contains protein-only flat reads that are intentionally exempt.
-# _sampling_averaged.py is intentionally exempt: it wraps
-# SamplingSpecification directly and was not in scope for the RS-6b migration.
 ignores:
   - 'src/aminx/host/prep.py'
-  - 'src/aminx/host/_sampling_averaged.py'
 
 rule:
   any:

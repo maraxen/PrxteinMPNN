@@ -93,7 +93,7 @@ def test_rs6b_gate_clean_on_real_host_tree() -> None:
     """Assert the rule produces 0 violations on the real src/aminx/host/ tree.
 
     Uses the rule's own files:/ignores: configuration (no explicit scan_path),
-    which excludes prep.py and _sampling_averaged.py per the rule YAML.
+    which excludes prep.py per the rule YAML.
     """
     success, output = run_ast_grep_rule(_RULE_PATH)
 
@@ -102,5 +102,5 @@ def test_rs6b_gate_clean_on_real_host_tree() -> None:
         "Fix: migrate sampling-exclusive flat reads to run_spec sub-configs.\n"
         "Sampling-exclusive fields: num_samples, bias, fixed_positions, fixed_tokens,\n"
         "  use_unified_driver, compute_pseudo_perplexity.\n"
-        "Exemptions: prep.py and _sampling_averaged.py are intentionally excluded."
+        "Exemption: prep.py is intentionally excluded."
     )

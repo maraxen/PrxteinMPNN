@@ -15,6 +15,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from jaxtyping import Array
+from types import SimpleNamespace
 
 from aminx.host.averaging import ArithmeticMeanEncodingFusion, IdentityEncodingFusion
 from aminx.scoring.score import _nll_from_logits
@@ -414,6 +415,20 @@ class _MinimalScoringSpec:
   state_weights = None
   use_rolling_state: bool = False
   sampling_strategy: str = "temperature"
+
+  def __init__(self):
+    """Initialize with nested run_spec duck-type structure."""
+    self.run_spec = SimpleNamespace(
+      io=SimpleNamespace(
+        output_h5_path=None,
+      ),
+      sampling=SimpleNamespace(
+        return_logits=False,
+        backbone_noise=(0.0,),
+        random_seed=42,
+        return_decoding_orders=False,
+      ),
+    )
 
 
 def test_runner_averaged_score_fn_e2e_d1() -> None:

@@ -1,0 +1,76 @@
+---
+workspace: aminx
+session_id: 98ec8683-c558-4553-a466-d4846dd68d9c
+status: in_progress
+immediately_relevant:
+- file: mpnn_ext/.praxia/docs/preregistration/260630_wave-color-scheduling-fundamental-tests.md
+  lines:
+  - 49
+  - 73
+  reason: Section 3 is the authoritative DAG (nodes, deps, gates) for the whole epic -- read before starting any node
+- file: mpnn_ext/.praxia/docs/roadmaps/wave-color-scheduling/260630_00-mandate.md
+  lines:
+  - 1
+  - 51
+  reason: Mandate + document set + locked decisions; orientation doc for the epic
+- file: mpnn_ext/CLAUDE.md
+  lines:
+  - 1
+  - 30
+  reason: 'Project purpose: managed MPNN-extension research, aminx vendored as editable submodule at external/aminx'
+- file: aminx/src/aminx/utils/wave_parallel.py
+  lines:
+  - 1
+  - 60
+  reason: compute_wave_assignments -- existing wave-coloring utility W0.3 wires into the schedule selector
+- file: aminx/src/aminx/inference/decode/autoregressive.py
+  lines:
+  - 89
+  - 396
+  reason: AR decode hand-rolls jax.lax.scan/while_loop directly (deliberate perf choice, bypasses aminx's own CarrySpec too) -- the exact code path W0.3's schedule-selector wiring targets
+- file: aminx/src/aminx/tiling/eda.py
+  lines:
+  - 1
+  - 28
+  reason: 'New this session: 2-line re-export of xtrax.eda.explain_plan/extract_plan_stats for pre-compile plan auditing -- useful when building W0.3'
+- file: aminx/.praxia/docs/decisions/260630_runtimebundle-inputresolver-compose-not-subclass.md
+  lines:
+  - 1
+  - 30
+  reason: 'ADR for #1910 (not yet built) -- read before touching RuntimeBundle/InputResolver if W0 work needs them'
+active_dispatches: []
+task_id: 260630_wave-color-scheduling
+phase: Phase 1 — W0 instrumentation + wiring (not started)
+goal_statement: 'Implement W0 of the wave-color (chromatic) decoding-order scheduling epic: W0.1 LogitFingerprint EDA return, W0.1-GATE synthetic-invariant gate, W0.2 xtrax>=0.3.0 re-verify, W0.3 schedule selector + model-edge-set coloring adjacency wiring (critical path) -- per mpnn_ext epic #2871 / prereg sec 3.'
+context_refs: []
+failed_attempts:
+- attempt_id: a1
+  description: First instinct for xtrax.eda integration was to build a full conversion adapter inside aminx (aminx/tiling/eda_adapter.py) that reconstructed real xtrax.tiling.strategy.{Vmap,SafeMap,Scan,DedupGather} instances from aminx's own strategy objects, including Protocol-matching wrapper closures for dedup_fn/gather_fn typed as Any.
+  outcome: Worked but required ~150 lines of conversion code, an Any-typed Protocol-matching layer, and a TID251 lint exemption.
+  reason_failed: 'Wrong layer to fix it in -- xtrax.eda''s stats extraction only ever READS fields (type(strategy).__name__, a few plain ints/tuples), never calls strategy methods, so no reconstruction was needed at all. The actual fix was upstream: make xtrax.eda use structural Protocols (isinstance against @runtime_checkable Protocol, not nominal classes) so ANY structurally-compatible plan object works directly, zero conversion. Then a 1-field rename (AxisDecision.axis -> .spec, via ast-grep) was the only aminx-side change needed.'
+  do_not_retry: true
+  evidence_ref: deleted; see xtrax commit 339f81c and aminx commit e63b23e for the actual fix
+- attempt_id: a2
+  description: Ran `git stash` in the aminx worktree while a background `uv run pytest tests/ -q` process was still running, to check pre-existing lint/ty baseline counts.
+  outcome: The in-flight background test run's results became unreliable (the working tree changed under it mid-run); had to discard that run and re-run cleanly after the stash pop.
+  reason_failed: git stash mutates the working tree that a concurrent background process is reading from -- don't stash/pop while a background test/build is running against the same checkout.
+  do_not_retry: true
+  evidence_ref: null
+open_questions:
+- Should the xtrax commit (339f81c, on main, local only) be pushed anywhere, or does the user want to review/PR it first? Same question for mpnn_ext's first commit and the aminx commits -- none have been pushed to any remote this session, all local only.
+deferred:
+- description: 'EPIC #1541 (aminx.tiling -> xtrax.tiling full migration, T2-T5)'
+  rationale: Large, multi-week, already fully spec'd; not a W0 blocker since W0.3's AR-decode target already bypasses aminx's tiling abstraction via hand-rolled lax.scan/while_loop
+  recommended_phase: separate epic, can run in parallel with or after wave-color-scheduling W0-W4
+- description: 'Backlog #1910 (aminx RuntimeBundle/InputResolver implementation)'
+  rationale: ADR written (compose not subclass) but no code started; not on W0's critical path
+  recommended_phase: 'whenever #1910 is picked up, follow the ADR'
+lessons_refs:
+- '.claude memory: project_mpnn-ext-research-split.md, feedback_praxia-backlog-fk-fix.md (addendum: backlog update status ''closed''/''done'' hit a DB constraint error this session, ''completed'' worked -- and list/graph read-paths are workspace-scoped/possibly-cached, always verify via direct id addressing not list filters)'
+next_steps:
+- 'FIRST: cd /home/marielle/projects/mpnn_ext && git submodule update --remote external/aminx (or manually re-pin to aminx main 1ad2fed) -- the submodule is stale at 95b18b2, 5 commits behind, and W0.3 will want the new aminx.tiling.eda module + the .spec rename + the upstreamed topology validator'
+- Read mpnn_ext/.praxia/docs/preregistration/260630_wave-color-scheduling-fundamental-tests.md sec 3 (authoritative DAG) before starting any W0 node
+- 'Start W0.1 (LogitFingerprint EDA return: host/logit_aggregation.py + gated key in host/runner.py + spec flag) and W0.3 (schedule selector + model-edge-set coloring adjacency) -- both have no deps, can run in parallel; W0.3 is critical path'
+- Use aminx.tiling.eda.explain(plan) (new this session) to audit W0.3's batching plan before compiling
+- File W0 work under mpnn_ext's praxia workspace (scope set mpnn_ext, workspace_id ws_e29a9e30-8c6b-466f-bf70-e1662415d43e) per project_mpnn-ext-research-split memory -- not aminx or tev_design
+---

@@ -24,6 +24,22 @@ def ceil_to_granularity(n: int, g: int) -> int:
   return ((n + g - 1) // g) * g
 
 
+def resolve_safe_map_tile(default_batch_size: int, tile_granularity: int) -> int:
+  """Resolve the SafeMap tile size when an axis is demoted from vmap.
+
+  When the AxisSpec declares a positive default_batch_size (a real safe_map
+  tile-size hint), use it, rounded up to the nearest tile_granularity
+  multiple for alignment. When default_batch_size is 0 (pure vmap intent,
+  no safe_map size declared -- e.g. N_RESIDUES/N_LIGAND_ATOMS, which set
+  tile_granularity for alignment purposes even though they aren't normally
+  expected to demote), fall back to tile_granularity alone as the only
+  positive sizing hint available.
+  """
+  if default_batch_size > 0:
+    return max(1, ceil_to_granularity(default_batch_size, tile_granularity))
+  return max(1, tile_granularity)
+
+
 def estimate_memory_theoretical(
   decisions: list[AxisDecision],
   base_shape_bytes: float,
@@ -167,7 +183,7 @@ class BatchPlanner:
     het_names: set[str] = set()
     for ax in remaining:
       if ax.heterogeneous:
-        tile = max(1, ax.tile_granularity)
+        tile = resolve_safe_map_tile(ax.default_batch_size, ax.tile_granularity)
         decisions.append(
           AxisDecision(
             axis=ax,
@@ -193,7 +209,7 @@ class BatchPlanner:
       current = decisions + hom_decisions
       if self.estimate_memory(current) <= self.budget_bytes:
         break
-      tile = max(1, ax.tile_granularity)
+      tile = resolve_safe_map_tile(ax.default_batch_size, ax.tile_granularity)
       hom_decisions[i] = AxisDecision(
         axis=ax,
         batch_size=tile,

@@ -56,7 +56,7 @@ def estimate_memory_theoretical(
   product = 1
   for d in decisions:
     if d.batch_size == 0:
-      product *= d.axis.cardinality
+      product *= d.spec.cardinality
     else:
       product *= d.batch_size
   return base_shape_bytes * product * activation_multiplier
@@ -78,9 +78,15 @@ class AxisSpec:
 
 @dataclass(frozen=True)
 class AxisDecision:
-  """Planner output for one axis."""
+  """Planner output for one axis.
 
-  axis: AxisSpec
+  Field named `spec` (not `axis`) to match xtrax.tiling.plan.AxisDecision's
+  field name -- lets this class satisfy xtrax.eda.types.AxisDecisionLike (a
+  structural Protocol) directly, no alias or conversion needed. See
+  aminx.tiling.eda.
+  """
+
+  spec: AxisSpec
   batch_size: int  # 0 = vmap; positive = safe_map tile size
   reasoning: str
   strategy: AxisStrategy = dataclasses.field(default_factory=Vmap)
@@ -101,12 +107,12 @@ class BatchPlan:
 
   def decision_for(self, name: str) -> AxisDecision:
     for d in self.decisions:
-      if d.axis.name == name:
+      if d.spec.name == name:
         return d
     raise KeyError(name)
 
   def log_summary(self) -> None:
-    parts = [f"{d.axis.name}=bs:{d.batch_size}" for d in self.decisions]
+    parts = [f"{d.spec.name}=bs:{d.batch_size}" for d in self.decisions]
     status = "EXCEEDED" if self.budget_exceeded else "ok"
     logger.debug(
       "BatchPlan [%s]: %s | estimate=%.1f bytes",
@@ -148,7 +154,7 @@ class BatchPlanner:
         )
         phase0_decisions.append(
           AxisDecision(
-            axis=ax,
+            spec=ax,
             batch_size=1,
             reasoning=f"carry-bearing scan (CarrySpec declared for '{ax.name}')",
             strategy=scan_strategy,
@@ -168,7 +174,7 @@ class BatchPlanner:
         dg_strategy = ds.to_dedup_gather()
         phase0b_decisions.append(
           AxisDecision(
-            axis=ax,
+            spec=ax,
             batch_size=ds.k,
             reasoning=f"dedup-gather (DedupSpec declared for '{ax.name}', k={ds.k}, k_bucket={dg_strategy.k_bucket})",
             strategy=dg_strategy,
@@ -186,7 +192,7 @@ class BatchPlanner:
         tile = resolve_safe_map_tile(ax.default_batch_size, ax.tile_granularity)
         decisions.append(
           AxisDecision(
-            axis=ax,
+            spec=ax,
             batch_size=tile,
             reasoning="heterogeneous axis: element shapes vary; safe_map required",
             strategy=SafeMap(tile=tile),
@@ -198,7 +204,7 @@ class BatchPlanner:
     homogeneous = [ax for ax in remaining if not ax.heterogeneous]
     hom_decisions: list[AxisDecision] = [
       AxisDecision(
-        axis=ax,
+        spec=ax,
         batch_size=0,
         reasoning="vmap (homogeneous, within budget)",
         strategy=Vmap(),
@@ -211,7 +217,7 @@ class BatchPlanner:
         break
       tile = resolve_safe_map_tile(ax.default_batch_size, ax.tile_granularity)
       hom_decisions[i] = AxisDecision(
-        axis=ax,
+        spec=ax,
         batch_size=tile,
         reasoning=f"demoted to safe_map tile={tile}: estimate exceeded budget",
         strategy=SafeMap(tile=tile),
@@ -224,10 +230,10 @@ class BatchPlanner:
     from aminx.tiling.strategy import DedupGather as _DedupGather
 
     for d in all_decisions:
-      if isinstance(d.strategy, _DedupGather) and not d.axis.dedup_eligible:
+      if isinstance(d.strategy, _DedupGather) and not d.spec.dedup_eligible:
         raise TilingError(
-            f"Axis '{d.axis.name}' has dedup_eligible=False but was assigned "
-            f"DedupGather strategy. Set dedup_eligible=True on the AxisSpec to allow dedup.",
+          f"Axis '{d.spec.name}' has dedup_eligible=False but was assigned "
+          f"DedupGather strategy. Set dedup_eligible=True on the AxisSpec to allow dedup.",
         )
 
     final_estimate = self.estimate_memory(all_decisions)

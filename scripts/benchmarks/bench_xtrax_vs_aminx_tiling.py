@@ -98,7 +98,7 @@ def _plan_aminx(cardinality: int, default_batch_size: int, data_width: int = DAT
     # the same "cardinality > default_batch_size -> demote" rule xtrax applies directly.
     elements_per_row = data_width
     estimate_memory = lambda decisions: math.prod(  # noqa: E731
-        d.axis.cardinality if d.batch_size == 0 else d.batch_size for d in decisions
+        d.spec.cardinality if d.batch_size == 0 else d.batch_size for d in decisions
     ) * elements_per_row
     planner = AminxBatchPlanner(
         axes=[spec],

@@ -514,6 +514,7 @@ class SamplingSpecification(RunSpecification):
   use_arrayrecord: bool = False
   return_logits: bool = True
   return_decoding_orders: bool = False
+  return_logit_fingerprint: bool = False
   samples_batch_size: int = 16
   samples_chunk_size: int | None = None
   noise_batch_size: int = 1

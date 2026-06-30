@@ -66,6 +66,7 @@ def build_inference_bundle(
   schedule: DecodingSchedule = "fixed_n_to_c",
   schedule_key: jax.Array | None = None,
   schedule_k_neighbors: int = 48,
+  wave: WaveScheduleBundle | None = None,
 ) -> tuple[InferenceBundle, InferenceConfig]:
   """Single entry point for bundle construction from raw arrays.
 
@@ -79,6 +80,15 @@ def build_inference_bundle(
   autoregressive visibility mask is derived from this schedule via
   `generate_wave_ar_mask` (positions in earlier waves are visible; positions in
   the same wave but different tie groups are not).
+
+  `wave` overrides `schedule` entirely with a caller-supplied `WaveScheduleBundle`
+  (e.g. a custom decoding order built via `WaveScheduleBundle.from_tie_groups`
+  for an experiment-specific counterfactual schedule). Like the four non-default
+  `schedule` arms, this is HOST-SIDE ONLY if `wave` itself was built with
+  host-only constructors -- jit/vmap-safety depends on how `wave` was built, not
+  on this parameter. Its `group_ids` must live in `tie_group_map`'s id space
+  (true for `from_tie_groups`/`from_colors`-built bundles; NOT true for
+  `WaveScheduleBundle.empty()`, which ignores ties by design).
   """
   # 1. Resolve shapes
   if coords.ndim == 3:
@@ -152,7 +162,10 @@ def build_inference_bundle(
   # `.from_colors` / the coloring adjacency builder) use `.tolist()`/Python
   # loops/sets and are HOST-SIDE ONLY -- only request them when calling
   # `build_inference_bundle` outside any jax.jit/vmap trace.
-  if schedule == "fixed_n_to_c":
+  wave_explicitly_supplied = wave is not None
+  if wave is not None:
+    pass
+  elif schedule == "fixed_n_to_c":
     wave = WaveScheduleBundle.empty(seq_len)
   else:
     resolved_schedule_key = schedule_key if schedule_key is not None else jax.random.PRNGKey(0)
@@ -178,7 +191,7 @@ def build_inference_bundle(
       # Default to full context minus self (all-ones except diagonal)
       ar_mask = 1.0 - jnp.eye(seq_len)
       ar_mask = jnp.broadcast_to(ar_mask[None, ...], (num_states, seq_len, seq_len))
-    elif schedule == "fixed_n_to_c":
+    elif schedule == "fixed_n_to_c" and not wave_explicitly_supplied:
       # generate_ar_mask is pure-jnp (jit/vmap-safe) and tie-group-aware via
       # tie_group_map directly -- unlike `wave` (which stays untied/empty()
       # for jit-safety above), this is correct for tied positions: positions
@@ -186,9 +199,10 @@ def build_inference_bundle(
       ar_mask_2d = generate_ar_mask(jnp.arange(seq_len, dtype=jnp.int32), tie_group_map=tie_group_map[0])
       ar_mask = jnp.broadcast_to(ar_mask_2d.astype(jnp.float32)[None, ...], (num_states, seq_len, seq_len))
     else:
-      # wave was built host-side above (from_tie_groups/from_colors), so its
-      # group_ids already live in tie_group_map's id space -- generate_wave_ar_mask
-      # is correct here (unlike for the empty()-schedule branch above).
+      # wave was either built host-side above (from_tie_groups/from_colors) or
+      # explicitly supplied by the caller -- both live in tie_group_map's id
+      # space, so generate_wave_ar_mask is correct here (unlike for the
+      # empty()-schedule branch above).
       ar_mask_2d = generate_wave_ar_mask(wave, tie_group_map[0])
       ar_mask = jnp.broadcast_to(ar_mask_2d[None, ...], (num_states, seq_len, seq_len))
   elif ar_mask.ndim == 2:

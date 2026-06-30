@@ -24,6 +24,7 @@ from aminx.host.kernel_dispatch import _sample_batch
 from aminx.host.logit_aggregation import (
   aggregate_logits,
   aggregate_pseudo_perplexities,
+  compute_logit_fingerprint,
   pad_to_max,
 )
 from aminx.host.output_sinks import (
@@ -167,7 +168,8 @@ def sample(
   # Non-streaming path uses io_callback staging via streaming_tensor_sink_session;
   # drains per-batch via take_staging_sequences_logits.
   all_sequences, all_pseudo_perplexities = [], []
-  all_logits = [] if spec.run_spec.sampling.return_logits else None
+  needs_logits = spec.run_spec.sampling.return_logits or spec.run_spec.sampling.return_logit_fingerprint
+  all_logits = [] if needs_logits else None
   canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
   resolved_structure_ids: list[str] = []
   structure_offset = 0
@@ -199,7 +201,7 @@ def sample(
         target_for_batch,
       )
       all_sequences.append(jnp.asarray(sampled_sequences_np))
-      if spec.run_spec.sampling.return_logits and all_logits is not None:
+      if needs_logits and all_logits is not None:
         all_logits.append(jnp.asarray(sampled_logits_np))
       if pseudo_perplexity is not None:
         all_pseudo_perplexities.append(pseudo_perplexity)
@@ -219,7 +221,7 @@ def sample(
     for seq in all_sequences
   ]
 
-  results = {
+  results: dict[str, Any] = {
     "sequences": jnp.concatenate(all_sequences_padded, axis=0),
     "mask": jnp.concatenate(all_masks, axis=0),
     "schema_version": GRID_SCHEMA_VERSION if spec.grid_mode else SAMPLING_SCHEMA_VERSION,
@@ -229,8 +231,12 @@ def sample(
       "structure_ids": resolved_structure_ids,
     },
   }
-  if spec.run_spec.sampling.return_logits and all_logits is not None:
-    results["logits"] = aggregate_logits(all_logits, max_len)
+  aggregated_logits = aggregate_logits(all_logits, max_len) if needs_logits and all_logits is not None else None
+  if spec.run_spec.sampling.return_logits and aggregated_logits is not None:
+    results["logits"] = aggregated_logits
+  if spec.run_spec.sampling.return_logit_fingerprint and aggregated_logits is not None:
+    fingerprint_key = jax.random.PRNGKey(spec.run_spec.sampling.random_seed)
+    results["logit_fingerprint"] = compute_logit_fingerprint(aggregated_logits, fingerprint_key)
   if all_pseudo_perplexities:
     results["pseudo_perplexity"] = aggregate_pseudo_perplexities(all_pseudo_perplexities)
 

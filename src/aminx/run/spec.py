@@ -135,6 +135,7 @@ class SamplingConfig(eqx.Module):
   return_logits: bool = eqx.field(static=True)
   compute_pseudo_perplexity: bool = eqx.field(static=True)
   return_decoding_orders: bool = eqx.field(static=True)
+  return_logit_fingerprint: bool = eqx.field(static=True)
   backbone_noise: tuple[float, ...] = eqx.field(static=True)
   temperature: tuple[float, ...] = eqx.field(static=True)
   bias: Any = None
@@ -380,6 +381,7 @@ def build_run_spec(spec: object) -> RunSpec:
     return_logits=bool(getattr(spec, "return_logits", False)),
     compute_pseudo_perplexity=bool(getattr(spec, "compute_pseudo_perplexity", False)),
     return_decoding_orders=bool(getattr(spec, "return_decoding_orders", False)),
+    return_logit_fingerprint=bool(getattr(spec, "return_logit_fingerprint", False)),
     backbone_noise=_as_float_tuple(getattr(spec, "backbone_noise", None)),
     temperature=_as_float_tuple(getattr(spec, "temperature", None)),
     bias=getattr(spec, "bias", None),

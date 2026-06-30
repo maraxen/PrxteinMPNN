@@ -3700,6 +3700,7 @@ requires-dist = [
     { name = "chex", marker = "extra == 'dev'", specifier = ">=0.1.86" },
     { name = "complexipy", marker = "extra == 'dev'", specifier = ">=5.6.1" },
     { name = "equinox", specifier = ">=0.11.0" },
+    { name = "flatbuffers", marker = "extra == 'cli'", specifier = ">=2" },
     { name = "grain", specifier = ">=0.2.0" },
     { name = "import-linter", marker = "extra == 'dev'", specifier = ">=2.1" },
     { name = "interrogate", marker = "extra == 'dev'", specifier = ">=1.7.0" },
@@ -3721,14 +3722,17 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
     { name = "seaborn", marker = "extra == 'eda'", specifier = ">=0.13" },
     { name = "ty", marker = "extra == 'dev'" },
+    { name = "tyro", marker = "extra == 'cli'", specifier = ">=0.9,<2" },
 ]
-provides-extras = ["dev", "eda"]
+provides-extras = ["cli", "dev", "eda"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "complexipy", specifier = ">=5.6.1" },
+    { name = "import-linter", specifier = ">=2.1" },
     { name = "pytest-benchmark", specifier = ">=5.2.3" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "tyro", specifier = ">=0.9,<2" },
 ]
 docs = [
     { name = "furo" },

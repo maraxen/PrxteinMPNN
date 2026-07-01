@@ -18,6 +18,7 @@ This is used for:
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 from functools import partial
 from typing import cast
@@ -29,6 +30,10 @@ from jaxtyping import PRNGKeyArray
 from aminx.inference.bundle_builder import build_inference_bundle
 from aminx.inference.logits import make_stage_set
 from aminx.inference.score_conditional import kernel as score_conditional
+from aminx.tiling.axes import N_CANDIDATES, N_REPLICATES
+from aminx.tiling.dispatch import make_axis_dispatch
+from aminx.tiling.planner import AxisSpec, BatchPlanner, estimate_memory_theoretical
+from aminx.tiling.strategy import AxisStrategy, SafeMap
 from aminx.types.arrays import (
   AlphaCarbonMask,
   AutoRegressiveMask,
@@ -87,7 +92,8 @@ def make_conditional_logits_fn(
     """Compute conditional logits for a sequence-structure pair.
 
     Args:
-      prng_key: JAX random key (unused but kept for API consistency).
+      prng_key: JAX random key. Drives backbone-noise injection when ``backbone_noise``
+        is nonzero; key-invariant only at ``backbone_noise=0`` (the default).
       structure_coordinates: Atomic coordinates (N, 4, 3).
       mask: Alpha carbon mask indicating valid residues.
       residue_index: Residue indices.
@@ -272,3 +278,188 @@ def make_encoding_conditional_logits_split_fn(
     return jax.vmap(inference_model.w_out, in_axes=0)(decoded_node_features)
 
   return encode_fn, decode_fn
+
+
+def _plan_axis_strategy(
+  axis_template: AxisSpec,
+  cardinality: int,
+  batch_size_override: int | None,
+  *,
+  activation_bytes_per_element: float,
+  headroom: float = 0.80,
+) -> AxisStrategy:
+  """Resolve a Vmap/SafeMap strategy for one axis via BatchPlanner.
+
+  Composable_jax primitive (see the using-xtrax skill and
+  feedback_xtrax_composable_primitives memory): never hand-roll jax.vmap/lax.map
+  chunking here. An explicit ``batch_size_override`` bypasses the planner with a
+  fixed SafeMap tile (guardrail for callers who already know their memory ceiling);
+  otherwise the planner auto-demotes Vmap -> SafeMap when the device memory budget
+  would be exceeded, mirroring host/plan.py's ``make_sampling_planner`` budget calc
+  (scoped locally so this sampling-layer module does not import the host layer).
+  """
+  if batch_size_override is not None and batch_size_override > 0:
+    return SafeMap(tile=batch_size_override)
+
+  axis = dataclasses.replace(axis_template, cardinality=cardinality)
+  try:
+    limit = jax.devices()[0].memory_stats()["bytes_limit"]
+  except Exception:  # noqa: BLE001 - memory_stats unavailable on some backends (e.g. CPU)
+    limit = 4 * 1024**3
+  budget = limit * headroom
+  plan = BatchPlanner(
+    axes=[axis],
+    budget_bytes=budget,
+    estimate_memory=lambda decisions: estimate_memory_theoretical(
+      decisions, activation_bytes_per_element, 1.0,
+    ),
+  ).plan()
+  return plan.decision_for(axis.name).strategy
+
+
+def make_batched_conditional_logits_split_fn(
+  model: ModelProtocol,
+  *,
+  replicate_batch_size: int | None = None,
+  candidate_batch_size: int | None = None,
+) -> tuple[Callable, Callable]:
+  """Batched encode-over-replicates / decode-over-candidates split fn.
+
+  Builds on :func:`make_encoding_conditional_logits_split_fn`: the replicate axis
+  (R distinct backbone-noise PRNG keys) drives ``encode_fn``; the candidate axis
+  (C externally provided sequences) drives the keyless, inference-mode ``decode_fn``.
+  This is the clean CRN (common random numbers) factoring for paired-key JSD
+  analyses: replicate = encode, candidate = decode. No kernel or fusion change —
+  this composes the existing encode/decode split via BatchPlanner-selected axis
+  strategies (Vmap when the axis fits the memory budget, SafeMap tiling otherwise).
+
+  Args:
+    model: A Aminx Equinox model instance.
+    replicate_batch_size: Fixed SafeMap tile size for the replicate (R) axis.
+      None defers to the BatchPlanner's memory-budget-driven choice.
+    candidate_batch_size: Fixed SafeMap tile size for the candidate (C) axis.
+      Same default behavior as ``replicate_batch_size``.
+
+  Returns:
+    Tuple of (batched_encode_fn, batched_decode_fn):
+      - ``batched_encode_fn(coords, mask, res_idx, chain_idx, replicate_keys,
+        backbone_noise=None, structure_mapping=None) -> EncoderOutput`` batched
+        over R (leading axis).
+      - ``batched_decode_fn(encodings, candidate_sequences, ar_mask=None) ->
+        Logits`` of shape ``(R, C, L, 21)``.
+
+  Example:
+    >>> batched_encode_fn, batched_decode_fn = make_batched_conditional_logits_split_fn(model)
+    >>> keys = jax.random.split(jax.random.key(0), 256)  # R=256 replicates
+    >>> encodings = batched_encode_fn(coords, mask, res_idx, chain_idx, keys, backbone_noise=0.1)
+    >>> logits = batched_decode_fn(encodings, candidate_sequences)  # (256, C, L, 21)
+
+  """
+  encode_fn, decode_fn = make_encoding_conditional_logits_split_fn(model)
+
+  def batched_encode_fn(
+    structure_coordinates: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_index: ResidueIndex,
+    chain_index: ChainIndex,
+    replicate_keys: PRNGKeyArray,
+    backbone_noise: BackboneNoise | None = None,
+    structure_mapping: jax.Array | None = None,
+  ) -> EncoderOutput:
+    """Encode a structure once per replicate key; returns EncoderOutput batched over R."""
+    n_replicates = replicate_keys.shape[0]
+    seq_len = structure_coordinates.shape[0]
+    # Conservative per-replicate activation estimate (node + edge features, float32).
+    activation_bytes = seq_len * (128 + 32 * 48) * 4
+    strategy = _plan_axis_strategy(
+      N_REPLICATES,
+      n_replicates,
+      replicate_batch_size,
+      activation_bytes_per_element=activation_bytes,
+    )
+    iterator = make_axis_dispatch(strategy, axis=N_REPLICATES.name)
+
+    def _encode_one(key: PRNGKeyArray) -> EncoderOutput:
+      return encode_fn(
+        structure_coordinates,
+        mask,
+        residue_index,
+        chain_index,
+        backbone_noise=backbone_noise,
+        prng_key=key,
+        structure_mapping=structure_mapping,
+      )
+
+    return iterator(_encode_one, replicate_keys)
+
+  def batched_decode_fn(
+    encodings: EncoderOutput,
+    candidate_sequences: ProteinSequence,
+    ar_mask: AutoRegressiveMask | None = None,
+  ) -> Logits:
+    """Decode R encodings x C candidate sequences; returns (R, C, L, 21) logits."""
+    n_candidates = candidate_sequences.shape[0]
+    seq_len = candidate_sequences.shape[1]
+    activation_bytes = seq_len * 21 * 4  # (L, 21) float32 logits per candidate
+    strategy = _plan_axis_strategy(
+      N_CANDIDATES,
+      n_candidates,
+      candidate_batch_size,
+      activation_bytes_per_element=activation_bytes,
+    )
+    iterator = make_axis_dispatch(strategy, axis=N_CANDIDATES.name)
+
+    def _decode_over_candidates(enc: EncoderOutput) -> Logits:
+      def _decode_one(seq: ProteinSequence) -> Logits:
+        return decode_fn(enc, seq, ar_mask)
+
+      return iterator(_decode_one, candidate_sequences)
+
+    # R is already materialized by batched_encode_fn (its own Vmap/SafeMap choice
+    # fixed this shape); a plain vmap composes the R axis without re-planning it.
+    return jax.vmap(_decode_over_candidates)(encodings)
+
+  return batched_encode_fn, batched_decode_fn
+
+
+def make_batched_conditional_logits_fn(
+  model: ModelProtocol,
+  *,
+  replicate_batch_size: int | None = None,
+  candidate_batch_size: int | None = None,
+) -> Callable:
+  """Monolithic batched conditional-logits fn (re-encodes per candidate).
+
+  Secondary convenience wrapper around :func:`make_batched_conditional_logits_split_fn`
+  for small-C call sites that do not need to reuse an encoding across multiple decode
+  calls. Prefer the split fn for the paired-CRN JSD / MPNN-filter workloads.
+  """
+  batched_encode_fn, batched_decode_fn = make_batched_conditional_logits_split_fn(
+    model,
+    replicate_batch_size=replicate_batch_size,
+    candidate_batch_size=candidate_batch_size,
+  )
+
+  def batched_conditional_logits(
+    structure_coordinates: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_index: ResidueIndex,
+    chain_index: ChainIndex,
+    replicate_keys: PRNGKeyArray,
+    candidate_sequences: ProteinSequence,
+    ar_mask: AutoRegressiveMask | None = None,
+    backbone_noise: BackboneNoise | None = None,
+    structure_mapping: jax.Array | None = None,
+  ) -> Logits:
+    encodings = batched_encode_fn(
+      structure_coordinates,
+      mask,
+      residue_index,
+      chain_index,
+      replicate_keys,
+      backbone_noise=backbone_noise,
+      structure_mapping=structure_mapping,
+    )
+    return batched_decode_fn(encodings, candidate_sequences, ar_mask)
+
+  return batched_conditional_logits

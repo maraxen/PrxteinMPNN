@@ -681,6 +681,7 @@ def inspect(  # noqa: PLR0915
   from aminx.inference.bundle_builder import build_inference_bundle  # noqa: PLC0415
   from aminx.inference.score_unconditional import kernel as score_unconditional  # noqa: PLC0415
   from aminx.sampling.conditional_logits import (  # noqa: PLC0415
+    make_batched_conditional_logits_split_fn,
     make_conditional_logits_fn,
     make_encoding_conditional_logits_split_fn,
   )
@@ -785,6 +786,45 @@ def inspect(  # noqa: PLR0915
             native_seq,
           )
           results_per_feature[feature_name].append(logits)
+
+        elif feature_name == "batched_conditional_logits":
+          # Composable_jax batched path (Part 2, Option B): R replicate keys (bb-noise
+          # draws) x C externally provided candidate sequences, teacher-forced. See
+          # sampling/conditional_logits.py:make_batched_conditional_logits_split_fn and
+          # the using-xtrax skill — axis dispatch (Vmap/SafeMap) is BatchPlanner-resolved,
+          # not hand-rolled. candidate_sequences/n_replicates validated in specs.py
+          # __post_init__ (non-empty candidates; backbone_noise > 0 when n_replicates > 1).
+          from aminx.utils.aa_convert import string_to_protein_sequence  # noqa: PLC0415
+
+          candidate_array = jnp.stack(
+            [string_to_protein_sequence(seq) for seq in spec.candidate_sequences],
+          )
+          bb_noise = spec.backbone_noise
+          if bb_noise is None:
+            bb_noise_scalar = 0.0
+          elif isinstance(bb_noise, (int, float)):
+            bb_noise_scalar = float(bb_noise)
+          else:
+            bb_noise_scalar = float(next(iter(bb_noise)))
+
+          replicate_keys = jax.random.split(subkey, spec.n_replicates)
+
+          batched_encode_fn, batched_decode_fn = make_batched_conditional_logits_split_fn(
+            model,
+            replicate_batch_size=spec.replicate_batch_size,
+            candidate_batch_size=spec.candidate_batch_size,
+          )
+          encodings = batched_encode_fn(
+            struct_coords,
+            struct_mask,
+            struct_residue_index,
+            struct_chain_index,
+            replicate_keys,
+            backbone_noise=bb_noise_scalar,
+            structure_mapping=None,
+          )
+          batched_logits = batched_decode_fn(encodings, candidate_array)  # (R, C, L, 21)
+          results_per_feature[feature_name].append(batched_logits)
 
         elif feature_name == "decoded_node_features":
           if hasattr(batched_ensemble, "aatype") and batched_ensemble.aatype is not None:

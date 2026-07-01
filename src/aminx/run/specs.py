@@ -590,6 +590,7 @@ class InspectionSpecification(RunSpecification):
       "edge_features",
       "decoded_node_features",
       "conditional_logits",
+      "batched_conditional_logits",
     ]
   ] = ("unconditional_logits",)
   distance_matrix: bool = False
@@ -602,6 +603,10 @@ class InspectionSpecification(RunSpecification):
     "gdt_ha",
     "cosine",
   ] = "rmsd"
+  candidate_sequences: Sequence[str] = ()
+  n_replicates: int = 1
+  replicate_batch_size: int | None = None
+  candidate_batch_size: int | None = None
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
@@ -612,6 +617,30 @@ class InspectionSpecification(RunSpecification):
     if self.cross_input_similarity and len(_loader_inputs(self.inputs)) < MIN_PAIR:
       msg = f"Cross-input similarity requires at least {MIN_PAIR} input structures."
       raise ValueError(msg)
+    if "batched_conditional_logits" in self.inspection_features:
+      if not self.candidate_sequences:
+        msg = (
+          "candidate_sequences must be non-empty when 'batched_conditional_logits' "
+          "is requested."
+        )
+        raise ValueError(msg)
+      if self.n_replicates < 1:
+        msg = "n_replicates must be >= 1."
+        raise ValueError(msg)
+      if self.n_replicates > 1:
+        bb = self.backbone_noise
+        if bb is None:
+          bb_levels: tuple[float, ...] = (0.0,)
+        elif isinstance(bb, (int, float)):
+          bb_levels = (float(bb),)
+        else:
+          bb_levels = tuple(float(x) for x in bb)
+        if max(bb_levels) <= 0.0:
+          msg = (
+            "n_replicates > 1 requires backbone_noise > 0 — replicate draws are "
+            "key-invariant at backbone_noise=0 (see conditional_logits.py docstring)."
+          )
+          raise ValueError(msg)
     self._sync_run_spec()
 
 

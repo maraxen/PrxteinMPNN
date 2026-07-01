@@ -11,6 +11,8 @@ axis_index ordering (innermost = 0, outermost = 9):
   7: n_jacobian_pairs — residue-pair products (deferred)
   8: n_combine        — multistate combine (deferred)
   9: n_apc_pairs      — all-pair contact scoring (deferred)
+  10: n_replicates    — backbone-noise-keyed replicate draws (encode axis, inspect/score)
+  11: n_candidates    — externally provided candidate sequences (decode axis, inspect/score)
 """
 
 from aminx.tiling.planner import AxisSpec
@@ -116,6 +118,34 @@ N_APC_PAIRS = AxisSpec(
   doc="All-pair contact scoring (BatchingConfig.apc_batch_size, apc_residue_batch_size). DEFERRED.",
 )
 
+N_REPLICATES = AxisSpec(
+  name="n_replicates",
+  axis_index=10,
+  cardinality=256,
+  default_batch_size=0,
+  tile_granularity=1,
+  heterogeneous=False,
+  doc=(
+    "Replicate draws at fixed backbone-noise magnitude, distinct PRNG keys "
+    "(make_batched_conditional_logits_split_fn encode axis). Distinct from n_noises, "
+    "which sweeps the noise magnitude itself."
+  ),
+)
+
+N_CANDIDATES = AxisSpec(
+  name="n_candidates",
+  axis_index=11,
+  cardinality=128,
+  default_batch_size=0,
+  tile_granularity=1,
+  heterogeneous=False,
+  doc=(
+    "Externally provided candidate sequences for teacher-forced scoring/inspection "
+    "(make_batched_conditional_logits_split_fn decode axis). Keyless/deterministic at "
+    "the decode step (inference_mode, dropout off)."
+  ),
+)
+
 ALL_AXES: list[AxisSpec] = [
   N_RESIDUES,
   N_LIGAND_ATOMS,
@@ -127,4 +157,6 @@ ALL_AXES: list[AxisSpec] = [
   N_JACOBIAN_PAIRS,
   N_COMBINE,
   N_APC_PAIRS,
+  N_REPLICATES,
+  N_CANDIDATES,
 ]

@@ -93,6 +93,13 @@ foldcomp = [
 cpu = [
     "jax[cpu]>=0.4.35",
 ]
+cuda12 = [
+    # No jax-cuda12-plugin wheels exist for darwin; gate to linux so the
+    # universal lockfile (which must resolve for both platforms per
+    # [tool.uv.environments] below) doesn't fail project-wide when this
+    # extra is invoked.
+    "jax[cuda12]>=0.4.35; sys_platform == 'linux'",
+]
 
 [tool.ruff]
 line-length = 100

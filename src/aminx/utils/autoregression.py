@@ -218,18 +218,29 @@ def generate_wave_ar_mask(
   seq_len = tie_group_map.shape[0]
   num_waves, max_groups_per_wave = wave.group_ids.shape
 
+  # Sentinel for groups that never appear in `wave` at all (a *partial*
+  # decoding order -- e.g. a caller that only schedules the positions it
+  # actually needs, leaving the rest permanently undecided). Must be LARGER
+  # than any real wave index, not smaller: `earlier_wave`/`same_wave` below
+  # compare via `>`/`==`, so a too-small sentinel (e.g. -1) would make every
+  # omitted position look "earlier than everything" and leak its (never
+  # decoded, all-zero) value as false context. A too-large sentinel instead
+  # makes omitted positions "infinitely late" -- correctly invisible to
+  # every real position, and never visible to each other either.
+  never_scheduled_sentinel = num_waves
   wave_index_grid = jnp.broadcast_to(
     jnp.arange(num_waves, dtype=jnp.int32)[:, None],
     (num_waves, max_groups_per_wave),
   )
   flat_group_ids = jnp.where(wave.group_valid, wave.group_ids, 0).reshape(-1)
-  flat_wave_index = jnp.where(wave.group_valid, wave_index_grid, -1).reshape(-1)
+  flat_wave_index = jnp.where(wave.group_valid, wave_index_grid, never_scheduled_sentinel).reshape(-1)
 
-  # Scatter-max: each group id ends up mapped to the (single, real) wave index
-  # it was assigned to; invalid (padding) entries carry -1 and never win the max.
-  group_wave_index = jnp.full((seq_len,), -1, dtype=jnp.int32).at[flat_group_ids].max(
-    flat_wave_index,
-  )
+  # Scatter-min: each group id ends up mapped to the (single, real) wave index
+  # it was assigned to; invalid (padding) entries carry the sentinel and never
+  # win over a real (smaller) wave index.
+  group_wave_index = jnp.full((seq_len,), never_scheduled_sentinel, dtype=jnp.int32).at[
+    flat_group_ids
+  ].min(flat_wave_index)
   position_wave_index = group_wave_index[tie_group_map]
 
   same_wave = position_wave_index[:, None] == position_wave_index[None, :]

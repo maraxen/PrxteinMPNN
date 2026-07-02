@@ -110,7 +110,9 @@ class AutoregressiveDecode(eqx.Module):
       ``jax.lax.scan``.  Lowers to a single XLA WhileOp — faster to compile
       than a Scan op, especially for large n_waves.
       **Not reverse-mode differentiable.** Set via
-      ``AutoregressiveMode(inference_only=True)``; never set True in
+      ``make_decode_fn(..., autoregressive_config=AutoregressiveConfig(inference_only=True))``
+      (see ``aminx.inference.decode.factory.make_decode_fn`` and
+      ``aminx.inference.decode.mode.AutoregressiveConfig``); never set True in
       training code paths.
 
   Notes

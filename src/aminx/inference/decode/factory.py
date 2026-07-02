@@ -19,6 +19,7 @@ import jax.numpy as jnp
 from aminx.inference.decode._base import _ConditionalDecodeBase
 from aminx.inference.decode.conditional import ConditionalDecode
 from aminx.inference.decode.mode import (
+  AutoregressiveConfig,
   AutoregressiveMode,
   ConditionalMode,
   DecodeMode,
@@ -41,6 +42,7 @@ def make_decode_fn(
   mode: DecodeMode,
   strategy: AxisStrategy,
   decoding_order_fn: DecodingOrderFn | None = None,
+  autoregressive_config: AutoregressiveConfig | None = None,
 ) -> ConditionalDecode | UnconditionalDecode | AutoregressiveDecode | STEDecode:
   """Factory: resolve a decode mode and strategy into a typed mode-class instance.
 
@@ -59,6 +61,15 @@ def make_decode_fn(
   decoding_order_fn : DecodingOrderFn, optional
       Decoding order function for AR mode (default: random_decoding_order).
       Ignored for non-AR modes.
+  autoregressive_config : AutoregressiveConfig, optional
+      Only consulted when ``mode`` is ``AutoregressiveMode``. Controls
+      ``AutoregressiveDecode.use_while_loop`` via
+      ``autoregressive_config.inference_only`` (default: False, the safe
+      lax.scan/differentiable path). Set ``inference_only=True`` for
+      inference-only sampling to get lax.while_loop's much faster compile
+      (single XLA WhileOp vs. an unrolled Scan) -- never set True on any
+      path that needs gradients through the AR loop. Ignored for non-AR
+      modes.
 
   Returns
   -------
@@ -100,6 +111,7 @@ def make_decode_fn(
       wave_iter = JaxScanIterator()
       # Default wave_carry shape (L=1024); actual shape materialized in __call__
       wave_carry = CarryShape(name="sequence", shape=(1024,), dtype=jnp.int32)
+      ar_config = autoregressive_config if autoregressive_config is not None else AutoregressiveConfig()
 
       # Import here to avoid circular dependency
       from aminx.inference.decode.autoregressive import AutoregressiveDecode
@@ -110,10 +122,10 @@ def make_decode_fn(
         state_iterator=state_iter,
         wave_iterator=wave_iter,
         wave_carry=wave_carry,
-        # inference_only defaults to False (safe for training). Set via
-        # AutoregressiveConfig.inference_only if inference-only performance
-        # optimization is needed (faster compile, not reverse-mode differentiable).
-        use_while_loop=False,
+        # inference_only defaults to False (safe for training); pass
+        # autoregressive_config=AutoregressiveConfig(inference_only=True) for
+        # inference-only sampling to get lax.while_loop's much faster compile.
+        use_while_loop=ar_config.inference_only,
       )
 
     if isinstance(mode, STEMode):

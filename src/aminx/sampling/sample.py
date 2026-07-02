@@ -133,7 +133,10 @@ def make_sample_sequences(
 
   if sampling_strategy == "temperature":
 
-    @partial(jax.jit, static_argnames=("multi_state_strategy", "use_rolling_state", "num_groups"))
+    @partial(
+      jax.jit,
+      static_argnames=("multi_state_strategy", "use_rolling_state", "num_groups", "inference_only"),
+    )
     def sample_sequences(
       prng_key: PRNGKeyArray,
       structure_coordinates: jax.Array,
@@ -160,6 +163,7 @@ def make_sample_sequences(
       precomputed_edge_features: jax.Array | None = None,
       precomputed_neighbor_indices: jax.Array | None = None,
       wave_schedule: WaveScheduleBundle | None = None,
+      inference_only: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
 
       L = (
@@ -207,7 +211,9 @@ def make_sample_sequences(
       if wave_schedule is not None:
         bundle = eqx.tree_at(lambda b: b.wave, bundle, wave_schedule)
 
-      result = sample_autoregressive.kernel(model, prng_key, bundle, config, stage_set)
+      result = sample_autoregressive.kernel(
+        model, prng_key, bundle, config, stage_set, inference_only=inference_only,
+      )
 
       return result.sequence.astype(jnp.int8), result.logits, decoding_order
 

@@ -8,9 +8,13 @@ Four frozen dataclass variants representing decode strategies:
 
 Per spec (Task 4.2), AutoregressiveMode has no W-axis fields; the wave-axis
 iterator is a structural invariant on AutoregressiveDecode, not a user knob.
-Set inference_only=True to request lax.while_loop for the wave axis —
-this halves compilation pressure (WhileOp vs For/Scan in XLA) but makes
-the path not reverse-mode differentiable. Always False for training.
+Pass AutoregressiveConfig(inference_only=True) via
+make_decode_fn(..., autoregressive_config=...) to request lax.while_loop for
+the wave axis -- this dramatically reduces compilation time (single XLA
+WhileOp vs. an unrolled Scan) but makes the path not reverse-mode
+differentiable. Always False (the default) for training; safe for any
+sampling/inference use since AR decoding is never used in a training/grad
+path in aminx.
 """
 
 from __future__ import annotations

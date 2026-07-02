@@ -33,6 +33,8 @@ def kernel(
   bundle: InferenceBundle,
   config: InferenceConfig,
   stage_set: StageSet,
+  *,
+  inference_only: bool = False,
 ) -> SampleResult:
   """Autoregressive sampling kernel.
 
@@ -40,11 +42,19 @@ def kernel(
   Delegates to unified driver for autoregressive decoding. Side-chain context
   (atom_37/atom_37_mask) is packaged onto the GeometryBundle by
   build_inference_bundle, not accepted as loose kernel kwargs (see #105).
+
+  Args:
+    inference_only: When True, the wave axis uses lax.while_loop instead of
+      lax.scan (single XLA WhileOp -- much faster to compile, especially for
+      long sequences / many wave counts). Not reverse-mode differentiable --
+      never set True on a path that needs gradients through the AR loop
+      (training never calls this kernel, so this is safe for any sampling use).
+
   """
   import jax
 
   from aminx.inference.decode.factory import make_decode_fn
-  from aminx.inference.decode.mode import AutoregressiveMode
+  from aminx.inference.decode.mode import AutoregressiveConfig, AutoregressiveMode
   from aminx.inference.encode import make_encode_fn
   from aminx.tiling.strategy import Vmap
 
@@ -59,5 +69,6 @@ def kernel(
     model=model,
     mode=AutoregressiveMode(),
     strategy=Vmap(),
+    autoregressive_config=AutoregressiveConfig(inference_only=inference_only),
   )
   return decode_fn(k_dec, enc, bundle, config, stage_set)

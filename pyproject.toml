@@ -280,7 +280,11 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.uv.sources]
-xtrax = { path = "/home/marielle/projects/xtrax", editable = true }
+# xtrax >=0.3.0 is published to PyPI (as of 2026-07-02); no source override
+# needed -- resolves like any normal dependency in CI and fresh clones. For
+# active local co-development against a live ../xtrax checkout, add an
+# untracked project-root `uv.toml` ([sources] table, xtrax = { path = "...",
+# editable = true }) -- see .gitignore.
 # Resolve proxide from PyPI (not sibling-folder discovery) when ../proxide exists.
 proxide = { index = "pypi" }
 # PyPI serves the CUDA-enabled wheel on Linux and CPU wheel on macOS — correct for both envs.

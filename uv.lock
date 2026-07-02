@@ -202,7 +202,7 @@ requires-dist = [
     { name = "ty", marker = "extra == 'dev'" },
     { name = "ty", marker = "extra == 'tests'" },
     { name = "typer", specifier = ">=0.12.0" },
-    { name = "xtrax", specifier = ">=0.3.0" },
+    { name = "xtrax", specifier = ">=0.3.1" },
     { name = "zstandard", specifier = ">=0.21.0" },
 ]
 provides-extras = ["benchmark", "docs", "tests", "dev", "foldcomp", "cpu", "cuda12"]
@@ -3872,7 +3872,7 @@ wheels = [
 
 [[package]]
 name = "xtrax"
-version = "0.3.0"
+version = "0.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "equinox", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -3884,9 +3884,9 @@ dependencies = [
     { name = "orbax-checkpoint", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pytest-asyncio", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b2/7c/c5530858dc77cb007c679cebaf8f4cd8b94a30ffb54e79ff50839c09048c/xtrax-0.3.0.tar.gz", hash = "sha256:d3d374331b05a5cfc41dd2173b01dd9a4cf9419296d346011b928526bab6dec1", size = 864071, upload-time = "2026-07-02T14:14:41.187Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a5/f5/ab6652550526db950999bd67c88d4d7d288be9547dfc700e665f5fc6db0c/xtrax-0.3.1.tar.gz", hash = "sha256:93e8cad47c8b93ac318c329756bb78cd4a98a050dbdbdd9a675fbb9fd1f6ed83", size = 866316, upload-time = "2026-07-02T17:35:41.081Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/17/a0/8c77f5a31f573081bf843e5ad09aec829a0bede2669d3eee4a401fe587f3/xtrax-0.3.0-py3-none-any.whl", hash = "sha256:9d22c2fe985c9253528573e344291f5acff2af4382ab56794a49385cf229a5c0", size = 112648, upload-time = "2026-07-02T14:14:39.248Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/b9/644027917cfecf1f13675e7c58b30a021d58572e5200516258a1030f9946/xtrax-0.3.1-py3-none-any.whl", hash = "sha256:2286d98eb81bc45bbb8a0dc8864ac2e344325b12ea26f0cc472135edeed3fc6f", size = 114492, upload-time = "2026-07-02T17:35:39.479Z" },
 ]
 
 [[package]]

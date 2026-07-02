@@ -42,6 +42,8 @@
 - [260605_potts-parallel-not-stageset](decisions/260605_potts-parallel-not-stageset.md) — **Accepted 2026-06-05**: PottsModel is a parallel architecture, NOT a StageSet consumer. Boundary enforced by lint #1304
 - [260605_protein-features-shared-or-local](decisions/260605_protein-features-shared-or-local.md) — ProteinFeatures sourcing decision: mistypotts imports from aminx.model.features (with legacy prxteinmpnn vendored copy)
 - [260612_proteinfeatures-shared-vs-local](decisions/260612_proteinfeatures-shared-vs-local.md) — **Accepted 2026-06-12**: Confirms Option A complete — aminx.potts imports from aminx.model.features; no vendor copy in potts tree. Supersedes adr/260605.
+- [260630_runtimebundle-inputresolver-compose-not-subclass](decisions/260630_runtimebundle-inputresolver-compose-not-subclass.md) — **Accepted 2026-06-30**: aminx's planned RuntimeBundle (#1910) must compose, not subclass, xtrax.run.resolver.RuntimeBundle (frozen-vs-non-frozen dataclass conflict); InputResolver implemented via functools.singledispatch per xtrax's own prescribed pattern. Zero upstream xtrax changes needed.
+- [260702_wave-color-commits-retroactive-attribution](decisions/260702_wave-color-commits-retroactive-attribution.md) — **Accepted 2026-07-02**: retroactively attributes 5 wave-color commits (54d6d84, 0be59ef, 4060e9d, 0670197, 1cec556) to mpnn_ext Epic WAVE (#2871); kept in place, no revert. Backlog #2954 tracks the enforcement lint that should have caught this.
 
 ## ADRs (Legacy)
 

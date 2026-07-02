@@ -86,10 +86,12 @@ def make_sampling_planner(
   axes = [
     dataclasses.replace(N_STRUCTURES, cardinality=max(1, getattr(spec, "batch_size", 1) or 1)),
     dataclasses.replace(
-      N_SAMPLES, cardinality=max(1, getattr(spec, "samples_batch_size", 128) or 128),
+      N_SAMPLES,
+      cardinality=max(1, getattr(spec, "samples_batch_size", 128) or 128),
     ),
     dataclasses.replace(
-      N_TEMPERATURES, cardinality=max(1, len(getattr(spec, "temperature", [1.0]))),
+      N_TEMPERATURES,
+      cardinality=max(1, len(getattr(spec, "temperature", [1.0]))),
     ),
     dataclasses.replace(N_NOISES, cardinality=max(1, len(getattr(spec, "backbone_noise", [0.0])))),
   ]
@@ -263,41 +265,25 @@ def _validate_plan_topology(
   2. No ordered=True boundary op (Tap/Sink) on Vmap axes (vmap has no step ordering).
   3. No STEDecode paired with UnconditionalDecodeStep (STE requires conditional scoring).
 
+  Rules 1-2 are generic tiling/boundary concerns, not MPNN-specific -- they're
+  delegated to xtrax.stages.validate_plan_topology (upstreamed; aminx had
+  independently built the same checks that xtrax's own AxisBoundary docstring
+  promised but never implemented). Rule 3 is aminx/MPNN-domain-specific and
+  stays local. xtrax's PlanTopologyError is translated to aminx's own (a
+  TilingError subclass) so the existing `except TilingError` / `isinstance`
+  contract is preserved for callers.
+
   Raises:
       PlanTopologyError: on first violation found.
 
   """
-  from aminx.tiling.strategy import Scan, Vmap
+  from xtrax.stages import PlanTopologyError as _XtraxPlanTopologyError
+  from xtrax.stages import validate_plan_topology as _xtrax_validate_plan_topology
 
-  for d in plan.decisions:
-    # Rule 1: Scan on heterogeneous axis is structurally impossible
-    if d.axis.heterogeneous and isinstance(d.strategy, Scan):
-      msg = (
-        f"PlanTopologyError: axis '{d.axis.name}' is heterogeneous "
-        f"(element shapes vary) but has a Scan strategy. "
-        f"jax.lax.scan requires static carry shape — heterogeneous axes "
-        f"must use SafeMap. Use CarrySpec only on homogeneous axes."
-      )
-      raise PlanTopologyError(msg)
-
-    # Rule 2: ordered boundary op on Vmap axis has no step-ordering guarantee
-    if isinstance(d.strategy, Vmap):
-      boundary = stage_set.axis_boundaries.get(d.axis.name)
-      if boundary is not None:
-        if boundary.tap is not None and getattr(boundary.tap, "ordered", False):
-          msg = (
-            f"PlanTopologyError: axis '{d.axis.name}' has an ordered=True "
-            f"Tap but uses Vmap strategy. vmap does not preserve step order. "
-            f"Use SafeMap or Scan on axes with ordered boundary ops."
-          )
-          raise PlanTopologyError(msg)
-        if boundary.sink is not None and getattr(boundary.sink, "ordered", False):
-          msg = (
-            f"PlanTopologyError: axis '{d.axis.name}' has an ordered=True "
-            f"Sink but uses Vmap strategy. vmap does not preserve step order. "
-            f"Use SafeMap or Scan on axes with ordered boundary ops."
-          )
-          raise PlanTopologyError(msg)
+  try:
+    _xtrax_validate_plan_topology(plan.decisions, stage_set.axis_boundaries)
+  except _XtraxPlanTopologyError as exc:
+    raise PlanTopologyError(str(exc)) from exc
 
   # Rule 3: STEDecode requires ConditionalDecodeStep, not UnconditionalDecodeStep (Sprint 6)
   decode_fn = getattr(plan, "decode_fn", None)
@@ -413,7 +399,10 @@ class InferencePlan(eqx.Module):
 
   @eqx.filter_jit
   def encode(
-    self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig,
+    self,
+    bundle: InferenceBundle,
+    key: PRNGKeyArray,
+    config: InferenceConfig,
   ) -> EncoderOutput:
     """Encode geometry and context into reusable encoder output.
 
@@ -555,7 +544,6 @@ class InferencePlan(eqx.Module):
     """
     enc = self.encode(bundle, key, config)
     return self.decode(enc, bundle, key, config)
-
 
 
 @eqx.filter_jit
@@ -750,9 +738,9 @@ def plan_bucketed(
 
   """
   from aminx.tiling.bucketing import (
-      BucketAssignment,
-      BucketingConfig,
-      group_by_bucket,
+    BucketAssignment,
+    BucketingConfig,
+    group_by_bucket,
   )
 
   if not sequence_lengths:

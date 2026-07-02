@@ -15,26 +15,23 @@ def _make_plan(decisions):
     return BatchPlan(
         decisions=decisions,
         total_memory_estimate=1.0,
-        axes_by_index={d.axis.axis_index: d.axis for d in decisions},
+        axes_by_index={d.spec.axis_index: d.spec for d in decisions},
         budget_exceeded=False,
     )
 
 
 def _vmap_decision(axis):
-    return AxisDecision(axis=axis, batch_size=0, reasoning="test", strategy=Vmap())
+    return AxisDecision(spec=axis, batch_size=0, reasoning="test", strategy=Vmap())
 
 
 def _safemap_decision(axis, tile=1):
-    return AxisDecision(axis=axis, batch_size=tile, reasoning="test", strategy=SafeMap(tile=tile))
+    return AxisDecision(spec=axis, batch_size=tile, reasoning="test", strategy=SafeMap(tile=tile))
 
 
 def _scan_decision(axis):
-    return AxisDecision(
-        axis=axis,
-        batch_size=1,
-        reasoning="test",
-        strategy=Scan(init=None, transition=lambda c, x: (c, x), ordered_sinks=True),
-    )
+    return AxisDecision(spec=axis, batch_size=1,
+    reasoning="test",
+    strategy=Scan(init=None, transition=lambda c, x: (c, x), ordered_sinks=True),)
 
 
 # --- ordered sink on Vmap axis ---
@@ -117,12 +114,9 @@ def test_validator_allows_ordered_sink_on_safemap_axis():
 
 def test_validator_rejects_scan_on_heterogeneous_axis():
     """Manually construct an invalid AxisDecision (bypassing CarrySpec guard)."""
-    bad_decision = AxisDecision(
-        axis=N_STRUCTURES,
-        batch_size=1,
-        reasoning="bad",
-        strategy=Scan(init=None, transition=lambda c, x: (c, x)),
-    )
+    bad_decision = AxisDecision(spec=N_STRUCTURES, batch_size=1,
+    reasoning="bad",
+    strategy=Scan(init=None, transition=lambda c, x: (c, x)),)
     plan = _make_plan([bad_decision])
     stage_set = StageSet()
     with pytest.raises(PlanTopologyError, match="heterogeneous.*Scan"):

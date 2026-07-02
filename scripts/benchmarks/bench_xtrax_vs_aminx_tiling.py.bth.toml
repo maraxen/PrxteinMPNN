@@ -1,0 +1,33 @@
+[experiment]
+hypothesis = "xtrax.tiling.BatchPlanner reproduces aminx.tiling.BatchPlanner's strategy decisions and recompile behavior bit-for-bit on equivalent synthetic AxisSpecs, with dispatch overhead within 1.10x"
+description = "aminx.tiling fully duplicates xtrax.tiling (EPIC #1541, T2-T5, not yet executed). This benchmark feeds direct evidence into T2.GATE (#1556)'s DoD ('upgraded xtrax tiling reproduces aminx bit-for-bit + identical recompile-count + throughput<=X%') using a synthetic toy function, since production aminx code does not yet route through xtrax.tiling at all."
+task_id = "260630_wave-color-xtrax-audit"
+
+[outcomes.pass]
+condition = "all_decision_parity = true AND all_recompile_parity = true AND max_xtrax_vs_aminx_throughput_ratio <= 1.10"
+reasoning = "T2.GATE's stated DoD threshold: bit-for-bit strategy parity, identical recompile counts, throughput within 10% overhead"
+is_residual = false
+
+[outcomes.marginal]
+condition = "all_decision_parity = true AND all_recompile_parity = true AND max_xtrax_vs_aminx_throughput_ratio <= 1.50"
+reasoning = "Strategy/recompile parity holds (the structural claim is sound) but xtrax dispatch overhead exceeds the strict T2.GATE threshold; worth a closer look at xtrax's iterator wrapping before committing to the full T2-T5 migration"
+is_residual = false
+
+[outcomes.fail]
+condition = "all_decision_parity = false OR all_recompile_parity = false OR max_xtrax_vs_aminx_throughput_ratio > 1.50"
+reasoning = "Either the two planners disagree on strategy for equivalent specs (a correctness gap, not just a migration-readiness question), recompile behavior diverges (would break aminx's no-retrace guarantees), or overhead is too large to justify the migration as currently scoped"
+is_residual = true
+
+[result_schema]
+fields = [
+  "all_decision_parity",
+  "all_recompile_parity",
+  "max_xtrax_vs_aminx_throughput_ratio"
+]
+
+[result_schema.provenance]
+script_commit = "git log --oneline -1"
+related_epic = "#1541 (aminx->xtrax refactor), gate #1556 (T2.GATE)"
+related_debt = "#2891, #2892, #2894, #2895 (xtrax-audit tag)"
+hardware_targets = ["CPU (synthetic, no GPU needed)"]
+notes = "First run surfaced a real bug (#2895): aminx's SafeMap demotion (planner.py:170,196) uses tile_granularity instead of default_batch_size for tile size, contradicting both fields' docstrings. The script's AxisSpec construction deliberately sets tile_granularity == default_batch_size to route around it for a fair dispatch-overhead comparison; the underlying bug is filed separately and unaffected by this workaround."

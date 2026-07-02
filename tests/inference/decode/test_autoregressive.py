@@ -30,6 +30,7 @@ from aminx.tiling.carry_shape import CarryShape
 from aminx.tiling.iterator import VmapIterator, SafeMapIterator, JaxScanIterator
 from aminx.types.bundles import InferenceBundle, WaveScheduleBundle
 from aminx.types.configs import InferenceConfig
+from aminx.utils.autoregression import generate_wave_ar_mask
 
 
 def _build_synthetic_fixture(
@@ -89,6 +90,245 @@ def _build_synthetic_fixture(
 def _dummy_decoding_order_fn(wave):
     """Dummy decoding order function."""
     return jnp.arange(wave.group_ids.shape[0])  # Return number of waves as dummy order
+
+
+def _build_scheduled_fixture(
+    num_residues: int,
+    seed: int,
+    schedule: str,
+    schedule_key: jax.Array | None = None,
+    schedule_k_neighbors: int = 4,
+    fixed_mask: jax.Array | None = None,
+    fixed_tokens: jax.Array | None = None,
+) -> tuple[Aminx, InferenceBundle, InferenceConfig]:
+    """Build an S=1 AR fixture with an explicit (W0.3) decoding schedule."""
+    rng = np.random.default_rng(seed)
+    jax_key = jax.random.PRNGKey(seed)
+
+    model = Aminx(
+        node_features=64,
+        edge_features=64,
+        hidden_features=64,
+        num_encoder_layers=2,
+        num_decoder_layers=2,
+        k_neighbors=5,
+        dropout_rate=0.0,
+        key=jax_key,
+    )
+    model = eqx.tree_inference(model, value=True)
+
+    coordinates = jnp.array(rng.normal(size=(num_residues, 4, 3)).astype(np.float32))
+    mask = jnp.ones((num_residues,), dtype=jnp.float32)
+    residue_index = jnp.arange(num_residues, dtype=jnp.int32)
+    chain_index = jnp.zeros((num_residues,), dtype=jnp.int32)
+
+    bundle, config = build_inference_bundle(
+        coords=coordinates,
+        mask=mask,
+        residue_index=residue_index,
+        chain_index=chain_index,
+        state_weights=jnp.ones(1),
+        sequence=None,
+        mode="sample_autoregressive",
+        schedule=schedule,
+        schedule_key=schedule_key if schedule_key is not None else jax.random.PRNGKey(seed + 1),
+        schedule_k_neighbors=schedule_k_neighbors,
+        fixed_mask=fixed_mask,
+        fixed_tokens=fixed_tokens,
+    )
+    return model, bundle, config
+
+
+def _run_ar_decode(
+    model: Aminx,
+    bundle: InferenceBundle,
+    config: InferenceConfig,
+    key: jax.Array,
+):
+    """Run a full encode + AutoregressiveDecode pass; returns SampleResult."""
+    L = int(bundle.geometry.residue_index.shape[1])
+    wave_carry = CarryShape(name="sequence", shape=(L,), dtype=jnp.int32)
+    ar_decode = AutoregressiveDecode(
+        model=model,
+        decoding_order_fn=_dummy_decoding_order_fn,
+        state_iterator=VmapIterator(),
+        wave_iterator=JaxScanIterator(),
+        wave_carry=wave_carry,
+    )
+    stage_set = make_stage_set(
+        strategy="arithmetic_mean",
+        state_weights=bundle.conditioning.state_weights,
+    )
+    k_enc, k_dec = jax.random.split(key)
+    encode_fn = make_encode_fn(model, use_rolling_state=False)
+    enc = encode_fn(bundle, k_enc, config)
+    return ar_decode(key=k_dec, enc=enc, bundle=bundle, config=config, stage_set=stage_set)
+
+
+def test_chromatic_schedule_full_coverage_and_parallelism():
+    """W0.3+: chromatic schedule packs multiple groups per wave and decodes all positions."""
+    model, bundle, config = _build_scheduled_fixture(
+        num_residues=12,
+        seed=50,
+        schedule="chromatic",
+        schedule_key=jax.random.PRNGKey(1),
+        schedule_k_neighbors=4,
+    )
+    L = 12
+    n_waves, max_groups_per_wave = bundle.wave.group_ids.shape
+
+    # This fixture/key/k_neighbors combination must actually exercise G>1 waves,
+    # or the test below isn't testing what it claims to.
+    assert n_waves < L, "expected real parallelism (fewer waves than positions)"
+    assert max_groups_per_wave > 1, "expected at least one wave with >1 group"
+
+    result = _run_ar_decode(model, bundle, config, jax.random.PRNGKey(999))
+
+    assert result.sequence.shape == (L,)
+    assert result.logits.shape == (L, 21)
+    # Every position must have been decoded by some (wave, group slot) -- a
+    # silent drop (the original G>1 bug) would leave the corresponding logits
+    # row identically zero.
+    logits_row_norms = jnp.sum(jnp.abs(result.logits), axis=-1)
+    assert bool(jnp.all(logits_row_norms > 0)), (
+        f"some positions have all-zero logits (dropped by decode): {np.asarray(logits_row_norms)}"
+    )
+
+
+def _logits_at_target(
+    model: Aminx,
+    bundle: InferenceBundle,
+    enc,  # noqa: ANN001 -- EncoderOutput, reused across runs (structure-only, sequence-independent)
+    config: InferenceConfig,
+    target: int,
+    fix_position: int,
+    fix_token: int,
+    decode_key: jax.Array,
+) -> jax.Array:
+    """Re-run AutoregressiveDecode with `fix_position` overridden to `fix_token`, reusing `enc`."""
+    L = int(bundle.geometry.residue_index.shape[1])
+    fixed_mask = jnp.zeros((L,), dtype=jnp.float32).at[fix_position].set(1.0)
+    fixed_tokens = jnp.zeros((L,), dtype=jnp.int32).at[fix_position].set(fix_token)
+    b = eqx.tree_at(
+        lambda bb: (bb.conditioning.fixed_mask, bb.conditioning.fixed_tokens),
+        bundle,
+        (fixed_mask, fixed_tokens),
+    )
+    wave_carry = CarryShape(name="sequence", shape=(L,), dtype=jnp.int32)
+    ar_decode = AutoregressiveDecode(
+        model=model,
+        decoding_order_fn=_dummy_decoding_order_fn,
+        state_iterator=VmapIterator(),
+        wave_iterator=JaxScanIterator(),
+        wave_carry=wave_carry,
+    )
+    stage_set = make_stage_set(strategy="arithmetic_mean", state_weights=b.conditioning.state_weights)
+    result = ar_decode(key=decode_key, enc=enc, bundle=b, config=config, stage_set=stage_set)
+    return result.logits[target]
+
+
+def test_fixed_n_to_c_causal_conditioning():
+    """Default schedule: a later position that structurally attends to an earlier
+    position must see that position's (fixed) token -- the ar_mask fix.
+    """
+    num_residues = 8
+    model, bundle, config = _build_scheduled_fixture(
+        num_residues=num_residues,
+        seed=51,
+        schedule="fixed_n_to_c",
+    )
+    encode_fn = make_encode_fn(model, use_rolling_state=False)
+    enc = encode_fn(bundle, jax.random.PRNGKey(1), config)  # structure-only: sequence-independent
+
+    # Pick a target position whose k-NN attention graph actually includes
+    # position 0 -- without that, no masking scheme could show an effect.
+    neighbor_indices = np.asarray(enc.neighbor_indices[0])  # (L, K)
+    target = next((p for p in range(1, num_residues) if 0 in neighbor_indices[p]), None)
+    assert target is not None, "fixture's k-NN graph never connects position 0 to a later position"
+
+    logits_a = _logits_at_target(model, bundle, enc, config, target, 0, 3, jax.random.PRNGKey(123))
+    logits_b = _logits_at_target(model, bundle, enc, config, target, 0, 15, jax.random.PRNGKey(123))
+
+    diff = float(jnp.max(jnp.abs(logits_a - logits_b)))
+    assert diff > 1e-5, (
+        f"position {target} (a structural neighbor of position 0) did not depend on "
+        f"position 0's fixed token (diff={diff}) -- ar_mask is not providing real "
+        "causal conditioning"
+    )
+
+
+def test_chromatic_within_wave_independence():
+    """Chromatic arm: positions in the SAME wave must not see each other's tokens,
+    but a structurally-connected EARLIER-wave position must be visible.
+    """
+    num_residues = 12
+    model, bundle, config = _build_scheduled_fixture(
+        num_residues=num_residues,
+        seed=52,
+        schedule="chromatic",
+        schedule_key=jax.random.PRNGKey(2),
+        schedule_k_neighbors=4,
+    )
+    wave = bundle.wave
+    n_waves, max_groups_per_wave = wave.group_ids.shape
+
+    def _wave_of(position: int) -> int:
+        for w in range(n_waves):
+            for g in range(max_groups_per_wave):
+                if bool(wave.group_valid[w, g]) and int(wave.group_positions[w, g, 0]) == position:
+                    return w
+        raise AssertionError(f"position {position} not found in any wave")
+
+    encode_fn = make_encode_fn(model, use_rolling_state=False)
+    enc = encode_fn(bundle, jax.random.PRNGKey(1), config)
+    neighbor_indices = np.asarray(enc.neighbor_indices[0])  # (L, K)
+
+    # Find a wave (not the first) with >=2 active groups; pick two of its
+    # representative positions as the same-wave pair.
+    same_wave_pair = None
+    for w in range(1, n_waves):
+        active = np.flatnonzero(np.asarray(wave.group_valid[w]))
+        if active.shape[0] >= 2:
+            pos_a = int(wave.group_positions[w, active[0], 0])
+            pos_b = int(wave.group_positions[w, active[1], 0])
+            same_wave_pair = (pos_a, pos_b)
+            break
+    assert same_wave_pair is not None, "fixture did not produce a non-first wave with >1 group"
+    pos_same, pos_other = same_wave_pair
+    pos_other_wave = _wave_of(pos_other)
+
+    # Among pos_other's REAL structural neighbors, find one in a strictly
+    # earlier wave -- without real connectivity, "no change" would be trivial.
+    earlier_position = next(
+        (
+            int(n)
+            for n in neighbor_indices[pos_other]
+            if int(n) != pos_other and _wave_of(int(n)) < pos_other_wave
+        ),
+        None,
+    )
+    assert earlier_position is not None, (
+        f"position {pos_other} has no structural neighbor in an earlier wave than {pos_other_wave}"
+    )
+
+    logits_same_a = _logits_at_target(model, bundle, enc, config, pos_other, pos_same, 3, jax.random.PRNGKey(321))
+    logits_same_b = _logits_at_target(model, bundle, enc, config, pos_other, pos_same, 15, jax.random.PRNGKey(321))
+    same_wave_diff = float(jnp.max(jnp.abs(logits_same_a - logits_same_b)))
+
+    logits_earlier_a = _logits_at_target(model, bundle, enc, config, pos_other, earlier_position, 3, jax.random.PRNGKey(321))
+    logits_earlier_b = _logits_at_target(model, bundle, enc, config, pos_other, earlier_position, 15, jax.random.PRNGKey(321))
+    earlier_diff = float(jnp.max(jnp.abs(logits_earlier_a - logits_earlier_b)))
+
+    assert same_wave_diff < 1e-5, (
+        f"position {pos_other}'s logits changed ({same_wave_diff}) when a SAME-wave "
+        f"position ({pos_same}) was fixed to a different token -- same-wave positions "
+        "must be conditionally independent (Jacobi-within-a-color)"
+    )
+    assert earlier_diff > 1e-5, (
+        f"position {pos_other}'s logits did not change ({earlier_diff}) when its "
+        f"structurally-connected EARLIER-wave position ({earlier_position}) was fixed "
+        "to a different token -- earlier waves must be visible"
+    )
 
 
 def test_autoregressive_produces_valid_output_s1():
@@ -252,12 +492,22 @@ def test_autoregressive_with_tied_positions():
 
     L = bundle.geometry.residue_index.shape[1]
 
-    # Override tie_group_map: [0,0,1,1,2,2,3,3]
+    # Override tie_group_map: [0,0,1,1,2,2,3,3]. bundle.wave and ar_mask were
+    # built (in build_inference_bundle) for the *original* untied tie_group_map,
+    # so they must be rebuilt here too -- otherwise the schedule and causal mask
+    # silently disagree with the tie groups actually used for averaging.
     tie_group_map = jnp.array([0, 0, 1, 1, 2, 2, 3, 3], dtype=jnp.int32)
+    num_states = bundle.conditioning.tie_group_map.shape[0]
+    new_wave = WaveScheduleBundle.from_tie_groups(tie_group_map, jnp.arange(L, dtype=jnp.int32))
+    new_ar_mask = generate_wave_ar_mask(new_wave, tie_group_map)
     bundle = eqx.tree_at(
-        lambda b: b.conditioning.tie_group_map,
+        lambda b: (b.conditioning.tie_group_map, b.conditioning.ar_mask, b.wave),
         bundle,
-        jnp.expand_dims(tie_group_map, 0),
+        (
+            jnp.expand_dims(tie_group_map, 0),
+            jnp.broadcast_to(new_ar_mask[None, ...], (num_states, L, L)),
+            new_wave,
+        ),
     )
 
     wave_carry = CarryShape(name="sequence", shape=(L,), dtype=jnp.int32)
@@ -299,12 +549,20 @@ def test_autoregressive_with_tied_positions_s4():
 
     L = bundle.geometry.residue_index.shape[1]
 
-    # Override tie_group_map: [0,0,1,1,2,2,3,3,4,4,5,5]
-    tie_group_map = jnp.arange(L) // 2
+    # Override tie_group_map: [0,0,1,1,2,2,3,3,4,4,5,5]. Rebuild wave + ar_mask
+    # to match (see test_autoregressive_with_tied_positions for why).
+    tie_group_map = (jnp.arange(L) // 2).astype(jnp.int32)
+    num_states = bundle.conditioning.tie_group_map.shape[0]
+    new_wave = WaveScheduleBundle.from_tie_groups(tie_group_map, jnp.arange(L, dtype=jnp.int32))
+    new_ar_mask = generate_wave_ar_mask(new_wave, tie_group_map)
     bundle = eqx.tree_at(
-        lambda b: b.conditioning.tie_group_map,
+        lambda b: (b.conditioning.tie_group_map, b.conditioning.ar_mask, b.wave),
         bundle,
-        jnp.expand_dims(tie_group_map, 0),
+        (
+            jnp.expand_dims(tie_group_map, 0),
+            jnp.broadcast_to(new_ar_mask[None, ...], (num_states, L, L)),
+            new_wave,
+        ),
     )
 
     wave_carry = CarryShape(name="sequence", shape=(L,), dtype=jnp.int32)

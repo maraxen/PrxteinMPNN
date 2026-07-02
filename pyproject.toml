@@ -23,7 +23,7 @@ dependencies = [
     "proxide>=0.1.0a9",
     "typer>=0.12.0",
     "huggingface-hub>=0.23.0",
-    "xtrax>=0.2.0",
+    "xtrax>=0.3.1",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -92,6 +92,13 @@ foldcomp = [
 ]
 cpu = [
     "jax[cpu]>=0.4.35",
+]
+cuda12 = [
+    # No jax-cuda12-plugin wheels exist for darwin; gate to linux so the
+    # universal lockfile (which must resolve for both platforms per
+    # [tool.uv.environments] below) doesn't fail project-wide when this
+    # extra is invoked.
+    "jax[cuda12]>=0.4.35; sys_platform == 'linux'",
 ]
 
 [tool.ruff]
@@ -273,7 +280,11 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.uv.sources]
-xtrax = { path = "/home/marielle/projects/xtrax", editable = true }
+# xtrax >=0.3.0 is published to PyPI (as of 2026-07-02); no source override
+# needed -- resolves like any normal dependency in CI and fresh clones. For
+# active local co-development against a live ../xtrax checkout, add an
+# untracked project-root `uv.toml` ([sources] table, xtrax = { path = "...",
+# editable = true }) -- see .gitignore.
 # Resolve proxide from PyPI (not sibling-folder discovery) when ../proxide exists.
 proxide = { index = "pypi" }
 # PyPI serves the CUDA-enabled wheel on Linux and CPU wheel on macOS — correct for both envs.

@@ -107,9 +107,7 @@ def test_regression_validator_fires_before_jit():
             pass
 
     # Create minimal invalid plan (Vmap with ordered sink)
-    bad_decision = AxisDecision(
-        axis=N_NOISES, batch_size=0, reasoning="test", strategy=Vmap()
-    )
+    bad_decision = AxisDecision(spec=N_NOISES, batch_size=0, reasoning="test", strategy=Vmap())
     plan = BatchPlan(
         decisions=[bad_decision],
         total_memory_estimate=1.0,

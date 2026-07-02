@@ -5,8 +5,9 @@ import jax.numpy as jnp
 import pytest
 
 from aminx.run.specs import RunSpecification
-from aminx.utils.autoregression import generate_ar_mask, resolve_tie_groups
+from aminx.utils.autoregression import generate_ar_mask, generate_wave_ar_mask, resolve_tie_groups
 from aminx.utils.data_structures import Protein
+from aminx.types.bundles import WaveScheduleBundle
 
 
 def make_input(chain_id, residue_index):
@@ -102,3 +103,56 @@ def test_generate_ar_mask(decoding_order, expected_mask):
     chex.assert_trees_all_equal(mask, expected_mask)
     chex.assert_shape(mask, (len(decoding_order), len(decoding_order)))
     chex.assert_type(mask, int)
+
+
+def test_generate_wave_ar_mask_matches_generate_ar_mask_for_g1_schedules():
+  """G=1 schedules (from_tie_groups) must reduce exactly to generate_ar_mask's semantics."""
+  tie_group_map = jnp.array([0, 0, 1, 2, 3, 3, 4, 5], dtype=jnp.int32)
+  decoding_order = jnp.array([6, 0, 1, 4, 2, 7, 3, 5], dtype=jnp.int32)
+  wave = WaveScheduleBundle.from_tie_groups(tie_group_map, decoding_order)
+  new_mask = generate_wave_ar_mask(wave, tie_group_map)
+  old_mask = generate_ar_mask(decoding_order, tie_group_map=tie_group_map).astype(jnp.float32)
+  chex.assert_trees_all_equal(new_mask, old_mask)
+
+
+def test_generate_wave_ar_mask_partial_schedule_does_not_leak_omitted_positions():
+  """A *partial* decoding order (some positions never assigned a wave) must not make
+  the omitted positions falsely visible to real (scheduled) positions.
+
+  Regression test: the wave-index sentinel for "never scheduled" was originally -1,
+  which is *smaller* than every real wave index, so `earlier_wave = pos_wave_index[i]
+  > pos_wave_index[j]` made every omitted position `j` look earlier than everything
+  real -- silently leaking its (never-decoded, all-zero) value as false context.
+  Caught empirically: truncating a sequential reference schedule to only the positions
+  that matter changed the sampled output relative to the full schedule.
+  """
+  tie_group_map = jnp.arange(6, dtype=jnp.int32)
+  partial_order = jnp.array([0, 1, 2], dtype=jnp.int32)  # positions 3, 4, 5 never scheduled
+  wave = WaveScheduleBundle.from_tie_groups(tie_group_map, partial_order)
+  mask = generate_wave_ar_mask(wave, tie_group_map)
+
+  # Real, scheduled position 2 (wave index 2, the last real wave) must not see any
+  # omitted position as "earlier" -- omitted positions were never decoded.
+  chex.assert_trees_all_equal(mask[2, 3:6], jnp.zeros(3))
+  # And the omitted positions must not be treated as visible to earlier real waves either.
+  chex.assert_trees_all_equal(mask[0, 3:6], jnp.zeros(3))
+  chex.assert_trees_all_equal(mask[1, 3:6], jnp.zeros(3))
+  # Real positions still see each other exactly as a normal sequential schedule would.
+  chex.assert_trees_all_equal(mask[:3, :3], jnp.tril(jnp.ones((3, 3))))
+
+
+def test_generate_wave_ar_mask_padding_tolerant():
+  """pad_bundle-style zero-padded waves (group_valid=False) must not perturb the mask."""
+  tie_group_map = jnp.array([0, 0, 1, 2, 3, 3, 4, 5], dtype=jnp.int32)
+  decoding_order = jnp.array([6, 0, 1, 4, 2, 7, 3, 5], dtype=jnp.int32)
+  wave = WaveScheduleBundle.from_tie_groups(tie_group_map, decoding_order)
+  unpadded_mask = generate_wave_ar_mask(wave, tie_group_map)
+
+  padded_wave = WaveScheduleBundle(
+    group_ids=jnp.pad(wave.group_ids, ((0, 2), (0, 0))),
+    group_positions=jnp.pad(wave.group_positions, ((0, 2), (0, 0), (0, 0))),
+    group_valid=jnp.pad(wave.group_valid, ((0, 2), (0, 0))),
+    position_valid=jnp.pad(wave.position_valid, ((0, 2), (0, 0), (0, 0))),
+  )
+  padded_mask = generate_wave_ar_mask(padded_wave, tie_group_map)
+  chex.assert_trees_all_equal(padded_mask, unpadded_mask)

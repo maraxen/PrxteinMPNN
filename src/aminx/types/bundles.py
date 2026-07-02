@@ -265,6 +265,82 @@ class WaveScheduleBundle(eqx.Module):
     )
 
   @staticmethod
+  def from_colors(
+    group_colors: Int[Array, " n_groups"],
+    tie_group_map: Int[Array, L],
+  ) -> WaveScheduleBundle:
+    """Create a schedule from a graph coloring of tie groups (chromatic / improper-coloring arms).
+
+    Unlike `from_tie_groups` (exactly one tie group per wave, in a fixed linear
+    order), this groups tie groups that share a color into the *same* wave —
+    i.e. each color class becomes one wave containing all of its (conditionally
+    independent, for a proper coloring) groups. `group_colors[i]` is the color of
+    the i-th unique tie group in ascending group-id order.
+
+    Note: `AutoregressiveDecode.__call__` currently only decodes group slot 0 of
+    each wave (`wave.group_positions[wave_idx, 0, ...]`) — multi-group waves
+    (G > 1, the actual chromatic-parallelism case this constructor produces) are
+    not yet consumed correctly by the decode kernel. See
+    `aminx/inference/schedule_selector.py` module docstring.
+
+    Parameters
+    ----------
+    group_colors : Int[Array, "n_groups"]
+        Color assigned to each unique tie group (ascending tie-group-id order).
+    tie_group_map : Int[Array, "L"]
+        Tie group assignment per position. Same id = same group.
+
+    Returns
+    -------
+    WaveScheduleBundle
+        Schedule with groups packed by color into waves (G may be > 1).
+
+    """
+    present_groups = sorted({int(g) for g in tie_group_map.tolist()})
+    if len(present_groups) != len(group_colors):
+      msg = (
+        f"group_colors has {len(group_colors)} entries but tie_group_map has "
+        f"{len(present_groups)} unique groups."
+      )
+      raise ValueError(msg)
+    group_colors_list = [int(c) for c in group_colors.tolist()]
+
+    num_waves = max(group_colors_list) + 1
+    groups_per_wave: list[list[int]] = [[] for _ in range(num_waves)]
+    for group_id, color in zip(present_groups, group_colors_list, strict=True):
+      groups_per_wave[color].append(group_id)
+
+    max_groups_per_wave = max(len(g) for g in groups_per_wave)
+    counts = jnp.bincount(tie_group_map.reshape(-1))
+    max_positions = int(jnp.max(counts))
+
+    group_ids_list = [[-1] * max_groups_per_wave for _ in range(num_waves)]
+    group_positions_list = [
+      [[0] * max_positions for _ in range(max_groups_per_wave)] for _ in range(num_waves)
+    ]
+    group_valid_list = [[False] * max_groups_per_wave for _ in range(num_waves)]
+    position_valid_list = [
+      [[False] * max_positions for _ in range(max_groups_per_wave)] for _ in range(num_waves)
+    ]
+
+    for w, groups in enumerate(groups_per_wave):
+      for slot, g in enumerate(groups):
+        indices = jnp.where(tie_group_map == g)[0]
+        n = int(indices.shape[0])
+        group_ids_list[w][slot] = g
+        group_valid_list[w][slot] = True
+        for p in range(n):
+          group_positions_list[w][slot][p] = int(indices[p])
+          position_valid_list[w][slot][p] = True
+
+    return WaveScheduleBundle(
+      group_ids=jnp.array(group_ids_list, dtype=jnp.int32),
+      group_positions=jnp.array(group_positions_list, dtype=jnp.int32),
+      group_valid=jnp.array(group_valid_list, dtype=jnp.bool_),
+      position_valid=jnp.array(position_valid_list, dtype=jnp.bool_),
+    )
+
+  @staticmethod
   def empty(seq_len: int) -> WaveScheduleBundle:
     """Sequential single-position-at-a-time schedule (no tied positions).
 

@@ -1,0 +1,59 @@
+{
+  "cases": [
+    {
+      "cardinality": 16,
+      "default_batch_size": 32,
+      "aminx_strategy": "Vmap",
+      "xtrax_strategy": "Vmap",
+      "decision_parity": true,
+      "aminx_recompiles": 1,
+      "xtrax_recompiles": 1,
+      "recompile_parity": true,
+      "aminx_median_s": 1.1951546184718609e-05,
+      "xtrax_median_s": 1.479999627918005e-05,
+      "xtrax_vs_aminx_throughput_ratio": 1.2383331872242191
+    },
+    {
+      "cardinality": 32,
+      "default_batch_size": 32,
+      "aminx_strategy": "Vmap",
+      "xtrax_strategy": "Vmap",
+      "decision_parity": true,
+      "aminx_recompiles": 1,
+      "xtrax_recompiles": 1,
+      "recompile_parity": true,
+      "aminx_median_s": 1.1389493010938168e-05,
+      "xtrax_median_s": 1.1429423466324806e-05,
+      "xtrax_vs_aminx_throughput_ratio": 1.003505902795523
+    },
+    {
+      "cardinality": 96,
+      "default_batch_size": 32,
+      "aminx_strategy": "SafeMap",
+      "xtrax_strategy": "SafeMap",
+      "decision_parity": true,
+      "aminx_recompiles": 1,
+      "xtrax_recompiles": 1,
+      "recompile_parity": true,
+      "aminx_median_s": 1.1609052307903767e-05,
+      "xtrax_median_s": 1.2303004041314125e-05,
+      "xtrax_vs_aminx_throughput_ratio": 1.0597767772084115
+    },
+    {
+      "cardinality": 256,
+      "default_batch_size": 64,
+      "aminx_strategy": "SafeMap",
+      "xtrax_strategy": "SafeMap",
+      "decision_parity": true,
+      "aminx_recompiles": 1,
+      "xtrax_recompiles": 1,
+      "recompile_parity": true,
+      "aminx_median_s": 0.00010638346429914236,
+      "xtrax_median_s": 9.281153324991465e-05,
+      "xtrax_vs_aminx_throughput_ratio": 0.8724244304447122
+    }
+  ],
+  "all_decision_parity": true,
+  "all_recompile_parity": true,
+  "max_xtrax_vs_aminx_throughput_ratio": 1.2383331872242191
+}

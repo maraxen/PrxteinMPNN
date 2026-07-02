@@ -27,18 +27,15 @@ def _make_planner(axes: list[AxisSpec], carries: list[CarrySpec] = None, dedup_s
 
 def test_axis_decision_has_strategy_field() -> None:
     """AxisDecision should have a strategy field."""
-    d = AxisDecision(
-        axis=N_NOISES,
-        batch_size=0,
-        reasoning="vmap",
-        strategy=Vmap(),
-    )
+    d = AxisDecision(spec=N_NOISES, batch_size=0,
+    reasoning="vmap",
+    strategy=Vmap(),)
     assert isinstance(d.strategy, Vmap)
 
 
 def test_axis_decision_batch_size_zero_with_vmap_strategy() -> None:
     """AxisDecision with batch_size=0 should have Vmap strategy."""
-    d = AxisDecision(axis=N_NOISES, batch_size=0, reasoning="vmap", strategy=Vmap())
+    d = AxisDecision(spec=N_NOISES, batch_size=0, reasoning="vmap", strategy=Vmap())
     assert d.batch_size == 0
     assert isinstance(d.strategy, Vmap)
 

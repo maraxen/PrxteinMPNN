@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
   from aminx.run.specs import RunSpecification
   from aminx.types.arrays import AutoRegressiveMask, DecodingOrder
+  from aminx.types.bundles import WaveScheduleBundle
   from aminx.utils.data_structures import Protein
 
 
@@ -178,3 +179,72 @@ def generate_ar_mask(
     ar_mask = ar_mask * same_chain
 
   return ar_mask
+
+
+@jax.jit
+def generate_wave_ar_mask(
+  wave: WaveScheduleBundle,
+  tie_group_map: jnp.ndarray,
+) -> AutoRegressiveMask:
+  """Get the autoregressive mask for a `WaveScheduleBundle` (wave-color scheduling, W0.3+).
+
+  Generalizes `generate_ar_mask` from a flat total-order `decoding_order` to a
+  `WaveScheduleBundle` that may pack multiple (conditionally independent) tie
+  groups into the same wave (chromatic/improper-coloring arms, `G > 1`).
+  Position `i` is visible to position `j` iff `j`'s wave is strictly earlier
+  than `i`'s, OR `i` and `j` are in the same tie group (same wave, same group —
+  tied positions always see each other, matching `generate_ar_mask`). Positions
+  in the *same* wave but *different* groups do NOT see each other — this is the
+  Jacobi-within-a-color independence the chromatic schedule relies on.
+
+  For a `G == 1` schedule (`WaveScheduleBundle.from_tie_groups`/`.empty`, i.e.
+  every existing non-coloring arm), this reduces exactly to `generate_ar_mask`'s
+  semantics: each wave has a unique rank, so "same wave" implies "same group".
+
+  Parameters
+  ----------
+  wave : WaveScheduleBundle
+      Wave/group schedule, shape (W waves, G groups-per-wave, P positions).
+  tie_group_map : Int[Array, "L"]
+      Tie group id per position (state-0 convention, matching the rest of the
+      AR decode kernel).
+
+  Returns
+  -------
+  AutoRegressiveMask
+      Shape (L, L); 1 where position i can see position j's decoded sequence.
+
+  """
+  seq_len = tie_group_map.shape[0]
+  num_waves, max_groups_per_wave = wave.group_ids.shape
+
+  # Sentinel for groups that never appear in `wave` at all (a *partial*
+  # decoding order -- e.g. a caller that only schedules the positions it
+  # actually needs, leaving the rest permanently undecided). Must be LARGER
+  # than any real wave index, not smaller: `earlier_wave`/`same_wave` below
+  # compare via `>`/`==`, so a too-small sentinel (e.g. -1) would make every
+  # omitted position look "earlier than everything" and leak its (never
+  # decoded, all-zero) value as false context. A too-large sentinel instead
+  # makes omitted positions "infinitely late" -- correctly invisible to
+  # every real position, and never visible to each other either.
+  never_scheduled_sentinel = num_waves
+  wave_index_grid = jnp.broadcast_to(
+    jnp.arange(num_waves, dtype=jnp.int32)[:, None],
+    (num_waves, max_groups_per_wave),
+  )
+  flat_group_ids = jnp.where(wave.group_valid, wave.group_ids, 0).reshape(-1)
+  flat_wave_index = jnp.where(wave.group_valid, wave_index_grid, never_scheduled_sentinel).reshape(-1)
+
+  # Scatter-min: each group id ends up mapped to the (single, real) wave index
+  # it was assigned to; invalid (padding) entries carry the sentinel and never
+  # win over a real (smaller) wave index.
+  group_wave_index = jnp.full((seq_len,), never_scheduled_sentinel, dtype=jnp.int32).at[
+    flat_group_ids
+  ].min(flat_wave_index)
+  position_wave_index = group_wave_index[tie_group_map]
+
+  same_wave = position_wave_index[:, None] == position_wave_index[None, :]
+  earlier_wave = position_wave_index[:, None] > position_wave_index[None, :]
+  same_group = tie_group_map[:, None] == tie_group_map[None, :]
+
+  return (earlier_wave | (same_wave & same_group)).astype(jnp.float32)

@@ -42,6 +42,27 @@ from aminx.types.stages import StageSet
 DecodingOrderFn = Callable[[WaveScheduleBundle], Any]
 
 
+def _fuse_one_group(
+  logits: jnp.ndarray,
+  mask_group: jnp.ndarray,
+  tie_group_fuse: Callable | None,
+) -> jnp.ndarray:
+  """Average per-position `logits` (L, 21) over one group's boolean mask (L,).
+
+  Returns zeros (not -inf/nan) for an all-False mask (inactive/padded group
+  slot), so callers can safely combine results across the G axis (e.g. via
+  einsum) without NaN propagation from 0 * (-inf).
+  """
+  if tie_group_fuse is not None:
+    fused = tie_group_fuse(logits, mask_group).reshape((21,))
+    return jnp.where(jnp.any(mask_group), fused, 0.0)
+
+  masked = jnp.where(mask_group[:, None], logits, -jnp.inf)
+  n_tied = jnp.sum(mask_group)
+  avg = jax.scipy.special.logsumexp(masked, axis=0) - jnp.log(jnp.maximum(n_tied, 1))
+  return jnp.where(n_tied > 0, avg, 0.0)
+
+
 class AutoregressiveDecode(eqx.Module):
   """Autoregressive decode mode: carry-bearing wave iteration with post-hoc scatter.
 
@@ -169,7 +190,7 @@ class AutoregressiveDecode(eqx.Module):
     S = enc.node_features.shape[0]
     cond = bundle.conditioning
     wave = bundle.wave
-    n_waves = wave.group_ids.shape[0]
+    n_waves, max_groups_per_wave = wave.group_ids.shape
 
     # 1. Materialize init sequence from metadata with actual length L
     init_sequence = jnp.zeros((L,), dtype=self.wave_carry.dtype)
@@ -181,9 +202,30 @@ class AutoregressiveDecode(eqx.Module):
       init_sequence,
     ).astype(jnp.int32)
 
-    # 2. Build step function that processes one wave at a time
+    # 1b. Precompute, once, the first (wave, slot) occurrence of every REAL tie
+    # group (looked up via cond.tie_group_map, not wave.group_ids -- those only
+    # coincide for from_tie_groups/from_colors-built schedules; WaveScheduleBundle.
+    # empty() assigns one group per position regardless of ties, so a tie group
+    # with >1 member position appears at >1 (wave, slot) under empty() and must
+    # only be sampled once). For from_tie_groups/from_colors schedules every
+    # real group already appears exactly once, so this is a no-op there.
+    pos0_grid = wave.group_positions[:, :, 0]  # (W, G)
+    real_group_id_grid = cond.tie_group_map[0, pos0_grid]  # (W, G)
+    wave_index_grid = jnp.broadcast_to(jnp.arange(n_waves, dtype=jnp.int32)[:, None], (n_waves, max_groups_per_wave))
+    slot_grid = jnp.broadcast_to(jnp.arange(max_groups_per_wave, dtype=jnp.int32)[None, :], (n_waves, max_groups_per_wave))
+    combined_rank_grid = wave_index_grid * max_groups_per_wave + slot_grid
+    no_occurrence_sentinel = n_waves * max_groups_per_wave
+    flat_group_id = jnp.where(wave.group_valid, real_group_id_grid, 0).reshape(-1)
+    flat_rank = jnp.where(wave.group_valid, combined_rank_grid, no_occurrence_sentinel).reshape(-1)
+    group_first_rank = jnp.full((L,), no_occurrence_sentinel, dtype=jnp.int32).at[flat_group_id].min(flat_rank)
+
+    # 2. Build step function that processes one wave at a time. A wave may pack
+    # multiple (conditionally independent, for a proper coloring) tie groups
+    # into its G group slots -- all groups in an active wave are decoded from
+    # the SAME shared forward pass (computed once below) and sampled/updated
+    # in parallel (Jacobi-within-a-color), not sequentially.
     def step_fn(sequence: jnp.ndarray, wave_idx: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
-      """Process one wave: decode, fuse, sample, update sequence.
+      """Process one wave: decode, fuse, sample, update sequence for all its groups.
 
       Parameters
       ----------
@@ -194,26 +236,22 @@ class AutoregressiveDecode(eqx.Module):
 
       Returns
       -------
-      (new_sequence, step_logits) : (array (L,), array (21,))
-          Updated sequence and per-wave logits.
+      (new_sequence, step_logits) : (array (L,), array (G, 21))
+          Updated sequence and per-group-slot logits for this wave (zeros for
+          inactive/padded group slots).
 
       """
-      # Identify tied position group for this wave
-      pos = wave.group_positions[wave_idx, 0, 0]
-      group_id = cond.tie_group_map[0, pos]
-
-      # Skip padded waves (added by pad_bundle when bucketing is active).
-      is_active = wave.group_valid[wave_idx, 0].astype(jnp.bool_)
-
-      # Check if this is the first time we encounter this group
-      # Note: we only check the first position in the group (group_positions[wave_idx, 0, 0])
-      # to determine if this group should be sampled
-      tie_group_at_order = cond.tie_group_map[0, wave.group_positions[:, 0, 0]]
-      first_occurrence_idx = jnp.argmax(tie_group_at_order == group_id)
-      is_first = (first_occurrence_idx == wave_idx) & is_active
+      # Group identities for every slot in this wave (garbage/0 where inactive).
+      pos0 = wave.group_positions[wave_idx, :, 0]  # (G,)
+      group_id = cond.tie_group_map[0, pos0]  # (G,)
+      is_active = wave.group_valid[wave_idx].astype(jnp.bool_)  # (G,)
+      this_rank = wave_idx * max_groups_per_wave + jnp.arange(max_groups_per_wave, dtype=jnp.int32)  # (G,)
+      is_first_occurrence = is_active & (group_first_rank[group_id] == this_rank)  # (G,)
+      mask_group = (cond.tie_group_map[0][None, :] == group_id[:, None]) & is_first_occurrence[:, None]  # (G, L)
+      wave_has_active_group = jnp.any(is_first_occurrence)
 
       def do_sample(seq: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
-        """Decode, fuse, sample, and update sequence."""
+        """Decode (once, shared across groups), fuse/sample/update per group."""
         # One-hot encode sequence for all S states
         seq_oh = jax.nn.one_hot(seq, 21)  # (L, 21)
         seq_oh_stack = jnp.broadcast_to(
@@ -277,78 +315,42 @@ class AutoregressiveDecode(eqx.Module):
             bias=cond.bias,
           )
 
-        # Logit averaging for the group (tied positions)
-        mask_group = cond.tie_group_map[0] == group_id
+        # Per-group logit averaging (tied positions within each group slot).
+        avg_stored = jax.vmap(
+          lambda mg: _fuse_one_group(stored_logits, mg, stage_set.tie_group_fuse),
+        )(mask_group)  # (G, 21)
+        avg_sampling = jax.vmap(
+          lambda mg: _fuse_one_group(sampling_logits, mg, stage_set.tie_group_fuse),
+        )(mask_group)  # (G, 21)
 
-        # Fuse stored logits (bias-free) across tied positions
-        if stage_set.tie_group_fuse is not None:
-          step_logits = stage_set.tie_group_fuse(
-            stored_logits,
-            mask_group,
-          ).reshape((21,))
-        else:
-          stored_group = jnp.where(
-            mask_group[:, None],
-            stored_logits,
-            -jnp.inf,
-          )
-          n_tied = jnp.sum(mask_group)
-          avg_stored = jax.scipy.special.logsumexp(
-            stored_group,
-            axis=0,
-          ) - jnp.log(jnp.maximum(n_tied, 1))
-          step_logits = avg_stored.reshape((21,))
+        # Sample each group from its own bias-applied logits, independently.
+        subkeys = jax.vmap(lambda gid: jax.random.fold_in(key, gid))(group_id)  # (G, 2)
+        sampled = jax.vmap(
+          lambda k, sampling_logits_g: jax.random.categorical(k, sampling_logits_g / cond.temperature),
+        )(subkeys, avg_sampling)  # (G,)
 
-        # Fuse sampling logits (bias-applied) across tied positions
-        if stage_set.tie_group_fuse is not None:
-          avg_sampling = stage_set.tie_group_fuse(
-            sampling_logits,
-            mask_group,
-          ).reshape((21,))
-        else:
-          sampling_group = jnp.where(
-            mask_group[:, None],
-            sampling_logits,
-            -jnp.inf,
-          )
-          n_tied = jnp.sum(mask_group)
-          avg_sampling = jax.scipy.special.logsumexp(
-            sampling_group,
-            axis=0,
-          ) - jnp.log(jnp.maximum(n_tied, 1))
-          avg_sampling = avg_sampling.reshape((21,))
-
-        # Sample from bias-applied logits
-        subkey = jax.random.fold_in(key, group_id)
-        sampled = jax.random.categorical(
-          subkey,
-          avg_sampling / cond.temperature,
-        )
-
-        # Update all positions in the group
-        is_group_fixed = jnp.any(cond.fixed_mask.astype(jnp.bool_) & mask_group)
+        # Update all positions in each group (fixed positions override the sample).
+        fixed_mask_bool = cond.fixed_mask.astype(jnp.bool_)
+        is_group_fixed = jnp.any(fixed_mask_bool[None, :] & mask_group, axis=1)  # (G,)
         group_fixed_token = jnp.max(
-          jnp.where(
-            cond.fixed_mask.astype(jnp.bool_) & mask_group,
-            cond.fixed_tokens,
-            0,
-          ),
-        )
-        final_token = jnp.where(
-          is_group_fixed,
-          group_fixed_token,
-          sampled,
-        ).astype(jnp.int32)
+          jnp.where(fixed_mask_bool[None, :] & mask_group, cond.fixed_tokens[None, :], 0),
+          axis=1,
+        )  # (G,)
+        final_token = jnp.where(is_group_fixed, group_fixed_token, sampled).astype(jnp.int32)  # (G,)
 
-        new_seq = jnp.where(mask_group, final_token, seq)
-        return new_seq, step_logits
+        # Groups within a wave are disjoint (by construction of a valid
+        # coloring), so summing each group's masked contribution is safe.
+        token_grid = jnp.where(mask_group, final_token[:, None], 0)  # (G, L)
+        any_group_covers_position = jnp.any(mask_group, axis=0)  # (L,)
+        new_seq = jnp.where(any_group_covers_position, jnp.sum(token_grid, axis=0), seq)
+
+        return new_seq, avg_stored
 
       def no_sample(seq: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
-        """Skip update for positions already sampled."""
-        return seq, jnp.zeros((21,))
+        """Skip update: no active group slots in this (padded) wave."""
+        return seq, jnp.zeros((max_groups_per_wave, 21))
 
-      # Conditionally sample or skip based on first_occurrence check
-      return jax.lax.cond(is_first, do_sample, no_sample, sequence)
+      return jax.lax.cond(wave_has_active_group, do_sample, no_sample, sequence)
 
     # 3. Run wave iteration
     if self.use_while_loop:
@@ -365,7 +367,7 @@ class AutoregressiveDecode(eqx.Module):
       _, final_seq, logits_stack = jax.lax.while_loop(
         lambda c: c[0] < n_waves,
         _while_body,
-        (jnp.int32(0), init_sequence, jnp.zeros((n_waves, 21))),
+        (jnp.int32(0), init_sequence, jnp.zeros((n_waves, max_groups_per_wave, 21))),
       )
     else:
       final_seq, logits_stack = self.wave_iterator(
@@ -374,22 +376,26 @@ class AutoregressiveDecode(eqx.Module):
         jnp.arange(n_waves),
       )
 
-    # 4. Post-hoc scatter: map per-wave logits to per-position logits
+    # 4. Post-hoc scatter: map per-wave (per-group-slot) logits to per-position logits
     def scatter_logits(
       logits_final: jnp.ndarray,
       wave_idx: jnp.ndarray,
     ) -> tuple[jnp.ndarray, None]:
-      """Scatter one wave's logits to its positions."""
-      is_active = wave.group_valid[wave_idx, 0].astype(jnp.bool_)
-      pos = wave.group_positions[wave_idx, 0, 0]
-      group_id = cond.tie_group_map[0, pos]
-      mask_group = cond.tie_group_map[0] == group_id
-      step_logits = logits_stack[wave_idx]  # (21,)
-      new_logits_final = jnp.where(
-        mask_group[:, None] & is_active,
-        step_logits,
-        logits_final,
-      )
+      """Scatter one wave's per-group logits to their positions."""
+      is_active = wave.group_valid[wave_idx].astype(jnp.bool_)  # (G,)
+      pos0 = wave.group_positions[wave_idx, :, 0]  # (G,)
+      group_id = cond.tie_group_map[0, pos0]  # (G,)
+      this_rank = wave_idx * max_groups_per_wave + jnp.arange(max_groups_per_wave, dtype=jnp.int32)  # (G,)
+      is_first_occurrence = is_active & (group_first_rank[group_id] == this_rank)  # (G,)
+      # (L, G): position p selects group slot g iff p is in g's group AND this
+      # wave is that group's first (only the first occurrence's wave actually
+      # computed real logits; step_fn's no_sample wrote zeros elsewhere).
+      # Groups within a wave are disjoint, so at most one slot is True per row.
+      position_selects_group = (cond.tie_group_map[0][:, None] == group_id[None, :]) & is_first_occurrence[None, :]
+      step_logits = logits_stack[wave_idx]  # (G, 21)
+      selected_logits = jnp.einsum("lg,gv->lv", position_selects_group.astype(jnp.float32), step_logits)
+      any_valid = jnp.any(position_selects_group, axis=1)  # (L,)
+      new_logits_final = jnp.where(any_valid[:, None], selected_logits, logits_final)
       return new_logits_final, None
 
     logits_init = jnp.zeros((L, 21))

@@ -2,6 +2,9 @@
 *.pkl
 .venv
 .venv/
+# Local uv.toml overrides (e.g. editable path source for active sibling-repo
+# co-development) — machine-specific, never commit.
+/uv.toml
 __pycache__/
 *.pyc
 *.pyo

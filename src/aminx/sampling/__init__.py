@@ -45,6 +45,7 @@ def sample(
   ligand_coords: jax.Array | None = None,
   ligand_atom_types: jax.Array | None = None,
   ligand_mask: jax.Array | None = None,
+  inference_only: bool = False,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
   """Sample sequences from a structure using the default temperature sampler.
 
@@ -70,6 +71,10 @@ def sample(
     ligand_coords: Ligand coordinates.
     ligand_atom_types: Ligand atom types.
     ligand_mask: Ligand atom mask.
+    inference_only: When True, the AR wave axis uses lax.while_loop instead
+      of lax.scan -- much faster to compile, not reverse-mode differentiable.
+      Safe for any sampling use (AR decoding is never used in a training/grad
+      path in aminx). Leave False if unsure.
 
   Returns:
     Tuple of (sampled sequence, logits, decoding order).
@@ -97,5 +102,6 @@ def sample(
       ligand_coords=ligand_coords,
       ligand_atom_types=ligand_atom_types,
       ligand_mask=ligand_mask,
+      inference_only=inference_only,
     ),
   )

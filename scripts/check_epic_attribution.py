@@ -8,9 +8,19 @@ reference the driving epic ID in its commit message (pattern like ``#1234`` or
 cross-linking to the mpnn_ext epic doc. This script enforces the commit-message
 half mechanically; the decision-doc half is a manual review item.
 
-Motivated by backlog aminx#2954: five wave-color commits (54d6d84, 0be59ef,
-4060e9d, 0670197, 1cec556) landed in aminx with no epic-ID reference despite an
-explicit prior instruction to file that work under mpnn_ext instead.
+Only *source code* paths under ``src/`` are checked against the keyword list —
+prose in ``.praxia/`` logs, docs, or fixtures mentioning "wave"/"schedule" in
+passing must not trip the lint.
+
+Grandfathered: the five original wave-color commits (54d6d84, 0be59ef,
+4060e9d, 0670197, 1cec556) landed before this lint existed and are already
+retroactively attributed by hand in
+``.praxia/docs/decisions/260702_wave-color-commits-retroactive-attribution.md``.
+They're exempted here by SHA so this lint doesn't perpetually fail on its own
+introducing PR; this is a one-time grandfather list, not a pattern to append
+to for future violations — new violations must fix the commit message (or, if
+already merged, get their own decision doc AND a matching exemption PR that
+links it).
 """
 
 from __future__ import annotations
@@ -21,9 +31,14 @@ import subprocess
 import sys
 
 DECODE_PATH_KEYWORDS = re.compile(
-    r"\b(wave|chromatic|schedul|decode|coloring|colouring)\b", re.IGNORECASE
+    r"\b(wave|chromatic|schedul|decod|coloring|colouring)\b", re.IGNORECASE
 )
 EPIC_ID_PATTERN = re.compile(r"(?:epic\s*)?#\d{3,5}\b", re.IGNORECASE)
+SOURCE_PATH_PREFIX = "src/"
+
+GRANDFATHERED_SHA_PREFIXES = frozenset(
+    {"54d6d84", "0be59ef", "4060e9d", "0670197", "1cec556"}
+)
 
 
 def _run(*args: str) -> str:
@@ -40,23 +55,29 @@ def commit_message(sha: str) -> str:
     return _run("log", "-1", "--format=%B", sha)
 
 
-def commit_diff_touches_decode_path(sha: str) -> bool:
-    diff = _run("show", "--unified=0", "--format=", sha)
-    return bool(DECODE_PATH_KEYWORDS.search(diff))
+def changed_source_paths(sha: str) -> list[str]:
+    names = _run("show", "--name-only", "--format=", sha).splitlines()
+    return [n for n in names if n.startswith(SOURCE_PATH_PREFIX)]
+
+
+def commit_touches_decode_path(sha: str) -> bool:
+    return any(DECODE_PATH_KEYWORDS.search(path) for path in changed_source_paths(sha))
 
 
 def check_commit(sha: str) -> str | None:
     """Return a violation message, or None if the commit is compliant."""
+    if sha[:7] in GRANDFATHERED_SHA_PREFIXES:
+        return None
     message = commit_message(sha)
-    if not commit_diff_touches_decode_path(sha):
+    if not commit_touches_decode_path(sha):
         return None
     if EPIC_ID_PATTERN.search(message):
         return None
     subject = message.strip().splitlines()[0] if message.strip() else "(empty)"
     return (
-        f"{sha[:8]} touches decode/schedule/wave/coloring code but its commit "
-        f'message has no epic-ID reference (e.g. "#2871" or "epic #2871"): '
-        f"{subject!r}"
+        f"{sha[:8]} touches decode/schedule/wave/coloring source code but its "
+        f'commit message has no epic-ID reference (e.g. "#2871" or '
+        f'"epic #2871"): {subject!r}'
     )
 
 

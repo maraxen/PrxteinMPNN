@@ -53,7 +53,7 @@ wheels = [
 
 [[package]]
 name = "aminx"
-version = "0.1.0a8"
+version = "0.1.0a9"
 source = { editable = "." }
 dependencies = [
     { name = "array-record", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -2653,7 +2653,7 @@ wheels = [
 
 [[package]]
 name = "proxide"
-version = "0.1.0a9"
+version = "0.1.0a11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "array-record", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -2670,12 +2670,12 @@ dependencies = [
     { name = "tqdm", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "typer", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/90/40/3e59cfe278a40af6ab1eb0ce2bcf9488419fe37decdb9cfb72e3250f5c3b/proxide-0.1.0a9.tar.gz", hash = "sha256:24d5942c0405d6e09c1c2ff95d3dda5af69e685cbb174afa74e71f3acfa67543", size = 7151826, upload-time = "2026-06-09T21:52:20.061Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4b/a0/2350fe25f6d4b6b22caaa72b33403d5339632ff3711e9c9542c339586d49/proxide-0.1.0a11.tar.gz", hash = "sha256:c2a483067bd42d58ced9a71b39475129be9978ffa7b5d215103ca7db00400a86", size = 7273025, upload-time = "2026-07-06T18:42:05.977Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/dc/c4/99b7a9d68cc65a6d6d8be3790d2fbc39c542137b3c283eaa74ead7c70d45/proxide-0.1.0a9-cp311-abi3-macosx_10_12_x86_64.whl", hash = "sha256:9c7fc80649ba70ed8e275afc153f63f7d3734069c266d1dbd757be0a989ee0ed", size = 10801489, upload-time = "2026-06-09T21:52:08.712Z" },
-    { url = "https://files.pythonhosted.org/packages/41/82/03ea5a2e54e494c1d8ef1eb61dfe2bac901f241543a7a51391e6e91d8dfd/proxide-0.1.0a9-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:272218aa55ff0fb24097571363b9473199590780326c941c1618a1bee4c0a231", size = 10537800, upload-time = "2026-06-09T21:52:11.375Z" },
-    { url = "https://files.pythonhosted.org/packages/40/8e/c0f37aa6e074f5d20c8eac83ac055838d84d5bc296b042e58b8647881554/proxide-0.1.0a9-cp311-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:3707d4ac683b1aced6b8817203f114ed843701fdaa0c38a9b0e4f47623b8a18e", size = 11024247, upload-time = "2026-06-09T21:52:13.687Z" },
-    { url = "https://files.pythonhosted.org/packages/24/b6/64c079124d53f0b860a27e85895081cd13c8da38a17bb3243088a425a51c/proxide-0.1.0a9-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1f14fa73af03eb3dee89089894fa36fb9aee7436103869ba03aa5331152f650c", size = 11170917, upload-time = "2026-06-09T21:52:15.903Z" },
+    { url = "https://files.pythonhosted.org/packages/40/d4/5b8c09a98c04adef3f6f7e146b2c70e93fbcb046bbc1eca7b8c199659499/proxide-0.1.0a11-cp311-abi3-macosx_10_12_x86_64.whl", hash = "sha256:0979b991e7feeaba096c85a7d612f66c093cf377b711dbbd12195ad2487396b9", size = 11041091, upload-time = "2026-07-06T18:41:54.442Z" },
+    { url = "https://files.pythonhosted.org/packages/20/00/a1c4fce92ce55fd4f4037a5bb691fbcfae0c66c0c8c5496bcc8c1c5142f0/proxide-0.1.0a11-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:438e642731ac55775b0fc04feed45cf16675ee5b55bab3783c183f8de00ab402", size = 10744396, upload-time = "2026-07-06T18:41:56.949Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/f7/5ecfc965dc2c5aca10870d1b4db10f958bc35669cc6f919d23be1a6d1dc6/proxide-0.1.0a11-cp311-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:1c1b8d36428384f3824d4efc89bdced543fef8bbb1b84f8a2a6779b7af4d33fc", size = 11252589, upload-time = "2026-07-06T18:41:59.392Z" },
+    { url = "https://files.pythonhosted.org/packages/99/bc/59dc974d39fe4111bca6fb42a6a84a9034c31b1de1b4628a3a6663f62642/proxide-0.1.0a11-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7fecc6139ac5504533bc70e7c091210d1dc7e3688bfbbd3fe94460d43d7bb015", size = 11461913, upload-time = "2026-07-06T18:42:01.43Z" },
 ]
 
 [[package]]

@@ -1,0 +1,33 @@
+[experiment]
+hypothesis = "On production-representative GPU shapes (L=208, TEV protease scale), T2.4's make_axis_dispatch_via_xtrax adapter reproduces legacy make_axis_dispatch's recompile behavior bit-for-bit, with throughput overhead within 1.10x"
+stage_name = "confirmation"
+novel = false
+task_id = "260630_wave-color-xtrax-audit"
+
+[outcomes.pass]
+condition = "all_recompile_parity = true AND max_adapter_vs_legacy_throughput_ratio <= 1.10"
+decision = "T2.GATE clears on real GPU/production-shape evidence; the flip from make_axis_dispatch to make_axis_dispatch_via_xtrax is justified for factory.py and friends"
+reasoning = "T2.GATE's stated DoD threshold on the standing cluster gate: identical recompile counts, throughput within 10% overhead, measured on production-representative shapes rather than CPU-synthetic toy functions"
+is_residual = false
+
+[outcomes.marginal]
+condition = "all_recompile_parity = true AND max_adapter_vs_legacy_throughput_ratio <= 1.50"
+decision = "Recompile correctness holds on real shapes but overhead exceeds the strict threshold; investigate xtrax's iterator wrapping cost at production batch sizes before flipping any call site"
+reasoning = "Recompile parity is the correctness claim and it holds; throughput overhead in (10%, 50%] means the adapter is usable but not free -- worth understanding before committing production call sites to it"
+is_residual = false
+
+[outcomes.fail]
+condition = "all_recompile_parity = false OR max_adapter_vs_legacy_throughput_ratio > 1.50"
+decision = "Do not flip factory.py to make_axis_dispatch_via_xtrax on production shapes; either recompile behavior diverges on real workloads (breaks aminx's no-retrace guarantees) or overhead is too large to justify the migration as currently scoped"
+reasoning = "Either recompile behavior diverges under real production shapes (not caught by the CPU-synthetic bench, which only tested toy cardinalities up to 256) or throughput overhead is unacceptable"
+is_residual = true
+
+[result_schema]
+all_recompile_parity = "bool"
+max_adapter_vs_legacy_throughput_ratio = "float"
+
+[result_schema.provenance]
+script_commit = "git log --oneline -1"
+related_epic = "#1541 (aminx->xtrax refactor), gate #1556 (T2.GATE)"
+hardware_targets = ["GPU (mit_preemptable, myxcel preempt-gpu preset)"]
+notes = "Companion to scripts/benchmarks/bench_xtrax_vs_aminx_tiling.py (CPU synthetic toy-function bench, decision+recompile parity only -- its own throughput measurement was found non-reproducible at microsecond scale across 5 repeat runs, 1.03x-1.79x spread). This script is the standing production-shape throughput gate the spec's premortem calls for -- L=208 (TEV protease, 1LVB.cif chain A) synthetic-geometry-at-real-size, num_states swept [1, 8, 32, 128]. L1 (dry-run) + L2 (local CPU smoke, <60s) passed before any cluster submission per CLUSTER.md."

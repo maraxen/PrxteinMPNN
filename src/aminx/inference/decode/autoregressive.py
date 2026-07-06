@@ -26,14 +26,13 @@ import jax
 import jax.lax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
-from xtrax.tiling import MapIterator, ScanIterator
+from xtrax.tiling import CarryShape, MapIterator, ScanIterator
 
 from aminx.inference.decode._kernel import (
   _decode_one_step,
   _project_logits,
 )
 from aminx.inference.sample_autoregressive import SampleResult
-from aminx.tiling.carry_shape import CarryShape
 from aminx.types.bundles import EncoderOutput, InferenceBundle, WaveScheduleBundle
 from aminx.types.configs import InferenceConfig
 from aminx.types.stages import StageSet

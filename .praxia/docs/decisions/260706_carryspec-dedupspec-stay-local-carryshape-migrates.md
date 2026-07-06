@@ -1,9 +1,16 @@
 ---
 title: CarrySpec/DedupSpec stay on aminx.tiling — CarryShape migrates to xtrax.tiling
-status: Accepted
+status: Superseded (in part) — see 260706_epic1541-planner-joint-budget-migration.md
 date: 2026-07-06
 related_epic: "#1541 (aminx→xtrax tiling refactor), gate #1556 (T2.GATE)"
 ---
+
+> **2026-07-06, later same day**: the `CarrySpec`/`DedupSpec` portion of this
+> decision is superseded — their blocker (aminx's planner not consulting
+> `heterogeneous_axes`) is closed once the planner itself routes through
+> xtrax's `BatchPlanner.plan()` (which already checks it in Phase 0), per
+> `../specs/260706_epic1541-planner-joint-budget-migration.md`. The
+> `CarryShape` portion of this decision (migrated, unaffected) still stands.
 
 # Decision
 

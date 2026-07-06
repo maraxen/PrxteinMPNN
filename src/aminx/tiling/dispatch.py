@@ -6,8 +6,18 @@ for invalid axis/strategy pairs. Part of the composable_jax library surface.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from aminx.tiling.errors import TilingError
 from aminx.tiling.strategy import AxisStrategy, SafeMap, Scan, Vmap
+
+if TYPE_CHECKING:
+  # Type-check-only: satisfies ty without a runtime top-level xtrax import
+  # (the actual imports below stay lazy/function-local, matching this file's
+  # existing circular-import-avoidance convention for aminx.tiling.iterator).
+  from xtrax.tiling import SafeMap as XtraxSafeMap
+  from xtrax.tiling import Scan as XtraxScan
+  from xtrax.tiling import Vmap as XtraxVmap
 
 
 class DispatchRejected(TilingError):
@@ -86,4 +96,96 @@ def make_axis_dispatch(strategy: AxisStrategy, *, axis: str = "state") -> object
   raise TypeError(f"Unknown strategy type: {type(strategy)}")
 
 
-__all__ = ["DispatchRejected", "make_axis_dispatch"]
+# Axis names make_axis_dispatch currently treats as heterogeneous (hardcoded
+# as a literal "state" check above). Kept as an explicit constant here, not
+# reused from tiling/carry.py's _HETEROGENEOUS_AXIS_NAMES ({"n_states",
+# "n_structures"}), since that constant serves a different naming context
+# (CarrySpec) and has never been shown to mean the same thing as this one.
+_DISPATCH_HETEROGENEOUS_AXES = frozenset({"state"})
+
+
+def _strategy_to_xtrax(strategy: AxisStrategy) -> XtraxVmap | XtraxSafeMap | XtraxScan:
+  """Translate an aminx-native AxisStrategy into its xtrax-native equivalent.
+
+  aminx's and xtrax's Vmap/SafeMap/Scan classes are structurally similar but
+  are NOT the same classes (xtrax's `isinstance` checks are against its own
+  classes) -- an aminx-native strategy instance is not a valid argument to
+  xtrax.tiling.dispatch.make_axis_dispatch without this translation. See
+  tests/tiling/test_t2_4_xtrax_dispatch_compat.py for the empirical finding.
+  """
+  from xtrax.tiling import SafeMap as _XtraxSafeMap
+  from xtrax.tiling import Scan as _XtraxScan
+  from xtrax.tiling import Vmap as _XtraxVmap
+
+  if isinstance(strategy, Vmap):
+    return _XtraxVmap()
+  if isinstance(strategy, SafeMap):
+    return _XtraxSafeMap(batch_size=strategy.tile)
+  if isinstance(strategy, Scan):
+    return _XtraxScan(
+      transition=strategy.transition,
+      init=strategy.init,
+      ordered_sinks=strategy.ordered_sinks,
+    )
+  raise TypeError(f"Unknown strategy type: {type(strategy)}")
+
+
+def make_axis_dispatch_via_xtrax(strategy: AxisStrategy, *, axis: str = "state") -> object:
+  """T2.4 migration target: make_axis_dispatch, backed by xtrax.tiling.dispatch.
+
+  EPIC #1541 (aminx.tiling -> xtrax.tiling migration,
+  `.praxia/docs/specs/260611_aminx-xtrax-refactor.md`, T-FACTORY-HOME row).
+  Mirrors `make_axis_dispatch`'s exact contract (same accepted/rejected
+  strategy-axis pairs, same DispatchRejected/TilingError hierarchy, same
+  returned-iterator call shape) while delegating iterator construction to
+  xtrax. Not yet wired into any call site -- `factory.py` and friends still
+  import `make_axis_dispatch` above. This is the flip target once T2.GATE
+  (bit-for-bit parity + recompile-count tripwire + cluster throughput bench)
+  passes; see tests/tiling/test_dispatch_via_xtrax_parity.py for the parity
+  suite this function must keep matching.
+
+  Two adaptations `make_axis_dispatch` doesn't need, both proven empirically
+  in tests/tiling/test_t2_4_xtrax_dispatch_compat.py:
+  1. Strategy objects are translated via `_strategy_to_xtrax` first --
+     aminx-native and xtrax-native Vmap/SafeMap/Scan are distinct classes.
+  2. `heterogeneous_axes` is passed explicitly to xtrax's make_axis_dispatch
+     (it defaults to none rejected, unlike aminx's hardcoded axis=="state"
+     check) -- forgetting this would silently stop rejecting Scan-on-state.
+
+  Raises
+  ------
+  DispatchRejected
+      Same conditions as make_axis_dispatch (Scan on a heterogeneous axis,
+      or DedupGather). Always aminx's own DispatchRejected (a TilingError
+      subclass) -- xtrax's DispatchRejected (a plain Exception, not a
+      TilingError) is caught and translated at this boundary, the same
+      pattern `host/plan.py:_validate_plan_topology` already uses for
+      PlanTopologyError.
+
+  """
+  from xtrax.tiling import DispatchRejected as _XtraxDispatchRejected
+  from xtrax.tiling import make_axis_dispatch as _xtrax_make_axis_dispatch
+
+  from aminx.tiling.strategy import DedupGather
+
+  # Reject DedupGather up front (same message/exception as make_axis_dispatch;
+  # no need to even translate the strategy for a path that always rejects).
+  if isinstance(strategy, DedupGather):
+    raise DispatchRejected(
+      "DedupGather strategy is handled by _dispatch_axis in kernel_dispatch.py, "
+      "not by make_axis_dispatch (which maps to iterator types). "
+      "Use DedupGather via BatchPlanner + _dispatch_axis, not make_axis_dispatch.",
+    )
+
+  xtrax_strategy = _strategy_to_xtrax(strategy)
+  try:
+    return _xtrax_make_axis_dispatch(
+      xtrax_strategy,
+      axis=axis,
+      heterogeneous_axes=set(_DISPATCH_HETEROGENEOUS_AXES),
+    )
+  except _XtraxDispatchRejected as exc:
+    raise DispatchRejected(str(exc)) from exc
+
+
+__all__ = ["DispatchRejected", "make_axis_dispatch", "make_axis_dispatch_via_xtrax"]

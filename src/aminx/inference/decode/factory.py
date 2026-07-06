@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any, cast
 
 import jax.numpy as jnp
+from xtrax.tiling import JaxScanIterator
 
 from aminx.inference.decode._base import _ConditionalDecodeBase
 from aminx.inference.decode.conditional import ConditionalDecode
@@ -30,7 +31,6 @@ from aminx.inference.decode.ste import STEDecode
 from aminx.inference.decode.unconditional import UnconditionalDecode
 from aminx.tiling.carry_shape import CarryShape
 from aminx.tiling.dispatch import DispatchRejected, make_axis_dispatch_via_xtrax
-from aminx.tiling.iterator import JaxScanIterator
 from aminx.tiling.strategy import AxisStrategy
 from aminx.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
@@ -74,7 +74,7 @@ def make_decode_fn(
 
   Notes
   -----
-  For AutoregressiveMode, the wave-axis iterator is always JaxScanIterator
+  For AutoregressiveMode, the wave-axis iterator is always xtrax.tiling.JaxScanIterator
   (a structural invariant); only the state-axis strategy is user-configurable.
   The wave_carry is initialized with a default shape of (1024,) (typical L);
   the actual shape is materialized inside AutoregressiveDecode.__call__ from

@@ -27,7 +27,6 @@ from aminx.inference.decode.mode import (
 from aminx.inference.decode.ste import STEDecode
 from aminx.inference.decode.unconditional import UnconditionalDecode
 from aminx.tiling.dispatch import DispatchRejected
-from aminx.tiling.iterator import JaxScanIterator
 from aminx.tiling.strategy import SafeMap, Scan, Vmap
 
 
@@ -108,7 +107,7 @@ class TestMakeDecodeFnAutoregressive:
 
         assert isinstance(result, AutoregressiveDecode)
         assert type(result.state_iterator).__name__ == "VmapIterator"
-        assert isinstance(result.wave_iterator, JaxScanIterator)
+        assert type(result.wave_iterator).__name__ == "JaxScanIterator"
         # Check wave_carry metadata
         assert result.wave_carry.name == "sequence"
         assert result.wave_carry.shape == (1024,)  # Default L for test
@@ -128,7 +127,7 @@ class TestMakeDecodeFnAutoregressive:
         assert isinstance(result, AutoregressiveDecode)
         assert type(result.state_iterator).__name__ == "SafeMapIterator"
         assert result.state_iterator.tile == 4
-        assert isinstance(result.wave_iterator, JaxScanIterator)
+        assert type(result.wave_iterator).__name__ == "JaxScanIterator"
 
 
 class TestMakeDecodeFnSTE:

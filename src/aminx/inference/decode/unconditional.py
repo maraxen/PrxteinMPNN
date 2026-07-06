@@ -14,9 +14,9 @@ from typing import Any
 import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
+from xtrax.tiling import MapIterator
 
 from aminx.inference.decode._kernel import _project_logits
-from aminx.tiling.iterator import MapIterator
 from aminx.types.bundles import EncoderOutput, InferenceBundle
 from aminx.types.stages import StageSet
 

@@ -9,8 +9,8 @@ After the wave scan completes, a post-hoc scatter scan maps per-wave logits back
 to per-position logits (Risk D-11 mitigation) — this stays outside the iterator.
 
 Key invariants:
-- The wave_iterator field is always JaxScanIterator (structural invariant; no
-  user-facing W-axis strategy knob per Risk D-3).
+- The wave_iterator field is always xtrax.tiling.JaxScanIterator (structural
+  invariant; no user-facing W-axis strategy knob per Risk D-3).
 - The state_iterator is injected at factory time, controlling S-axis parallelism.
 - CarryShape is metadata-only; the actual init-array is materialized inside
   __call__ from the metadata.
@@ -26,6 +26,7 @@ import jax
 import jax.lax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
+from xtrax.tiling import MapIterator, ScanIterator
 
 from aminx.inference.decode._kernel import (
   _decode_one_step,
@@ -33,7 +34,6 @@ from aminx.inference.decode._kernel import (
 )
 from aminx.inference.sample_autoregressive import SampleResult
 from aminx.tiling.carry_shape import CarryShape
-from aminx.tiling.iterator import MapIterator, ScanIterator
 from aminx.types.bundles import EncoderOutput, InferenceBundle, WaveScheduleBundle
 from aminx.types.configs import InferenceConfig
 from aminx.types.stages import StageSet

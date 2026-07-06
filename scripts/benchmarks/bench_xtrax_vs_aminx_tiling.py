@@ -2,23 +2,39 @@
 """Decision-parity + recompile/throughput micro-benchmark: aminx.tiling vs xtrax.tiling.
 
 aminx.tiling is a deliberate parallel reimplementation of xtrax.tiling (see
-backlog EPIC #1541, "aminx->xtrax refactor", T2-T5 — not yet executed). This
-script feeds direct evidence into that epic's T2.GATE (#1556) DoD: "upgraded
-xtrax tiling reproduces aminx bit-for-bit + identical recompile-count +
-throughput<=X%". It compares, on equivalent toy AxisSpecs, both libraries':
+backlog EPIC #1541, "aminx->xtrax refactor", T2-T5). This script feeds direct
+evidence into that epic's T2.GATE (#1556) DoD: "upgraded xtrax tiling
+reproduces aminx bit-for-bit + identical recompile-count + throughput<=X%".
 
-1. Strategy decision parity (does BatchPlanner.plan() choose the same
-   strategy TYPE for the same (cardinality, default_batch_size) pair?)
-2. Recompile count under repeated calls with identical shapes (should be 1
-   for both, since both libraries' dispatch returns a stable iterator
-   wrapped in a single eqx.filter_jit boundary)
-3. Wall-clock dispatch overhead (post-warmup median latency ratio)
+Two distinct comparisons, both on equivalent toy AxisSpecs/strategies:
+
+1. Planner-level decision parity: does xtrax's own BatchPlanner.plan() choose
+   the same strategy TYPE as aminx's, for the same (cardinality,
+   default_batch_size) pair? (independent-libraries comparison; feeds
+   confidence for a later P3 BatchPlanner migration, not this script's main
+   claim)
+
+2. Dispatch-level legacy-vs-adapter parity (THE load-bearing comparison for
+   T2.GATE / T2.4): given the SAME aminx-native strategy decision, does
+   aminx.tiling.dispatch.make_axis_dispatch_via_xtrax (T2.4's migration-ready
+   adapter, added 2026-07-02) produce identical recompile-count and
+   acceptable throughput overhead vs the legacy
+   aminx.tiling.dispatch.make_axis_dispatch -- i.e., does swapping ONLY the
+   dispatch call (the actual change T3's flip will make) preserve behavior?
+
+Covers Vmap, SafeMap (both via the cardinality-driven AXIS_CASES sweep) and
+Scan (a separate case -- Scan is never planner-selected by cardinality, so it
+needs a directly-constructed strategy and a carry-bearing toy transition to
+exercise jax.lax.scan's specific machinery, not just the Vmap/SafeMap map
+primitives).
 
 This is NOT a benchmark of aminx's production inference path -- it is a
-synthetic, toy-function test of the tiling *primitive* in isolation, since
-the two BatchPlanner/dispatch APIs are call-compatible (same
-fn(xs, *, in_axes=0) -> ys iterator signature on both sides) but aminx's
-production code does not yet route through xtrax.tiling at all.
+synthetic, toy-function test of the tiling *primitive* in isolation. The
+still-missing pieces for T2.GATE, deliberately out of scope here: (a) a
+model-level bit-for-bit golden fixture (see
+tests/tiling/test_t2_gate_bitforbit_golden.py), (b) a cluster GPU throughput
+bench on production-representative shapes (needs real cluster submission,
+scoped separately).
 
 Usage:
     uv run python scripts/benchmarks/bench_xtrax_vs_aminx_tiling.py \
@@ -58,6 +74,8 @@ AXIS_CASES: list[tuple[int, int]] = [
     (256, 64),  # larger chunk count, evenly divisible -> SafeMap
 ]
 
+SCAN_CARDINALITY = 32  # length of the toy carry-scan sequence
+
 
 def _make_compile_counter() -> tuple[dict[str, int], object]:
     """Build a toy fn that increments a counter once per JAX trace."""
@@ -70,6 +88,18 @@ def _make_compile_counter() -> tuple[dict[str, int], object]:
     return counter, toy_fn
 
 
+def _make_scan_compile_counter() -> tuple[dict[str, int], object]:
+    """Build a toy carry-bearing (carry, x) -> (carry, y) transition."""
+    counter = {"n": 0}
+
+    def toy_transition(carry, x):
+        counter["n"] += 1  # executes once per Python-level trace under jit
+        new_carry = carry + x
+        return new_carry, new_carry * 2.0
+
+    return counter, toy_transition
+
+
 def _plan_aminx(cardinality: int, default_batch_size: int, data_width: int = DATA_WIDTH):
     from aminx.tiling.planner import AxisSpec as AminxAxisSpec
     from aminx.tiling.planner import BatchPlanner as AminxBatchPlanner
@@ -80,12 +110,12 @@ def _plan_aminx(cardinality: int, default_batch_size: int, data_width: int = DAT
         cardinality=cardinality,
         default_batch_size=default_batch_size,
         # NOTE: deliberately set equal to default_batch_size, not the AxisSpec-doc default
-        # of 1. Works around a real bug found by this benchmark (#2895): aminx's SafeMap
-        # demotion (src/aminx/tiling/planner.py:170,196) computes
+        # of 1. Works around a real bug found by this benchmark (#2895, since fixed): aminx's
+        # SafeMap demotion (src/aminx/tiling/planner.py:170,196) computed
         # `tile = max(1, ax.tile_granularity)`, ignoring default_batch_size entirely,
         # contradicting both fields' own docstrings. Setting tile_granularity ==
-        # default_batch_size here routes around #2895 so this benchmark measures
-        # dispatch/wrapping overhead, not that bug's tile-size divergence.
+        # default_batch_size here routes around it so this benchmark measures
+        # dispatch/wrapping overhead, not tile-size divergence.
         tile_granularity=default_batch_size,
         heterogeneous=False,
         doc="synthetic benchmark axis",
@@ -123,16 +153,24 @@ def _plan_xtrax(cardinality: int, default_batch_size: int):
     return plan.decisions[0]
 
 
-def _dispatch_aminx(decision):
+def _dispatch_aminx_legacy(strategy, axis: str = "batch"):
+    """The path production call sites use today."""
     from aminx.tiling.dispatch import make_axis_dispatch
 
-    return make_axis_dispatch(decision.strategy, axis="batch")
+    return make_axis_dispatch(strategy, axis=axis)
 
 
-def _dispatch_xtrax(decision):
-    from xtrax.tiling.dispatch import make_axis_dispatch
+def _dispatch_via_adapter(strategy, axis: str = "batch"):
+    """T2.4's migration-ready adapter -- what production would use post-flip.
 
-    return make_axis_dispatch(decision.strategy, axis="batch", heterogeneous_axes=set())
+    Takes the SAME aminx-native strategy object as _dispatch_aminx_legacy, not
+    an independently-xtrax-native-planned one -- this is the apples-to-apples
+    "does swapping only the dispatch call change behavior" comparison T2.GATE
+    actually needs, distinct from the planner-decision-parity check above.
+    """
+    from aminx.tiling.dispatch import make_axis_dispatch_via_xtrax
+
+    return make_axis_dispatch_via_xtrax(strategy, axis=axis)
 
 
 def _time_iterator(
@@ -159,6 +197,31 @@ def _time_iterator(
     return times
 
 
+def _time_scan_iterator(
+    iterator,
+    transition,
+    init,
+    xs,
+    n_warmup: int,
+    n_timed: int,
+) -> list[float]:
+    @eqx.filter_jit
+    def run(xs):
+        return iterator(transition, init, xs)
+
+    for _ in range(n_warmup):
+        final_carry, ys = run(xs)
+        final_carry.block_until_ready()
+
+    times: list[float] = []
+    for _ in range(n_timed):
+        start = time.perf_counter()
+        final_carry, ys = run(xs)
+        final_carry.block_until_ready()
+        times.append(time.perf_counter() - start)
+    return times
+
+
 def run_case(cardinality: int, default_batch_size: int, n_warmup: int, n_timed: int) -> dict:
     key = random.PRNGKey(0)
     data = random.normal(key, (cardinality, 8))
@@ -166,37 +229,83 @@ def run_case(cardinality: int, default_batch_size: int, n_warmup: int, n_timed: 
     aminx_decision = _plan_aminx(cardinality, default_batch_size)
     xtrax_decision = _plan_xtrax(cardinality, default_batch_size)
 
-    aminx_strategy = type(aminx_decision.strategy).__name__
-    xtrax_strategy = type(xtrax_decision.strategy).__name__
-    decision_parity = aminx_strategy == xtrax_strategy
+    aminx_strategy_name = type(aminx_decision.strategy).__name__
+    xtrax_strategy_name = type(xtrax_decision.strategy).__name__
+    decision_parity = aminx_strategy_name == xtrax_strategy_name
 
-    aminx_iterator = _dispatch_aminx(aminx_decision)
-    xtrax_iterator = _dispatch_xtrax(xtrax_decision)
+    legacy_iterator = _dispatch_aminx_legacy(aminx_decision.strategy)
+    adapter_iterator = _dispatch_via_adapter(aminx_decision.strategy)
 
-    aminx_counter, aminx_fn = _make_compile_counter()
-    aminx_times = _time_iterator(aminx_iterator, aminx_fn, data, n_warmup, n_timed)
-    aminx_recompiles = aminx_counter["n"]
+    legacy_counter, legacy_fn = _make_compile_counter()
+    legacy_times = _time_iterator(legacy_iterator, legacy_fn, data, n_warmup, n_timed)
+    legacy_recompiles = legacy_counter["n"]
 
-    xtrax_counter, xtrax_fn = _make_compile_counter()
-    xtrax_times = _time_iterator(xtrax_iterator, xtrax_fn, data, n_warmup, n_timed)
-    xtrax_recompiles = xtrax_counter["n"]
+    adapter_counter, adapter_fn = _make_compile_counter()
+    adapter_times = _time_iterator(adapter_iterator, adapter_fn, data, n_warmup, n_timed)
+    adapter_recompiles = adapter_counter["n"]
 
-    aminx_median = float(jnp.median(jnp.array(aminx_times)))
-    xtrax_median = float(jnp.median(jnp.array(xtrax_times)))
-    throughput_ratio = xtrax_median / aminx_median if aminx_median > 0 else float("nan")
+    legacy_median = float(jnp.median(jnp.array(legacy_times)))
+    adapter_median = float(jnp.median(jnp.array(adapter_times)))
+    throughput_ratio = adapter_median / legacy_median if legacy_median > 0 else float("nan")
 
     return {
+        "strategy_kind": aminx_strategy_name,
         "cardinality": cardinality,
         "default_batch_size": default_batch_size,
-        "aminx_strategy": aminx_strategy,
-        "xtrax_strategy": xtrax_strategy,
+        "aminx_strategy": aminx_strategy_name,
+        "xtrax_strategy": xtrax_strategy_name,
         "decision_parity": decision_parity,
-        "aminx_recompiles": aminx_recompiles,
-        "xtrax_recompiles": xtrax_recompiles,
-        "recompile_parity": aminx_recompiles == xtrax_recompiles,
-        "aminx_median_s": aminx_median,
-        "xtrax_median_s": xtrax_median,
-        "xtrax_vs_aminx_throughput_ratio": throughput_ratio,
+        "legacy_recompiles": legacy_recompiles,
+        "adapter_recompiles": adapter_recompiles,
+        "recompile_parity": legacy_recompiles == adapter_recompiles,
+        "legacy_median_s": legacy_median,
+        "adapter_median_s": adapter_median,
+        "adapter_vs_legacy_throughput_ratio": throughput_ratio,
+    }
+
+
+def run_scan_case(n_warmup: int, n_timed: int) -> dict:
+    """Scan is never planner-selected by cardinality -- construct directly."""
+    from aminx.tiling.strategy import Scan as AminxScan
+
+    key = random.PRNGKey(1)
+    xs = random.normal(key, (SCAN_CARDINALITY,))
+    init = jnp.array(0.0)
+
+    strategy = AminxScan(init=init, transition=lambda c, x: (c + x, (c + x) * 2.0))
+
+    legacy_iterator = _dispatch_aminx_legacy(strategy, axis="wave")
+    adapter_iterator = _dispatch_via_adapter(strategy, axis="wave")
+
+    legacy_counter, legacy_transition = _make_scan_compile_counter()
+    legacy_times = _time_scan_iterator(
+        legacy_iterator, legacy_transition, init, xs, n_warmup, n_timed,
+    )
+    legacy_recompiles = legacy_counter["n"]
+
+    adapter_counter, adapter_transition = _make_scan_compile_counter()
+    adapter_times = _time_scan_iterator(
+        adapter_iterator, adapter_transition, init, xs, n_warmup, n_timed,
+    )
+    adapter_recompiles = adapter_counter["n"]
+
+    legacy_median = float(jnp.median(jnp.array(legacy_times)))
+    adapter_median = float(jnp.median(jnp.array(adapter_times)))
+    throughput_ratio = adapter_median / legacy_median if legacy_median > 0 else float("nan")
+
+    return {
+        "strategy_kind": "Scan",
+        "cardinality": SCAN_CARDINALITY,
+        "default_batch_size": None,
+        "aminx_strategy": "Scan",
+        "xtrax_strategy": "Scan",
+        "decision_parity": True,  # N/A: Scan is directly constructed, not planner-selected
+        "legacy_recompiles": legacy_recompiles,
+        "adapter_recompiles": adapter_recompiles,
+        "recompile_parity": legacy_recompiles == adapter_recompiles,
+        "legacy_median_s": legacy_median,
+        "adapter_median_s": adapter_median,
+        "adapter_vs_legacy_throughput_ratio": throughput_ratio,
     }
 
 
@@ -219,15 +328,18 @@ def main() -> None:
         logger.info(f"Running case cardinality={cardinality} batch_size={default_batch_size}")
         cases.append(run_case(cardinality, default_batch_size, args.n_warmup, args.n_timed))
 
+    logger.info("Running Scan case")
+    cases.append(run_scan_case(args.n_warmup, args.n_timed))
+
     all_decision_parity = all(c["decision_parity"] for c in cases)
     all_recompile_parity = all(c["recompile_parity"] for c in cases)
-    max_throughput_ratio = max(c["xtrax_vs_aminx_throughput_ratio"] for c in cases)
+    max_throughput_ratio = max(c["adapter_vs_legacy_throughput_ratio"] for c in cases)
 
     result = {
         "cases": cases,
         "all_decision_parity": all_decision_parity,
         "all_recompile_parity": all_recompile_parity,
-        "max_xtrax_vs_aminx_throughput_ratio": max_throughput_ratio,
+        "max_adapter_vs_legacy_throughput_ratio": max_throughput_ratio,
     }
 
     print(json.dumps(result, indent=2))

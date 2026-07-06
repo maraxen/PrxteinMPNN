@@ -16,13 +16,13 @@ from typing import Any
 
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
+from xtrax.tiling import MapIterator
 
 from aminx.inference.decode._base import _ConditionalDecodeBase
 from aminx.inference.decode._kernel import (
   _decode_one_step,
   _project_logits,
 )
-from aminx.tiling.iterator import MapIterator
 from aminx.types.arrays import Logits
 from aminx.types.bundles import EncoderOutput, InferenceBundle
 from aminx.types.configs import InferenceConfig

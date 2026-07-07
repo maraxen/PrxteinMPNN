@@ -23,7 +23,7 @@ dependencies = [
     "proxide>=0.1.0a9",
     "typer>=0.12.0",
     "huggingface-hub>=0.23.0",
-    "xtrax>=0.3.1",
+    "xtrax==0.4.0a1",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -148,8 +148,10 @@ pylint.max-args = 15
 "xtrax.stages.bundle" = {msg = "Use `from xtrax.stages import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.stages.protocols" = {msg = "Use `from xtrax.stages import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.tiling.bucket" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.budget" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.tiling.dedup" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.tiling.dispatch" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.estimators" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.tiling.plan" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.tiling.strategy" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.engine.engine" = {msg = "Use `from xtrax.engine import ...` — import from public __init__ only (ADR 260605)"}

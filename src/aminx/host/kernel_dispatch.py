@@ -20,6 +20,7 @@ from aminx.host.logit_aggregation import compute_pseudo_perplexity
 from aminx.host.plan import (
   AxisNames,
   compute_sample_keys,
+  decision_for,
   extract_batch_sizes,
   make_sampling_planner,
   resolve_target_samples,
@@ -44,25 +45,38 @@ def _dispatch_axis(strategy, body, xs, *, batch_size_fallback: int = 0):
 
   Args:
       strategy: AxisStrategy from BatchPlanner — Vmap, SafeMap, Scan, or DedupGather.
+          May be aminx-native (aminx.tiling.strategy) or xtrax-native
+          (xtrax.tiling.strategy) -- since EPIC #1541 T-PLANNER.2/4, plans built
+          via host/plan.py's _plan_with_joint_budget construct xtrax-native
+          strategies. Dispatched by type(strategy).__name__ rather than
+          isinstance against one specific class, so either origin works.
       body: Function to apply at each element. For Vmap/SafeMap: body(x) -> y.
             For Scan: called as body(x) -> y; carry is threaded around it.
             For DedupGather: body(x) -> y; run on K unique elements then scatter to N.
       xs: Input array or pytree to map over (leading axis = the mapped axis).
-      batch_size_fallback: Used only if strategy is not an AxisStrategy instance
-          (backward compat with callers that don't have the strategy field yet).
+      batch_size_fallback: Used only if strategy is not a recognized strategy
+          type (backward compat with callers that don't have the strategy
+          field yet).
 
   Returns:
       Stacked results, same leading shape as xs.
 
   """
-  from aminx.tiling.strategy import DedupGather, SafeMap, Scan, Vmap
   from aminx.utils.safe_scan import safe_scan
 
-  if isinstance(strategy, Vmap):
+  strategy_name = type(strategy).__name__
+
+  if strategy_name == "Vmap":
     return jax.vmap(body)(xs)
-  if isinstance(strategy, SafeMap):
-    return _safe_map(body, xs, batch_size=strategy.tile)
-  if isinstance(strategy, Scan):
+  if strategy_name == "SafeMap":
+    # aminx.tiling.strategy.SafeMap uses .tile; xtrax.tiling.strategy.SafeMap
+    # uses .batch_size for the same tile-size concept (EPIC #1541 T-PLANNER.4
+    # finding, 2026-07-06).
+    tile = getattr(strategy, "tile", None)
+    if tile is None:
+      tile = strategy.batch_size
+    return _safe_map(body, xs, batch_size=tile)
+  if strategy_name == "Scan":
     # Wrap body to be scan-compatible: body is (x -> y), transition threads carry.
     # For default case (init=None, no real carry), this is a carry-passthrough.
     init = strategy.init if strategy.init is not None else jnp.array(0)
@@ -73,7 +87,7 @@ def _dispatch_axis(strategy, body, xs, *, batch_size_fallback: int = 0):
 
     _, ys = safe_scan(scan_body, xs, init=init)
     return ys
-  if isinstance(strategy, DedupGather):
+  if strategy_name == "DedupGather":
     unique_idx = jnp.asarray(strategy.unique_indices, dtype=jnp.int32)  # (K_bucket,)
     index_map = jnp.asarray(strategy.index_map, dtype=jnp.int32)  # (N,)
     xs_unique = strategy.dedup_fn(xs, unique_idx)  # in-trace gather
@@ -98,7 +112,6 @@ def _sample_batch(
 ) -> tuple[ProteinSequence, Logits, jax.Array | None]:
   # 1. Plan batching
   batch_plan = make_sampling_planner(spec)
-  batch_plan.log_summary()
 
   structures_bs, samples_bs, temps_bs, noises_bs = extract_batch_sizes(batch_plan)
 
@@ -176,10 +189,10 @@ def _sample_batch(
     # Unified Path A: strategy-dispatched axis iteration using AxisDecision.strategy
     # Reads strategy from batch_plan.decision_for(axis_name) instead of batch_size ints.
     # -------------------------------------------------------------------------
-    struct_decision = batch_plan.decision_for(AxisNames.N_STRUCTURES)
-    noise_decision = batch_plan.decision_for(AxisNames.N_NOISES)
-    temp_decision = batch_plan.decision_for(AxisNames.N_TEMPERATURES)
-    sample_decision = batch_plan.decision_for(AxisNames.N_SAMPLES)
+    struct_decision = decision_for(batch_plan, AxisNames.N_STRUCTURES)
+    noise_decision = decision_for(batch_plan, AxisNames.N_NOISES)
+    temp_decision = decision_for(batch_plan, AxisNames.N_TEMPERATURES)
+    sample_decision = decision_for(batch_plan, AxisNames.N_SAMPLES)
 
     def _unified_call_kernel(key_samples, structure_idx, noise_val, temp_val):
       c = coords_for_vmap[structure_idx]
@@ -255,10 +268,10 @@ def _sample_batch(
     # -------------------------------------------------------------------------
     # Unified Path B: strategy-dispatched encoding fusion + decoding
     # -------------------------------------------------------------------------
-    struct_decision = batch_plan.decision_for(AxisNames.N_STRUCTURES)
-    noise_decision = batch_plan.decision_for(AxisNames.N_NOISES)
-    temp_decision = batch_plan.decision_for(AxisNames.N_TEMPERATURES)
-    sample_decision = batch_plan.decision_for(AxisNames.N_SAMPLES)
+    struct_decision = decision_for(batch_plan, AxisNames.N_STRUCTURES)
+    noise_decision = decision_for(batch_plan, AxisNames.N_NOISES)
+    temp_decision = decision_for(batch_plan, AxisNames.N_TEMPERATURES)
+    sample_decision = decision_for(batch_plan, AxisNames.N_SAMPLES)
 
     def _unified_call_structure_fused(structure_idx):
       c = coords_for_vmap[structure_idx]

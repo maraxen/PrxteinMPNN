@@ -5,8 +5,8 @@ import pytest
 
 from aminx.host.plan import make_sampling_planner
 from aminx.run.specs import SamplingSpecification
-from aminx.tiling.carry import CarrySpec
-from aminx.tiling.dedup import DedupSpec
+from xtrax.tiling import CarrySpec
+from xtrax.tiling.dedup import DedupSpec
 
 
 def dummy_transition(carry, x):

@@ -1,9 +1,18 @@
 ---
 title: BatchPlanner/AxisSpec stays on aminx.tiling.planner — not migrated to xtrax.tiling.plan
-status: Accepted
+status: Superseded (in part) — see 260706_epic1541-planner-joint-budget-migration.md
 date: 2026-07-06
 related_epic: "#1541 (aminx→xtrax tiling refactor), gate #1556 (T2.GATE)"
 ---
+
+> **2026-07-06, later same day**: the algorithmic gap this decision is built on
+> (no xtrax equivalent to aminx's joint multi-axis budget-demotion loop) is
+> closed — xtrax 0.4.0a1 ships `MemoryBudget`/`BatchPlanner(budget=...)` doing
+> exactly this. Migration is now planned in
+> `../specs/260706_epic1541-planner-joint-budget-migration.md`. This doc's
+> reasoning stands as the record of *why* the planner was blocked as of this
+> morning; it is not the current plan. Left in place rather than rewritten —
+> read the spec for the live plan.
 
 # Decision
 

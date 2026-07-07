@@ -47,9 +47,9 @@ if TYPE_CHECKING:
 
   from jaxtyping import ArrayLike
   from proxide.io.parsing.foldcomp import FoldCompDatabase
+  from xtrax.tiling import CarrySpec
+  from xtrax.tiling.dedup import DedupSpec  # noqa: TID251 -- DedupSpec is submodule-only, not re-exported from xtrax.tiling's public __init__ (see using-xtrax skill)
 
-  from aminx.tiling.carry import CarrySpec
-  from aminx.tiling.dedup import DedupSpec
   from aminx.types.stages import DecodingFusionFn, EncodingFusionFn
   from aminx.utils.catjac import CombineCatJacPairFn
   from aminx.utils.decoding_order import DecodingOrderFn

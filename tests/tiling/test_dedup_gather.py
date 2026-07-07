@@ -1,8 +1,9 @@
-"""Red tests for DedupGather strategy (backlog #930, task_id 260603_het-batch-dedup).
+"""Tests for DedupGather strategy (backlog #930, task_id 260603_het-batch-dedup).
 
-All tests in this file FAIL until the fixer implements:
-  - aminx.tiling.strategy.DedupGather
-  - aminx.tiling.dedup (DedupSpec, get_k_bucket)
+get_k_bucket sourced from xtrax.tiling.dedup (EPIC #1541 T-PLANNER.GATE):
+aminx.tiling.dedup was retired once the planner migrated to xtrax's
+joint-budget BatchPlanner; DedupGather itself (aminx.tiling.strategy) is
+unaffected -- still constructed directly here, not via DedupSpec.
 """
 
 from __future__ import annotations
@@ -13,8 +14,8 @@ import jax.numpy as jnp
 from jax.experimental import io_callback
 import pytest
 
-from aminx.tiling.strategy import DedupGather  # ImportError — RED
-from aminx.tiling.dedup import DedupSpec, get_k_bucket  # ImportError — RED
+from aminx.tiling.strategy import DedupGather
+from xtrax.tiling.dedup import get_k_bucket  # noqa: TID251 -- submodule-only, not re-exported from xtrax.tiling's public __init__
 
 
 def test_dedup_gather_bit_identical() -> None:

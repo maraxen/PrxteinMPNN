@@ -17,14 +17,10 @@ from typing import TYPE_CHECKING, Any, Protocol, TypeVar, runtime_checkable
 
 import equinox as eqx
 import jax
-from jaxtyping import Array, Float, Int
+from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray
 
 if TYPE_CHECKING:
   from aminx.inference.decode.protocols import DecoderSinkFn
-  from aminx.inference.logits import (
-    BatchLogitFn,
-    TieGroupFuseFn,
-  )
   from aminx.types.boundaries import AxisBoundary
   from aminx.types.bundles import DecodeOutput, EncoderOutput
 
@@ -92,6 +88,119 @@ LogitTransformFn = FuseFn[Float[Array, "S L V"], Float[Array, "L V"]]
 # ARLogitTransformFn: concrete signature (S, V) + (V,) -> (V,) — bias always passed, never None
 # Callers provide jnp.zeros_like(bias_shape) for no-op bias
 ARLogitTransformFn = FuseFn[Float[Array, "S V"], Float[Array, "V"]]
+
+
+@runtime_checkable
+class BatchLogitFn(Protocol):
+  """Protocol for fusing stacked state logits into a single canonical set.
+
+  Equivalent to the generic FuseFn specialized for logit tensors.
+  Accepts optional bias to be applied after fusion.
+  """
+
+  def __call__(
+    self,
+    per_state: Float[Array, "S ... V"],
+    bias: Float[Array, "... V"] | None = None,
+  ) -> Float[Array, "... V"]:
+    """Fuse per-state logits and optional bias into canonical logits.
+
+    Parameters
+    ----------
+    per_state : Float[Array, "S ... V"]
+        Per-state logits. S = number of states, V = vocabulary size (21 amino acids).
+    bias : Float[Array, "... V"] | None
+        Optional per-position logit bias to add after fusion. If None, no bias applied.
+
+    Returns
+    -------
+    Float[Array, "... V"]
+        Fused logits with state dimension reduced.
+
+    """
+    ...
+
+
+@runtime_checkable
+class TieGroupFuseFn(Protocol):
+  """Protocol for fusing tied-position logits into a single canonical set.
+
+  Signature: (logits: (L, V), mask: (L,)) -> (V,)
+  where L is the sequence length (positions in group selected by mask)
+  and V is the vocabulary size (usually 21).
+  """
+
+  def __call__(
+    self,
+    logits: Float[Array, "L V"],
+    mask: Bool[Array, L],
+  ) -> Float[Array, V]:
+    """Fuse tied-position logits into a single canonical set.
+
+    Parameters
+    ----------
+    logits : Float[Array, "L V"]
+        Per-position logits for all positions in the group. L = sequence length.
+    mask : Bool[Array, "L"]
+        Boolean mask selecting tied positions (True = in group).
+
+    Returns
+    -------
+    Float[Array, "V"]
+        Fused logits for the tied group.
+
+    """
+    ...
+
+
+@runtime_checkable
+class SampleStepFn(Protocol):
+  """Protocol for sampling tokens from logits using stochastic strategies.
+
+  Signature: (logits: (... V), key: PRNGKeyArray) -> (... ,)
+  where V is the vocabulary size (usually 21 amino acids) and "..." represents
+  zero or more leading dimensions for batch/group processing.
+  """
+
+  def __call__(
+    self,
+    logits: Float[Array, "... V"],
+    key: PRNGKeyArray,
+  ) -> Int[Array, "..."]:
+    """Sample tokens from logits using a stochastic strategy.
+
+    Parameters
+    ----------
+    logits : Float[Array, "... V"]
+        Per-position or per-group logits for sampling. V = vocabulary size
+        (21 amino acids). Leading dimensions "..." may be empty (single position)
+        or represent batch/group dimensions.
+    key : PRNGKeyArray
+        JAX random key for sampling.
+
+    Returns
+    -------
+    Int[Array, "..."]
+        Sampled tokens with leading dimensions matching input logits.
+        Typical implementations use jax.random.categorical, Gumbel-Softmax,
+        or Straight-Through Estimator (STE) strategies.
+
+    Examples
+    --------
+    Categorical sampling (single position):
+        logits: (V,) → tokens: ()
+
+    Gumbel-Softmax (differentiable, single position):
+        logits: (V,) → tokens: ()
+
+    Straight-Through Estimator / STE (single position):
+        logits: (V,) → tokens: ()
+
+    Group sampling (multiple positions):
+        logits: (L, V) → tokens: (L,) where L = group size
+
+    """
+    ...
 
 
 @runtime_checkable
@@ -314,9 +423,10 @@ class StageSet(eqx.Module):
       Decoder forward pass. ConditionalDecodeStep requires ar_mask and seq_oh
       (sequence one-hot); UnconditionalDecodeStep ignores them.
       None = topology not yet wired (internal invariant).
-  sample_step : Any | None
+  sample_step : SampleStepFn | None
       Sampling strategy: None = scoring-only mode (no sampling);
       categorical/Gumbel-Softmax/STE = sample from logits.
+      Signature: (logits: (... V), key: PRNGKeyArray) → (... ,)
       Examples: eqx.Module subclasses with __call__(logits, key) → tokens.
   tie_group_fuse : TieGroupFuseFn | None
       Reduce over tied positions. Signature:
@@ -353,7 +463,7 @@ class StageSet(eqx.Module):
   logit_transform: BatchLogitFn | None = None
   ar_logit_transform: BatchLogitFn | None = None
   decode_step: ConditionalDecodeStep | UnconditionalDecodeStep | None = None
-  sample_step: Any | None = None  # None = scoring mode; categorical/gumbel/ste = sampling
+  sample_step: SampleStepFn | None = None  # None = scoring mode; categorical/gumbel/ste = sampling
   tie_group_fuse: TieGroupFuseFn | None = None
   encoder_sink: tuple[EncoderSinkFn, ...] = ()
   decoder_sink: tuple[DecoderSinkFn, ...] = eqx.field(static=True, default_factory=tuple)
@@ -364,6 +474,7 @@ class StageSet(eqx.Module):
 
 __all__ = [
   "ARLogitTransformFn",
+  "BatchLogitFn",
   "ConditionalDecodeFn",
   "ConditionalDecodeStep",
   "DecodingFusionFn",

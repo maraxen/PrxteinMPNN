@@ -1,7 +1,7 @@
 """Shared host utilities for sampling/scoring streaming (Phase 5f).
 
 Centralizes ``jax.effects_barrier`` at sink boundaries, chunk iteration aligned with
-vendored :func:`~aminx.utils._vendored_callbacks.async_indexed_stream`, and
+:func:`~aminx.utils._vendored_callbacks.chunk_int_range`, and
 structure-iterator sizing for ``io_callback`` scalar markers.
 """
 
@@ -12,7 +12,7 @@ from typing import Any
 
 import jax
 
-from aminx.utils._vendored_callbacks import async_indexed_stream
+from aminx.utils._vendored_callbacks import chunk_int_range
 
 
 def sink_barrier() -> None:
@@ -30,7 +30,7 @@ def structure_batch_count_for_iterator(protein_iterator: Any) -> int:  # noqa: A
 
 def iter_streaming_chunks(total: int, chunk_size: int) -> Iterator[tuple[int, int]]:
   """Yield ``(chunk_start, chunk_count)`` covering ``[0, total)`` (same semantics as manual range)."""
-  yield from async_indexed_stream(total, chunk_size=chunk_size)
+  yield from chunk_int_range(total, chunk_size=chunk_size)
 
 
 class StreamingBatchHost:

@@ -14,7 +14,6 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-
 from xtrax.tiling import AxisDecision, BatchPlan, BatchPlanner, MemoryBudget, SafeMap
 from xtrax.tiling import BudgetInfeasibleError as _XtraxBudgetInfeasibleError
 
@@ -174,6 +173,7 @@ def make_sampling_planner(
   param_bytes: float = 0.0,
   headroom: float = 0.80,
   activation_multiplier: float = 2.5,
+  n_samples_override: int | None = None,
 ) -> BatchPlan:
   """Create a BatchPlan for _sample_batch dispatch with advisory logging.
 
@@ -187,6 +187,29 @@ def make_sampling_planner(
       Fraction of device memory to use. Default 0.80 (80% headroom).
   activation_multiplier : float, optional
       Multiplier for activation memory estimation. Default 2.5.
+  n_samples_override : int | None, optional
+      Actual n_samples cardinality for this call, e.g. from
+      ``resolve_target_samples``. When given, this is what the N_SAMPLES
+      axis is planned against instead of ``spec.samples_batch_size``.
+
+      ``spec.samples_batch_size`` and the real per-call sample count
+      (``spec.samples_chunk_size``/``spec.num_samples``, resolved via
+      ``resolve_target_samples``) are two independently-settable fields with
+      no cross-validation -- passing this override closes that gap at the
+      source: the planner's Vmap/SafeMap decision is verified against the
+      array size that's actually dispatched, not a stale, disconnected
+      proxy for it. Without this override, a plan that decides Vmap because
+      the small default ``samples_batch_size`` (16) fit the memory budget
+      gets applied to a possibly much larger real sample count with no
+      re-check -- see
+      ``.praxia/docs/specs/260706_samples-axis-planner-cardinality-mismatch.md``
+      and Finding D of
+      ``.praxia/docs/specs/260707_xtrax-migration-gap-audit-runspec-scaffolding.md``.
+      Defaults to None (falls back to the pre-existing, disconnected
+      ``spec.samples_batch_size`` behavior) only for backward compatibility
+      with callers/tests that construct a plan without a real per-call
+      sample count in hand; the one production call site
+      (``host/kernel_dispatch.py``'s ``_sample_batch``) always passes it.
 
   Returns
   -------
@@ -199,12 +222,13 @@ def make_sampling_planner(
   except Exception:
     limit = 4 * 1024**3
   budget_bytes = int(limit * headroom - param_bytes)
+  if n_samples_override is not None:
+    samples_cardinality = max(1, n_samples_override)
+  else:
+    samples_cardinality = max(1, getattr(spec, "samples_batch_size", 128) or 128)
   axes = [
     dataclasses.replace(N_STRUCTURES, cardinality=max(1, getattr(spec, "batch_size", 1) or 1)),
-    dataclasses.replace(
-      N_SAMPLES,
-      cardinality=max(1, getattr(spec, "samples_batch_size", 128) or 128),
-    ),
+    dataclasses.replace(N_SAMPLES, cardinality=samples_cardinality),
     dataclasses.replace(
       N_TEMPERATURES,
       cardinality=max(1, len(getattr(spec, "temperature", [1.0]))),

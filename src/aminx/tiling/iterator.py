@@ -12,6 +12,13 @@ two fundamental iteration patterns: stateless (MapIterator) and carry-bearing
 Pattern 5 note: Concrete iterators are eqx.Module instances, NOT marked
 @runtime_checkable. The protocols (MapIterator, ScanIterator) are the types
 that are @runtime_checkable; users check isinstance(concrete, Protocol).
+
+Zero production consumers as of EPIC #1541 P3 (decode-mode classes import
+MapIterator/ScanIterator/VmapIterator/SafeMapIterator/JaxScanIterator from
+xtrax.tiling now). Kept because tiling/dispatch.py's make_axis_dispatch
+(also production-dead, also deliberately kept) still constructs these --
+see that module's docstring for why. Do not delete either without retiring
+T2.GATE's standing parity gate first.
 """
 
 from __future__ import annotations

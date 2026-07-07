@@ -8,7 +8,7 @@ import warnings
 from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Protocol, TextIO, cast
+from typing import TYPE_CHECKING, Any, Literal, TextIO, cast
 
 from aminx.io.proxide_fetch import InputResolutionError
 from aminx.model.versions import MODEL_VERSION, MODEL_WEIGHTS
@@ -43,21 +43,17 @@ def pop_deprecated_spec_kwargs(kwargs: MutableMapping[str, Any]) -> None:
 
 
 if TYPE_CHECKING:
-  from typing import Protocol
-
   from jaxtyping import ArrayLike
   from proxide.io.parsing.foldcomp import FoldCompDatabase
   from xtrax.tiling import CarrySpec
-  from xtrax.tiling.dedup import DedupSpec  # noqa: TID251 -- DedupSpec is submodule-only, not re-exported from xtrax.tiling's public __init__ (see using-xtrax skill)
+  from xtrax.tiling.dedup import (  # noqa: TID251 -- DedupSpec is submodule-only, not re-exported from xtrax.tiling's public __init__ (see using-xtrax skill)
+    DedupSpec,
+  )
 
+  from aminx.types.protocols import ConformationalStates
   from aminx.types.stages import DecodingFusionFn, EncodingFusionFn
   from aminx.utils.catjac import CombineCatJacPairFn
   from aminx.utils.decoding_order import DecodingOrderFn
-
-  class ConformationalStates(Protocol):
-    """Protocol for conformational state containers (see ensemble_tools.dbscan)."""
-
-    n_states: ArrayLike
 
 
 # Type aliases for convenience

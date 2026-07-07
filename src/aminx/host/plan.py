@@ -14,7 +14,6 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-
 from xtrax.tiling import AxisDecision, BatchPlan, BatchPlanner, MemoryBudget, SafeMap
 from xtrax.tiling import BudgetInfeasibleError as _XtraxBudgetInfeasibleError
 

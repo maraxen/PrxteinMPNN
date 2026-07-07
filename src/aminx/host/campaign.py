@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from itertools import pairwise
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 import h5py
 import numpy as np
@@ -26,6 +26,9 @@ import numpy as np
 from aminx.host.runner import sample
 from aminx.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
 from aminx.runtime import configure_multiprocessing
+
+if TYPE_CHECKING:
+  from aminx.types.host_protocols import DistributedLockBackend
 
 logger = logging.getLogger(__name__)
 
@@ -248,19 +251,6 @@ class ManifestGateState:
   metadata_issues: list[str]
   checkpoint_issues: list[str]
   runtime_issues: list[str]
-
-
-class DistributedLockBackend(Protocol):
-  """Distributed lock backend interface used by campaign workers."""
-
-  def acquire(self, *, lock_key: str, owner_token: str, lease_seconds: int) -> None:
-    """Acquire a distributed lock key for an owner token."""
-
-  def heartbeat(self, *, lock_key: str, owner_token: str, lease_seconds: int) -> None:
-    """Refresh lease ownership for an active lock."""
-
-  def release(self, *, lock_key: str, owner_token: str) -> None:
-    """Release an owned lock key."""
 
 
 def _normalize_inputs(inputs: Any) -> list[str]:  # noqa: ANN401

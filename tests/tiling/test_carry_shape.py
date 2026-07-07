@@ -8,8 +8,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from aminx.tiling.carry import CarrySpec
 from aminx.tiling.carry_shape import CarryShape
+from xtrax.tiling import CarrySpec
 
 
 class TestCarryShapeBasics:

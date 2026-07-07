@@ -1,6 +1,5 @@
-"""aminx.tiling — axis strategy, planning, and dedup-gather."""
+"""aminx.tiling — axis strategy vocabulary (planning/carry/dedup declaration moved to xtrax.tiling, EPIC #1541)."""
 
-from aminx.tiling.dedup import DedupSpec, get_k_bucket
 from aminx.tiling.strategy import (
     AxisStrategy,
     DedupFn,
@@ -16,11 +15,9 @@ __all__ = [
     "AxisStrategy",
     "DedupFn",
     "DedupGather",
-    "DedupSpec",
     "GatherFn",
     "SafeMap",
     "Scan",
     "ScanTransition",
     "Vmap",
-    "get_k_bucket",
 ]

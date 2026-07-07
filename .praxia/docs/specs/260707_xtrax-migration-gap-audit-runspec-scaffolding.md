@@ -287,21 +287,21 @@ migration target, already resolved, no new action here.
 
 ## Remediation
 
-Not chosen here, consistent with the prior session's `260706_samples-axis-planner-cardinality-mismatch.md`
-— this document stops at findings. Given the scale surfaced (27 dead fields across 5 sub-configs, a
-migration-status doc that's backwards on both its "done" and "not done" claims, and a cardinality bug
-whose default-path variant has no safety net at all), the next decision is priority/sequencing across
-four somewhat independent workstreams: (1) fix or formally abandon the RS-1 sub-config migration,
-(2) re-author the migration map from actual code state, (3) fix the cardinality-divergence bug (both
-path variants), (4) adopt `xtrax.transforms.safe_map`/`safe_scan` and evaluate `xtrax.engine.Engine`
-as a `trainer.py` replacement.
+**Item (3), the cardinality-divergence bug, is now FIXED (2026-07-07)** — see the "Remediation
+implemented" section at the top of `260706_samples-axis-planner-cardinality-mismatch.md`.
+`make_sampling_planner` now takes the real per-call sample count as `n_samples_override`, resolved and
+passed by `kernel_dispatch._sample_batch` before planning rather than after. This fixes *both*
+manifestations at once, including finding #7's `_dispatch_axis` unconditional-`jax.vmap` path — once
+the cardinality the planner reasons about is correct, a Vmap decision genuinely is safe for the real
+array, so `_dispatch_axis` having no independent runtime fallback check stops being a problem specific
+to that path. The `xtrax.transforms.safe_map` adoption angle (item 4 / Finding E) was deliberately
+**not** folded into this fix — it's a separate, larger-blast-radius change (every `aminx.utils.safe_map`
+call site, not just this one) that remains valuable as defense-in-depth (turns a future
+disconnected-cardinality mistake into a loud crash instead of a silent bypass) but wasn't required to
+close this specific bug.
 
-**Finding E changes (3)'s calculus, not just adds (4) as a separate item.** Migrating dispatch onto
-`xtrax.transforms.safe_map` directly — passing a real `batch_size` at every call site and removing
-the local fork's `batch_size==0` sentinel entirely — closes the cardinality-divergence bug at its
-`safe_map` layer *and* eliminates the duplicated-implementation gap in one move, rather than treating
-"fix the bug" and "adopt the xtrax primitive" as separate follow-ups. It doesn't by itself fix the
-`_dispatch_axis` unconditional-`jax.vmap` path (finding #7) — that call site doesn't go through
-`safe_map` at all — but it does mean remediation direction A in the 260706 document ("make the
-planner's cardinality reflect the actual runtime count") and adopting the canonical `safe_map` are
-complementary, not competing, and should likely be scoped together.
+Given the scale surfaced (27 dead fields across 5 sub-configs, a migration-status doc that's backwards
+on both its "done" and "not done" claims), the next decision is priority/sequencing across the three
+remaining workstreams: (1) fix or formally abandon the RS-1 sub-config migration, (2) re-author the
+migration map from actual code state, (4) adopt `xtrax.transforms.safe_map`/`safe_scan` and evaluate
+`xtrax.engine.Engine` as a `trainer.py` replacement.

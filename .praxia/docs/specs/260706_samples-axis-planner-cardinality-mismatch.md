@@ -1,6 +1,32 @@
 # Finding: `n_samples` axis planning silently decoupled from actual runtime sample count
 
-**Task:** 260706_samples-axis-cardinality-mismatch · **Status:** DRAFT — recon complete, remediation not yet chosen · **Scope:** aminx only, `host/kernel_dispatch.py` / `host/plan.py` / `run/specs.py`. **Not part of EPIC #1541** — this predates the xtrax migration and would exist identically with the old, retired local `BatchPlanner`; it is a gap in how aminx calls its own planner, not in the planner itself.
+**Task:** 260706_samples-axis-cardinality-mismatch · **Status:** FIXED 2026-07-07 (see "Remediation implemented" below) · **Scope:** aminx only, `host/kernel_dispatch.py` / `host/plan.py` / `run/specs.py`. **Not part of EPIC #1541** — this predates the xtrax migration and would exist identically with the old, retired local `BatchPlanner`; it is a gap in how aminx calls its own planner, not in the planner itself.
+
+## Remediation implemented (2026-07-07)
+
+Direction A from the original "Possible remediation directions" section below: `make_sampling_planner`
+gained an optional `n_samples_override: int | None = None` parameter. `kernel_dispatch._sample_batch`
+now resolves `target_num_samples` (the real per-call sample count) *before* calling
+`make_sampling_planner`, and passes it as `n_samples_override` — the planner's `N_SAMPLES` axis
+decision is now verified against the array size that's actually dispatched, not the disconnected
+`spec.samples_batch_size` default. This fixes both dispatch paths at once (Finding D's unified
+`_dispatch_axis` path and this document's legacy `safe_map` path) without touching either dispatch
+mechanism directly: since both derive their `AxisDecision` from the same corrected `batch_plan`, once
+the cardinality it was planned against is correct, a Vmap decision genuinely *is* safe for the real
+array, and `_dispatch_axis`'s lack of a runtime fallback check stops mattering.
+
+Empirically verified (`tests/host/test_samples_cardinality_fix.py`): with a large per-element memory
+estimate, `n_samples_override=16` still picks Vmap, but `n_samples_override=50_000_000` correctly
+demotes to SafeMap — confirming the safety mechanism now genuinely engages against the real count
+rather than trivially always approving Vmap. `param_bytes` defaults to `0.0` in production (no call
+site currently passes a nonzero value), meaning the per-element memory *estimate* itself is not yet
+calibrated to real model sizes in practice — a separate, unaddressed question from the cardinality fix
+here (the estimate could still be unrealistically small; that's an estimation-accuracy gap, not a
+cardinality-source gap). Not adopted as part of this fix: migrating `aminx.utils.safe_map`/`safe_scan`
+onto `xtrax.transforms`' canonical versions (Finding E) — the cardinality fix closes this specific bug
+without it; the migration remains a separate, valuable defense-in-depth improvement (turns a future
+disconnected-cardinality mistake into a loud `ZeroDivisionError` instead of a silent bypass) but a
+larger-blast-radius change with its own call-site audit, tracked separately.
 
 **REVISED 2026-07-07** — `.praxia/docs/specs/260707_xtrax-migration-gap-audit-runspec-scaffolding.md`
 (Finding D) found the trace below describes the *legacy* dispatch path (`use_unified_driver=False`,

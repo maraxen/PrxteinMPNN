@@ -15,6 +15,28 @@
   field awaited xtrax reaching multi-phase `BatchPlanner` parity (T2.5) — that parity is now
   gated and passed (see below).*
 
+### Bug Fixes
+
+- **`n_samples` axis planning was silently decoupled from the actual runtime sample count**
+  ([`src/aminx/host/plan.py`](src/aminx/host/plan.py),
+  [`src/aminx/host/kernel_dispatch.py`](src/aminx/host/kernel_dispatch.py))
+
+  `make_sampling_planner`'s `N_SAMPLES` axis cardinality was computed from
+  `SamplingSpecification.samples_batch_size` (a static default, 16), while the actual dispatched
+  sample count was resolved independently via `resolve_target_samples` — two unrelated fields,
+  no cross-validation. When the plan decided Vmap because the small default fit the memory budget,
+  that decision was silently applied to the real (possibly far larger) array with no re-check,
+  in both the default (`_dispatch_axis`, no fallback at all) and legacy (`safe_map`'s defeatable
+  `batch_size==0` branch) dispatch paths.
+
+  Fix: `make_sampling_planner` gained an optional `n_samples_override` parameter; `_sample_batch`
+  now resolves the real per-call sample count first and passes it through, so the planner's
+  decision is verified against the array size that's actually dispatched.
+
+  Introduced in `5ca2abf` (2026-05-07); see
+  `.praxia/docs/specs/260706_samples-axis-planner-cardinality-mismatch.md` for the full root-cause
+  history and `tests/host/test_samples_cardinality_fix.py` for the regression coverage.
+
 ### Gates
 
 - **T2.GATE** (dispatch-layer parity, R1 DoD): bit-for-bit golden fixture, identical JIT-recompile

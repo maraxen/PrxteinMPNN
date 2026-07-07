@@ -1,4 +1,4 @@
-"""Canonical AxisSpec registry for all BatchingConfig-mapped axes.
+"""Canonical AxisSpec registry for all sampling/batching dispatch axes.
 
 ALL_AXES ordering (innermost first, outermost last) is the demotion-priority
 contract for xtrax's joint-budget BatchPlanner (EPIC #1541 T-PLANNER):
@@ -48,7 +48,7 @@ N_STATES = AxisSpec(
   heterogeneous=True,
 )
 
-# Batch of protein structures (BatchingConfig.batch_size). Lengths vary before LENGTH_BUCKETS.
+# Batch of protein structures (SamplingSpecification.batch_size). Lengths vary before LENGTH_BUCKETS.
 N_STRUCTURES = AxisSpec(
   name="n_structures",
   cardinality=32,
@@ -58,7 +58,7 @@ N_STRUCTURES = AxisSpec(
   dedup_eligible=True,  # repeated backbone structures can be deduplicated
 )
 
-# Sequence sample sweep (BatchingConfig.samples_batch_size, samples_chunk_size).
+# Sequence sample sweep (SamplingSpecification.samples_batch_size, samples_chunk_size).
 N_SAMPLES = AxisSpec(
   name="n_samples",
   cardinality=128,
@@ -67,7 +67,7 @@ N_SAMPLES = AxisSpec(
   heterogeneous=False,
 )
 
-# Temperature sweep axis (BatchingConfig.temperature_batch_size).
+# Temperature sweep axis (SamplingSpecification.temperature_batch_size).
 N_TEMPERATURES = AxisSpec(
   name="n_temperatures",
   cardinality=8,
@@ -76,7 +76,7 @@ N_TEMPERATURES = AxisSpec(
   heterogeneous=False,
 )
 
-# Backbone noise sweep axis (BatchingConfig.noise_batch_size).
+# Backbone noise sweep axis (SamplingSpecification.noise_batch_size).
 N_NOISES = AxisSpec(
   name="n_noises",
   cardinality=8,
@@ -85,7 +85,7 @@ N_NOISES = AxisSpec(
   heterogeneous=False,
 )
 
-# Residue-pair axis for Jacobian computation (BatchingConfig.jacobian_batch_size). DEFERRED.
+# Residue-pair axis for Jacobian computation (SamplingSpecification.jacobian_batch_size). DEFERRED.
 N_JACOBIAN_PAIRS = AxisSpec(
   name="n_jacobian_pairs",
   cardinality=10000,
@@ -94,7 +94,7 @@ N_JACOBIAN_PAIRS = AxisSpec(
   heterogeneous=False,
 )
 
-# Multistate combine step (BatchingConfig.combine_batch_size). DEFERRED.
+# Multistate combine step (SamplingSpecification.combine_batch_size). DEFERRED.
 N_COMBINE = AxisSpec(
   name="n_combine",
   cardinality=64,
@@ -103,7 +103,7 @@ N_COMBINE = AxisSpec(
   heterogeneous=False,
 )
 
-# All-pair contact scoring (BatchingConfig.apc_batch_size, apc_residue_batch_size). DEFERRED.
+# All-pair contact scoring (SamplingSpecification.apc_batch_size, apc_residue_batch_size). DEFERRED.
 N_APC_PAIRS = AxisSpec(
   name="n_apc_pairs",
   cardinality=10000,

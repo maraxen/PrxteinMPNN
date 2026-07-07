@@ -110,15 +110,19 @@ def _sample_batch(
   structure_batch_count: int = -1,
   emit_structure_batch_io: bool = True,
 ) -> tuple[ProteinSequence, Logits, jax.Array | None]:
-  # 1. Plan batching
-  batch_plan = make_sampling_planner(spec)
-
-  structures_bs, samples_bs, temps_bs, noises_bs = extract_batch_sizes(batch_plan)
-
-  # 2. Resolve Grids
+  # 1. Resolve Grids and the real per-call sample count first -- the planner
+  # needs this to verify its Vmap/SafeMap decision against the array size
+  # that's actually dispatched, not spec.samples_batch_size (a separate,
+  # disconnected config default). See make_sampling_planner's
+  # n_samples_override docstring.
   grid_lineage = _resolve_grid_lineage(spec)
   base_key = _base_sampling_key(spec, grid_lineage=grid_lineage)
   target_num_samples = resolve_target_samples(spec, chunk_sample_count, grid_lineage)
+
+  # 2. Plan batching
+  batch_plan = make_sampling_planner(spec, n_samples_override=target_num_samples)
+
+  structures_bs, samples_bs, temps_bs, noises_bs = extract_batch_sizes(batch_plan)
 
   noises = jnp.asarray(spec.run_spec.sampling.backbone_noise)
   temperatures = jnp.asarray(spec.run_spec.sampling.temperature)

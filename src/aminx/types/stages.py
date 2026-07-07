@@ -23,6 +23,7 @@ if TYPE_CHECKING:
   from aminx.inference.decode.protocols import DecoderSinkFn
   from aminx.inference.logits import (
     BatchLogitFn,
+    SampleStepFn,
     TieGroupFuseFn,
   )
   from aminx.types.boundaries import AxisBoundary
@@ -314,9 +315,10 @@ class StageSet(eqx.Module):
       Decoder forward pass. ConditionalDecodeStep requires ar_mask and seq_oh
       (sequence one-hot); UnconditionalDecodeStep ignores them.
       None = topology not yet wired (internal invariant).
-  sample_step : Any | None
+  sample_step : SampleStepFn | None
       Sampling strategy: None = scoring-only mode (no sampling);
       categorical/Gumbel-Softmax/STE = sample from logits.
+      Signature: (logits: (... V), key: PRNGKeyArray) → (... ,)
       Examples: eqx.Module subclasses with __call__(logits, key) → tokens.
   tie_group_fuse : TieGroupFuseFn | None
       Reduce over tied positions. Signature:
@@ -353,7 +355,7 @@ class StageSet(eqx.Module):
   logit_transform: BatchLogitFn | None = None
   ar_logit_transform: BatchLogitFn | None = None
   decode_step: ConditionalDecodeStep | UnconditionalDecodeStep | None = None
-  sample_step: Any | None = None  # None = scoring mode; categorical/gumbel/ste = sampling
+  sample_step: SampleStepFn | None = None  # None = scoring mode; categorical/gumbel/ste = sampling
   tie_group_fuse: TieGroupFuseFn | None = None
   encoder_sink: tuple[EncoderSinkFn, ...] = ()
   decoder_sink: tuple[DecoderSinkFn, ...] = eqx.field(static=True, default_factory=tuple)

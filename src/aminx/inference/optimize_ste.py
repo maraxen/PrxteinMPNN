@@ -21,6 +21,7 @@ import jax
 import jax.numpy as jnp
 import optax
 
+from aminx.inference.logits import LOGIT_STRATEGIES
 from aminx.inference.score_conditional import kernel as score_conditional
 from aminx.types.bundles import InferenceBundle
 from aminx.types.configs import InferenceConfig

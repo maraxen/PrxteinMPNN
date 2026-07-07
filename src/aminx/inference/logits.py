@@ -12,7 +12,7 @@ from typing import Protocol, runtime_checkable
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float, Int, PRNGKeyArray
 
 from aminx.registry import Registry
 
@@ -357,6 +357,56 @@ class TieGroupFuseFn(Protocol):
     -------
     Float[Array, "V"]
         Fused logits for the tied group.
+
+    """
+    ...
+
+
+@runtime_checkable
+class SampleStepFn(Protocol):
+  """Protocol for sampling tokens from logits using stochastic strategies.
+
+  Signature: (logits: (... V), key: PRNGKeyArray) -> (... ,)
+  where V is the vocabulary size (usually 21 amino acids) and "..." represents
+  zero or more leading dimensions for batch/group processing.
+  """
+
+  def __call__(
+    self,
+    logits: Float[Array, "... V"],
+    key: PRNGKeyArray,
+  ) -> Int[Array, "..."]:
+    """Sample tokens from logits using a stochastic strategy.
+
+    Parameters
+    ----------
+    logits : Float[Array, "... V"]
+        Per-position or per-group logits for sampling. V = vocabulary size
+        (21 amino acids). Leading dimensions "..." may be empty (single position)
+        or represent batch/group dimensions.
+    key : PRNGKeyArray
+        JAX random key for sampling.
+
+    Returns
+    -------
+    Int[Array, "..."]
+        Sampled tokens with leading dimensions matching input logits.
+        Typical implementations use jax.random.categorical, Gumbel-Softmax,
+        or Straight-Through Estimator (STE) strategies.
+
+    Examples
+    --------
+    Categorical sampling (single position):
+        logits: (V,) → tokens: ()
+
+    Gumbel-Softmax (differentiable, single position):
+        logits: (V,) → tokens: ()
+
+    Straight-Through Estimator / STE (single position):
+        logits: (V,) → tokens: ()
+
+    Group sampling (multiple positions):
+        logits: (L, V) → tokens: (L,) where L = group size
 
     """
     ...

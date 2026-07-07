@@ -70,13 +70,16 @@ each call uses the same static `spec.samples_batch_size`, blind to whatever
   arrays used later (`temperatures`/`noises` at `kernel_dispatch.py:123-124`) are **both
   derived from the same source fields within the same call** — structurally guaranteed to
   match, no independent knob exists.
-- **`n_structures`**: cardinality at plan time is `spec.batch_size`
-  (`host/plan.py:203`), and the actual structure count is
-  `batched_ensemble.coordinates.shape[0]` (`kernel_dispatch.py:127`) — whether these two can
-  diverge depends on whether `protein_iterator`'s own batching is driven by the same
-  `spec.batch_size` field. **Not verified in this pass** — flagged as an open question, not
-  asserted safe, but structurally a tighter (single-config-field) coupling than the
-  `n_samples` case, which has two independent fields by design.
+- **`n_structures`**: **verified safe**, by a different mechanism than `n_temperatures`/
+  `n_noises`. Cardinality at plan time is `spec.batch_size` (`host/plan.py:203`), and
+  `protein_iterator` (which yields the actual `batched_ensemble`) is constructed via
+  `create_protein_dataset(..., batch_size=spec.batch_size, ...)` (`host/prep.py:102-104`) —
+  the **same** config field drives both. Since the last batch of any batched iterator can
+  only be smaller than the requested batch size (never larger — a ragged final batch, not
+  an oversized one), `batched_ensemble.coordinates.shape[0]` is bounded above by the same
+  `spec.batch_size` the plan used as `n_structures`'s cardinality. The direction of possible
+  divergence (actual ≤ planned) is the safe direction — it can only make Vmap *more*
+  conservative than needed, never less. No fix needed here.
 - **`n_samples`** is the only axis with two independently-settable spec fields
   (`samples_batch_size` for planning, `samples_chunk_size`/`num_samples` for the actual
   runtime count) and zero code connecting them.
@@ -96,27 +99,80 @@ structure, this looks like a plausible-to-hit default-configuration gap, not an 
 case — though this pass did not check test coverage or production run configs to confirm
 it has actually fired in practice.
 
-## Not yet determined
+## Empirical confirmation (2026-07-06)
+
+Reproduced live rather than trusting the code trace alone (matching this project's
+"verify the measurement pipeline" discipline):
+
+```
+spec = SamplingSpecification(inputs="test.pdb", model_family="ligandmpnn")
+# samples_batch_size: 16, samples_chunk_size: None, num_samples: 1
+
+plan = make_sampling_planner(spec)
+# n_samples decision: strategy=Vmap batch_size=1 cardinality=16
+#   reasoning="joint-budget: Vmap retained (final estimate 40 B <= budget 3435973836 B)"
+# extract_batch_sizes -> samples_bs = 0   (legacy Vmap sentinel)
+
+keys = jax.random.split(jax.random.key(0), 500)   # target_num_samples=500, >> 16
+jax.eval_shape(lambda ks: safe_map(fn, ks, batch_size=0), keys)
+# -> output shape (500,), fn traced ONCE at scalar per-element shape
+# -> confirmed: safe_map genuinely vmaps all 500 in a single call, zero chunking
+```
+
+Confirms every step of the trace, not just the theoretical `safe_map` branch: realistic
+defaults *do* produce a Vmap decision (a 40-byte estimate trivially fits any real memory
+budget), and that decision, applied to an array 31× larger than the cardinality it was
+verified against, genuinely skips chunking entirely rather than falling back to some safe
+default.
+
+## Root cause: when and how this was introduced
+
+Traced via `git log -S` on `run/specs.py` (project's older name, `prxteinmpnn`, at the time):
+
+- `samples_batch_size` was introduced in `f0f9340` (2025-10-28, "Enhance sampling
+  specifications with batch size parameters for samples and noise") wired **directly** as
+  `jax.lax.map(noise_map_fn, keys, batch_size=spec.samples_batch_size)` — at that point it
+  was unconditionally safe: `jax.lax.map` always chunks into groups of the given
+  `batch_size`, regardless of the total array length, with no Vmap-vs-chunk *decision*
+  involved at all.
+- The gap was introduced in `5ca2abf` (2026-05-07, "Wave 2 — BatchPlanner advisory logging +
+  active n_structures dispatch"), which replaced that direct, always-safe call with
+  planner-driven dispatch ("batch_size from planner"). This is the commit that turned
+  `samples_batch_size` from a raw, always-applied chunk size into a *cardinality input to a
+  Vmap-vs-SafeMap decision* — a semantic change that silently dropped the "always bound
+  memory regardless of actual count" guarantee for the Vmap branch.
+- That commit's own message states: **"Parity gate: 26/26 pass. Outputs numerically
+  identical — safe_map and vmap are equivalent for independent-per-element functions."**
+  This explains why the gap has stood unnoticed: the parity gate that validated this change
+  checked *numerical correctness* (chunked vs. unchunked results, which are indeed identical
+  for independent-per-element work — that's `safe_map`'s whole design point), not *memory
+  behavior*. A correctness-focused test suite would never have caught this; it isn't a
+  wrong-answer bug, it's a memory-safety-guarantee bug, invisible to output comparison.
+
+## Still open
 
 - Whether this has already caused an observed problem (OOM, silently-larger-than-budgeted
-  memory use) — not checked in this pass; would need a look at prior incident logs / test
-  failures / cluster job history if such exist.
-- Whether `n_structures`'s coupling via `protein_iterator` is actually as safe as it looks
-  structurally, or has its own version of this gap — not traced in this pass.
-- What `samples_batch_size` was originally intended to mean: a genuine "how many samples to
-  vmap together for memory reasons" knob (in which case it should scale with or be derived
-  from whatever the actual per-call count is), or a vestigial config field nobody varies
-  from its default in practice (in which case the simplest fix might be collapsing the two
-  fields into one).
+  memory use) in an actual run — not checked; would need prior incident logs / cluster job
+  history if such exist. The empirical repro above only confirms the mechanism fires with
+  realistic defaults, not that it has been hit in production.
+- What `samples_batch_size` was originally intended to mean *now*, given the historical
+  finding above: the pre-`5ca2abf` semantics (an always-applied chunk size, safe by
+  construction) is arguably what should be restored, rather than treating it as a
+  cardinality input to a Vmap/SafeMap decision at all — this bears directly on which
+  remediation direction (below) is most faithful to the field's original intent.
 
 ## Possible remediation directions (not chosen — a design decision, not made here)
 
 - **A.** Make the planner's `n_samples` cardinality reflect the actual runtime count
   (`target_num_samples`) at each `_sample_batch` call, rather than the static
-  `samples_batch_size` config value — closes the gap at the source, but changes what
-  `samples_batch_size` means (possibly obsoletes it as a separate field) and re-opens the
-  question of whether recomputing a plan per-call (already happening today, per line 114)
-  is the right performance shape at all.
+  `samples_batch_size` config value — closes the gap at the source, and is arguably the most
+  faithful fix given the root-cause history above: it restores the pre-`5ca2abf` property
+  that memory safety is verified against the *real* count, not a separately-configured
+  proxy for it. Changes what `samples_batch_size` means going forward (possibly obsoletes it
+  as a separate field — if the plan is always built from the real count, there may be
+  nothing left for `samples_batch_size` to configure) and re-opens the question of whether
+  recomputing a plan per-call (already happening today, per line 114) is the right
+  performance shape at all.
 - **B.** Add a defensive runtime check in `_sample_batch` (or in `extract_batch_sizes`) that
   raises or forces a downgrade if `target_num_samples` diverges from the cardinality the
   plan was built for and the decision is Vmap — cheaper to implement, doesn't fix the

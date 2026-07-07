@@ -188,11 +188,9 @@ def _coerce_max_buffer_size(spec: object) -> int | None:
 
 
 def _infer_sink_kind(spec: object) -> str:
-  if getattr(spec, "use_arrayrecord", False):
-    return "arrayrecord"
   if _output_h5_path(spec) is not None:
-    return "hdf5"
-  # IOConfig.sink_kind uses "arrayrecord" | "hdf5" | "none"; host tensor sinks register under OUTPUT_SINKS
+    return "zarr"
+  # IOConfig.sink_kind uses "zarr" | "none"; host tensor sinks register under OUTPUT_SINKS
   # (e.g. "noop", "streaming_tensor_staging" — see aminx.run.output_sinks).
   return "none"
 

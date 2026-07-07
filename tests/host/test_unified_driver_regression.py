@@ -96,9 +96,9 @@ def test_regression_validator_fires_before_jit():
     """PlanTopologyError is raised at plan construction time, not at trace time."""
     from aminx.host.plan import PlanTopologyError, _validate_plan_topology
     from aminx.tiling.axes import N_NOISES
-    from aminx.tiling.planner import AxisDecision, BatchPlan
     from aminx.tiling.strategy import Vmap
     from aminx.types.stages import StageSet
+    from xtrax.tiling import AxisDecision, BatchPlan
 
     class OrderedSink:
         ordered = True
@@ -106,14 +106,10 @@ def test_regression_validator_fires_before_jit():
         def __call__(self, x) -> None:
             pass
 
-    # Create minimal invalid plan (Vmap with ordered sink)
+    # Create minimal invalid plan (Vmap with ordered sink). xtrax.tiling.BatchPlan
+    # only needs decisions (EPIC #1541 T-PLANNER.GATE retired the richer local one).
     bad_decision = AxisDecision(spec=N_NOISES, batch_size=0, reasoning="test", strategy=Vmap())
-    plan = BatchPlan(
-        decisions=[bad_decision],
-        total_memory_estimate=1.0,
-        axes_by_index={N_NOISES.axis_index: N_NOISES},
-        budget_exceeded=False,
-    )
+    plan = BatchPlan(decisions=[bad_decision])
 
     # Create stage_set with ordered sink on axis_boundaries
     from aminx.types.boundaries import AxisBoundary

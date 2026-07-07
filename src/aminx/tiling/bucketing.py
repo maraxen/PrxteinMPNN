@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from aminx.tiling.planner import BatchPlan
+    from xtrax.tiling import BatchPlan
 
 
 @dataclass(frozen=True)

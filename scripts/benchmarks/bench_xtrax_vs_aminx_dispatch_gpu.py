@@ -130,11 +130,12 @@ def _build_fixture(num_states: int, seq_len: int, seed: int = 42):
 def run_case(num_states: int, seq_len: int, n_warmup: int, n_timed: int) -> dict:
     import time
 
+    from aminx.host.plan import _plan_with_joint_budget
     from aminx.inference.decode.conditional import ConditionalDecode
     from aminx.inference.encode import make_encode_fn
     from aminx.inference.logits import make_stage_set
     from aminx.tiling.dispatch import make_axis_dispatch, make_axis_dispatch_via_xtrax
-    from aminx.tiling.planner import AxisSpec, BatchPlanner
+    from xtrax.tiling import AxisSpec
 
     model, bundle, config = _build_fixture(num_states, seq_len)
 
@@ -145,30 +146,42 @@ def run_case(num_states: int, seq_len: int, n_warmup: int, n_timed: int) -> dict
         strategy="arithmetic_mean", state_weights=bundle.conditioning.state_weights,
     )
 
-    # Let the real planner choose Vmap vs SafeMap for this num_states, same
-    # as production would -- not hand-picking the strategy.
+    # Let the real planner (EPIC #1541: xtrax.tiling.BatchPlanner via
+    # host.plan._plan_with_joint_budget) choose Vmap vs SafeMap for this
+    # num_states, same as production would -- not hand-picking the strategy.
     default_batch_size = 32
     spec = AxisSpec(
         name="state",
-        axis_index=0,
         cardinality=num_states,
         default_batch_size=default_batch_size,
         tile_granularity=default_batch_size,
         heterogeneous=True,  # state is aminx's canonical heterogeneous axis
-        doc="production-shape GPU throughput bench axis",
     )
     elements_per_row = seq_len * 4 * 3  # coords shape per state, rough proxy
-    estimate_memory = lambda decisions: (  # noqa: E731
+    estimate_fn = lambda decisions: (  # noqa: E731
         decisions[0].spec.cardinality
-        if decisions[0].batch_size == 0
+        if type(decisions[0].strategy).__name__ == "Vmap"
         else decisions[0].batch_size
     ) * elements_per_row
-    planner = BatchPlanner(
-        axes=[spec], budget_bytes=default_batch_size * elements_per_row,
-        estimate_memory=estimate_memory,
+    plan = _plan_with_joint_budget(
+        [spec],
+        budget_bytes=default_batch_size * elements_per_row,
+        estimate_fn=estimate_fn,
     )
-    decision = planner.plan().decisions[0]
-    strategy_name = type(decision.strategy).__name__
+    xtrax_decision = plan.decisions[0]
+    strategy_name = type(xtrax_decision.strategy).__name__
+
+    # make_axis_dispatch / make_axis_dispatch_via_xtrax both take an
+    # aminx-native AxisStrategy by contract (the latter translates it to
+    # xtrax internally via _strategy_to_xtrax) -- reconstruct one from the
+    # real planner's Vmap-vs-SafeMap decision above (EPIC #1541 made that
+    # decision xtrax-native; this benchmark still needs aminx-native input).
+    from aminx.tiling.strategy import SafeMap as AminxSafeMap
+    from aminx.tiling.strategy import Vmap as AminxVmap
+
+    decision_strategy = (
+        AminxVmap() if strategy_name == "Vmap" else AminxSafeMap(tile=xtrax_decision.batch_size)
+    )
 
     def _make_counter():
         counter = {"n": 0}
@@ -180,7 +193,7 @@ def run_case(num_states: int, seq_len: int, n_warmup: int, n_timed: int) -> dict
         return counter, cond_decode_with_counter
 
     def _time_path(dispatch_fn):
-        iterator = dispatch_fn(decision.strategy, axis="state")
+        iterator = dispatch_fn(decision_strategy, axis="state")
         counter, make_decode = _make_counter()
 
         @eqx.filter_jit

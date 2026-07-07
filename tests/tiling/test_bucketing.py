@@ -105,30 +105,12 @@ class TestBucketAssignment:
 
     def test_bucket_boundaries_sorted(self) -> None:
         """bucket_boundaries is a sorted tuple."""
-        from aminx.tiling.planner import BatchPlan, AxisSpec
+        from xtrax.tiling import BatchPlan
 
-        # Create minimal mock BatchPlans
-        ax = AxisSpec(
-            name="n_structures",
-            axis_index=3,
-            cardinality=32,
-            default_batch_size=1,
-            tile_granularity=1,
-            heterogeneous=True,
-            doc="test",
-        )
-        plan1 = BatchPlan(
-            decisions=[],
-            total_memory_estimate=1000.0,
-            axes_by_index={3: ax},
-            budget_exceeded=False,
-        )
-        plan2 = BatchPlan(
-            decisions=[],
-            total_memory_estimate=2000.0,
-            axes_by_index={3: ax},
-            budget_exceeded=False,
-        )
+        # Create minimal mock BatchPlans (xtrax.tiling.BatchPlan only needs
+        # decisions; EPIC #1541 T-PLANNER.GATE retired the richer local one)
+        plan1 = BatchPlan(decisions=())
+        plan2 = BatchPlan(decisions=())
 
         # Intentionally pass unsorted buckets to constructor
         assignment = BucketAssignment(
@@ -142,23 +124,9 @@ class TestBucketAssignment:
 
     def test_subset_of_buckets(self) -> None:
         """bucket_boundaries is sorted subset of used bucket keys."""
-        from aminx.tiling.planner import BatchPlan, AxisSpec
+        from xtrax.tiling import BatchPlan
 
-        ax = AxisSpec(
-            name="n_structures",
-            axis_index=3,
-            cardinality=32,
-            default_batch_size=1,
-            tile_granularity=1,
-            heterogeneous=True,
-            doc="test",
-        )
-        plan = BatchPlan(
-            decisions=[],
-            total_memory_estimate=1000.0,
-            axes_by_index={3: ax},
-            budget_exceeded=False,
-        )
+        plan = BatchPlan(decisions=())
 
         # Only 64 and 256 are used (no 128)
         assignment = BucketAssignment(

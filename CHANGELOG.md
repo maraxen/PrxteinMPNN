@@ -1,5 +1,52 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Decode-path dispatch now runs through `xtrax.tiling`** (EPIC #1541 P3): `make_decode_fn`
+  (`ConditionalMode`/`UnconditionalMode`/`AutoregressiveMode`) resolves its state-axis strategy
+  via `make_axis_dispatch_via_xtrax`, and the sampling planner (`make_sampling_planner`)
+  delegates strategy selection to `xtrax.tiling.BatchPlanner`'s joint-budget mode
+  (`xtrax==0.4.0a1`), replacing aminx's own hand-rolled greedy demotion loop.
+  (`src/aminx/inference/decode/factory.py`, `src/aminx/host/plan.py`)
+
+  *Closes the loop noted in 0.1.0a6: `PlannerTopology`'s planned `xtrax.ExecutionProfile`
+  field awaited xtrax reaching multi-phase `BatchPlanner` parity (T2.5) — that parity is now
+  gated and passed (see below).*
+
+### Gates
+
+- **T2.GATE** (dispatch-layer parity, R1 DoD): bit-for-bit golden fixture, identical JIT-recompile
+  count, and cluster GPU throughput within 0.2% (production shape L=208, TEV protease) all pass —
+  see `tests/tiling/test_t2_gate_bitforbit_golden.py`,
+  `scripts/benchmarks/bench_xtrax_vs_aminx_dispatch_gpu.py`.
+- **T-PLANNER.GATE** (planner-layer parity): old (retired) and new joint-budget planner decisions
+  match across representative demotion/budget scenarios, including the one deliberate behavior
+  change this migration introduces (see Breaking Changes) — see
+  `tests/host/test_t_planner_gate_parity.py`.
+
+### Breaking Changes
+
+- **`make_sampling_planner` raises on an infeasible memory budget** instead of silently returning
+  a plan that exceeds it. Previously, if no combination of Vmap/SafeMap demotions fit the budget,
+  the planner returned a `BatchPlan` with `budget_exceeded=True` that callers could inspect (and
+  which nothing in production actually did). It now raises `PlanBudgetInfeasibleError` (a
+  `TilingError` subclass) instead. No production caller was found relying on the silent path, but
+  this is a new exception type in `make_sampling_planner`'s call chain.
+  (`src/aminx/host/plan.py`)
+
+### Removed
+
+- **`aminx.tiling.planner`'s local `BatchPlanner`/`AxisSpec`/`AxisDecision`/`BatchPlan`**,
+  `aminx.tiling.carry`, `aminx.tiling.dedup`, and `aminx.tiling.carry_shape` — retired once their
+  xtrax equivalents passed the parity gates above. `aminx.tiling.planner` now holds only
+  `estimate_memory_theoretical`, the one piece of the old planner with no xtrax equivalent
+  (invoked through xtrax's engine now, math unchanged). `aminx.tiling`'s `axes.py`, `bucketing.py`,
+  `pad.py`, `strategy.py`, `dispatch.py`, and `errors.py` remain — see
+  `.praxia/docs/decisions/260706_bucketing-pad-stay-local-epic-1541-p3-scope-closed.md` for why
+  those specifically stay.
+
 ## 0.1.0a6 (2026-06-14)
 
 ### Added

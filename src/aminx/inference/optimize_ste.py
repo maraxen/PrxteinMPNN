@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
   from jaxtyping import Float, PRNGKeyArray
 
-  from aminx.io.designs import DesignArrayRecordWriter, DesignMetadata
+  from aminx.io.designs import DesignMetadata, DesignZarrWriter
   from aminx.model import Aminx
   from aminx.types.arrays import (
     AutoRegressiveMask,
@@ -103,7 +103,7 @@ def make_optimize_sequence_fn(
     temperature: float,
     use_rolling_state: bool = False,
     logit_combine_strategy: int = 0,
-    writer: DesignArrayRecordWriter | None = None,
+    writer: DesignZarrWriter | None = None,
   ) -> tuple[ProteinSequence, Logits, Logits]:
     num_residues = bundle.geometry.coords.shape[1]
     num_classes = 21
@@ -272,7 +272,7 @@ def make_optimize_sequence_fn(
           "state_weights": state_weights,
           "metadata": metadata,
         }
-        writer.write(payload)
+        writer.write((0,), payload)
 
       jax.experimental.io_callback(_save_logits, None, final_logits, ordered=False)
       jax.effects_barrier()

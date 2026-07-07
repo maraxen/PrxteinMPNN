@@ -15,6 +15,36 @@
   field awaited xtrax reaching multi-phase `BatchPlanner` parity (T2.5) — that parity is now
   gated and passed (see below).*
 
+- **Sampling/jacobian streaming output migrated from HDF5/ArrayRecord/`.npz` onto Zarr**
+  (`xtrax[io]==0.4.0a4`): `host/streaming.py`'s two write paths (the deprecated HDF5 path and
+  the `use_arrayrecord=True` ArrayRecord path) are unified into one Zarr-backed path built on
+  `xtrax.run.ZarrStagingSink`; `host/runner.py`'s jacobian runner writes each structure's
+  jacobian into its own keyed Zarr group instead of one `np.savez_compressed` dump at the end
+  (also removes a latent bug: the old dump required uniform jacobian shapes across all
+  structures via `np.stack`, which fails for variable-length inputs — per-key Zarr groups have
+  no such constraint). `io/designs.py`'s `DesignArrayRecordWriter` becomes `DesignZarrWriter`,
+  same validation/dtype contract (sequence uint8, logits float16, scores/state_weights
+  float32), now storing per-design metadata in the Zarr group's `.attrs` instead of a raw JSON
+  byte suffix. `output_h5_path` (field name kept, semantics updated) now points at a Zarr
+  store directory rather than a single file.
+
+  Known simplifications from this migration, not full parity with the code it replaces:
+  `DesignZarrWriter` drops the old writer's async thread-pool (writes are now synchronous);
+  campaign-mode sampling accumulates a structure's sample-chunks in memory *within one batch*
+  before staging (bounded by one batch's dispatch size, not the whole campaign) rather than
+  the old HDF5 path's true per-chunk incremental resize-writes — `xtrax.run.ZarrStagingSink`
+  would need an append-mode extension to restore that if a campaign's per-batch memory
+  footprint proves too large in practice.
+
+  `SamplingSpecification.use_arrayrecord` and its CLI flag are removed (the format is no
+  longer a caller choice). `campaign.py`'s own HDF5-based lock/done-marker/content-verification
+  machinery is explicitly OUT of scope for this migration — it's real distributed-systems
+  infrastructure (retry/resume correctness across likely-SLURM-array campaign jobs), tracked
+  separately (backlog #3182).
+  (`src/aminx/host/streaming.py`, `src/aminx/host/runner.py`, `src/aminx/io/designs.py`,
+  `src/aminx/inference/optimize_ste.py`, `src/aminx/run/specs.py`, `src/aminx/run/spec.py`,
+  `src/aminx/cli.py`, `tests/io/test_designs.py`)
+
 ### Bug Fixes
 
 - **`n_samples` axis planning was silently decoupled from the actual runtime sample count**
@@ -59,6 +89,12 @@
   `tests/host/test_t_planner_gate_parity.py`.
 
 ### Breaking Changes
+
+- **Sampling/jacobian streaming output format is now Zarr, not HDF5/ArrayRecord/`.npz`** —
+  `SamplingSpecification.use_arrayrecord` and its `--use-arrayrecord` CLI flag are removed.
+  Existing `.h5`/`.arrayrecord`/`.npz` outputs from prior runs are not migrated; downstream
+  readers need to move to Zarr's array/group API. See the Added entry above for the full
+  scope. (`src/aminx/host/streaming.py`, `src/aminx/host/runner.py`, `src/aminx/io/designs.py`)
 
 - **`make_sampling_planner` raises on an infeasible memory budget** instead of silently returning
   a plan that exceeds it. Previously, if no combination of Vmap/SafeMap demotions fit the budget,

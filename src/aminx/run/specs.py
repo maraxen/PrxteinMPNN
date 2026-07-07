@@ -212,9 +212,10 @@ class RunSpecification:
       max_workers: Optional maximum number of data loading workers.
 
   Note:
-      Use ``output_h5_path`` on task-specific subclasses for HDF5 output.
-      ``output_dir`` (when set) overrides inferred output roots from ``cache_path`` / HDF5 parents
-      in :func:`~aminx.run.spec.build_run_spec`.
+      Use ``output_h5_path`` on task-specific subclasses for streaming output (Zarr store
+      for sampling/jacobian; not yet implemented for score/inspect).
+      ``output_dir`` (when set) overrides inferred output roots from ``cache_path`` / streaming
+      output parents in :func:`~aminx.run.spec.build_run_spec`.
       Legacy serialized ``output_path`` is ignored with a :class:`DeprecationWarning`.
 
   """
@@ -507,7 +508,6 @@ class SamplingSpecification(RunSpecification):
   concrete_tau_start: float = 1.0
   concrete_tau_end: float = 0.1
   output_h5_path: str | Path | None = None
-  use_arrayrecord: bool = False
   return_logits: bool = True
   return_decoding_orders: bool = False
   return_logit_fingerprint: bool = False

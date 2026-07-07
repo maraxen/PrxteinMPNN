@@ -46,10 +46,10 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import math
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -101,42 +101,33 @@ def _make_scan_compile_counter() -> tuple[dict[str, int], object]:
 
 
 def _plan_aminx(cardinality: int, default_batch_size: int, data_width: int = DATA_WIDTH):
-    from aminx.tiling.planner import AxisSpec as AminxAxisSpec
-    from aminx.tiling.planner import BatchPlanner as AminxBatchPlanner
+    """Aminx-native strategy decision for the given (cardinality, default_batch_size).
 
-    spec = AminxAxisSpec(
-        name="batch",
-        axis_index=0,
-        cardinality=cardinality,
-        default_batch_size=default_batch_size,
-        # NOTE: deliberately set equal to default_batch_size, not the AxisSpec-doc default
-        # of 1. Works around a real bug found by this benchmark (#2895, since fixed): aminx's
-        # SafeMap demotion (src/aminx/tiling/planner.py:170,196) computed
-        # `tile = max(1, ax.tile_granularity)`, ignoring default_batch_size entirely,
-        # contradicting both fields' own docstrings. Setting tile_granularity ==
-        # default_batch_size here routes around it so this benchmark measures
-        # dispatch/wrapping overhead, not tile-size divergence.
-        tile_granularity=default_batch_size,
-        heterogeneous=False,
-        doc="synthetic benchmark axis",
-    )
+    EPIC #1541 T-PLANNER.GATE (2026-07-06) retired aminx.tiling.planner's
+    BatchPlanner/AxisSpec -- the planner itself now delegates to
+    xtrax.tiling.BatchPlanner (see host/plan.py's _plan_with_joint_budget),
+    gated by tests/host/test_t_planner_gate_parity.py, which is the real,
+    rigorous version of the comparison this function's docstring originally
+    described ("feeds confidence for a later P3 BatchPlanner migration").
+    That comparison is done; there is only one planning algorithm now.
 
-    # aminx's BatchPlanner decision rule is memory-budget-driven (estimate_memory(decisions)
-    # <= budget_bytes), NOT cardinality-vs-default_batch_size-driven like xtrax's (a real,
-    # documented architecture difference — see audit notes). To make decisions comparable,
-    # set budget_bytes = default_batch_size * ELEMENT_BYTES so aminx's threshold reduces to
-    # the same "cardinality > default_batch_size -> demote" rule xtrax applies directly.
-    elements_per_row = data_width
-    estimate_memory = lambda decisions: math.prod(  # noqa: E731
-        d.spec.cardinality if d.batch_size == 0 else d.batch_size for d in decisions
-    ) * elements_per_row
-    planner = AminxBatchPlanner(
-        axes=[spec],
-        budget_bytes=default_batch_size * elements_per_row,
-        estimate_memory=estimate_memory,
-    )
-    plan = planner.plan()
-    return plan.decisions[0]
+    This function's remaining job -- producing an aminx-native AxisStrategy
+    for _dispatch_aminx_legacy/_dispatch_via_adapter below, which both need
+    one by contract -- reduces to the same deterministic cardinality-vs-
+    batch_size rule AXIS_CASES documents (both libraries have always agreed
+    on this rule for the non-heterogeneous, non-budget case), constructed
+    directly rather than through any planner call.
+    """
+    del data_width  # no longer used; kept for call-site compatibility
+    from aminx.tiling.strategy import SafeMap as AminxSafeMap
+    from aminx.tiling.strategy import Vmap as AminxVmap
+
+    if cardinality <= default_batch_size:
+        strategy = AminxVmap()
+    else:
+        strategy = AminxSafeMap(tile=default_batch_size)
+
+    return SimpleNamespace(strategy=strategy)
 
 
 def _plan_xtrax(cardinality: int, default_batch_size: int):

@@ -64,16 +64,16 @@ def _make_dispatch_monkeypatches(monkeypatch, *, batch_plan: MagicMock) -> None:
 
 
 def _make_batch_plan_mock() -> MagicMock:
-    batch_plan = MagicMock()
+    return MagicMock()
 
-    def _decision_for(axis_name: str) -> MagicMock:
+
+def _make_decision_for_spy() -> MagicMock:
+    def _decision_for(plan, axis_name: str) -> MagicMock:
         decision = MagicMock()
         decision.strategy = Vmap()
         return decision
 
-    batch_plan.decision_for = MagicMock(side_effect=_decision_for)
-    batch_plan.log_summary = MagicMock()
-    return batch_plan
+    return MagicMock(side_effect=_decision_for)
 
 
 def test_sampling_spec_use_unified_driver_defaults_true():
@@ -100,6 +100,8 @@ def test_kernel_dispatch_unified_path_when_spec_lacks_attr(monkeypatch):
 
     batch_plan = _make_batch_plan_mock()
     _make_dispatch_monkeypatches(monkeypatch, batch_plan=batch_plan)
+    decision_for_spy = _make_decision_for_spy()
+    monkeypatch.setattr("aminx.host.kernel_dispatch.decision_for", decision_for_spy)
 
     dispatch_axis_calls: list[str] = []
 
@@ -159,4 +161,4 @@ def test_kernel_dispatch_unified_path_when_spec_lacks_attr(monkeypatch):
     jax.effects_barrier()
 
     assert dispatch_axis_calls, "unified driver must route through _dispatch_axis"
-    assert batch_plan.decision_for.call_count >= 4
+    assert decision_for_spy.call_count >= 4

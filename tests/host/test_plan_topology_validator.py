@@ -5,19 +5,17 @@ import pytest
 
 from aminx.host.plan import PlanTopologyError, _validate_plan_topology
 from aminx.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
-from aminx.tiling.planner import AxisDecision, BatchPlan
 from aminx.tiling.strategy import SafeMap, Scan, Vmap
 from aminx.types.boundaries import AxisBoundary
 from aminx.types.stages import StageSet
+from xtrax.tiling import AxisDecision, BatchPlan
 
 
 def _make_plan(decisions):
-    return BatchPlan(
-        decisions=decisions,
-        total_memory_estimate=1.0,
-        axes_by_index={d.spec.axis_index: d.spec for d in decisions},
-        budget_exceeded=False,
-    )
+    # xtrax.tiling.BatchPlan only needs decisions (EPIC #1541 T-PLANNER.GATE
+    # retired the richer local BatchPlan/its axes_by_index/budget_exceeded
+    # fields, unused by _validate_plan_topology, which only reads .decisions)
+    return BatchPlan(decisions=decisions)
 
 
 def _vmap_decision(axis):

@@ -2,6 +2,19 @@
 
 Converts AxisStrategy instances into typed iterators, with rejection logic
 for invalid axis/strategy pairs. Part of the composable_jax library surface.
+
+make_axis_dispatch (this module's original, aminx-native implementation) has
+zero production callers as of EPIC #1541 P3 (make_decode_fn / factory.py
+flipped to make_axis_dispatch_via_xtrax below). It is kept deliberately, not
+as forgotten legacy: it is the reference implementation T2.GATE's Gate
+Measurement Protocol compares make_axis_dispatch_via_xtrax against, and that
+protocol is an explicitly STANDING gate ("re-run on production shapes, not a
+one-shot at flip" per .praxia/docs/specs/260611_aminx-xtrax-refactor.md) --
+see tests/tiling/test_dispatch_via_xtrax_parity.py,
+tests/tiling/test_t2_4_xtrax_dispatch_compat.py,
+tests/tiling/test_t2_gate_bitforbit_golden.py, and
+scripts/benchmarks/bench_xtrax_vs_aminx_dispatch_gpu.py. Do not delete
+without retiring that gate first.
 """
 
 from __future__ import annotations

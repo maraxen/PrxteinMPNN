@@ -21,7 +21,7 @@
 - [260527_merge-readiness-hardening](specs/260527_merge-readiness-hardening.md) — ORACLE-REVIEWED PASS (15/18): pre-merge hygiene for refactor-full → main
 - [260601_benchmark-spec](specs/260601_benchmark-spec.md) — ORACLE-APPROVED: GPU benchmark suite (aminx vs. LigandMPNN vs. ColabDesign)
 - [260604_release-preparedness-epic](specs/260604_release-preparedness-epic-for-prxteinmpn.md) — Release Preparedness epic: two-phase backlog DAG (CI+cleanup → docs+release), Definition of Done, ADR index
-- [260611_aminx-xtrax-refactor](specs/260611_aminx-xtrax-refactor.md) — **Challenger/Defender PASS**: refactor aminx onto xtrax (move tiling/sinks/inference-plan, rebuild training); vertical-slice spine + xtrax-tiling-upgrade precondition gate + branch-by-abstraction flag + dual perf-guard + off-ramp. Backlog EPIC #1541, sprint `260611_xtrax-foundations`
+- [260611_aminx-xtrax-refactor](specs/260611_aminx-xtrax-refactor.md) — **Challenger/Defender PASS**: refactor aminx onto xtrax (move tiling/sinks/inference-plan, rebuild training); vertical-slice spine + xtrax-tiling-upgrade precondition gate + branch-by-abstraction flag + dual perf-guard + off-ramp. Backlog EPIC #1541, sprint `260611_xtrax-foundations`. **Status (2026-07-06, appended to spec): P0-P3 + T2.GATE DONE; P4 (inference-runner/host-sinks) NOT STARTED; P5 partially satisfied (xtrax 0.4.0a1 published+repinned, clean-resolve verified; full G5 blocked on G4/P4).**
 
 ## Research
 - [260611_aminx-xtrax-refactor-codebase-model](research/260611_aminx-xtrax-refactor-codebase-model.md) — Wave-1+2 recon synthesis + validated resolutions (A1–A8) underpinning the xtrax refactor spec

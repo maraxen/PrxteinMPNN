@@ -2,6 +2,16 @@
 
 **Task:** 260706_samples-axis-cardinality-mismatch · **Status:** DRAFT — recon complete, remediation not yet chosen · **Scope:** aminx only, `host/kernel_dispatch.py` / `host/plan.py` / `run/specs.py`. **Not part of EPIC #1541** — this predates the xtrax migration and would exist identically with the old, retired local `BatchPlanner`; it is a gap in how aminx calls its own planner, not in the planner itself.
 
+**REVISED 2026-07-07** — `.praxia/docs/specs/260707_xtrax-migration-gap-audit-runspec-scaffolding.md`
+(Finding D) found the trace below describes the *legacy* dispatch path (`use_unified_driver=False`,
+`_safe_map(..., batch_size=samples_bs)`). The *default* path (`use_unified_driver=True`, the default
+everywhere it's set) dispatches via `_dispatch_axis`, whose `Vmap` branch is an **unconditional**
+`jax.vmap(body)(xs)` — no `batch_size`/`num_elements` check of any kind, not even the defeatable
+`batch_size == 0` condition this document analyzes. The default-path variant is more severe and more
+likely to be hit in practice than what's described below. Read this document for the root-cause
+history and empirical-confirmation methodology; read the 260707 document for the full severity picture
+before scoping remediation.
+
 ## Discovery context
 
 Found while implementing EPIC #1541 P4's T4.0b (renaming aminx's vendored

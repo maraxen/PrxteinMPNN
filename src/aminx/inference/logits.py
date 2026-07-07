@@ -7,46 +7,13 @@ the S dimension to produce a single logit set.
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
-
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, Int, PRNGKeyArray
+from jaxtyping import Array, Bool, Float
 
 from aminx.registry import Registry
-
-
-@runtime_checkable
-class BatchLogitFn(Protocol):
-  """Protocol for fusing stacked state logits into a single canonical set.
-
-  Equivalent to the generic FuseFn specialized for logit tensors.
-  Accepts optional bias to be applied after fusion.
-  """
-
-  def __call__(
-    self,
-    per_state: Float[Array, "S ... V"],
-    bias: Float[Array, "... V"] | None = None,
-  ) -> Float[Array, "... V"]:
-    """Fuse per-state logits and optional bias into canonical logits.
-
-    Parameters
-    ----------
-    per_state : Float[Array, "S ... V"]
-        Per-state logits. S = number of states, V = vocabulary size (21 amino acids).
-    bias : Float[Array, "... V"] | None
-        Optional per-position logit bias to add after fusion. If None, no bias applied.
-
-    Returns
-    -------
-    Float[Array, "... V"]
-        Fused logits with state dimension reduced.
-
-    """
-    ...
-
+from aminx.types.stages import BatchLogitFn
 
 # Registry for logit combination strategies
 LOGIT_STRATEGIES: Registry[type[BatchLogitFn]] = Registry[type[BatchLogitFn]]("logit_strategies")
@@ -327,91 +294,6 @@ class ARLogitFuse(eqx.Module):
 # Tie-group fuse strategies
 # ---------------------------------------------------------------------------
 
-from jaxtyping import Bool
-
-
-@runtime_checkable
-class TieGroupFuseFn(Protocol):
-  """Protocol for fusing tied-position logits into a single canonical set.
-
-  Signature: (logits: (L, V), mask: (L,)) -> (V,)
-  where L is the sequence length (positions in group selected by mask)
-  and V is the vocabulary size (usually 21).
-  """
-
-  def __call__(
-    self,
-    logits: Float[Array, "L V"],
-    mask: Bool[Array, L],
-  ) -> Float[Array, V]:
-    """Fuse tied-position logits into a single canonical set.
-
-    Parameters
-    ----------
-    logits : Float[Array, "L V"]
-        Per-position logits for all positions in the group. L = sequence length.
-    mask : Bool[Array, "L"]
-        Boolean mask selecting tied positions (True = in group).
-
-    Returns
-    -------
-    Float[Array, "V"]
-        Fused logits for the tied group.
-
-    """
-    ...
-
-
-@runtime_checkable
-class SampleStepFn(Protocol):
-  """Protocol for sampling tokens from logits using stochastic strategies.
-
-  Signature: (logits: (... V), key: PRNGKeyArray) -> (... ,)
-  where V is the vocabulary size (usually 21 amino acids) and "..." represents
-  zero or more leading dimensions for batch/group processing.
-  """
-
-  def __call__(
-    self,
-    logits: Float[Array, "... V"],
-    key: PRNGKeyArray,
-  ) -> Int[Array, "..."]:
-    """Sample tokens from logits using a stochastic strategy.
-
-    Parameters
-    ----------
-    logits : Float[Array, "... V"]
-        Per-position or per-group logits for sampling. V = vocabulary size
-        (21 amino acids). Leading dimensions "..." may be empty (single position)
-        or represent batch/group dimensions.
-    key : PRNGKeyArray
-        JAX random key for sampling.
-
-    Returns
-    -------
-    Int[Array, "..."]
-        Sampled tokens with leading dimensions matching input logits.
-        Typical implementations use jax.random.categorical, Gumbel-Softmax,
-        or Straight-Through Estimator (STE) strategies.
-
-    Examples
-    --------
-    Categorical sampling (single position):
-        logits: (V,) → tokens: ()
-
-    Gumbel-Softmax (differentiable, single position):
-        logits: (V,) → tokens: ()
-
-    Straight-Through Estimator / STE (single position):
-        logits: (V,) → tokens: ()
-
-    Group sampling (multiple positions):
-        logits: (L, V) → tokens: (L,) where L = group size
-
-    """
-    ...
-
-
 TIE_GROUP_STRATEGIES: Registry = Registry("tie_group_strategies")
 
 
@@ -556,10 +438,8 @@ __all__ = [
   "TIE_GROUP_STRATEGIES",
   "ARLogitFuse",
   "ArithmeticMeanLogits",
-  "BatchLogitFn",
   "GeometricMeanLogits",
   "ProductOfProbabilities",
-  "TieGroupFuseFn",
   "TieGroupLogsumexpMean",
   "TieGroupProductOfExperts",
   "make_stage_set",

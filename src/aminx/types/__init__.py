@@ -49,12 +49,18 @@ from aminx.types.arrays import (
 )
 from aminx.types.bundles import DecodeOutput
 from aminx.types.encodings import EncoderOutput
+from aminx.types.host_protocols import DistributedLockBackend
+from aminx.types.protocols import CalibrationModule, ConformationalStates
 from aminx.types.stages import (
+  BatchLogitFn,
   ConditionalDecodeStep,
   DecodingFusionFn,
+  SampleStepFn,
   StageSet,
+  TieGroupFuseFn,
   UnconditionalDecodeStep,
 )
+from aminx.types.tiling_protocols import DedupFn, GatherFn, ScanTransition
 
 __all__ = [
   "AlphaCarbonDistance",
@@ -72,18 +78,24 @@ __all__ = [
   "BackboneCoordinates",
   "BackboneDihedrals",
   "BackboneNoise",
+  "BatchLogitFn",
   "CEELoss",
+  "CalibrationModule",
   "CategoricalJacobian",
   "ChainIndex",
   "ConditionalDecodeStep",
+  "ConformationalStates",
   "DecodeOutput",
   "DecodingFusionFn",
   "DecodingOrder",
   "DecodingOrderInputs",
   "DecodingOrderOutputs",
+  "DedupFn",
   "Distances",
+  "DistributedLockBackend",
   "EdgeFeatures",
   "EncoderOutput",
+  "GatherFn",
   "GroupMask",
   "InputBias",
   "InputLengths",
@@ -100,11 +112,14 @@ __all__ = [
   "ProteinSequence",
   "ResidueIndex",
   "Scalar",
+  "SampleStepFn",
   "ScalarFloat",
+  "ScanTransition",
   "SequenceEdgeFeatures",
   "StageSet",
   "StructureAtomicCoordinates",
   "Temperature",
+  "TieGroupFuseFn",
   "TieGroupMap",
   "TrainingMetrics",
   "UnconditionalDecodeStep",

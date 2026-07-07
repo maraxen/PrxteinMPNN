@@ -3,8 +3,10 @@
 **Task:** 260707_xtrax-migration-gap-audit · **Status:** findings complete, remediation not chosen ·
 **Scope:** aminx-wide fan-out audit for gaps of the same class as
 `.praxia/docs/specs/260706_samples-axis-planner-cardinality-mismatch.md` (that document's finding is
-folded in and *revised* here — see Finding D). Not part of EPIC #1541's phase DAG; a cross-cutting
-audit prompted by it.
+folded in and *revised* here — see Finding D). **Extended same-day** with a second pass (Finding E)
+checking a different question: not "is a migration broken/incomplete," but "does aminx duplicate
+functionality xtrax already ships, by never having adopted it at all." Not part of EPIC #1541's phase
+DAG; a cross-cutting audit prompted by it.
 
 ## How this audit was run
 
@@ -179,6 +181,75 @@ sub-configs already covered in Finding A.
 
 ---
 
+## Finding E: unadopted xtrax capabilities — duplicated local implementations, not just broken migrations
+
+Findings A-D all concern places aminx *tried* to adopt xtrax and the adoption is broken or
+incomplete. This is a different question: of xtrax's 15 top-level subpackages (`checkpoint`, `cli`,
+`data`, `distributed`, `eda`, `engine`, `inference`, `io`, `run`, `safety`, `sparse`, `stages`,
+`tiling`, `training`, `transforms` — confirmed via `pkgutil.iter_modules` against the installed
+0.4.0a1), aminx imports from only 6 (`tiling`, `run`, `stages`, `training`, `checkpoint`, `eda`). The
+other 9 were checked for local-duplicate signal via targeted `rg` + direct source comparison:
+
+**Confirmed duplicate effort — `xtrax.transforms.safe_map`/`safe_scan`.** aminx's
+`src/aminx/utils/safe_map.py` and `src/aminx/utils/safe_scan.py` are local reimplementations, not
+uses of `xtrax.transforms.safe_map`/`safe_scan` (installed at
+`.venv/.../xtrax/transforms/{map,scan}.py`). Diffing the two `safe_map`s directly: xtrax's canonical
+version treats `batch_size=None` as its only "always vmap" sentinel and has **no** special case for
+`batch_size=0` — passing `0` hits `n % batch_size` and raises `ZeroDivisionError`. aminx's fork
+*added* a `batch_size == 0` "always vmap" branch on top of xtrax's semantics, to interoperate with
+its own legacy int-based dispatch calling convention (`_legacy_batch_size`'s Vmap-sentinel
+translation, see the 260706 document). **This addition is the exact mechanism that lets the
+cardinality-divergence bug (Finding D and the 260706 document) fail silently instead of loudly** —
+had aminx been calling xtrax's canonical `safe_map` directly with a real `batch_size` value (no `0`
+sentinel), the same disconnected-cardinality input would raise `ZeroDivisionError` at the `lax.map`
+boundary rather than quietly vmapping an oversized array. `safe_scan` shows the same divergence
+pattern in miniature: xtrax's version validates the actual leading-axis length is nonzero; aminx's
+only checks whether the pytree has zero leaves at all (a materially weaker check — an array of shape
+`(0, N)` passes aminx's check but would be caught by xtrax's). **This directly changes the
+remediation picture for the cardinality bug**: migrating dispatch onto xtrax's canonical `safe_map`
+(forcing every caller to pass a real batch size, eliminating the `0`-sentinel path entirely) is a
+strictly cleaner fix than patching the local fork's condition — not merely "another option" among
+the three listed in the 260706 document's Remediation section, but the one most consistent with how
+xtrax itself expects this primitive to be called.
+
+**Confirmed duplicate effort — `xtrax.engine.Engine`.** `xtrax.engine` ships a generic `Engine`
+class (`fit`/`fit_sync`/`eval`, taking a `Trainer`/`TrainStepLike` + callbacks) built specifically to
+orchestrate a training loop. `src/aminx/training/trainer.py` (939 lines) hand-rolls its own loop
+(`train()` at line 707, `train_step()` at 293, `eval_step()` at 571) instead of using it — despite
+already importing *other* pieces of `xtrax.training` (`adamw_with_schedule`/`make_optimizer`,
+`ResumableState`) and `xtrax.checkpoint.orbax` into that same custom loop. Not independently assessed
+whether `Engine.fit()` could be a drop-in replacement for aminx's specific training requirements
+(e.g. custom eval cadence, mixed-precision handling at `setup_mixed_precision`) — flagged as real
+duplicated orchestration code, not confirmed as a safe swap.
+
+**Lower-urgency duplicate effort — `xtrax.safety.safe_norm`/`safe_reciprocal`.**
+(`Float[Array,...], eps=1e-8) -> Float[Array,...]`, computing `sqrt(sum(x**2)+eps**2)` and
+`1/(x+eps)` respectively). aminx has 10+ scattered ad-hoc epsilon-guard patterns doing the same
+thing by hand across `inference/decode/_kernel.py:164`, `parity/evidence.py:349-407`,
+`inference/decode/ste.py:318`, `inference/optimize_ste.py:220,237`, `inference/logits.py:114-115`,
+`utils/coordinates.py:161`, `utils/reverse_jac.py:47`, `utils/structure_metrics.py:108`,
+`host/averaging.py:505`, `utils/normalize.py:21,80`. Real duplication, but a style/consolidation
+question rather than a correctness gap — none of these were found to have the wrong epsilon or a
+missing guard, just independently-invented instances of the same pattern.
+
+**Checked, no gap found:** `xtrax.sparse` (`SparseConfig`/`sparsify_model`/etc. — zero local
+sparsity/pruning code anywhere in aminx), `xtrax.distributed` (`init_dist`/`ShardingPolicy`/etc. —
+zero local device-mesh/sharding code), `xtrax.data` (`DataModule` — aminx's own
+`create_protein_dataset` in `host/prep.py` wasn't found to structurally overlap on inspection, though
+not deeply diffed), `xtrax.inference` (axis/signature inference — `AxisRole`/`BundleSchema`/
+`infer_bundle`/`synthesize_axes` — zero references anywhere in aminx, no evidence of a hand-written
+equivalent), `xtrax.cli` (batch-plan visualization CLI — aminx's own `cli.py` doesn't expose plan
+visualization via any command, so this reads as an unused feature, not duplicated effort). None of
+these show a local reimplementation competing with the xtrax version — they read as genuinely unused
+capability with unclear current applicability, not wasted effort. `xtrax.io`'s
+`BoundedCallbackHandler`/`async_indexed_stream` (same names as aminx's pre-existing
+`_vendored_callbacks.py`) was already examined by the P4 scoping spec this session and confirmed to
+be a naming collision with different semantics (aminx: sync FIFO backlog / sync int-range chunker;
+xtrax: async semaphore-bounded executor backing `Engine.fit()` / async prefetch generator) — not a
+migration target, already resolved, no new action here.
+
+---
+
 ## Consolidated file:line findings
 
 | # | File:line | Issue | Class |
@@ -191,6 +262,9 @@ sub-configs already covered in Finding A.
 | 6 | `.praxia/docs/plans/260614_runspec-migration-map.md` | 22/22 "migrated" rows stale; 6+ "to migrate" rows already done | Documentation drift |
 | 7 | `host/kernel_dispatch.py:69-70`, `:100-371` | Unified dispatch path (`use_unified_driver=True` default) vmaps `sample_keys` unconditionally when planner picks Vmap for a disconnected cardinality | Cardinality divergence (default path, no fallback) |
 | 8 | `host/kernel_dispatch.py:421,518` (legacy path) | Same divergence via `safe_map`'s defeatable `batch_size==0` branch | Cardinality divergence (legacy path, already documented 260706) |
+| 9 | `utils/safe_map.py`, `utils/safe_scan.py` | Local forks of `xtrax.transforms.safe_map`/`safe_scan`; fork *added* the `batch_size==0` sentinel that lets finding #7/#8 fail silently instead of raising | Unadopted xtrax capability (duplicate implementation) |
+| 10 | `training/trainer.py` (939 lines, `train()`/`train_step()`/`eval_step()`) | Hand-rolled training loop instead of `xtrax.engine.Engine.fit()`, despite already using other `xtrax.training`/`xtrax.checkpoint` pieces inside it | Unadopted xtrax capability (duplicate implementation) |
+| 11 | 10+ sites across `inference/`, `utils/`, `host/averaging.py` | Ad-hoc epsilon-guard patterns (`x + 1e-8` etc.) instead of `xtrax.safety.safe_norm`/`safe_reciprocal` | Unadopted xtrax capability (style/consolidation) |
 
 ---
 
@@ -217,7 +291,17 @@ Not chosen here, consistent with the prior session's `260706_samples-axis-planne
 — this document stops at findings. Given the scale surfaced (27 dead fields across 5 sub-configs, a
 migration-status doc that's backwards on both its "done" and "not done" claims, and a cardinality bug
 whose default-path variant has no safety net at all), the next decision is priority/sequencing across
-three somewhat independent workstreams: (1) fix or formally abandon the RS-1 sub-config migration,
+four somewhat independent workstreams: (1) fix or formally abandon the RS-1 sub-config migration,
 (2) re-author the migration map from actual code state, (3) fix the cardinality-divergence bug (both
-path variants) — likely still the highest-priority item given it's a live memory-safety gap, not
-documentation debt.
+path variants), (4) adopt `xtrax.transforms.safe_map`/`safe_scan` and evaluate `xtrax.engine.Engine`
+as a `trainer.py` replacement.
+
+**Finding E changes (3)'s calculus, not just adds (4) as a separate item.** Migrating dispatch onto
+`xtrax.transforms.safe_map` directly — passing a real `batch_size` at every call site and removing
+the local fork's `batch_size==0` sentinel entirely — closes the cardinality-divergence bug at its
+`safe_map` layer *and* eliminates the duplicated-implementation gap in one move, rather than treating
+"fix the bug" and "adopt the xtrax primitive" as separate follow-ups. It doesn't by itself fix the
+`_dispatch_axis` unconditional-`jax.vmap` path (finding #7) — that call site doesn't go through
+`safe_map` at all — but it does mean remediation direction A in the 260706 document ("make the
+planner's cardinality reflect the actual runtime count") and adopting the canonical `safe_map` are
+complementary, not competing, and should likely be scoped together.

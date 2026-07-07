@@ -37,6 +37,16 @@
   `.praxia/docs/specs/260706_samples-axis-planner-cardinality-mismatch.md` for the full root-cause
   history and `tests/host/test_samples_cardinality_fix.py` for the regression coverage.
 
+### Changed
+
+- **`xtrax` pin bumped `0.4.0a1` → `0.4.0a2`** (`pyproject.toml`): picks up xtrax's
+  `StageBundle` validator fix (PEP 563 annotation resolution, structural-callable `Protocol`
+  acceptance, N-way union support) — no breaking changes to aminx's existing xtrax usage.
+  Transitively bumps `jax`/`jaxlib` to `0.10.2` (xtrax's new floor). Unblocks 7 of `StageSet`'s
+  10 fields for a future `StageBundle` adoption attempt; the remaining 3 container-shaped
+  fields (`encoder_sink`, `decoder_sink`, `axis_boundaries`) still need backlog #3155's design
+  work regardless of this bump.
+
 ### Gates
 
 - **T2.GATE** (dispatch-layer parity, R1 DoD): bit-for-bit golden fixture, identical JIT-recompile
@@ -68,6 +78,18 @@
   `pad.py`, `strategy.py`, `dispatch.py`, and `errors.py` remain — see
   `.praxia/docs/decisions/260706_bucketing-pad-stay-local-epic-1541-p3-scope-closed.md` for why
   those specifically stay.
+
+- **`RunSpec.tied`/`.batching`/`.averaging` sub-configs** (`TiedPositionsConfig`,
+  `BatchingConfig`, `AveragingConfig` — 18 fields total): write-only scaffolding from the RS-1
+  migration that was never finished. `build_run_spec()` populated these on every call but nothing
+  downstream ever read them — all consumers (`host/kernel_dispatch.py`,
+  `host/_sampling_grid_lineage.py`, etc.) read the equivalent flat `SamplingSpecification` field
+  instead. Removing them doesn't change behavior; the flat fields they duplicated are untouched.
+  Scoped in `.praxia/docs/specs/260707_xtrax-migration-gap-audit-runspec-scaffolding.md`
+  (backlog #3158); `GridLineageConfig` and `LigandConfig` were NOT removed — each has one live
+  field (`grid_mode`, `model_family`) plus existing partial-migration fallback logic worth
+  finishing rather than discarding.
+  (`src/aminx/run/spec.py`, `src/aminx/run/run_spec_portable_json.py`)
 
 ## 0.1.0a6 (2026-06-14)
 

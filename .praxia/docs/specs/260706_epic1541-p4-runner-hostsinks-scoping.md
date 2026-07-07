@@ -1,138 +1,217 @@
 # Spec: EPIC #1541 P4 scoping — inference-runner / host-sinks slice
 
-**Task:** 260706_epic1541-p4-scoping · **Status:** DRAFT, pending review · **Scope:** aminx only; consumes xtrax 0.4.0a1 as a fixed, already-shipped dependency (no new xtrax feature requests identified — contrast with P3's planner piece, which needed one).
+**Task:** 260706_epic1541-p4-scoping · **Status:** CONVERGED — challenger + defender review complete, no blocking objections remain · **Scope:** aminx only; consumes xtrax 0.4.0a1 as a fixed, already-shipped dependency.
 
-**Supersedes-in-part** the P4 section of `260611_aminx-xtrax-refactor.md`'s task DAG ("T4.1: move generic output_sinks/streaming_host/plan to xtrax; SPLIT runner"). That line was written before this scoping pass; recon below found the real shape of the work is materially different — smaller in the "move to xtrax" dimension, but with one genuinely invasive piece (`StageSet`/`StageBundle`) the original line didn't anticipate the difficulty of.
+**Supersedes-in-part** the P4 section of `260611_aminx-xtrax-refactor.md`'s task DAG ("T4.1: move generic output_sinks/streaming_host/plan to xtrax; SPLIT runner").
+
+**Revision note (2026-07-06):** this document's first draft was adversarially challenged
+(`praxia-spec-challenger`, task `260706_epic1541-p4-scoping`). The challenge found the
+centerpiece claim materially wrong — not a disagreement about judgment, a factual error I
+then independently reproduced myself (see Finding 3, Reasons A/B). This revision corrects
+it rather than defending it, and additionally closes the two suggestion-severity gaps the
+review raised (C6 — "SPLIT runner" dismissal was asserted, not evidenced; C7 — no explicit
+comparison against xtrax's I/O primitives) with real evidence instead of assertions. A
+second review round (`praxia-spec-defender`) independently re-verified every corrected
+claim against source and returned `overall_verdict: converged` — see Finding 5's closing
+note for the one remaining suggestion-level polish item that survived that round.
 
 ## Motivation
 
-P3's planner piece taught a specific lesson: don't evaluate "does this look like it should move to xtrax" from the original spec's prose — check what xtrax's *actual, current* API looks like, and check whether aminx's code is structurally compatible with it before assuming a migration is straightforward. This spec applies that same discipline to P4, which the epic's task DAG describes only at the level of "move generic output_sinks/streaming_host/plan to xtrax; SPLIT runner" — three different claims bundled into one line, none previously checked against xtrax 0.4.0a1's real contents.
+P3's planner piece taught a specific lesson: don't evaluate "does this look like it should
+move to xtrax" from the original spec's prose — check what xtrax's *actual, current* API
+looks like, and check whether aminx's code is structurally compatible with it before
+assuming a migration is straightforward. This spec applies that discipline to P4. The first
+draft did this for four of five findings but got the fifth (the centerpiece) wrong by not
+applying the discipline rigorously enough to its own conclusion — see below.
 
 ## Recon findings (2026-07-06, verified against installed `xtrax==0.4.0a1` and current aminx source)
 
 ### 1. Boundary abstractions — already done, nothing to migrate
 
 `Fuse`/`Tap`/`Sink`/`AxisBoundary` are already sourced from `xtrax.stages.boundaries`
-(`src/aminx/types/boundaries.py:5`). This predates the current session. No action.
+(`src/aminx/types/boundaries.py:5`). Predates this session. No action.
 
-### 2. A real naming collision, not a migration opportunity
+### 2. `xtrax.run.resolver`/`xtrax.run.sink` — checked, no seam here either
 
-aminx has its own **vendored** (from "jaxbeans," per its own module docstring — not from
-xtrax) `BoundedCallbackHandler` and `async_indexed_stream` in
-`src/aminx/utils/_vendored_callbacks.py`. xtrax has classes with the *identical names* in
-`xtrax.io` / `xtrax.engine.io`, but they solve different problems:
+For completeness (the first draft asserted this without checking): `xtrax.run.resolver`
+holds `RuntimeBundle` (a thin `iterator: VmapIterator | ... | None; model: eqx.Module`
+dataclass) and `InputResolver` (`(spec, bundle) -> FeatureBatch`, a `runtime_checkable
+Protocol`) — this is the same `RuntimeBundle`/`InputResolver` pair
+`260630_runtimebundle-inputresolver-compose-not-subclass.md` already scoped for aminx's
+*not-yet-built* `#1910`, unrelated to the sampling runner. `xtrax.run.sink.SinkSpec` is a
+3-field routing-config dataclass (`output_dir`/`format`/`flush_every`) — a config shape, not
+an implementation. `host/kernel_dispatch.py:_sample_batch(spec, batched_ensemble: Protein,
+plan: InferencePlan, ...)` receives `batched_ensemble` **already resolved** — it does not do
+spec-to-bundle input resolution itself, so `InputResolver`'s pattern has no call site to
+attach to inside this function. Conclusion holds, now on evidence: **"SPLIT runner" is a
+separate, aminx-internal architectural question** (if still wanted at all), not an xtrax
+migration target, and not scoped further here.
 
-| | aminx's (vendored) | xtrax's |
+### 3. `StageBundle`/`StageSet` — NOT viable to adopt, for two independent reasons (revised)
+
+**What the first draft claimed:** "3 of `StageSet`'s 10 fields aren't `Optional[Callable]`;
+the other 7 could go into a genuine `StageBundle` subclass." **This is wrong.** Adversarial
+review (and my own independent verification, reproduced below) found:
+
+**Reason A — every field fails, not 3 of 10.** `StageBundle.__init_subclass__`
+(`xtrax/stages/bundle.py:32-70`) accepts a field only if it is `X | None` where `X` is
+*literally* `Callable` or `Callable[...]` (`_is_callable_type`, `bundle.py:10-19`). Checked
+each of `StageSet`'s 10 fields (`src/aminx/types/stages.py:353-362`) against that rule:
+
+| Field | Annotation | Passes `StageBundle`'s rule? |
 |---|---|---|
-| `BoundedCallbackHandler` | Sync FIFO backlog, `max_pending`, raises on overflow (`submit(item)` appends to a list) | Async semaphore-bounded *concurrent coroutine* executor (`async def submit(coro)`, `asyncio.Semaphore`) |
-| `async_indexed_stream` | Sync generator chunking an int range: `(total, chunk_size) → (chunk_start, chunk_count)` pairs | Async generator prefetching from a blocking iterable via a background thread: `(index, item)` pairs |
+| `logit_transform` | `BatchLogitFn \| None` | No — `BatchLogitFn` is `class BatchLogitFn(Protocol)` (`inference/logits.py:21`), not literal `Callable` |
+| `ar_logit_transform` | `BatchLogitFn \| None` | No — same |
+| `decode_step` | `ConditionalDecodeStep \| UnconditionalDecodeStep \| None` | No — 3-way union, `len(args) != 2` at `bundle.py:52` |
+| `sample_step` | `Any \| None` | No — `_is_callable_type(Any)` is `False` |
+| `tie_group_fuse` | `TieGroupFuseFn \| None` | No — `class TieGroupFuseFn(Protocol)` (`inference/logits.py:334`) |
+| `encoder_sink` | `tuple[EncoderSinkFn, ...]` | No — not even a union |
+| `decoder_sink` | `tuple[DecoderSinkFn, ...]` | No — same |
+| `encoding_fusion` | `EncodingFusionFn \| None` | No — `class EncodingFusionFn(Protocol)` (`types/stages.py:115`) |
+| `decoding_fusion` | `DecodingFusionFn \| None` | No — `class DecodingFusionFn(Protocol)` (`types/stages.py:128`) |
+| `axis_boundaries` | `dict[str, AxisBoundary]` | No — not a union |
 
-xtrax's versions back `xtrax.engine.Engine.fit()`'s async callback dispatch (the *training*
-loop) — unrelated to the JAX `io_callback` JIT-boundary staging aminx's `output_sinks.py`
-actually does. The original spec's line ("reconcile aminx io_callback drain vs xtrax
-BoundedCallbackHandler") assumed these needed reconciling; they don't — they're unrelated
-mechanisms that happen to share names. **This is not a migration target**, but the naming
-collision is a real landmine for future readers/maintainers (someone will eventually assume
-they're interchangeable and get it wrong, the same way I almost did here).
+**Zero of ten fields would pass.** The 7 fields the first draft called "pure" are Protocols,
+a 3-way union, or `Any` — none is literal `Callable`. A `StageBundle` subclass holding those
+7 fields verbatim would `TypeError` at class-definition time for every single one.
 
-### 3. `StageBundle`/`StageSet` — the one genuinely open, genuinely invasive piece
+**Reason B — independent of Reason A, and more fundamental: PEP 563 defeats the validator
+entirely, for *any* field.** Both `src/aminx/types/stages.py:14` and
+`src/aminx/inference/logits.py:8` have `from __future__ import annotations`. Under PEP 563,
+`cls.__annotations__` holds **strings**, not type objects — confirmed empirically:
 
-xtrax has `xtrax.stages.bundle.StageBundle`: a "typed bag of optional callable stage
-slots," where `__init_subclass__` **strictly validates every annotated field is
-`Optional[Callable]`** and raises `TypeError` at class-definition time otherwise. This
-matches the original spec's own sub-decision ("StageBundle = wrap-aminx-StageSet")
-verbatim in *intent*.
+```python
+from __future__ import annotations
+from typing import Optional, Callable
+class Foo:
+    x: Optional[Callable] = None
+print(Foo.__annotations__)        # {'x': 'Optional[Callable]'}
+print(type(Foo.__annotations__['x']))  # <class 'str'>
+```
 
-`aminx.types.stages.StageSet` (`src/aminx/types/stages.py:280`) is a plain `eqx.Module`,
-never wired to `StageBundle`. Checking whether it even *could* subclass `StageBundle` as
-currently structured: **it cannot.** Three of `StageSet`'s ten fields are not
-`Optional[Callable]`:
+`StageBundle.__init_subclass__` reads raw `cls.__annotations__` (`bundle.py:40`) and calls
+`get_origin(field_type)` on each value (`bundle.py:45`) — **never** `typing.get_type_hints()`
+to resolve the strings first. Confirmed: `get_origin('BatchLogitFn | None')` returns `None`
+regardless of what the string actually says, so the validator's `else` branch
+(`bundle.py:65-70`, "must be Optional[Callable]") fires unconditionally. **A `StageBundle`
+subclass cannot be defined inside any module using `from __future__ import annotations` —
+not because of what the fields are, but because the validator never sees resolved types at
+all.** This would apply even to a hypothetical field that *was* genuinely `Callable | None`.
 
-- `encoder_sink: tuple[EncoderSinkFn, ...]`
-- `decoder_sink: tuple[DecoderSinkFn, ...]` (static)
-- `axis_boundaries: dict[str, AxisBoundary]` (static)
+**Consequence:** `StageBundle` is not adoptable by `StageSet` as it exists today, full stop
+— not "compose instead of subclass" (the first draft's fallback), but *no current path*,
+short of one of:
+(a) an upstream xtrax change to `StageBundle.__init_subclass__` (resolve annotations via
+`get_type_hints()`; accept Protocols/`Any`/bounded unions, not just literal `Callable`) —
+real feature work against xtrax, analogous to what P3's planner piece needed, not attempted
+here;
+(b) hosting a `StageBundle` subclass in a *new* module with bare `Callable`/`Callable[...]`
+annotations and no `from __future__ import annotations`, which discards the Protocol/union
+typing that currently documents real invariants (e.g. `decode_step`'s union *is* the
+topology-inference signal — see `StageSet`'s own docstring at `types/stages.py:289-292`).
 
-`StageBundle.__init_subclass__` would reject all three immediately if `StageSet` declared
-`class StageSet(StageBundle)` — this fires at class-definition/import time, not
-instantiation, so it's not a subtle runtime bug, it's a hard blocker verified by reading
-`xtrax/stages/bundle.py`'s validation logic directly.
+Neither is "compose, don't subclass" in the sense the `260630` `RuntimeBundle` precedent
+used that phrase (there, composition was a clean, working alternative to a blocked
+subclass). Here, composition doesn't dodge the blocker — `StageBundle`, subclassed
+*anywhere* by anyone in a PEP-563 module, hits Reason B regardless of which fields it holds.
 
-This codebase already has a **direct precedent** for exactly this shape of problem:
-`.praxia/docs/decisions/260630_runtimebundle-inputresolver-compose-not-subclass.md` (aminx's
-planned `RuntimeBundle` vs `xtrax.run.resolver.RuntimeBundle`) concluded **compose, don't
-subclass** — for a *different* root cause (frozen-dataclass-vs-`eqx.Module` metaclass
-conflict, not a validation rule). `StageSet`/`StageBundle` are both `eqx.Module`-based, so
-the metaclass issue doesn't apply here — but the *same resolution* (compose, not subclass)
-is still the likely answer, now for a validation-rule reason instead: `StageSet` would hold
-an inner `StageBundle` instance for its 7 pure-`Optional[Callable]` fields
-(`logit_transform`, `ar_logit_transform`, `decode_step`, `sample_step`, `tie_group_fuse`,
-`encoding_fusion`, `decoding_fusion`), keeping the 3 container-typed fields
-(`encoder_sink`/`decoder_sink`/`axis_boundaries`) as `StageSet`'s own, separate concern.
+**Benefit check (missing from the first draft, per review objection C4):** what would adopting
+`StageBundle` actually buy aminx? `StageBundle` provides exactly two methods:
+`active_stages()` and `has_stage()` (`bundle.py:97-104`), simple list/bool checks over
+non-None fields — behavior `StageSet`'s own topology-inference docstring already documents
+and its callers already implement ad hoc (checking `is not None` directly). No aminx code
+currently calls anything resembling `active_stages`/`has_stage`. **The benefit is
+approximately zero.**
 
-**This is the one piece of P4 with real blast radius.** `StageSet` is constructed and read
-throughout the entire decode/inference pipeline (`make_stage_set`, `kernel_dispatch.py`,
-every mode class in `inference/decode/`, topology-inference rules keyed on which fields are
-`None`). A composition refactor touches every one of those call sites' field access pattern
-(`stage_set.decode_step` → `stage_set.bundle.decode_step`, or similar), not just a type
-annotation.
+**Blast radius, corrected (per review objection C3):** the first draft said "~10+ call sites."
+Actual count — grep for the 10 field-access patterns
+(`.logit_transform`/`.ar_logit_transform`/`.decode_step`/`.sample_step`/`.tie_group_fuse`/
+`.encoder_sink`/`.decoder_sink`/`.encoding_fusion`/`.decoding_fusion`/`.axis_boundaries`)
+across `src/`: **52 occurrences across 12 files** —
+`host/{averaging,kernel_dispatch,plan,runner,stage_adapter}.py`,
+`inference/{driver,logits}.py`,
+`inference/decode/{_base,autoregressive,conditional,unconditional}.py`, `types/stages.py`.
+This includes `host/plan.py`'s `eqx.tree_at(lambda s: s.encoding_fusion, ...)` /
+`s.decoding_fusion` / `s.decode_step` path lambdas (`plan.py:781-815`) — PyTree-path
+expressions that would need rewriting under any restructure, and are exactly the kind of
+site where a JIT-recompile regression would hide.
+
+**Given near-zero benefit, a genuine (not just difficult) structural blocker, and a
+52-occurrence blast radius: `StageSet` stays exactly as it is. This is the default
+conclusion, not a contingent fallback (see revised Off-ramp below).**
 
 ### 4. Concrete sinks stay local — same pattern as `pad.py`/`bucketing.py` in P3
 
 `output_sinks.py`'s concrete sink classes (`StreamingTensorStagingSink`,
 `EncoderIntermediateStagingSink`, `JacobianAccumulationSink`) and `streaming.py`'s
 HDF5/ArrayRecord writers (`_sample_streaming`, `_sample_streaming_arrayrecord`,
-`_sample_streaming_averaged`) are protein/MPNN-domain-specific: keyed by structure/noise/
-chunk indices, writing protein-specific `DesignPayload`/`DesignMetadata` records. No
-generic xtrax equivalent exists or would make sense to move these to — this is domain
-business logic built on top of `io_callback`, not a tiling-style generic primitive.
-`streaming_host.py` (41 lines) is a thin wrapper around `jax.effects_barrier()` plus the
-vendored `async_indexed_stream` — trivial, not worth migrating on its own, though its use
-of the collision-prone name (finding #2) should be fixed alongside it.
+`_sample_streaming_averaged`) are protein/MPNN-domain-specific: keyed by
+structure/noise/chunk indices, writing protein-specific `DesignPayload`/`DesignMetadata`
+records. No generic xtrax equivalent exists (checked `xtrax.run.sink.SinkSpec` — a routing
+config, not an implementation) or would make sense to move these to. Domain business logic
+built on `io_callback`, not a tiling-style generic primitive.
 
-### 5. "SPLIT runner" — a separate, aminx-internal question, not an xtrax migration
+`streaming_host.py`'s two generic-looking helpers, named explicitly (per review C7, which
+found the first draft's "trivial, not worth migrating" dismissal never named what it was
+dismissing): `sink_barrier()` (`streaming_host.py:18-20`, a bare `jax.effects_barrier()`
+wrapper) and `iter_streaming_chunks()` (`:31-33`, wraps the vendored `async_indexed_stream`
+— see Finding 5). xtrax's I/O layer (`xtrax.engine.io`/`xtrax.io`) is entirely
+`asyncio`-coroutine-based, backing the *training* `Engine.fit()` loop — there is no
+`jax.effects_barrier`-style synchronization primitive in xtrax to compare `sink_barrier`
+against, because xtrax's async layer isn't synchronizing JAX `io_callback` effects at all,
+it's bounding concurrent Python coroutines in a plain training loop. Different problem
+domain, not a smaller version of the same thing. Both helpers stay local, un-migrated,
+alongside the concrete sinks they serve.
 
-The original spec's own wording ("move ... to xtrax; **SPLIT runner**") bundles two
-different verbs. Nothing found in this recon suggests `kernel_dispatch.py`'s `_sample_batch`
-has a natural xtrax destination — "splitting" it (if still wanted) is an aminx-internal
-architectural refactor question, orthogonal to anything xtrax offers. Not scoped further
-here; flagged as a separate decision if still desired.
+### 5. Naming collision — real, but the recommended fix was wrong (revised)
+
+aminx has its own **reimplementation in the style of** ("jaxbeans-style," per its own
+docstring — not literally vendored/copied, a first-draft wording error the review caught)
+`BoundedCallbackHandler` and `async_indexed_stream` in
+`src/aminx/utils/_vendored_callbacks.py`. xtrax has classes with the *identical names* in
+`xtrax.io` / `xtrax.engine.io`, solving different problems:
+
+| | aminx's | xtrax's |
+|---|---|---|
+| `BoundedCallbackHandler` | Sync FIFO backlog, `max_pending`, raises on overflow | Async semaphore-bounded concurrent coroutine executor, backs `xtrax.engine.Engine.fit()`'s training-loop callback dispatch |
+| `async_indexed_stream` | Sync generator chunking an int range: `(total, chunk_size) → (chunk_start, chunk_count)` | Async generator prefetching from a blocking iterable via a background thread: `(index, item)` |
+
+Not a migration target — confirmed different problems, matching the first draft's
+conclusion. **But the recommended fix (rename) was wrong for `BoundedCallbackHandler`
+specifically: it has zero call sites anywhere in `src/`** (grep finds only its own
+definition) — dead code, not a landmine anyone will trip over by using it. The honest fix is
+**delete**, not rename. `async_indexed_stream` has exactly one real call site
+(`host/streaming_host.py:15,33`, not "~2-3" as the first draft estimated) and is worth
+renaming for clarity, since it's actually used and actually collides.
 
 ## Revised task list
 
-Given the above, P4's real remaining scope is much narrower than the original DAG line, but
-concentrated almost entirely in one nontrivial piece:
+- **T4.0a**: delete aminx's unused `BoundedCallbackHandler` from `_vendored_callbacks.py`.
+  Zero call sites; confirmed via grep before deletion, same discipline as `carry_shape.py`'s
+  retirement in P3.
+- **T4.0b**: rename `async_indexed_stream` (and update its one call site in
+  `streaming_host.py`) to something that doesn't collide with xtrax's differently-behaved
+  same-named function — e.g. `chunk_int_range`. Mechanical, no behavior change.
+- **`StageSet`/`StageBundle`**: **not a task.** Recorded as a stay-local decision (see Finding 3)
+  — not deferred, not blocked, closed. If a future need arises to actually adopt
+  `StageBundle`, it requires an upstream xtrax change to the validator first (Reason B is not
+  aminx-side fixable at all); that would be new xtrax feature work, scoped separately if it
+  ever becomes worth doing, the same way P3's planner piece got a real xtrax feature added
+  when the case for it was concrete.
+- **"SPLIT runner"**: not scoped here (Finding 2) — a separate, aminx-internal architectural
+  question if still wanted, with no connection to xtrax's `run`/`stages` modules found.
+- **Concrete sinks / streaming writers**: stay local, no action (Finding 4).
 
-- **T4.0 (new)**: rename aminx's vendored `BoundedCallbackHandler`/`async_indexed_stream`
-  (`_vendored_callbacks.py`, and their use in `streaming_host.py`) to names that don't
-  collide with xtrax's differently-behaved same-named classes — e.g.
-  `HostBackpressureQueue`/`chunk_range` or similar. Mechanical, no behavior change, low
-  risk, contained to `_vendored_callbacks.py` + its ~2-3 call sites.
-- **T4.1 (revised)**: `StageSet` composes an inner `xtrax.stages.bundle.StageBundle`
-  (built as a genuine subclass of `StageBundle` holding only the 7 pure-`Optional[Callable]`
-  fields) rather than being flattened into one. Needs: (a) a design decision on the exact
-  composition shape and field-access migration pattern before touching the ~10+ call sites
-  across `inference/decode/`, `inference/logits.py`, `host/plan.py`,
-  `host/kernel_dispatch.py`; (b) verification that PyTree structure changes (if any) don't
-  change JIT-recompile behavior — this is the one place a real parity/recompile gate is
-  warranted, narrower than the original T4.3's "5 hotspots" framing (io_callback drain,
-  ArrayRecord/HDF5 read, and the planner are untouched by this specific piece).
-- **Not scoped / deferred**: `output_sinks.py`/`streaming.py`'s concrete sinks (stay local,
-  no action), "SPLIT runner" (separate architectural question, not part of this migration).
+## Definition of done (for this scoping pass)
 
-## Definition of done (for this scoping pass, not for P4 itself)
-
-This document is a scoping pass, not an implementation plan. Before any code changes:
-confirm the `StageSet`/`StageBundle` composition shape (a follow-up design decision,
-likely its own short spec or decision doc mirroring `260630`'s format), and confirm whether
-T4.0's rename and T4.1's composition should land as one PR or two (T4.0 has near-zero risk
-and no dependency on T4.1; they don't need to be sequenced together).
+T4.0a/T4.0b are small enough to just implement directly once this revision is accepted —
+no further design decision needed for either. Everything else in P4's original scope is now
+closed as a documented stay-local/out-of-scope decision, not pending work.
 
 ## Off-ramp
 
-If the `StageSet` composition refactor's call-site blast radius, once fully inventoried,
-looks disproportionate to the benefit (topology-inference rules, JIT-recompile risk across
-the whole decode pipeline, for a class that already works correctly as a plain `eqx.Module`
-with no consumer confusion) — the honest fallback is: leave `StageSet` as-is, permanently,
-and record that decision the same way `bucketing.py`/`pad.py`/the old planner's stay-local
-pieces were recorded. `StageBundle` existing in xtrax does not, by itself, obligate aminx to
-use it if the fit is poor.
+Not conditional this time: `StageSet` stays as a plain `eqx.Module`, permanently, by
+default — given a benefit of approximately zero (two unused helper methods) against a
+confirmed structural blocker (Reason B applies regardless of field types) and a
+52-occurrence blast radius. `StageBundle` existing in xtrax does not obligate aminx to use
+it; the case for the fit here is negative, not merely disproportionate.

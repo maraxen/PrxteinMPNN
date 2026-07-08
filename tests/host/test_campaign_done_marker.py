@@ -8,13 +8,14 @@ import numpy as np
 import pytest
 import zarr
 
+from xtrax.run import zarr_content_digest
+
 from aminx.host.campaign import (
   DONE_MARKER_SCHEMA_VERSION,
   _done_marker_path,
   _read_done_marker,
   _validate_done_marker,
   _write_done_marker,
-  _zarr_content_digest,
 )
 
 
@@ -29,7 +30,7 @@ def _make_store(tmp_path: Path) -> Path:
 def test_write_then_validate_succeeds(tmp_path: Path) -> None:
   store_path = _make_store(tmp_path)
   marker_path = _done_marker_path(store_path)
-  digest = _zarr_content_digest(store_path)
+  digest = zarr_content_digest(store_path)
 
   _write_done_marker(
     marker_path=marker_path,
@@ -57,7 +58,7 @@ def test_validate_rejects_schema_mismatch(tmp_path: Path) -> None:
   bad_marker = {
     "schema_version": "some_old_h5_era_schema",
     "manifest_row_hash": "hash123",
-    "content_digest_sha256": _zarr_content_digest(store_path),
+    "content_digest_sha256": zarr_content_digest(store_path),
   }
   with pytest.raises(ValueError, match="schema mismatch"):
     _validate_done_marker(
@@ -74,7 +75,7 @@ def test_validate_rejects_manifest_hash_mismatch(tmp_path: Path) -> None:
   marker = {
     "schema_version": DONE_MARKER_SCHEMA_VERSION,
     "manifest_row_hash": "different_hash",
-    "content_digest_sha256": _zarr_content_digest(store_path),
+    "content_digest_sha256": zarr_content_digest(store_path),
   }
   with pytest.raises(ValueError, match="manifest hash mismatch"):
     _validate_done_marker(
@@ -106,7 +107,7 @@ def test_validate_detects_corrupted_content(tmp_path: Path) -> None:
   """Simulates post-completion corruption: array mutated after the marker was written."""
   store_path = _make_store(tmp_path)
   marker_path = _done_marker_path(store_path)
-  digest = _zarr_content_digest(store_path)
+  digest = zarr_content_digest(store_path)
   _write_done_marker(
     marker_path=marker_path,
     output_h5_path=store_path,

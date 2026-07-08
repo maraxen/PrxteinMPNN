@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import sys
 import threading
 import time
@@ -914,11 +915,10 @@ def run_manifest_row(  # noqa: PLR0915
         )
         raise RuntimeError(msg) from heartbeat_errors[0]
       if not partial_path.exists():
-        msg = f"Worker did not produce expected partial output file: {partial_path}"
+        msg = f"Worker did not produce expected partial output store: {partial_path}"
         raise RuntimeError(msg)
-      _fsync_file(partial_path)
-      artifact_sha256 = _sha256_file(partial_path)
-      content_digest_sha256 = _h5_content_digest(partial_path)
+      _fsync_tree(partial_path)
+      content_digest_sha256 = _zarr_content_digest(partial_path)
       partial_path.replace(output_h5_path)
       _fsync_directory(output_h5_path.parent)
       _write_done_marker(
@@ -926,12 +926,12 @@ def run_manifest_row(  # noqa: PLR0915
         output_h5_path=output_h5_path,
         manifest_row_hash=manifest_hash,
         attempt_id=attempt_id,
-        artifact_sha256=artifact_sha256,
         content_digest_sha256=content_digest_sha256,
         lock_backend=lock_backend,
       )
     finally:
-      partial_path.unlink(missing_ok=True)
+      if partial_path.exists():
+        shutil.rmtree(partial_path)
 
   result_payload = (
     dict(sample_result) if isinstance(sample_result, dict) else {"sample_result": sample_result}

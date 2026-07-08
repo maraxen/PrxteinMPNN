@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 import h5py
 import numpy as np
+import zarr
 
 # campaign manifest functions are implemented in this module (see build_manifest_row et al.)
 from aminx.host.runner import sample
@@ -344,6 +345,34 @@ def _h5_content_digest(path: Path) -> str:
   return digest.hexdigest()
 
 
+def _update_zarr_node_digest(
+  digest: hashlib._Hash,
+  node: zarr.Group | zarr.Array,
+  path: str,
+) -> None:
+  digest.update(path.encode("utf-8"))
+  digest.update(b"\n")
+  attrs_payload = {
+    str(key): _normalize_json_value(value) for key, value in sorted(node.attrs.items())
+  }
+  digest.update(_canonical_json_bytes(attrs_payload))
+  digest.update(b"\n")
+  if isinstance(node, zarr.Array):
+    _update_array_digest(digest, np.asarray(node[...]))
+    digest.update(b"\n")
+    return
+  for key in sorted(node.keys()):
+    child = node[key]
+    _update_zarr_node_digest(digest, child, f"{path}/{key}")
+
+
+def _zarr_content_digest(path: Path) -> str:
+  digest = hashlib.sha256()
+  root = zarr.open_group(str(path), mode="r")
+  _update_zarr_node_digest(digest, root, "/")
+  return digest.hexdigest()
+
+
 def _fsync_file(path: Path) -> None:
   with path.open("rb") as handle:
     os.fsync(handle.fileno())
@@ -355,6 +384,27 @@ def _fsync_directory(path: Path) -> None:
     os.fsync(fd)
   finally:
     os.close(fd)
+
+
+def _fsync_tree(path: Path) -> None:
+  """Recursively durabilize a directory tree: every file's data, then every directory's
+  entries bottom-up (deepest first), ending with `path` itself.
+
+  Zarr stores are directories of many chunk/metadata files, unlike a single HDF5 file --
+  content-digest verification is only meaningful if every file's bytes are actually on disk
+  first.
+  """
+  for child in path.rglob("*"):
+    if child.is_file():
+      _fsync_file(child)
+  dirs = sorted(
+    (p for p in path.rglob("*") if p.is_dir()),
+    key=lambda p: len(p.parts),
+    reverse=True,
+  )
+  for d in dirs:
+    _fsync_directory(d)
+  _fsync_directory(path)
 
 
 def _lock_path(output_h5_path: Path) -> Path:

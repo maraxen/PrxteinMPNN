@@ -6,10 +6,10 @@ from typing import Any, cast
 import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
+from xtrax.tiling import VmapIterator
 
 from aminx.inference.decode.conditional import ConditionalDecode  # noqa: TID251
 from aminx.inference.encode import make_encode_fn
-from aminx.tiling.iterator import VmapIterator
 from aminx.types.arrays import Logits
 from aminx.types.bundles import EncoderOutput as BundleEncoderOutput
 from aminx.types.bundles import InferenceBundle

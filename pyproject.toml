@@ -23,7 +23,7 @@ dependencies = [
     "proxide>=0.1.0a9",
     "typer>=0.12.0",
     "huggingface-hub>=0.23.0",
-    "xtrax>=0.3.0",
+    "xtrax[io]==0.4.0a5",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -148,8 +148,10 @@ pylint.max-args = 15
 "xtrax.stages.bundle" = {msg = "Use `from xtrax.stages import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.stages.protocols" = {msg = "Use `from xtrax.stages import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.tiling.bucket" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.budget" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.tiling.dedup" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.tiling.dispatch" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
+"xtrax.tiling.estimators" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.tiling.plan" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.tiling.strategy" = {msg = "Use `from xtrax.tiling import ...` — import from public __init__ only (ADR 260605)"}
 "xtrax.engine.engine" = {msg = "Use `from xtrax.engine import ...` — import from public __init__ only (ADR 260605)"}
@@ -280,7 +282,11 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.uv.sources]
-xtrax = { path = "/home/marielle/projects/xtrax", editable = true }
+# xtrax >=0.3.0 is published to PyPI (as of 2026-07-02); no source override
+# needed -- resolves like any normal dependency in CI and fresh clones. For
+# active local co-development against a live ../xtrax checkout, add an
+# untracked project-root `uv.toml` ([sources] table, xtrax = { path = "...",
+# editable = true }) -- see .gitignore.
 # Resolve proxide from PyPI (not sibling-folder discovery) when ../proxide exists.
 proxide = { index = "pypi" }
 # PyPI serves the CUDA-enabled wheel on Linux and CPU wheel on macOS — correct for both envs.

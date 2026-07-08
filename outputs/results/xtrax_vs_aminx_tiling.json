@@ -1,59 +1,77 @@
 {
   "cases": [
     {
+      "strategy_kind": "Vmap",
       "cardinality": 16,
       "default_batch_size": 32,
       "aminx_strategy": "Vmap",
       "xtrax_strategy": "Vmap",
       "decision_parity": true,
-      "aminx_recompiles": 1,
-      "xtrax_recompiles": 1,
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
       "recompile_parity": true,
-      "aminx_median_s": 1.1951546184718609e-05,
-      "xtrax_median_s": 1.479999627918005e-05,
-      "xtrax_vs_aminx_throughput_ratio": 1.2383331872242191
+      "legacy_median_s": 1.0744493920356035e-05,
+      "adapter_median_s": 9.96398739516735e-06,
+      "adapter_vs_legacy_throughput_ratio": 0.9273575348476887
     },
     {
+      "strategy_kind": "Vmap",
       "cardinality": 32,
       "default_batch_size": 32,
       "aminx_strategy": "Vmap",
       "xtrax_strategy": "Vmap",
       "decision_parity": true,
-      "aminx_recompiles": 1,
-      "xtrax_recompiles": 1,
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
       "recompile_parity": true,
-      "aminx_median_s": 1.1389493010938168e-05,
-      "xtrax_median_s": 1.1429423466324806e-05,
-      "xtrax_vs_aminx_throughput_ratio": 1.003505902795523
+      "legacy_median_s": 1.0000017937272787e-05,
+      "adapter_median_s": 1.0257004760205746e-05,
+      "adapter_vs_legacy_throughput_ratio": 1.0256986361969511
     },
     {
+      "strategy_kind": "SafeMap",
       "cardinality": 96,
       "default_batch_size": 32,
       "aminx_strategy": "SafeMap",
       "xtrax_strategy": "SafeMap",
       "decision_parity": true,
-      "aminx_recompiles": 1,
-      "xtrax_recompiles": 1,
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
       "recompile_parity": true,
-      "aminx_median_s": 1.1609052307903767e-05,
-      "xtrax_median_s": 1.2303004041314125e-05,
-      "xtrax_vs_aminx_throughput_ratio": 1.0597767772084115
+      "legacy_median_s": 1.2065022019669414e-05,
+      "adapter_median_s": 1.0725518222898245e-05,
+      "adapter_vs_legacy_throughput_ratio": 0.8889762658876712
     },
     {
+      "strategy_kind": "SafeMap",
       "cardinality": 256,
       "default_batch_size": 64,
       "aminx_strategy": "SafeMap",
       "xtrax_strategy": "SafeMap",
       "decision_parity": true,
-      "aminx_recompiles": 1,
-      "xtrax_recompiles": 1,
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
       "recompile_parity": true,
-      "aminx_median_s": 0.00010638346429914236,
-      "xtrax_median_s": 9.281153324991465e-05,
-      "xtrax_vs_aminx_throughput_ratio": 0.8724244304447122
+      "legacy_median_s": 0.00011785351671278477,
+      "adapter_median_s": 0.00015798653475940228,
+      "adapter_vs_legacy_throughput_ratio": 1.340533054642941
+    },
+    {
+      "strategy_kind": "Scan",
+      "cardinality": 32,
+      "default_batch_size": null,
+      "aminx_strategy": "Scan",
+      "xtrax_strategy": "Scan",
+      "decision_parity": true,
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
+      "recompile_parity": true,
+      "legacy_median_s": 1.1595984688028693e-05,
+      "adapter_median_s": 1.1478987289592624e-05,
+      "adapter_vs_legacy_throughput_ratio": 0.9899105249287838
     }
   ],
   "all_decision_parity": true,
   "all_recompile_parity": true,
-  "max_xtrax_vs_aminx_throughput_ratio": 1.2383331872242191
+  "max_adapter_vs_legacy_throughput_ratio": 1.340533054642941
 }

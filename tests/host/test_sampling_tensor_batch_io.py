@@ -18,6 +18,25 @@ from aminx.host.output_sinks import (
 from aminx.inference.sample_autoregressive import SampleResult
 from aminx.run.specs import SamplingSpecification
 from aminx.utils.data_structures import Protein
+from xtrax.tiling import SafeMap
+
+
+def _patch_decision_for(monkeypatch) -> None:
+    """Stub aminx.host.kernel_dispatch.decision_for to always resolve to SafeMap.
+
+    decision_for is a free function (not a BatchPlan method) since EPIC #1541
+    T-PLANNER.2 -- a bare MagicMock() standing in for make_sampling_planner's
+    return value no longer auto-succeeds the way plan.decision_for(name) used
+    to. SafeMap (not Vmap) specifically: these tests patch _safe_map itself to
+    short-circuit deep execution (see _mock_safe_map below) -- Vmap's
+    _dispatch_axis branch calls jax.vmap directly and bypasses that mock
+    entirely, reaching real body execution and failing on fixture gaps
+    (e.g. fixed_mask_for_vmap=None) these tests never intended to exercise.
+    """
+    monkeypatch.setattr(
+        "aminx.host.kernel_dispatch.decision_for",
+        lambda plan, name: MagicMock(strategy=SafeMap(batch_size=1)),
+    )
 
 
 def _make_fake_protein(
@@ -145,6 +164,7 @@ def test_emit_structure_batch_io_gate_in_sample_batch(monkeypatch):
         "aminx.host.kernel_dispatch.make_sampling_planner",
         lambda spec, **kwargs: mock_plan,
     )
+    _patch_decision_for(monkeypatch)
 
     # Patch extract_batch_sizes to return dummy batch sizes
     monkeypatch.setattr(
@@ -256,6 +276,7 @@ def test_sample_batch_does_not_raise_without_active_sink(monkeypatch):
         "aminx.host.kernel_dispatch.make_sampling_planner",
         lambda spec, **kwargs: mock_plan,
     )
+    _patch_decision_for(monkeypatch)
 
     # Patch extract_batch_sizes to return dummy batch sizes
     monkeypatch.setattr(
@@ -342,6 +363,7 @@ def test_sample_batch_stages_when_sink_active(monkeypatch):
         "aminx.host.kernel_dispatch.make_sampling_planner",
         lambda spec, **kwargs: mock_plan,
     )
+    _patch_decision_for(monkeypatch)
 
     # Patch extract_batch_sizes to return dummy batch sizes
     monkeypatch.setattr(

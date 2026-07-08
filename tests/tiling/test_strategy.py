@@ -37,7 +37,7 @@ def test_axis_strategy_union_isinstance():
 
 
 def test_scan_transition_protocol_conformance():
-    from aminx.tiling.strategy import ScanTransition
+    from aminx.types.tiling_protocols import ScanTransition
     # A function with (carry, x) -> (carry, y) signature satisfies the protocol
     def my_transition(carry: int, x: int) -> tuple[int, int]:
         return carry + x, carry

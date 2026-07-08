@@ -27,7 +27,7 @@ from aminx.inference.encode import make_encode_fn
 from aminx.inference.logits import make_stage_set
 from aminx.inference.sample_autoregressive import kernel as sample_autoregressive_kernel
 from aminx.model import Aminx
-from aminx.tiling.carry_shape import CarryShape
+from xtrax.tiling import CarryShape
 from aminx.tiling.iterator import JaxScanIterator, VmapIterator
 from aminx.tiling.strategy import Vmap
 from aminx.types.bundles import InferenceBundle

@@ -14,13 +14,18 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
+from xtrax.tiling import AxisDecision, BatchPlan, BatchPlanner, MemoryBudget, SafeMap
+from xtrax.tiling import BudgetInfeasibleError as _XtraxBudgetInfeasibleError
 
 from aminx.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
 from aminx.tiling.errors import TilingError
-from aminx.tiling.planner import BatchPlan, BatchPlanner, estimate_memory_theoretical
+from aminx.tiling.planner import estimate_memory_theoretical
 
 if TYPE_CHECKING:
+  from collections.abc import Sequence
+
   from jaxtyping import PRNGKeyArray
+  from xtrax.tiling import AxisSpec, CarrySpec, DedupSpec
 
   from aminx.inference.decode.protocols import ARDecodeFn, DecodeScoreFn, STEDecodeFn
   from aminx.run.specs import SamplingSpecification
@@ -43,6 +48,116 @@ class PlanTopologyError(TilingError):
   """
 
 
+class PlanBudgetInfeasibleError(TilingError):
+  """Raised when no demotion sequence brings a sampling plan under its memory budget.
+
+  Translates xtrax.tiling.BudgetInfeasibleError (a plain Exception) into
+  aminx's own TilingError hierarchy at the make_sampling_planner boundary,
+  the same pattern host/plan.py already uses for PlanTopologyError /
+  xtrax.stages.PlanTopologyError and tiling/dispatch.py uses for
+  DispatchRejected / xtrax's DispatchRejected.
+  """
+
+
+# Axes with variable element shapes across the batch: jax.vmap is structurally
+# invalid on these (ragged/variable shapes), so they must always use SafeMap.
+# Passed to xtrax.tiling.BatchPlanner as heterogeneous_axes (rejects Scan on
+# these in Phase 0) AND used by _plan_with_joint_budget below to pre-fix these
+# axes to SafeMap before calling xtrax's engine -- xtrax's joint-budget mode
+# has no equivalent of aminx's old Phase 1 (force non-carry/dedup heterogeneous
+# axes to SafeMap unconditionally, before the budget loop runs); confirmed
+# empirically (2026-07-06) that without this fix, xtrax's engine assigns Vmap
+# to a heterogeneous axis whenever the joint estimate already fits budget.
+_HETEROGENEOUS_AXIS_NAMES = frozenset({"n_states", "n_structures"})
+
+
+def _plan_with_joint_budget(
+  axes: Sequence[AxisSpec],
+  *,
+  budget_bytes: int,
+  estimate_fn: Callable[[Sequence[AxisDecision]], float],
+  carry_specs: list[CarrySpec] | None = None,
+  dedup_specs: list[DedupSpec] | None = None,
+) -> BatchPlan:
+  """Plan axes under a joint memory budget via xtrax.tiling.BatchPlanner.
+
+  Thin wrapper around xtrax's joint-budget mode (EPIC #1541 T-PLANNER.2) that
+  additionally pre-fixes heterogeneous axes to SafeMap before delegating —
+  see _HETEROGENEOUS_AXIS_NAMES above for why this is necessary. The fixed
+  decisions are folded into the estimator closure (so xtrax's greedy
+  demotion loop sees the correct joint memory estimate at every step) and
+  merged back into the final plan, in the original axes order, after
+  xtrax's engine resolves the remaining (non-heterogeneous, non-fixed) axes.
+
+  Raises
+  ------
+  PlanBudgetInfeasibleError
+      If no demotion sequence for the remaining axes fits budget_bytes.
+
+  """
+  carry_specs = carry_specs or []
+  dedup_specs = dedup_specs or []
+  carry_names = {cs.axis_name for cs in carry_specs}
+  dedup_names = {ds.axis_name for ds in dedup_specs}
+
+  fixed_heterogeneous: dict[str, AxisDecision] = {}
+  remaining_axes: list[AxisSpec] = []
+  for ax in axes:
+    if ax.heterogeneous and ax.name not in carry_names and ax.name not in dedup_names:
+      fixed_heterogeneous[ax.name] = AxisDecision(
+        spec=ax,
+        batch_size=ax.default_batch_size,
+        reasoning=(
+          "heterogeneous axis: element shapes vary; safe_map required "
+          "(aminx wrapper, EPIC #1541 T-PLANNER.2 -- xtrax's joint-budget "
+          "mode has no automatic heterogeneous-axis guard)"
+        ),
+        strategy=SafeMap(batch_size=ax.default_batch_size),
+      )
+    else:
+      remaining_axes.append(ax)
+
+  def _estimate(pending_decisions: Sequence[AxisDecision]) -> int:
+    full = list(fixed_heterogeneous.values()) + list(pending_decisions)
+    return int(estimate_fn(full))
+
+  budget = MemoryBudget(bytes=budget_bytes, estimate=_estimate)
+  planner = BatchPlanner(
+    budget=budget,
+    carry_specs=carry_specs,
+    dedup_specs=dedup_specs,
+    heterogeneous_axes=_HETEROGENEOUS_AXIS_NAMES,
+  )
+  try:
+    sub_plan = planner.plan(remaining_axes)
+  except _XtraxBudgetInfeasibleError as exc:
+    raise PlanBudgetInfeasibleError(str(exc)) from exc
+
+  decision_by_name = {d.spec.name: d for d in sub_plan.decisions}
+  decision_by_name.update(fixed_heterogeneous)
+  ordered_decisions = tuple(decision_by_name[ax.name] for ax in axes)
+  return BatchPlan(decisions=ordered_decisions)
+
+
+def decision_for(plan: BatchPlan, name: str) -> AxisDecision:
+  """Look up the AxisDecision for a named axis in a BatchPlan.
+
+  xtrax.tiling.BatchPlan (unlike aminx's retired local BatchPlan) has no
+  .decision_for() convenience method -- this is the direct replacement,
+  used everywhere host/kernel_dispatch.py used to call plan.decision_for(name).
+
+  Raises
+  ------
+  KeyError
+      If no decision matches ``name``.
+
+  """
+  for d in plan.decisions:
+    if d.spec.name == name:
+      return d
+  raise KeyError(name)
+
+
 # Axis name constants for batch planning
 class AxisNames:
   """Named access to batch axes to avoid hardcoded strings."""
@@ -58,6 +173,7 @@ def make_sampling_planner(
   param_bytes: float = 0.0,
   headroom: float = 0.80,
   activation_multiplier: float = 2.5,
+  n_samples_override: int | None = None,
 ) -> BatchPlan:
   """Create a BatchPlan for _sample_batch dispatch with advisory logging.
 
@@ -71,6 +187,29 @@ def make_sampling_planner(
       Fraction of device memory to use. Default 0.80 (80% headroom).
   activation_multiplier : float, optional
       Multiplier for activation memory estimation. Default 2.5.
+  n_samples_override : int | None, optional
+      Actual n_samples cardinality for this call, e.g. from
+      ``resolve_target_samples``. When given, this is what the N_SAMPLES
+      axis is planned against instead of ``spec.samples_batch_size``.
+
+      ``spec.samples_batch_size`` and the real per-call sample count
+      (``spec.samples_chunk_size``/``spec.num_samples``, resolved via
+      ``resolve_target_samples``) are two independently-settable fields with
+      no cross-validation -- passing this override closes that gap at the
+      source: the planner's Vmap/SafeMap decision is verified against the
+      array size that's actually dispatched, not a stale, disconnected
+      proxy for it. Without this override, a plan that decides Vmap because
+      the small default ``samples_batch_size`` (16) fit the memory budget
+      gets applied to a possibly much larger real sample count with no
+      re-check -- see
+      ``.praxia/docs/specs/260706_samples-axis-planner-cardinality-mismatch.md``
+      and Finding D of
+      ``.praxia/docs/specs/260707_xtrax-migration-gap-audit-runspec-scaffolding.md``.
+      Defaults to None (falls back to the pre-existing, disconnected
+      ``spec.samples_batch_size`` behavior) only for backward compatibility
+      with callers/tests that construct a plan without a real per-call
+      sample count in hand; the one production call site
+      (``host/kernel_dispatch.py``'s ``_sample_batch``) always passes it.
 
   Returns
   -------
@@ -82,26 +221,45 @@ def make_sampling_planner(
     limit = jax.devices()[0].memory_stats()["bytes_limit"]
   except Exception:
     limit = 4 * 1024**3
-  budget = limit * headroom - param_bytes
+  budget_bytes = int(limit * headroom - param_bytes)
+  if n_samples_override is not None:
+    samples_cardinality = max(1, n_samples_override)
+  else:
+    samples_cardinality = max(1, getattr(spec, "samples_batch_size", 128) or 128)
   axes = [
     dataclasses.replace(N_STRUCTURES, cardinality=max(1, getattr(spec, "batch_size", 1) or 1)),
-    dataclasses.replace(
-      N_SAMPLES,
-      cardinality=max(1, getattr(spec, "samples_batch_size", 128) or 128),
-    ),
+    dataclasses.replace(N_SAMPLES, cardinality=samples_cardinality),
     dataclasses.replace(
       N_TEMPERATURES,
       cardinality=max(1, len(getattr(spec, "temperature", [1.0]))),
     ),
     dataclasses.replace(N_NOISES, cardinality=max(1, len(getattr(spec, "backbone_noise", [0.0])))),
   ]
-  return BatchPlanner(
-    axes=axes,
-    budget_bytes=budget,
-    estimate_memory=lambda ds: estimate_memory_theoretical(ds, 1.0, activation_multiplier),
-    carries=getattr(spec, "carry_specs", None) or [],
+  return _plan_with_joint_budget(
+    axes,
+    budget_bytes=budget_bytes,
+    estimate_fn=lambda ds: estimate_memory_theoretical(ds, 1.0, activation_multiplier),
+    carry_specs=getattr(spec, "carry_specs", None) or [],
     dedup_specs=getattr(spec, "dedup_specs", None) or [],
-  ).plan()
+  )
+
+
+def _legacy_batch_size(decision: AxisDecision) -> int:
+  """Translate an AxisDecision to aminx.utils.safe_map's calling convention.
+
+  safe_map treats batch_size=0 (or None) as "no chunking, run everything at
+  once" -- the Vmap-equivalent -- and any positive value as "chunk into
+  groups of that size." aminx's retired local BatchPlanner always set
+  batch_size=0 for Vmap decisions to match; xtrax's BatchPlanner never does
+  (Vmap decisions carry batch_size=spec.default_batch_size, e.g. 1). Feeding
+  that straight to safe_map would silently turn a parallel Vmap axis into a
+  fully serial per-element loop for aminx's legacy (use_unified_driver=False)
+  dispatch path in host/kernel_dispatch.py, which is not dead code (a real,
+  still-tested CLI flag) -- EPIC #1541 T-PLANNER.2 finding, 2026-07-06.
+  """
+  if type(decision.strategy).__name__ == "Vmap":
+    return 0
+  return decision.batch_size
 
 
 def extract_batch_sizes(plan: BatchPlan) -> tuple[int, int, int, int]:
@@ -115,13 +273,15 @@ def extract_batch_sizes(plan: BatchPlan) -> tuple[int, int, int, int]:
   Returns
   -------
   tuple[int, int, int, int]
-      Tuple of (structures_bs, samples_bs, temps_bs, noises_bs).
+      Tuple of (structures_bs, samples_bs, temps_bs, noises_bs), in
+      aminx.utils.safe_map's convention (0 means Vmap/no-chunking) --
+      see _legacy_batch_size.
 
   """
-  structures_bs = plan.decision_for(AxisNames.N_STRUCTURES).batch_size
-  samples_bs = plan.decision_for(AxisNames.N_SAMPLES).batch_size
-  temps_bs = plan.decision_for(AxisNames.N_TEMPERATURES).batch_size
-  noises_bs = plan.decision_for(AxisNames.N_NOISES).batch_size
+  structures_bs = _legacy_batch_size(decision_for(plan, AxisNames.N_STRUCTURES))
+  samples_bs = _legacy_batch_size(decision_for(plan, AxisNames.N_SAMPLES))
+  temps_bs = _legacy_batch_size(decision_for(plan, AxisNames.N_TEMPERATURES))
+  noises_bs = _legacy_batch_size(decision_for(plan, AxisNames.N_NOISES))
   return structures_bs, samples_bs, temps_bs, noises_bs
 
 
@@ -700,18 +860,31 @@ def make_inference_plan(model: ModelProtocol, spec: Any, packer: Any = None) -> 
 def plan_bucketed(
   spec: SamplingSpecification,
   sequence_lengths: list[int],
-  planner: BatchPlanner,
+  axes: list[AxisSpec],
+  *,
+  budget_bytes: int,
+  estimate_fn: Callable[[Sequence[AxisDecision]], float],
+  carry_specs: list[CarrySpec] | None = None,
+  dedup_specs: list[DedupSpec] | None = None,
   bucketing_config: BucketingConfig | None = None,
 ) -> BucketAssignment:
   """Plan inference for a batch grouped by sequence-length buckets.
 
   For each bucket, override the "n_structures" axis cardinality to the bucket
-  ceiling (number of sequences in that bucket) and call planner.plan() once.
-  Returns a BucketAssignment with per-bucket BatchPlans.
+  ceiling (number of sequences in that bucket) and plan once via
+  _plan_with_joint_budget. Returns a BucketAssignment with per-bucket BatchPlans.
 
   NOTE: The implementation overrides n_structures cardinality (a structure count)
   to the bucket ceiling (a sequence length). This may be a semantic mismatch.
   Implementing as specified, but this should be reviewed.
+
+  Takes axes/budget_bytes/estimate_fn/carry_specs/dedup_specs directly (EPIC
+  #1541 T-PLANNER.3) rather than a pre-built BatchPlanner: xtrax.tiling.
+  BatchPlanner isn't a dataclass and doesn't hold axes as an attribute (axes
+  are a per-call .plan(specs) argument), so the old "mutate an existing
+  planner's .axes field" design has no equivalent -- there's nothing to
+  dataclasses.replace(). This function has no production callers today
+  (only its own test), so the signature change is contained to this file.
 
   Parameters
   ----------
@@ -719,8 +892,16 @@ def plan_bucketed(
       Sampling specification (unused in function, required for interface).
   sequence_lengths : list[int]
       Sequence lengths for each position in the batch.
-  planner : BatchPlanner
-      Batch planner with configured axes and budget.
+  axes : list[AxisSpec]
+      Axes to plan (must include an "n_structures" axis).
+  budget_bytes : int
+      Joint memory budget in bytes, passed to _plan_with_joint_budget.
+  estimate_fn : Callable[[Sequence[AxisDecision]], float]
+      Joint memory estimator, passed to _plan_with_joint_budget.
+  carry_specs : list[CarrySpec] | None, optional
+      CarrySpec declarations, passed to _plan_with_joint_budget.
+  dedup_specs : list[DedupSpec] | None, optional
+      DedupSpec declarations, passed to _plan_with_joint_budget.
   bucketing_config : BucketingConfig | None, optional
       Bucketing configuration. Default is BucketingConfig().
 
@@ -734,7 +915,7 @@ def plan_bucketed(
   ValueError
       If sequence_lengths is empty or any length exceeds all buckets.
   KeyError
-      If no "n_structures" axis found in planner.axes.
+      If no "n_structures" axis found in axes.
 
   """
   from aminx.tiling.bucketing import (
@@ -752,22 +933,16 @@ def plan_bucketed(
   # Group sequences by bucket
   bucket_groups = group_by_bucket(sequence_lengths, bucketing_config)
 
-  # Find the n_structures axis to override
-  n_structures_axis = None
-  for axis in planner.axes:
-    if axis.name == "n_structures":
-      n_structures_axis = axis
-      break
-
-  if n_structures_axis is None:
-    raise KeyError('No "n_structures" axis found in planner.axes')
+  # Confirm an n_structures axis is present to override
+  if not any(axis.name == "n_structures" for axis in axes):
+    raise KeyError('No "n_structures" axis found in axes')
 
   # Plan for each bucket
   per_bucket_plans: dict[int, BatchPlan] = {}
   for bucket_ceil, _indices in bucket_groups.items():
     # Override n_structures cardinality to bucket ceiling
     modified_axes = []
-    for axis in planner.axes:
+    for axis in axes:
       if axis.name == "n_structures":
         # NOTE: This overrides cardinality (structure count) to bucket ceiling (seq length).
         # May be semantic mismatch; implementing as specified.
@@ -776,9 +951,13 @@ def plan_bucketed(
       else:
         modified_axes.append(axis)
 
-    # Create modified planner and plan
-    modified_planner = dataclasses.replace(planner, axes=modified_axes)
-    per_bucket_plans[bucket_ceil] = modified_planner.plan()
+    per_bucket_plans[bucket_ceil] = _plan_with_joint_budget(
+      modified_axes,
+      budget_bytes=budget_bytes,
+      estimate_fn=estimate_fn,
+      carry_specs=carry_specs,
+      dedup_specs=dedup_specs,
+    )
 
   # Create sorted bucket boundaries
   bucket_boundaries = tuple(sorted(bucket_groups.keys()))

@@ -1,0 +1,40 @@
+[experiment]
+hypothesis = "aminx.tiling.dispatch.make_axis_dispatch_via_xtrax (T2.4's migration-ready adapter) reproduces the legacy make_axis_dispatch's recompile behavior bit-for-bit on the SAME aminx-native strategy decision (Vmap, SafeMap, Scan), with dispatch overhead within 1.10x"
+stage_name = "confirmation"
+novel = false
+task_id = "260630_wave-color-xtrax-audit"
+
+[outcomes.pass]
+condition = "all_decision_parity = true AND all_recompile_parity = true AND max_adapter_vs_legacy_throughput_ratio <= 1.10"
+decision = "T2.4/dispatch layer clears T2.GATE's parity+overhead bar; proceed to the model-level bit-for-bit golden fixture and the cluster GPU throughput bench on production shapes"
+reasoning = "T2.GATE's stated DoD threshold: bit-for-bit strategy parity, identical recompile counts, throughput within 10% overhead"
+is_residual = false
+
+[outcomes.marginal]
+condition = "all_decision_parity = true AND all_recompile_parity = true AND max_adapter_vs_legacy_throughput_ratio <= 1.50"
+decision = "Structural claim holds; investigate xtrax's iterator wrapping overhead before committing to the flip, especially at low cardinality where fixed per-call overhead dominates"
+reasoning = "Strategy/recompile parity holds (the structural claim is sound) but adapter dispatch overhead exceeds the strict T2.GATE threshold; worth a closer look at xtrax's iterator wrapping before committing to the flip"
+is_residual = false
+
+[outcomes.fail]
+condition = "all_decision_parity = false OR all_recompile_parity = false OR max_adapter_vs_legacy_throughput_ratio > 1.50"
+decision = "Do not flip factory.py to make_axis_dispatch_via_xtrax; either fix the correctness gap (decision/recompile parity) or reassess the adapter design before any further T2.GATE work"
+reasoning = "Either the two planners disagree on strategy for equivalent specs (a correctness gap, not just a migration-readiness question), recompile behavior diverges (would break aminx's no-retrace guarantees), or adapter overhead is too large to justify the flip as currently scoped"
+is_residual = true
+
+[result_schema]
+all_decision_parity = "bool"
+all_recompile_parity = "bool"
+max_adapter_vs_legacy_throughput_ratio = "float"
+
+[result_schema.provenance]
+script_commit = "git log --oneline -1"
+related_epic = "#1541 (aminx->xtrax refactor), gate #1556 (T2.GATE)"
+related_debt = "#2891, #2892, #2894, #2895 (xtrax-audit tag) -- all resolved 2026-06-30"
+hardware_targets = ["CPU (synthetic, no GPU needed)"]
+notes = "First run (2026-06-30, untracked -- see git history for the pre-revision script) surfaced a real bug (#2895, since fixed): aminx's SafeMap demotion (planner.py:170,196) used tile_granularity instead of default_batch_size for tile size, contradicting both fields' docstrings. The script's AxisSpec construction deliberately sets tile_granularity == default_batch_size to route around it for a fair dispatch-overhead comparison. That first run's max throughput ratio (1.24x) landed in MARGINAL, not PASS, on the old xtrax-native-vs-aminx-native comparison -- this revision's legacy-vs-adapter comparison is a different (and more load-bearing) measurement, expected to differ."
+
+# aminx was never bth init'd before this run (2026-07-02) -- zero prior aminx/xtrax
+# runs existed in the catalog despite this sidecar's own notes referencing a first
+# run on 2026-06-30 that was computed and written to outputs/results/ manually,
+# outside bathos tracking entirely.

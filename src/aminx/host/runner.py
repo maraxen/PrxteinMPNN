@@ -1081,11 +1081,14 @@ def jacobian(
 
   if use_io_sink and stacked_host is not None:
     import numpy as np  # noqa: PLC0415
+    from xtrax.run import SinkSpec, ZarrStagingSink  # noqa: PLC0415
 
     out_path = spec.output_h5_path
     assert out_path is not None
-    npz_path = out_path.with_suffix(".npz") if out_path.suffix in {".h5", ".hdf5"} else out_path
-    np.savez_compressed(npz_path, **{result_key: np.stack(stacked_host, axis=0)})
-    results["output_path"] = str(npz_path)
+    zarr_sink = ZarrStagingSink(SinkSpec(output_dir=out_path, format="zarr", flush_every=1))
+    for idx, jac in enumerate(stacked_host):
+      zarr_sink.stage((str(idx),), **{result_key: np.asarray(jac)})
+    zarr_sink.drain()
+    results["output_path"] = str(out_path)
 
   return results

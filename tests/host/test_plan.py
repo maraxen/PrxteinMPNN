@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 import jax
@@ -401,7 +402,13 @@ class TestIntegration:
 
 
 class MockBatchPlan:
-    """Mock BatchPlan for testing extract_batch_sizes."""
+    """Mock BatchPlan for testing extract_batch_sizes.
+
+    .decisions is a plain list (not .decision_for()): decision_for()/
+    extract_batch_sizes() became free functions in host/plan.py that iterate
+    plan.decisions (EPIC #1541 T-PLANNER.2 -- xtrax.tiling.BatchPlan has no
+    .decision_for() method).
+    """
 
     def __init__(
         self,
@@ -410,24 +417,25 @@ class MockBatchPlan:
         temps_bs: int = 2,
         noises_bs: int = 1
     ):
-        self._structures_bs = structures_bs
-        self._samples_bs = samples_bs
-        self._temps_bs = temps_bs
-        self._noises_bs = noises_bs
-
-    def decision_for(self, axis_name: str) -> MockBatchDecision:
-        """Return mock decision for given axis."""
-        batch_sizes = {
-            AxisNames.N_STRUCTURES: self._structures_bs,
-            AxisNames.N_SAMPLES: self._samples_bs,
-            AxisNames.N_TEMPERATURES: self._temps_bs,
-            AxisNames.N_NOISES: self._noises_bs,
-        }
-        return MockBatchDecision(batch_sizes[axis_name])
+        self.decisions = [
+            MockBatchDecision(AxisNames.N_STRUCTURES, structures_bs),
+            MockBatchDecision(AxisNames.N_SAMPLES, samples_bs),
+            MockBatchDecision(AxisNames.N_TEMPERATURES, temps_bs),
+            MockBatchDecision(AxisNames.N_NOISES, noises_bs),
+        ]
 
 
 class MockBatchDecision:
-    """Mock BatchDecision for testing."""
+    """Mock AxisDecision for testing.
 
-    def __init__(self, batch_size: int):
+    .spec.name + .strategy match the real xtrax.tiling.AxisDecision shape
+    that decision_for()/_legacy_batch_size() duck-type against. .strategy is
+    a plain SimpleNamespace (type name isn't "Vmap") so _legacy_batch_size
+    passes .batch_size through unchanged -- these tests assert literal
+    batch-size values, not the Vmap-means-0 translation.
+    """
+
+    def __init__(self, name: str, batch_size: int):
+        self.spec = SimpleNamespace(name=name)
         self.batch_size = batch_size
+        self.strategy = SimpleNamespace()

@@ -7,30 +7,38 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import sys
 import threading
 import time
-import unicodedata
 import uuid
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from itertools import pairwise
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any
 
-import h5py
-import numpy as np
+from xtrax.run import (
+  canonical_json_bytes,
+  fsync_directory,
+  fsync_file,
+  fsync_tree,
+  zarr_content_digest,
+)
 
 # campaign manifest functions are implemented in this module (see build_manifest_row et al.)
 from aminx.host.runner import sample
 from aminx.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
 from aminx.runtime import configure_multiprocessing
 
+if TYPE_CHECKING:
+  from aminx.types.host_protocols import DistributedLockBackend
+
 logger = logging.getLogger(__name__)
 
 LOCK_SCHEMA_VERSION = "campaign_lock_v1"
-DONE_MARKER_SCHEMA_VERSION = "campaign_done_marker_v1"
+DONE_MARKER_SCHEMA_VERSION = "campaign_done_marker_v2"
 MANIFEST_ROW_SCHEMA_VERSION = "campaign_manifest_row_v1"
 MANIFEST_SCHEMA_VERSION = "campaign_manifest_v1"
 DEFAULT_LOCK_LEASE_SECONDS = 1800
@@ -86,7 +94,7 @@ def build_manifest_row(
     "temperature": [str(float(t)) for t in temperature_list],
     "backbone_noise": [str(float(n)) for n in backbone_noise_list],
   }
-  row_hash = hashlib.sha256(_canonical_json_bytes(hash_payload)).hexdigest()
+  row_hash = hashlib.sha256(canonical_json_bytes(hash_payload)).hexdigest()
   return {
     "manifest_row_hash": row_hash,
     "job_id": job_id,
@@ -230,9 +238,9 @@ def write_manifest(
   ).encode("utf-8")
   tmp_path = path.with_name(f"{path.name}.tmp.{uuid.uuid4().hex}")
   tmp_path.write_bytes(raw)
-  _fsync_file(tmp_path)
+  fsync_file(tmp_path)
   tmp_path.replace(path)
-  _fsync_directory(path.parent)
+  fsync_directory(path.parent)
   return path
 
 
@@ -248,19 +256,6 @@ class ManifestGateState:
   metadata_issues: list[str]
   checkpoint_issues: list[str]
   runtime_issues: list[str]
-
-
-class DistributedLockBackend(Protocol):
-  """Distributed lock backend interface used by campaign workers."""
-
-  def acquire(self, *, lock_key: str, owner_token: str, lease_seconds: int) -> None:
-    """Acquire a distributed lock key for an owner token."""
-
-  def heartbeat(self, *, lock_key: str, owner_token: str, lease_seconds: int) -> None:
-    """Refresh lease ownership for an active lock."""
-
-  def release(self, *, lock_key: str, owner_token: str) -> None:
-    """Release an owned lock key."""
 
 
 def _normalize_inputs(inputs: Any) -> list[str]:  # noqa: ANN401
@@ -281,90 +276,6 @@ def _row_output_path(base_dir: Path, campaign_id: str, row_hash: str) -> str:
   return str((base_dir / campaign_id / f"{row_hash}.h5").resolve())
 
 
-def _canonical_json_bytes(payload: dict[str, Any]) -> bytes:
-  return json.dumps(
-    payload,
-    sort_keys=True,
-    separators=(",", ":"),
-    ensure_ascii=False,
-    allow_nan=False,
-  ).encode("utf-8")
-
-
-def _sha256_file(path: Path) -> str:
-  digest = hashlib.sha256()
-  with path.open("rb") as handle:
-    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-      digest.update(chunk)
-  return digest.hexdigest()
-
-
-def _normalize_json_value(value: Any) -> Any:  # noqa: ANN401
-  normalized: Any = value
-  if isinstance(value, np.generic):
-    normalized = _normalize_json_value(value.item())
-  elif isinstance(value, np.ndarray):
-    normalized = [_normalize_json_value(item) for item in value.tolist()]
-  elif isinstance(value, (list, tuple)):
-    normalized = [_normalize_json_value(item) for item in value]
-  elif isinstance(value, dict):
-    normalized = {str(key): _normalize_json_value(item) for key, item in sorted(value.items())}
-  elif isinstance(value, bytes):
-    normalized = value.decode("utf-8")
-  elif isinstance(value, str):
-    normalized = unicodedata.normalize("NFC", value)
-  return normalized
-
-
-def _update_array_digest(digest: hashlib._Hash, array: np.ndarray) -> None:
-  digest.update(array.dtype.name.encode("utf-8"))
-  digest.update(b"|")
-  digest.update(str(array.shape).encode("utf-8"))
-  digest.update(b"|")
-  canonical = np.ascontiguousarray(array.astype(array.dtype.newbyteorder("<"), copy=False))
-  digest.update(canonical.tobytes(order="C"))
-
-
-def _update_h5_node_digest(
-  digest: hashlib._Hash,
-  node: h5py.Group | h5py.Dataset,
-  path: str,
-) -> None:
-  digest.update(path.encode("utf-8"))
-  digest.update(b"\n")
-  attrs_payload = {
-    str(key): _normalize_json_value(node.attrs[key])  # type: ignore[index]
-    for key in sorted(node.attrs.keys())
-  }
-  digest.update(_canonical_json_bytes(attrs_payload))
-  digest.update(b"\n")
-  if isinstance(node, h5py.Dataset):
-    _update_array_digest(digest, np.asarray(node))
-    digest.update(b"\n")
-    return
-  for key in sorted(node.keys()):
-    child = node[key]
-    _update_h5_node_digest(digest, child, f"{path}/{key}")
-
-
-def _h5_content_digest(path: Path) -> str:
-  digest = hashlib.sha256()
-  with h5py.File(path, "r") as handle:
-    _update_h5_node_digest(digest, handle, "/")
-  return digest.hexdigest()
-
-
-def _fsync_file(path: Path) -> None:
-  with path.open("rb") as handle:
-    os.fsync(handle.fileno())
-
-
-def _fsync_directory(path: Path) -> None:
-  fd = os.open(path, os.O_RDONLY)
-  try:
-    os.fsync(fd)
-  finally:
-    os.close(fd)
 
 
 def _lock_path(output_h5_path: Path) -> Path:
@@ -380,22 +291,22 @@ def _partial_output_path(output_h5_path: Path, attempt_id: str) -> Path:
 
 
 def _write_lock_file_exclusive(path: Path, payload: dict[str, Any]) -> None:
-  lock_bytes = _canonical_json_bytes(payload)
+  lock_bytes = canonical_json_bytes(payload)
   fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
   try:
     os.write(fd, lock_bytes)
     os.fsync(fd)
   finally:
     os.close(fd)
-  _fsync_directory(path.parent)
+  fsync_directory(path.parent)
 
 
 def _write_lock_file_atomic(path: Path, payload: dict[str, Any]) -> None:
   tmp_path = path.with_name(f"{path.name}.tmp.{uuid.uuid4().hex}")
-  tmp_path.write_bytes(_canonical_json_bytes(payload))
-  _fsync_file(tmp_path)
+  tmp_path.write_bytes(canonical_json_bytes(payload))
+  fsync_file(tmp_path)
   tmp_path.replace(path)
-  _fsync_directory(path.parent)
+  fsync_directory(path.parent)
 
 
 def _read_lock_file(path: Path) -> tuple[dict[str, Any], bytes]:
@@ -440,15 +351,15 @@ def _acquire_local_fs_lock(
     # Stale-lock recovery with compare-and-swap precondition:
     # only steal if the lock bytes are unchanged from the observed stale state.
     tmp_payload_path = lock_path.with_name(f"{lock_path.name}.steal.{attempt_id}.tmp")
-    tmp_payload_path.write_bytes(_canonical_json_bytes(payload))
-    _fsync_file(tmp_payload_path)
+    tmp_payload_path.write_bytes(canonical_json_bytes(payload))
+    fsync_file(tmp_payload_path)
     current_raw = lock_path.read_bytes()
     if current_raw != existing_raw:
       tmp_payload_path.unlink(missing_ok=True)
       msg = f"Lock at {lock_path} changed during stale-lock recovery; aborting steal."
       raise RuntimeError(msg) from exc
     tmp_payload_path.replace(lock_path)
-    _fsync_directory(lock_path.parent)
+    fsync_directory(lock_path.parent)
     observed, _ = _read_lock_file(lock_path)
     if observed.get("owner_token") != owner_token:
       msg = f"Failed to claim stale lock at {lock_path}: ownership did not transfer."
@@ -485,7 +396,7 @@ def _release_local_fs_lock(*, lock_path: Path, owner_token: str) -> None:
     )
     raise RuntimeError(msg)
   lock_path.unlink()
-  _fsync_directory(lock_path.parent)
+  fsync_directory(lock_path.parent)
 
 
 @contextmanager
@@ -612,17 +523,9 @@ def _validate_done_marker(
     )
     raise ValueError(msg)
   if not output_h5_path.exists():
-    msg = f"Done marker exists at {marker_path} but output file is missing: {output_h5_path}."
+    msg = f"Done marker exists at {marker_path} but output store is missing: {output_h5_path}."
     raise ValueError(msg)
-  observed_file_hash = _sha256_file(output_h5_path)
-  expected_file_hash = marker.get("artifact_sha256")
-  if observed_file_hash != expected_file_hash:
-    msg = (
-      f"Done marker artifact hash mismatch at {marker_path}: "
-      f"expected {expected_file_hash!r}, observed {observed_file_hash!r}."
-    )
-    raise ValueError(msg)
-  observed_content_digest = _h5_content_digest(output_h5_path)
+  observed_content_digest = zarr_content_digest(output_h5_path)
   expected_content_digest = marker.get("content_digest_sha256")
   if observed_content_digest != expected_content_digest:
     msg = (
@@ -638,7 +541,6 @@ def _write_done_marker(
   output_h5_path: Path,
   manifest_row_hash: str,
   attempt_id: str,
-  artifact_sha256: str,
   content_digest_sha256: str,
   lock_backend: str,
 ) -> None:
@@ -647,16 +549,15 @@ def _write_done_marker(
     "manifest_row_hash": manifest_row_hash,
     "attempt_id": attempt_id,
     "output_h5_path": str(output_h5_path.resolve()),
-    "artifact_sha256": artifact_sha256,
     "content_digest_sha256": content_digest_sha256,
     "lock_backend": lock_backend,
     "completed_at_unix_s": time.time(),
   }
   tmp_marker_path = marker_path.with_name(f"{marker_path.name}.tmp.{attempt_id}")
-  tmp_marker_path.write_bytes(_canonical_json_bytes(marker_payload))
-  _fsync_file(tmp_marker_path)
+  tmp_marker_path.write_bytes(canonical_json_bytes(marker_payload))
+  fsync_file(tmp_marker_path)
   tmp_marker_path.replace(marker_path)
-  _fsync_directory(marker_path.parent)
+  fsync_directory(marker_path.parent)
 
 
 def plan_campaign_manifest(
@@ -922,24 +823,23 @@ def run_manifest_row(  # noqa: PLR0915
         )
         raise RuntimeError(msg) from heartbeat_errors[0]
       if not partial_path.exists():
-        msg = f"Worker did not produce expected partial output file: {partial_path}"
+        msg = f"Worker did not produce expected partial output store: {partial_path}"
         raise RuntimeError(msg)
-      _fsync_file(partial_path)
-      artifact_sha256 = _sha256_file(partial_path)
-      content_digest_sha256 = _h5_content_digest(partial_path)
+      fsync_tree(partial_path)
+      content_digest_sha256 = zarr_content_digest(partial_path)
       partial_path.replace(output_h5_path)
-      _fsync_directory(output_h5_path.parent)
+      fsync_directory(output_h5_path.parent)
       _write_done_marker(
         marker_path=done_marker_path,
         output_h5_path=output_h5_path,
         manifest_row_hash=manifest_hash,
         attempt_id=attempt_id,
-        artifact_sha256=artifact_sha256,
         content_digest_sha256=content_digest_sha256,
         lock_backend=lock_backend,
       )
     finally:
-      partial_path.unlink(missing_ok=True)
+      if partial_path.exists():
+        shutil.rmtree(partial_path)
 
   result_payload = (
     dict(sample_result) if isinstance(sample_result, dict) else {"sample_result": sample_result}

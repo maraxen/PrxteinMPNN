@@ -666,8 +666,7 @@ def run_sample(
   use_concrete: Annotated[bool, _OPT(help="Use concrete relaxation")] = False,
   concrete_tau_start: Annotated[float, _OPT(help="Concrete tau start")] = 1.0,
   concrete_tau_end: Annotated[float, _OPT(help="Concrete tau end")] = 0.1,
-  output_h5_path: Annotated[Path | None, _OPT(help="HDF5 output path")] = None,
-  use_arrayrecord: Annotated[bool, _OPT(help="Use ArrayRecord output")] = False,
+  output_h5_path: Annotated[Path | None, _OPT(help="Zarr output path")] = None,
   return_logits: Annotated[bool, _OPT(help="Return logits")] = True,
   samples_batch_size: Annotated[int, _OPT(help="Samples batch size")] = 16,
   samples_chunk_size: Annotated[int | None, _OPT(help="Samples chunk size")] = None,
@@ -725,7 +724,6 @@ def run_sample(
       concrete_tau_start=concrete_tau_start,
       concrete_tau_end=concrete_tau_end,
       output_h5_path=output_h5_path,
-      use_arrayrecord=use_arrayrecord,
       return_logits=return_logits,
       samples_batch_size=samples_batch_size,
       samples_chunk_size=samples_chunk_size,
@@ -880,7 +878,7 @@ def run_jacobian(
   combine_batch_size: Annotated[int, _OPT(help="Combine batch size")] = 8,
   output_h5_path: Annotated[
     Path | None,
-    _OPT(help="Large-tensor output path (.npz; .h5/.hdf5 suffix rewritten)"),
+    _OPT(help="Large-tensor output path (Zarr store)"),
   ] = None,
   jacobian_mode: Annotated[
     str,
@@ -1183,8 +1181,7 @@ def spec_emit_sample(
   use_concrete: Annotated[bool, _OPT(help="Use concrete relaxation")] = False,
   concrete_tau_start: Annotated[float, _OPT(help="Concrete tau start")] = 1.0,
   concrete_tau_end: Annotated[float, _OPT(help="Concrete tau end")] = 0.1,
-  output_h5_path: Annotated[Path | None, _OPT(help="HDF5 output path")] = None,
-  use_arrayrecord: Annotated[bool, _OPT(help="Use ArrayRecord output")] = False,
+  output_h5_path: Annotated[Path | None, _OPT(help="Zarr output path")] = None,
   return_logits: Annotated[bool, _OPT(help="Return logits")] = True,
   samples_batch_size: Annotated[int, _OPT(help="Samples batch size")] = 16,
   samples_chunk_size: Annotated[int | None, _OPT(help="Samples chunk size")] = None,
@@ -1242,7 +1239,6 @@ def spec_emit_sample(
       concrete_tau_start=concrete_tau_start,
       concrete_tau_end=concrete_tau_end,
       output_h5_path=output_h5_path,
-      use_arrayrecord=use_arrayrecord,
       return_logits=return_logits,
       samples_batch_size=samples_batch_size,
       samples_chunk_size=samples_chunk_size,
@@ -1383,7 +1379,7 @@ def spec_emit_jacobian(
   combine_batch_size: Annotated[int, _OPT(help="Combine batch size")] = 8,
   output_h5_path: Annotated[
     Path | None,
-    _OPT(help="Large-tensor output path (.npz; .h5/.hdf5 suffix rewritten)"),
+    _OPT(help="Large-tensor output path (Zarr store)"),
   ] = None,
   jacobian_mode: Annotated[
     str,

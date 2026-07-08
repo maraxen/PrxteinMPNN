@@ -8,7 +8,7 @@ import warnings
 from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Protocol, TextIO, cast
+from typing import TYPE_CHECKING, Any, Literal, TextIO, cast
 
 from aminx.io.proxide_fetch import InputResolutionError
 from aminx.model.versions import MODEL_VERSION, MODEL_WEIGHTS
@@ -43,21 +43,17 @@ def pop_deprecated_spec_kwargs(kwargs: MutableMapping[str, Any]) -> None:
 
 
 if TYPE_CHECKING:
-  from typing import Protocol
-
   from jaxtyping import ArrayLike
   from proxide.io.parsing.foldcomp import FoldCompDatabase
+  from xtrax.tiling import CarrySpec
+  from xtrax.tiling.dedup import (  # noqa: TID251 -- DedupSpec is submodule-only, not re-exported from xtrax.tiling's public __init__ (see using-xtrax skill)
+    DedupSpec,
+  )
 
-  from aminx.tiling.carry import CarrySpec
-  from aminx.tiling.dedup import DedupSpec
+  from aminx.types.protocols import ConformationalStates
   from aminx.types.stages import DecodingFusionFn, EncodingFusionFn
   from aminx.utils.catjac import CombineCatJacPairFn
   from aminx.utils.decoding_order import DecodingOrderFn
-
-  class ConformationalStates(Protocol):
-    """Protocol for conformational state containers (see ensemble_tools.dbscan)."""
-
-    n_states: ArrayLike
 
 
 # Type aliases for convenience
@@ -216,9 +212,10 @@ class RunSpecification:
       max_workers: Optional maximum number of data loading workers.
 
   Note:
-      Use ``output_h5_path`` on task-specific subclasses for HDF5 output.
-      ``output_dir`` (when set) overrides inferred output roots from ``cache_path`` / HDF5 parents
-      in :func:`~aminx.run.spec.build_run_spec`.
+      Use ``output_h5_path`` on task-specific subclasses for streaming output (Zarr store
+      for sampling/jacobian; not yet implemented for score/inspect).
+      ``output_dir`` (when set) overrides inferred output roots from ``cache_path`` / streaming
+      output parents in :func:`~aminx.run.spec.build_run_spec`.
       Legacy serialized ``output_path`` is ignored with a :class:`DeprecationWarning`.
 
   """
@@ -511,7 +508,6 @@ class SamplingSpecification(RunSpecification):
   concrete_tau_start: float = 1.0
   concrete_tau_end: float = 0.1
   output_h5_path: str | Path | None = None
-  use_arrayrecord: bool = False
   return_logits: bool = True
   return_decoding_orders: bool = False
   return_logit_fingerprint: bool = False

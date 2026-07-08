@@ -26,14 +26,17 @@ from typing import cast
 import equinox as eqx
 import jax
 from jaxtyping import PRNGKeyArray
+from xtrax.tiling import AxisSpec, BatchPlanner, MemoryBudget
+from xtrax.tiling import SafeMap as XtraxSafeMap
+from xtrax.tiling import Vmap as XtraxVmap
 
 from aminx.inference.bundle_builder import build_inference_bundle
 from aminx.inference.logits import make_stage_set
 from aminx.inference.score_conditional import kernel as score_conditional
 from aminx.tiling.axes import N_CANDIDATES, N_REPLICATES
-from aminx.tiling.dispatch import make_axis_dispatch
-from aminx.tiling.planner import AxisSpec, BatchPlanner, estimate_memory_theoretical
-from aminx.tiling.strategy import AxisStrategy, SafeMap
+from aminx.tiling.dispatch import make_axis_dispatch_via_xtrax
+from aminx.tiling.planner import estimate_memory_theoretical
+from aminx.tiling.strategy import AxisStrategy, SafeMap, Vmap
 from aminx.types.arrays import (
   AlphaCarbonMask,
   AutoRegressiveMask,
@@ -257,7 +260,8 @@ def make_encoding_conditional_logits_split_fn(
 
     if ar_mask is None:
       ar_mask = jax.numpy.zeros(
-        (node_features.shape[0], node_features.shape[0]), dtype=jax.numpy.int32,
+        (node_features.shape[0], node_features.shape[0]),
+        dtype=jax.numpy.int32,
       )
 
     if sequence.ndim == 1:
@@ -306,15 +310,28 @@ def _plan_axis_strategy(
     limit = jax.devices()[0].memory_stats()["bytes_limit"]
   except Exception:  # noqa: BLE001 - memory_stats unavailable on some backends (e.g. CPU)
     limit = 4 * 1024**3
-  budget = limit * headroom
-  plan = BatchPlanner(
-    axes=[axis],
-    budget_bytes=budget,
-    estimate_memory=lambda decisions: estimate_memory_theoretical(
-      decisions, activation_bytes_per_element, 1.0,
+  budget = MemoryBudget(
+    bytes=int(limit * headroom),
+    estimate=lambda decisions: int(
+      estimate_memory_theoretical(
+        decisions,
+        activation_bytes_per_element,
+        1.0,
+      ),
     ),
-  ).plan()
-  return plan.decision_for(axis.name).strategy
+  )
+  planner = BatchPlanner(budget=budget)
+  plan = planner.plan([axis])
+  xtrax_strategy = plan.decisions[0].strategy
+  # make_axis_dispatch_via_xtrax expects aminx-native strategy objects (it
+  # translates to xtrax-native internally via _strategy_to_xtrax) -- BatchPlanner
+  # itself is xtrax-native, so translate its decision back before returning.
+  if isinstance(xtrax_strategy, XtraxSafeMap):
+    return SafeMap(tile=xtrax_strategy.batch_size)
+  if isinstance(xtrax_strategy, XtraxVmap):
+    return Vmap()
+  msg = f"_plan_axis_strategy: unexpected BatchPlanner decision strategy {type(xtrax_strategy)}"
+  raise TypeError(msg)
 
 
 def make_batched_conditional_logits_split_fn(
@@ -377,7 +394,7 @@ def make_batched_conditional_logits_split_fn(
       replicate_batch_size,
       activation_bytes_per_element=activation_bytes,
     )
-    iterator = make_axis_dispatch(strategy, axis=N_REPLICATES.name)
+    iterator = make_axis_dispatch_via_xtrax(strategy, axis=N_REPLICATES.name)
 
     def _encode_one(key: PRNGKeyArray) -> EncoderOutput:
       return encode_fn(
@@ -407,7 +424,7 @@ def make_batched_conditional_logits_split_fn(
       candidate_batch_size,
       activation_bytes_per_element=activation_bytes,
     )
-    iterator = make_axis_dispatch(strategy, axis=N_CANDIDATES.name)
+    iterator = make_axis_dispatch_via_xtrax(strategy, axis=N_CANDIDATES.name)
 
     def _decode_over_candidates(enc: EncoderOutput) -> Logits:
       def _decode_one(seq: ProteinSequence) -> Logits:

@@ -96,6 +96,26 @@
   readers need to move to Zarr's array/group API. See the Added entry above for the full
   scope. (`src/aminx/host/streaming.py`, `src/aminx/host/runner.py`, `src/aminx/io/designs.py`)
 
+- **`host/campaign.py`'s manifest-row lock/done-marker/content-verification now targets Zarr
+  stores, not HDF5 files** (`DONE_MARKER_SCHEMA_VERSION` bumped `campaign_done_marker_v1` →
+  `v2`): completes the migration above for the campaign-orchestration path. The lock layer
+  (lease-based, compare-and-swap stale-lock recovery), path-naming helpers, and atomic
+  promotion (`Path.replace()`) needed no changes — verified empirically that directory-to-
+  directory rename is atomic on POSIX, same as for files. What changed: `_h5_content_digest`
+  → `_zarr_content_digest` (same hashing primitives, walks `zarr.Group`/`zarr.Array` instead
+  of `h5py.Group`/`h5py.Dataset`); `_fsync_file` → `_fsync_tree` (a Zarr store is a directory
+  of many chunk files, not one — durability requires recursively fsyncing all of them before
+  trusting a content digest); the whole-file SHA256 (`artifact_sha256`) is dropped entirely —
+  redundant with the semantic content digest and has no clean analog for a directory. Old
+  `v1` done markers (from HDF5-era campaigns) correctly fail schema-mismatch validation
+  instead of being silently misinterpreted; no migration path, matching this project's
+  existing clean-break convention. Scoped in backlog #3182 (chose a direct semantic-digest
+  port over a spot-check optimization — the existing HDF5 path already does a full content
+  walk on every verification, so a full walk for Zarr is behavior-preserving, not a
+  regression; sampling-based verification would be a genuine guarantee weakening not
+  justified without a demonstrated performance problem).
+  (`src/aminx/host/campaign.py`)
+
 - **`make_sampling_planner` raises on an infeasible memory budget** instead of silently returning
   a plan that exceeds it. Previously, if no combination of Vmap/SafeMap demotions fit the budget,
   the planner returned a `BatchPlan` with `budget_exceeded=True` that callers could inspect (and

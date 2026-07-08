@@ -22,8 +22,6 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from .spec import (
-  AveragingConfig,
-  BatchingConfig,
   GridLineageConfig,
   IOConfig,
   LigandConfig,
@@ -32,7 +30,6 @@ from .spec import (
   PrecisionConfig,
   ResourceConfig,
   RunSpec,
-  TiedPositionsConfig,
 )
 
 PORTABLE_RUN_SPEC_VERSION = 2
@@ -42,8 +39,6 @@ _SUPPORTED_PORTABLE_VERSIONS = frozenset(
 )
 
 _PrecisionLabel = Literal["fp32", "fp16", "bf16"]
-
-_INTRA = "intra"
 
 
 def _as_int(path: str, value: object) -> int:
@@ -120,13 +115,6 @@ def _placeholder_run_spec(
     sidechain_conditioning=False,
     context_path=None,
   )
-  tied = TiedPositionsConfig(
-    tied_positions=None,
-    pass_mode=_INTRA,
-    multi_state_temperature=1.0,
-    tie_group_map=None,
-    structure_mapping=None,
-  )
   grid = GridLineageConfig(
     grid_mode=False,
     campaign_mode=False,
@@ -134,23 +122,6 @@ def _placeholder_run_spec(
     chunk_id=None,
     sample_start=None,
     sample_count=None,
-  )
-  batching = BatchingConfig(
-    batch_size=32,
-    samples_batch_size=None,
-    samples_chunk_size=None,
-    noise_batch_size=None,
-    temperature_batch_size=None,
-    jacobian_batch_size=None,
-    combine_batch_size=None,
-    apc_batch_size=None,
-    apc_residue_batch_size=None,
-  )
-  averaging = AveragingConfig(
-    average_node_features=False,
-    average_encoding_mode="inputs_and_noise",
-    average_encodings=None,
-    state_weights=None,
   )
   plan = PlannerTopology(use_unified_driver=True)
   return RunSpec(
@@ -162,10 +133,7 @@ def _placeholder_run_spec(
     resource=resource,
     multistate=multistate,
     ligand=ligand,
-    tied=tied,
     grid=grid,
-    batching=batching,
-    averaging=averaging,
     precision=precision,
     plan=plan,
   )

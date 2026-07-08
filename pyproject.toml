@@ -23,7 +23,7 @@ dependencies = [
     "proxide>=0.1.0a9",
     "typer>=0.12.0",
     "huggingface-hub>=0.23.0",
-    "xtrax==0.4.0a1",
+    "xtrax[io]==0.4.0a5",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

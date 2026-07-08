@@ -19,7 +19,6 @@ from itertools import pairwise
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import h5py
 import numpy as np
 import zarr
 
@@ -34,7 +33,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 LOCK_SCHEMA_VERSION = "campaign_lock_v1"
-DONE_MARKER_SCHEMA_VERSION = "campaign_done_marker_v1"
+DONE_MARKER_SCHEMA_VERSION = "campaign_done_marker_v2"
 MANIFEST_ROW_SCHEMA_VERSION = "campaign_manifest_row_v1"
 MANIFEST_SCHEMA_VERSION = "campaign_manifest_v1"
 DEFAULT_LOCK_LEASE_SECONDS = 1800
@@ -282,14 +281,6 @@ def _canonical_json_bytes(payload: dict[str, Any]) -> bytes:
   ).encode("utf-8")
 
 
-def _sha256_file(path: Path) -> str:
-  digest = hashlib.sha256()
-  with path.open("rb") as handle:
-    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-      digest.update(chunk)
-  return digest.hexdigest()
-
-
 def _normalize_json_value(value: Any) -> Any:  # noqa: ANN401
   normalized: Any = value
   if isinstance(value, np.generic):
@@ -314,35 +305,6 @@ def _update_array_digest(digest: hashlib._Hash, array: np.ndarray) -> None:
   digest.update(b"|")
   canonical = np.ascontiguousarray(array.astype(array.dtype.newbyteorder("<"), copy=False))
   digest.update(canonical.tobytes(order="C"))
-
-
-def _update_h5_node_digest(
-  digest: hashlib._Hash,
-  node: h5py.Group | h5py.Dataset,
-  path: str,
-) -> None:
-  digest.update(path.encode("utf-8"))
-  digest.update(b"\n")
-  attrs_payload = {
-    str(key): _normalize_json_value(node.attrs[key])  # type: ignore[index]
-    for key in sorted(node.attrs.keys())
-  }
-  digest.update(_canonical_json_bytes(attrs_payload))
-  digest.update(b"\n")
-  if isinstance(node, h5py.Dataset):
-    _update_array_digest(digest, np.asarray(node))
-    digest.update(b"\n")
-    return
-  for key in sorted(node.keys()):
-    child = node[key]
-    _update_h5_node_digest(digest, child, f"{path}/{key}")
-
-
-def _h5_content_digest(path: Path) -> str:
-  digest = hashlib.sha256()
-  with h5py.File(path, "r") as handle:
-    _update_h5_node_digest(digest, handle, "/")
-  return digest.hexdigest()
 
 
 def _update_zarr_node_digest(
@@ -652,17 +614,9 @@ def _validate_done_marker(
     )
     raise ValueError(msg)
   if not output_h5_path.exists():
-    msg = f"Done marker exists at {marker_path} but output file is missing: {output_h5_path}."
+    msg = f"Done marker exists at {marker_path} but output store is missing: {output_h5_path}."
     raise ValueError(msg)
-  observed_file_hash = _sha256_file(output_h5_path)
-  expected_file_hash = marker.get("artifact_sha256")
-  if observed_file_hash != expected_file_hash:
-    msg = (
-      f"Done marker artifact hash mismatch at {marker_path}: "
-      f"expected {expected_file_hash!r}, observed {observed_file_hash!r}."
-    )
-    raise ValueError(msg)
-  observed_content_digest = _h5_content_digest(output_h5_path)
+  observed_content_digest = _zarr_content_digest(output_h5_path)
   expected_content_digest = marker.get("content_digest_sha256")
   if observed_content_digest != expected_content_digest:
     msg = (
@@ -678,7 +632,6 @@ def _write_done_marker(
   output_h5_path: Path,
   manifest_row_hash: str,
   attempt_id: str,
-  artifact_sha256: str,
   content_digest_sha256: str,
   lock_backend: str,
 ) -> None:
@@ -687,7 +640,6 @@ def _write_done_marker(
     "manifest_row_hash": manifest_row_hash,
     "attempt_id": attempt_id,
     "output_h5_path": str(output_h5_path.resolve()),
-    "artifact_sha256": artifact_sha256,
     "content_digest_sha256": content_digest_sha256,
     "lock_backend": lock_backend,
     "completed_at_unix_s": time.time(),

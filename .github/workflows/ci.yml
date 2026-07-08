@@ -9,6 +9,20 @@ on:
       - main
 
 jobs:
+  epic-attribution-lint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check decode-path commits reference an epic ID (backlog #2954)
+        run: python3 scripts/check_epic_attribution.py "origin/${{ github.base_ref }}..HEAD"
+
   unit-tests:
     runs-on: ubuntu-latest
     env:

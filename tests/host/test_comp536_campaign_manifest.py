@@ -6,6 +6,7 @@ import json
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -533,3 +534,65 @@ class TestIntegration:
                     fixed_policies=("catalytic_triad",),
                     state_weight_profiles=("equal",),
                 )
+
+
+class TestRunManifestRowZarrLifecycle:
+    """run_manifest_row's lock/write/promote/done-marker lifecycle against a Zarr store.
+
+    Mocks aminx.host.campaign.sample -- a real model-inference call is out of scope for
+    this test; what's under test is the orchestration (partial write, fsync, digest,
+    atomic promote, done-marker write, and the already_done short-circuit on retry).
+    """
+
+    def test_happy_path_creates_zarr_store_and_marker(self, tmp_path: Path) -> None:
+        import numpy as np
+        import zarr
+
+        from aminx.host.campaign import run_manifest_row
+
+        output_path = tmp_path / "row_output.zarr"
+        manifest_path = tmp_path / "manifest.json"
+        row_hash = "test_row_hash_zarr_lifecycle"
+        manifest = {
+            "schema_version": MANIFEST_SCHEMA_VERSION,
+            "rows": [
+                {
+                    "manifest_row_hash": row_hash,
+                    "job_id": "job0",
+                    "job_index": 0,
+                    "sampling_spec": {
+                        "inputs": ["/tmp/test.pdb"],
+                        "output_h5_path": str(output_path),
+                    },
+                },
+            ],
+        }
+        manifest_path.write_text(json.dumps(manifest))
+
+        def _fake_sample(spec):
+            # Simulate the real worker: write a Zarr store at spec's (partial) output path.
+            root = zarr.open_group(str(spec.output_h5_path), mode="a")
+            arr = root.create_array(name="sequences", shape=(1,), dtype="int32")
+            arr[...] = np.array([7], dtype=np.int32)
+            return {"status": "completed"}
+
+        with patch("aminx.host.campaign.sample", side_effect=_fake_sample):
+            result = run_manifest_row(
+                manifest_path=str(manifest_path),
+                row_hash=row_hash,
+                lock_backend="local_fs",
+            )
+
+        assert result["status"] == "completed"
+        assert output_path.exists()
+        assert not any(tmp_path.glob("*.partial.*"))  # cleaned up
+
+        # Second call should short-circuit via the done marker, not re-run sample().
+        with patch("aminx.host.campaign.sample", side_effect=_fake_sample) as mock_sample:
+            result2 = run_manifest_row(
+                manifest_path=str(manifest_path),
+                row_hash=row_hash,
+                lock_backend="local_fs",
+            )
+        assert result2["status"] == "already_done"
+        mock_sample.assert_not_called()

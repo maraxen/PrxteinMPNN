@@ -2,6 +2,9 @@
 *.pkl
 .venv
 .venv/
+# Local uv.toml overrides (e.g. editable path source for active sibling-repo
+# co-development) — machine-specific, never commit.
+/uv.toml
 __pycache__/
 *.pyc
 *.pyo
@@ -54,3 +57,7 @@ scratch/
 # fastembed / embedding model cache (ONNX blobs, never commit)
 .fastembed_cache/
 docs/_build/
+scripts/scratch/
+
+# bathos per-run provenance lock files (a fresh one is written every `bth run`)
+*.bth.lock.toml

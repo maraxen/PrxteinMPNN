@@ -22,7 +22,6 @@ References:
 
 import pickle
 from pathlib import Path
-from typing import Protocol
 
 import equinox as eqx
 import jax
@@ -30,30 +29,7 @@ import jax.numpy as jnp
 import zstandard as zstd
 from jaxtyping import Array, Float
 
-
-class CalibrationModule(Protocol):
-  """Protocol for marginal calibration modules.
-
-  Calibration is a pure function mapping marginals to corrected marginals.
-  No state updates, no side effects, JAX-compatible (eqx.filter_jit safe).
-  """
-
-  def __call__(
-    self,
-    marginals: Float[Array, "N num_aa"],
-  ) -> Float[Array, "N num_aa"]:
-    """Apply calibration to TRW marginals.
-
-    Args:
-      marginals: Per-residue posterior marginals, shape (N, num_aa).
-        Row sums equal 1 (probability distributions).
-
-    Returns:
-      Calibrated marginals, same shape. Caller responsible for re-normalizing
-      if needed (calibration may not preserve sum-to-1).
-
-    """
-    ...
+from aminx.types.protocols import CalibrationModule
 
 
 class IdentityCalibration(eqx.Module):

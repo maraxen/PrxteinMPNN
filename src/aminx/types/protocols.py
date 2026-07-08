@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import equinox as eqx
 import jax
-from jaxtyping import Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 if TYPE_CHECKING:
   from aminx.model.capabilities import ModelCapabilities
@@ -156,8 +156,41 @@ class Pipeline(Protocol):
   ) -> Any: ...
 
 
+class CalibrationModule(Protocol):
+  """Protocol for marginal calibration modules.
+
+  Calibration is a pure function mapping marginals to corrected marginals.
+  No state updates, no side effects, JAX-compatible (eqx.filter_jit safe).
+  """
+
+  def __call__(
+    self,
+    marginals: Float[Array, "N num_aa"],
+  ) -> Float[Array, "N num_aa"]:
+    """Apply calibration to TRW marginals.
+
+    Args:
+      marginals: Per-residue posterior marginals, shape (N, num_aa).
+        Row sums equal 1 (probability distributions).
+
+    Returns:
+      Calibrated marginals, same shape. Caller responsible for re-normalizing
+      if needed (calibration may not preserve sum-to-1).
+
+    """
+    ...
+
+
+class ConformationalStates(Protocol):
+  """Protocol for conformational state containers (see ensemble_tools.dbscan)."""
+
+  n_states: ArrayLike
+
+
 __all__ = [
+  "CalibrationModule",
   "ConditionalLogitsFn",
+  "ConformationalStates",
   "DesignSink",
   "ModelProtocol",
   "Pipeline",

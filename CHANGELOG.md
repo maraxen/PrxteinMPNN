@@ -15,6 +15,36 @@
   field awaited xtrax reaching multi-phase `BatchPlanner` parity (T2.5) — that parity is now
   gated and passed (see below).*
 
+- **Sampling/jacobian streaming output migrated from HDF5/ArrayRecord/`.npz` onto Zarr**
+  (`xtrax[io]==0.4.0a4`): `host/streaming.py`'s two write paths (the deprecated HDF5 path and
+  the `use_arrayrecord=True` ArrayRecord path) are unified into one Zarr-backed path built on
+  `xtrax.run.ZarrStagingSink`; `host/runner.py`'s jacobian runner writes each structure's
+  jacobian into its own keyed Zarr group instead of one `np.savez_compressed` dump at the end
+  (also removes a latent bug: the old dump required uniform jacobian shapes across all
+  structures via `np.stack`, which fails for variable-length inputs — per-key Zarr groups have
+  no such constraint). `io/designs.py`'s `DesignArrayRecordWriter` becomes `DesignZarrWriter`,
+  same validation/dtype contract (sequence uint8, logits float16, scores/state_weights
+  float32), now storing per-design metadata in the Zarr group's `.attrs` instead of a raw JSON
+  byte suffix. `output_h5_path` (field name kept, semantics updated) now points at a Zarr
+  store directory rather than a single file.
+
+  Known simplifications from this migration, not full parity with the code it replaces:
+  `DesignZarrWriter` drops the old writer's async thread-pool (writes are now synchronous);
+  campaign-mode sampling accumulates a structure's sample-chunks in memory *within one batch*
+  before staging (bounded by one batch's dispatch size, not the whole campaign) rather than
+  the old HDF5 path's true per-chunk incremental resize-writes — `xtrax.run.ZarrStagingSink`
+  would need an append-mode extension to restore that if a campaign's per-batch memory
+  footprint proves too large in practice.
+
+  `SamplingSpecification.use_arrayrecord` and its CLI flag are removed (the format is no
+  longer a caller choice). `campaign.py`'s own HDF5-based lock/done-marker/content-verification
+  machinery is explicitly OUT of scope for this migration — it's real distributed-systems
+  infrastructure (retry/resume correctness across likely-SLURM-array campaign jobs), tracked
+  separately (backlog #3182).
+  (`src/aminx/host/streaming.py`, `src/aminx/host/runner.py`, `src/aminx/io/designs.py`,
+  `src/aminx/inference/optimize_ste.py`, `src/aminx/run/specs.py`, `src/aminx/run/spec.py`,
+  `src/aminx/cli.py`, `tests/io/test_designs.py`)
+
 ### Bug Fixes
 
 - **`n_samples` axis planning was silently decoupled from the actual runtime sample count**
@@ -37,6 +67,16 @@
   `.praxia/docs/specs/260706_samples-axis-planner-cardinality-mismatch.md` for the full root-cause
   history and `tests/host/test_samples_cardinality_fix.py` for the regression coverage.
 
+### Changed
+
+- **`xtrax` pin bumped `0.4.0a1` → `0.4.0a2`** (`pyproject.toml`): picks up xtrax's
+  `StageBundle` validator fix (PEP 563 annotation resolution, structural-callable `Protocol`
+  acceptance, N-way union support) — no breaking changes to aminx's existing xtrax usage.
+  Transitively bumps `jax`/`jaxlib` to `0.10.2` (xtrax's new floor). Unblocks 7 of `StageSet`'s
+  10 fields for a future `StageBundle` adoption attempt; the remaining 3 container-shaped
+  fields (`encoder_sink`, `decoder_sink`, `axis_boundaries`) still need backlog #3155's design
+  work regardless of this bump.
+
 ### Gates
 
 - **T2.GATE** (dispatch-layer parity, R1 DoD): bit-for-bit golden fixture, identical JIT-recompile
@@ -49,6 +89,32 @@
   `tests/host/test_t_planner_gate_parity.py`.
 
 ### Breaking Changes
+
+- **Sampling/jacobian streaming output format is now Zarr, not HDF5/ArrayRecord/`.npz`** —
+  `SamplingSpecification.use_arrayrecord` and its `--use-arrayrecord` CLI flag are removed.
+  Existing `.h5`/`.arrayrecord`/`.npz` outputs from prior runs are not migrated; downstream
+  readers need to move to Zarr's array/group API. See the Added entry above for the full
+  scope. (`src/aminx/host/streaming.py`, `src/aminx/host/runner.py`, `src/aminx/io/designs.py`)
+
+- **`host/campaign.py`'s manifest-row lock/done-marker/content-verification now targets Zarr
+  stores, not HDF5 files** (`DONE_MARKER_SCHEMA_VERSION` bumped `campaign_done_marker_v1` →
+  `v2`): completes the migration above for the campaign-orchestration path. The lock layer
+  (lease-based, compare-and-swap stale-lock recovery), path-naming helpers, and atomic
+  promotion (`Path.replace()`) needed no changes — verified empirically that directory-to-
+  directory rename is atomic on POSIX, same as for files. What changed: `_h5_content_digest`
+  → `_zarr_content_digest` (same hashing primitives, walks `zarr.Group`/`zarr.Array` instead
+  of `h5py.Group`/`h5py.Dataset`); `_fsync_file` → `_fsync_tree` (a Zarr store is a directory
+  of many chunk files, not one — durability requires recursively fsyncing all of them before
+  trusting a content digest); the whole-file SHA256 (`artifact_sha256`) is dropped entirely —
+  redundant with the semantic content digest and has no clean analog for a directory. Old
+  `v1` done markers (from HDF5-era campaigns) correctly fail schema-mismatch validation
+  instead of being silently misinterpreted; no migration path, matching this project's
+  existing clean-break convention. Scoped in backlog #3182 (chose a direct semantic-digest
+  port over a spot-check optimization — the existing HDF5 path already does a full content
+  walk on every verification, so a full walk for Zarr is behavior-preserving, not a
+  regression; sampling-based verification would be a genuine guarantee weakening not
+  justified without a demonstrated performance problem).
+  (`src/aminx/host/campaign.py`)
 
 - **`make_sampling_planner` raises on an infeasible memory budget** instead of silently returning
   a plan that exceeds it. Previously, if no combination of Vmap/SafeMap demotions fit the budget,
@@ -68,6 +134,18 @@
   `pad.py`, `strategy.py`, `dispatch.py`, and `errors.py` remain — see
   `.praxia/docs/decisions/260706_bucketing-pad-stay-local-epic-1541-p3-scope-closed.md` for why
   those specifically stay.
+
+- **`RunSpec.tied`/`.batching`/`.averaging` sub-configs** (`TiedPositionsConfig`,
+  `BatchingConfig`, `AveragingConfig` — 18 fields total): write-only scaffolding from the RS-1
+  migration that was never finished. `build_run_spec()` populated these on every call but nothing
+  downstream ever read them — all consumers (`host/kernel_dispatch.py`,
+  `host/_sampling_grid_lineage.py`, etc.) read the equivalent flat `SamplingSpecification` field
+  instead. Removing them doesn't change behavior; the flat fields they duplicated are untouched.
+  Scoped in `.praxia/docs/specs/260707_xtrax-migration-gap-audit-runspec-scaffolding.md`
+  (backlog #3158); `GridLineageConfig` and `LigandConfig` were NOT removed — each has one live
+  field (`grid_mode`, `model_family`) plus existing partial-migration fallback logic worth
+  finishing rather than discarding.
+  (`src/aminx/run/spec.py`, `src/aminx/run/run_spec_portable_json.py`)
 
 ## 0.1.0a6 (2026-06-14)
 

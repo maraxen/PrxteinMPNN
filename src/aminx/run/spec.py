@@ -60,16 +60,6 @@ class LigandConfig(eqx.Module):
   context_path: Path | None = eqx.field(static=True)
 
 
-class TiedPositionsConfig(eqx.Module):
-  """Tied-position and structure-mapping payloads (arrays may be traced)."""
-
-  tied_positions: object | None = eqx.field(static=True)
-  pass_mode: str = eqx.field(static=True)
-  multi_state_temperature: float = eqx.field(static=True)
-  tie_group_map: Any = None
-  structure_mapping: Any = None
-
-
 class GridLineageConfig(eqx.Module):
   """Grid / campaign lineage metadata (mostly static host fields)."""
 
@@ -79,29 +69,6 @@ class GridLineageConfig(eqx.Module):
   chunk_id: int | None = eqx.field(static=True)
   sample_start: int | None = eqx.field(static=True)
   sample_count: int | None = eqx.field(static=True)
-
-
-class BatchingConfig(eqx.Module):
-  """Per-task batch and chunk sizes; `None` means “not applicable” for this task."""
-
-  batch_size: int = eqx.field(static=True)
-  samples_batch_size: int | None = eqx.field(static=True)
-  samples_chunk_size: int | None = eqx.field(static=True)
-  noise_batch_size: int | None = eqx.field(static=True)
-  temperature_batch_size: int | None = eqx.field(static=True)
-  jacobian_batch_size: int | None = eqx.field(static=True)
-  combine_batch_size: int | None = eqx.field(static=True)
-  apc_batch_size: int | None = eqx.field(static=True)
-  apc_residue_batch_size: int | None = eqx.field(static=True)
-
-
-class AveragingConfig(eqx.Module):
-  """Feature / encoding averaging options."""
-
-  average_node_features: bool = eqx.field(static=True)
-  average_encoding_mode: str = eqx.field(static=True)
-  average_encodings: bool | None = eqx.field(static=True)
-  state_weights: Any = None
 
 
 class PrecisionConfig(eqx.Module):
@@ -151,10 +118,7 @@ class RunSpec(_XtraxRunSpec):
   resource: ResourceConfig = field(default_factory=lambda: None)  # type: ignore
   multistate: MultistateConfig = field(default_factory=lambda: None)  # type: ignore
   ligand: LigandConfig = field(default_factory=lambda: None)  # type: ignore
-  tied: TiedPositionsConfig = field(default_factory=lambda: None)  # type: ignore
   grid: GridLineageConfig = field(default_factory=lambda: None)  # type: ignore
-  batching: BatchingConfig = field(default_factory=lambda: None)  # type: ignore
-  averaging: AveragingConfig = field(default_factory=lambda: None)  # type: ignore
   precision: PrecisionConfig = field(default_factory=lambda: None)  # type: ignore
   plan: PlannerTopology = field(default_factory=lambda: None)  # type: ignore
   sampling: SamplingConfig = field(default_factory=lambda: None)  # type: ignore
@@ -224,11 +188,9 @@ def _coerce_max_buffer_size(spec: object) -> int | None:
 
 
 def _infer_sink_kind(spec: object) -> str:
-  if getattr(spec, "use_arrayrecord", False):
-    return "arrayrecord"
   if _output_h5_path(spec) is not None:
-    return "hdf5"
-  # IOConfig.sink_kind uses "arrayrecord" | "hdf5" | "none"; host tensor sinks register under OUTPUT_SINKS
+    return "zarr"
+  # IOConfig.sink_kind uses "zarr" | "none"; host tensor sinks register under OUTPUT_SINKS
   # (e.g. "noop", "streaming_tensor_staging" — see aminx.run.output_sinks).
   return "none"
 
@@ -325,14 +287,6 @@ def build_run_spec(spec: object) -> RunSpec:
     context_path=_optional_path(ctx_path),
   )
 
-  tied = TiedPositionsConfig(
-    tied_positions=getattr(spec, "tied_positions", None),
-    pass_mode=str(getattr(spec, "pass_mode", "intra")),
-    multi_state_temperature=float(getattr(spec, "multi_state_temperature", 1.0)),
-    tie_group_map=getattr(spec, "tie_group_map", None),
-    structure_mapping=getattr(spec, "structure_mapping", None),
-  )
-
   grid = GridLineageConfig(
     grid_mode=bool(getattr(spec, "grid_mode", False)),
     campaign_mode=bool(getattr(spec, "campaign_mode", False)),
@@ -340,33 +294,6 @@ def build_run_spec(spec: object) -> RunSpec:
     chunk_id=getattr(spec, "chunk_id", None),
     sample_start=getattr(spec, "sample_start", None),
     sample_count=getattr(spec, "sample_count", None),
-  )
-
-  jacobian_batch = getattr(spec, "jacobian_batch_size", None)
-  combine_bs = getattr(spec, "combine_batch_size", None)
-  apc_bs = getattr(spec, "apc_batch_size", None)
-  apc_res_bs = getattr(spec, "apc_residue_batch_size", None)
-  samples_chunk = getattr(spec, "samples_chunk_size", None)
-  temperature_bs = getattr(spec, "temperature_batch_size", None)
-  noise_bs = getattr(spec, "noise_batch_size", None)
-  batching = BatchingConfig(
-    batch_size=batch_size,
-    samples_batch_size=int(samples_batch) if samples_batch is not None else None,
-    samples_chunk_size=int(samples_chunk) if samples_chunk is not None else None,
-    noise_batch_size=int(noise_bs) if noise_bs is not None else None,
-    temperature_batch_size=int(temperature_bs) if temperature_bs is not None else None,
-    jacobian_batch_size=int(jacobian_batch) if jacobian_batch is not None else None,
-    combine_batch_size=int(combine_bs) if combine_bs is not None else None,
-    apc_batch_size=int(apc_bs) if apc_bs is not None else None,
-    apc_residue_batch_size=int(apc_res_bs) if apc_res_bs is not None else None,
-  )
-
-  avg_enc = getattr(spec, "average_encodings", None)
-  averaging = AveragingConfig(
-    average_node_features=bool(getattr(spec, "average_node_features", False)),
-    average_encoding_mode="",  # Dead field; kept for backward compat, never used
-    average_encodings=(bool(avg_enc) if avg_enc is not None else None),
-    state_weights=getattr(spec, "state_weights", None),
   )
 
   precision = PrecisionConfig(compute=_run_spec_precision_compute(spec))
@@ -399,10 +326,7 @@ def build_run_spec(spec: object) -> RunSpec:
     resource=resource,
     multistate=multistate,
     ligand=ligand,
-    tied=tied,
     grid=grid,
-    batching=batching,
-    averaging=averaging,
     precision=precision,
     plan=plan,
     sampling=sampling,

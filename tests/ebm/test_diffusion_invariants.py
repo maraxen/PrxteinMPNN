@@ -20,6 +20,8 @@ from aminx.ebm.diffusion import (
   DEFAULT_COORDINATE_SCALING,
   DEFAULT_MAX_B,
   DEFAULT_MIN_B,
+  VPSchedule,
+  beta_t,
   calc_trans_0,
   conditional_var,
   forward_marginal,
@@ -220,3 +222,119 @@ class TestForwardMarginalInvariants:
 
     assert jnp.allclose(x_t_eager, x_t_jit, atol=1e-6)
     assert jnp.allclose(score_eager, score_jit, atol=1e-6)
+
+
+class TestVPSchedule:
+  """Backlog node E2: ``VPSchedule`` is a thin eqx.Module forwarder over the
+  free-function VP-SDE math -- it must never diverge from what it wraps, and
+  must behave like any other static-config eqx.Module (jit/vmap-safe, no
+  gradient leaves).
+  """
+
+  def test_methods_match_free_functions(self) -> None:
+    schedule = VPSchedule()
+    key = jax.random.PRNGKey(2027)
+    x0 = jax.random.normal(jax.random.PRNGKey(32), (5, 3))
+    t = jnp.array(0.4)
+
+    assert jnp.allclose(schedule.beta_t(t), beta_t(t))
+    assert jnp.allclose(schedule.marginal_b_t(t), marginal_b_t(t))
+    assert jnp.allclose(schedule.conditional_var(t), conditional_var(t))
+
+    x_t, score = forward_marginal(x0, t, key)
+    assert jnp.allclose(schedule.score_target(x_t, x0, t), score_target(x_t, x0, t))
+    assert jnp.allclose(
+      schedule.calc_trans_0(score, x_t, t),
+      calc_trans_0(score, x_t, t),
+    )
+
+    sched_x_t, sched_score = schedule.forward_marginal(x0, t, key)
+    free_x_t, free_score = forward_marginal(x0, t, key)
+    assert jnp.array_equal(sched_x_t, free_x_t)
+    assert jnp.array_equal(sched_score, free_score)
+
+  def test_non_default_hyperparameters_are_forwarded(self) -> None:
+    schedule = VPSchedule(min_b=0.5, max_b=15.0, coordinate_scaling=0.2)
+    t = jnp.array(0.4)
+
+    assert jnp.allclose(schedule.beta_t(t), beta_t(t, min_b=0.5, max_b=15.0))
+    assert not jnp.allclose(schedule.beta_t(t), beta_t(t))
+
+    key = jax.random.PRNGKey(33)
+    x0 = jnp.array([[1.0, 0.0, 0.0]])
+    x_t, _ = schedule.forward_marginal(x0, jnp.array(1e-6), key)
+    assert jnp.allclose(x_t, x0 * 0.2, atol=1e-3)
+
+  def test_jit_and_vmap_compatible(self) -> None:
+    schedule = VPSchedule()
+    x0 = jax.random.normal(jax.random.PRNGKey(34), (4, 3))
+    ts = jnp.array([0.1, 0.3, 0.5, 0.9])
+    keys = jax.random.split(jax.random.PRNGKey(35), ts.shape[0])
+
+    jitted = jax.jit(schedule.forward_marginal)
+    x_t_eager, score_eager = schedule.forward_marginal(x0, ts[0], keys[0])
+    x_t_jit, score_jit = jitted(x0, ts[0], keys[0])
+    assert jnp.allclose(x_t_eager, x_t_jit, atol=1e-6)
+    assert jnp.allclose(score_eager, score_jit, atol=1e-6)
+
+    x_t_batch, score_batch = jax.vmap(schedule.forward_marginal, in_axes=(None, 0, 0))(
+      x0, ts, keys
+    )
+    assert x_t_batch.shape == (ts.shape[0], *x0.shape)
+    assert jnp.all(jnp.isfinite(x_t_batch))
+    assert jnp.all(jnp.isfinite(score_batch))
+
+
+class TestForwardMarginalPRNGDiscipline:
+  """Fork 10 (EPIC §1, PRNG discipline): per-structure/per-batch-element
+  independent keys via ``jax.random.fold_in(base_key, idx)`` -- the existing
+  precedent at ``host/kernel_dispatch.py:244/332/428/512``
+  (``encode_key = jax.random.fold_in(base_key, structure_idx)``).
+
+  Confirms ``forward_marginal``'s single-key-per-call design (already shown
+  vmappable over a batch of ``t``/``key`` by invariant (d) above) composes
+  correctly when the per-structure keys come from ``fold_in`` over one base
+  key, rather than from ``jax.random.split``.
+  """
+
+  def test_fold_in_per_structure_gives_independent_noise_under_vmap(self) -> None:
+    num_structures = 8
+    base_key = jax.random.PRNGKey(2026)
+    x0 = jax.random.normal(jax.random.PRNGKey(17), (num_structures, 12, 3))
+    t = jnp.full((num_structures,), 0.3)
+
+    structure_idx = jnp.arange(num_structures)
+    # The kernel_dispatch.py pattern: fold_in(base_key, structure_idx) per
+    # structure, then vmap forward_marginal over the resulting key batch.
+    folded_keys = jax.vmap(lambda idx: jax.random.fold_in(base_key, idx))(structure_idx)
+
+    x_t_batch, score_batch = jax.vmap(forward_marginal, in_axes=(0, 0, 0))(
+      x0, t, folded_keys
+    )
+
+    assert x_t_batch.shape == x0.shape
+    assert jnp.all(jnp.isfinite(x_t_batch))
+    assert jnp.all(jnp.isfinite(score_batch))
+
+    # Independence: no two structures' noise draws collide -- would indicate
+    # a keying bug (e.g. accidental reuse of the unfolded base_key) if they did.
+    for i in range(num_structures):
+      for j in range(i + 1, num_structures):
+        assert not jnp.array_equal(x_t_batch[i], x_t_batch[j])
+
+    # fold_in composes identically whether computed inside or outside vmap,
+    # and matches sequential (non-vmapped) per-structure calls -- confirms
+    # forward_marginal is safe to drive from fold_in-derived keys under an
+    # outer vmap/scan (the shape of E1/E3's future per-structure dispatch).
+    for i in range(num_structures):
+      key_i = jax.random.fold_in(base_key, i)
+      assert jnp.array_equal(folded_keys[i], key_i)
+      x_t_i, score_i = forward_marginal(x0[i], t[i], key_i)
+      assert jnp.allclose(x_t_batch[i], x_t_i, atol=1e-6)
+      assert jnp.allclose(score_batch[i], score_i, atol=1e-6)
+
+    # Re-deriving the same (base_key, idx) pair is deterministic (no hidden
+    # stateful RNG) -- fold_in is a pure function of its inputs.
+    key_0_again = jax.random.fold_in(base_key, 0)
+    x_t_0_again, _ = forward_marginal(x0[0], t[0], key_0_again)
+    assert jnp.array_equal(x_t_0_again, x_t_batch[0])

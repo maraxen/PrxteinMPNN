@@ -300,17 +300,18 @@ which E0/E1 should inherit clean:
 | Finding | Location | Class | Disposition |
 | :-- | :-- | :-- | :-- |
 | Undefined name `Any` in `**kwargs: Any` | `model/diffusion_mpnn.py:170` | F821 (undefined name; latent at runtime only because of `from __future__ import annotations`, but fails CI `ruff`/`ty`) | **FIXED** in this branch (`from typing import TYPE_CHECKING, Any`) |
-| `inference = True` set when `key is None` then **never used** | `model/decoder.py:629` | F841 dead store | **INVESTIGATED → NOT a bug.** Traced: dropout *is* correctly disabled at inference. When `key is None`, `DecoderLayer.__call__:318-319` re-derives `inference=True` independently and `Dropout.__call__:52-54` returns `x` on `key is None` — two independent downstream guards make the dead variable harmless. Two safe follow-ups (behavior-preserving): remove the dead assignment, and — for symmetry with `call_conditional` (which threads `inference` + exposes the param) and for EBM-readout reuse — add an `inference: bool = False` param to the unconditional `__call__` and thread it. Recommend a `key=None`-determinism regression test in E0. |
+| `inference = True` set when `key is None` then **never used** | `model/decoder.py:629` | F841 dead store | **INVESTIGATED → not a bug, then RESOLVED.** Trace showed dropout was *already* correctly disabled at inference (two independent guards: `DecoderLayer.__call__:318-319` re-derives `inference=True` on `key is None`; `Dropout.__call__:52-54` returns `x` on `key is None`). Fixed anyway for correctness/symmetry: added `inference: bool = False` to the unconditional `Decoder.__call__` (mirrors `call_conditional`), threaded it into the layer call (F841 resolved), added determinism regression tests (`tests/model/test_decoder_unconditional_inference.py`, 3/3 green; 26/26 decode-path tests still pass). Behavior-preserving for the one live caller. |
+| `UnconditionalDecode` fallback does not forward `config.inference` (the `decode_step` branch above it does) | `inference/decode/unconditional.py:100` | consistency / possible dropout-during-unconditional-scoring | **FLAGGED (new, gated on parity).** Now that `model.decoder` accepts `inference`, the fallback *could* forward `config.inference` to match the branch above. Doing so changes unconditional-scoring dropout when `config.inference=True` with a non-None key — a scoring-numerics change → gated on a parity check before wiring (comment updated in place; behavior unchanged for now). |
 | `PRNGKeyArray` imported from jaxtyping then redefined as `jax.Array` | `model/encoder.py:30` | F811 redefinition | **FLAGGED** — cosmetic, zero behavioral risk |
 | `super().__call__(...)` passes 7 positional args; `Aminx.__call__` expects 5 | `model/diffusion_mpnn.py:184` | `ty` `too-many-positional-arguments` (pre-existing) | **FLAGGED** — possible real signature bug in the diffusion path, or a `ty` false-positive; verify against `Aminx.__call__`'s actual signature before the port relies on it |
 
-Only the first is fixed here (it matches the "undefined-name" class you flagged and unblocks the CI
-gate). The other three are pre-existing and out of this spec's scope. The `decoder.py:629` item was
-**investigated and cleared** — it looked like the silent inference-mode bugs this codebase has hit
-before, but the trace shows dropout is correctly disabled at inference via two independent guards; it
-is dead code plus a benign asymmetry, not a behavioral defect. The `encoder.py:30` (cosmetic) and
+The `Any` (F821) and `decoder.py:629` (F841 + symmetry) items are **fixed** on this branch with a
+regression test; the `decoder.py:629` investigation confirmed dropout was never actually running at
+inference (two independent guards), so the fix is correctness/symmetry, not a behavior change. The
+new `unconditional.py:100` fallback inconsistency and the `encoder.py:30` (cosmetic) and
 `diffusion_mpnn.py:184` (`ty` positional-arg mismatch — verify vs. `Aminx.__call__`'s real signature)
-items remain for epic triage.
+items remain for epic triage; the fallback one is a scoring-numerics change and must go through a
+bathos parity check (§8) before wiring.
 
 ---
 

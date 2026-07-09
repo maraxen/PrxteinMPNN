@@ -1,7 +1,7 @@
 # EPIC (proposal): ProteinEBM composable energy/score path in aminx — backlog DAG
 
 - **task_id**: `260709_aminxtension`
-- **status**: PROPOSAL — **gated on user review before any praxia filing** (nothing written to the praxia backlog yet)
+- **status**: APPROVED 2026-07-09 — filed into praxia. User decisions: (1) orbax weight-port first (retrain deferred); (2) buckets `(64,128,256,512)`; (3) **E9/E10/E11d (Langevin + structure prediction) → FOLLOW-ON epic**, not this one; (4) PBCNet2.0/E12 → later epic. In-epic nodes: E0–E8 + gates E3.5/E4.5 + benchmarks E11a–c.
 - **date**: 2026-07-09
 - **branch**: `worktree-proteinebm-decomposition`
 - **design spec**: [`specs/260709_proteinebm-aminx-decomposition.md`](../specs/260709_proteinebm-aminx-decomposition.md) (this EPIC supersedes its §7–§9 planning content with the resolved versions below)
@@ -133,14 +133,29 @@ Pinned, **disaggregated** targets (challenger MAJOR-5): decoy Spearman **0.838**
 
 ---
 
-## 5. Filing plan into praxia (executed only after your approval)
+## 5. Filed into praxia (2026-07-09) ✅
 
-1. `praxia scope set aminx` (memory: FK constraint requires scope before first backlog add).
-2. `epic_compose` → the EPIC container (title, this doc as the spec ref).
-3. `backlog` adds — one node per §2 entry (E0…E12 + gates E3.5/E4.5, E11a–d) with `depends_on` edges exactly as drawn.
-4. Attach acceptance criteria + skill-gate tags (`jax`/`xtrax`/`bathos`) per node.
+Filed via `workspace_handshake` → `scope set aminx` → `backlog add` (with `depends_on` edges), workspace `aminx`. Graph verified: all 14 dependency edges match §2. Langevin (E9/E10) and PBCNet2.0 (E12) intentionally **not** filed (follow-on/later epics per user decisions).
 
-**None of this is executed yet.** This document + the corrected spec are the review artifact.
+| Node | Backlog ID | depends_on |
+| :-- | :-- | :-- |
+| **EPIC** | **#3294** | — |
+| E0 Foundations & invariants | #3295 | — |
+| E1 Model trunk port | #3296 | E0 |
+| E2 R3Diffuser (VP-SDE/CA) | #3297 | E0 |
+| E3 Energy/Score/Aux readouts | #3298 | E1, E2 |
+| E3.5 GATE weight-port parity | #3299 | E3 |
+| E4 Composition wiring | #3300 | E3.5 |
+| E4.5 GATE bucket HiTL | #3302 | E4 |
+| E5 Decoy ranking (≥0.838) | #3303 | E4.5 |
+| E6 ΔΔG stability (≥0.686) | #3304 | E4.5 |
+| E7 Conformational biasing | #3305 | E4.5 |
+| E8 Training path (2nd-order) | #3306 | E3 |
+| E11a Benchmark decoy | #3307 | E5 |
+| E11b Benchmark ΔΔG | #3308 | E6 |
+| E11c Benchmark biasing | #3309 | E7 |
+
+Follow-on epic (deferred): E9 Langevin sampler, E10 structure-prediction pipeline, E11d Langevin benchmark. Later epic (deferred): E12 differentiable multistate design; PBCNet2.0 pairwise scoring.
 
 ## 6. Still-open decisions for you
 

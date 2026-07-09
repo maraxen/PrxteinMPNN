@@ -1650,6 +1650,24 @@ def campaign_plan(
     str | None,
     _OPT("--checkpoint-id", help="Checkpoint identifier for manifest rows"),
   ] = None,
+  chain_id: Annotated[
+    str | None,
+    _OPT(
+      "--chain-id",
+      help=(
+        "Chain(s) to keep per input, forwarded to SamplingSpecification.chain_id "
+        "(see aminx.run.specs.RunSpecification.chain_id / "
+        "proxide.ops.processing.frame_iterator_from_inputs for accepted forms). "
+        "JSON only, to support the full range that field already accepts: "
+        "a bare string ('\"A\"') applies to every input; a JSON array "
+        "('[\"A\",\"B\"]') is a filter applied to every input; a JSON object "
+        "mapping each --inputs path to its own chain list "
+        "('{\"a.cif\": [\"A\",\"B\"], \"b.cif\": [\"A\",\"C\"]}') selects "
+        "per-input, e.g. to discard extra crystallographic copies that differ "
+        "in chain layout across a multi-input PoE bead."
+      ),
+    ),
+  ] = None,
 ) -> None:
   """Generate campaign manifest JSON."""
   from aminx.host.campaign import (  # noqa: PLC0415
@@ -1658,10 +1676,12 @@ def campaign_plan(
     write_campaign_manifest,
   )
 
+  parsed_chain_id = json.loads(chain_id) if chain_id is not None else None
   base_spec = SamplingSpecification(
     inputs=_parse_csv(inputs),
     return_logits=False,
     **({"checkpoint_id": checkpoint_id} if checkpoint_id is not None else {}),
+    **({"chain_id": parsed_chain_id} if parsed_chain_id is not None else {}),
   )
   write_campaign_manifest(
     base_spec=base_spec,

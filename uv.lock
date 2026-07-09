@@ -53,7 +53,7 @@ wheels = [
 
 [[package]]
 name = "aminx"
-version = "0.1.0a9"
+version = "0.1.0a10"
 source = { editable = "." }
 dependencies = [
     { name = "array-record", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },

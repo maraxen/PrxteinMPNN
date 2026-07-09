@@ -140,6 +140,60 @@ def test_dispatch_tensor_io_callback_stages_to_active_sink():
         assert logits.shape[0] == 1, f"Expected batch size 1, got {logits.shape[0]}"
 
 
+def test_dispatch_tensor_io_callback_visible_from_other_thread():
+    """The active sink must be visible from a thread other than the one that
+    entered streaming_tensor_sink_session().
+
+    Regression test: jax.experimental.io_callback(ordered=False) dispatches
+    unordered callbacks via a background thread pool, and contextvars.ContextVar
+    values set on the calling thread are NOT visible on that pool thread. This
+    silently no-op'd _dispatch_sampling_tensor_batch_io's write whenever JAX
+    happened to schedule the callback off-thread (confirmed empirically: it did
+    for multi-structure batches, e.g. a PoE bead's multi-input fusion, and
+    didn't for single-structure batches, which is why this went uncaught --
+    every existing test in this file calls the dispatch function on the same
+    thread that entered the session). active_sampling_staging_sink() now falls
+    back to a plain module global (see output_sinks._active_streaming_tensor_sink_io)
+    for exactly this case, mirroring the pre-existing _jacobian_sink_ctx pattern.
+    """
+    import threading
+
+    from aminx.host._sampling_helper import _dispatch_sampling_tensor_batch_io
+
+    batch_idx, batch_count, chunk_start, chunk_count = 0, 1, 0, 4
+    seq_len, num_samples = 10, 2
+    sequences_np = np.zeros((1, num_samples, 1, 1, seq_len), dtype=np.int32)
+    logits_np = np.zeros((1, num_samples, 1, 1, seq_len, 21), dtype=np.float32)
+
+    results: dict[str, object] = {}
+
+    def _call_from_other_thread() -> None:
+        try:
+            results["sink_seen"] = active_sampling_staging_sink() is not None
+            _dispatch_sampling_tensor_batch_io(
+                batch_idx, batch_count, chunk_start, chunk_count, sequences_np, logits_np,
+            )
+        except Exception as exc:  # noqa: BLE001
+            results["error"] = exc
+
+    with streaming_tensor_sink_session():
+        thread = threading.Thread(target=_call_from_other_thread)
+        thread.start()
+        thread.join(timeout=5)
+
+        assert "error" not in results, f"Dispatch from other thread raised: {results.get('error')}"
+        assert results.get("sink_seen") is True, (
+            "active_sampling_staging_sink() returned None on a different thread "
+            "than the one that entered streaming_tensor_sink_session() -- the "
+            "fallback global is not working."
+        )
+
+        # The real bug: this must find the entry the other thread just staged.
+        seqs, logits = take_staging_sequences_logits(batch_idx, chunk_start, chunk_count)
+        assert seqs.shape[0] == 1
+        assert logits.shape[0] == 1
+
+
 # ---------------------------------------------------------------------------
 # Test 2: io_callback emission can be controlled by emit_structure_batch_io flag
 # ---------------------------------------------------------------------------

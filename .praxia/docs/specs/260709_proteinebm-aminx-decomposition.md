@@ -300,14 +300,17 @@ which E0/E1 should inherit clean:
 | Finding | Location | Class | Disposition |
 | :-- | :-- | :-- | :-- |
 | Undefined name `Any` in `**kwargs: Any` | `model/diffusion_mpnn.py:170` | F821 (undefined name; latent at runtime only because of `from __future__ import annotations`, but fails CI `ruff`/`ty`) | **FIXED** in this branch (`from typing import TYPE_CHECKING, Any`) |
-| `inference = True` set when `key is None` then **never used** | `model/decoder.py:629` | F841 dead store — likely a **dropped dropout-gating flag** in the unconditional decode path (layers accept an `inference` kwarg elsewhere) | **FLAGGED** — behavioral, could change numerics; needs a decision before fixing (same family as the STE/fixed_mask/atom37 silent host-dispatch bugs) |
+| `inference = True` set when `key is None` then **never used** | `model/decoder.py:629` | F841 dead store | **INVESTIGATED → NOT a bug.** Traced: dropout *is* correctly disabled at inference. When `key is None`, `DecoderLayer.__call__:318-319` re-derives `inference=True` independently and `Dropout.__call__:52-54` returns `x` on `key is None` — two independent downstream guards make the dead variable harmless. Two safe follow-ups (behavior-preserving): remove the dead assignment, and — for symmetry with `call_conditional` (which threads `inference` + exposes the param) and for EBM-readout reuse — add an `inference: bool = False` param to the unconditional `__call__` and thread it. Recommend a `key=None`-determinism regression test in E0. |
 | `PRNGKeyArray` imported from jaxtyping then redefined as `jax.Array` | `model/encoder.py:30` | F811 redefinition | **FLAGGED** — cosmetic, zero behavioral risk |
 | `super().__call__(...)` passes 7 positional args; `Aminx.__call__` expects 5 | `model/diffusion_mpnn.py:184` | `ty` `too-many-positional-arguments` (pre-existing) | **FLAGGED** — possible real signature bug in the diffusion path, or a `ty` false-positive; verify against `Aminx.__call__`'s actual signature before the port relies on it |
 
 Only the first is fixed here (it matches the "undefined-name" class you flagged and unblocks the CI
-gate). The other three are pre-existing, out of this spec's scope, and listed so the epic can triage
-them — the `decoder.py:629` dropped-`inference` flag in particular deserves a real look because it
-mirrors the silent inference-mode bugs this codebase has hit before.
+gate). The other three are pre-existing and out of this spec's scope. The `decoder.py:629` item was
+**investigated and cleared** — it looked like the silent inference-mode bugs this codebase has hit
+before, but the trace shows dropout is correctly disabled at inference via two independent guards; it
+is dead code plus a benign asymmetry, not a behavioral defect. The `encoder.py:30` (cosmetic) and
+`diffusion_mpnn.py:184` (`ty` positional-arg mismatch — verify vs. `Aminx.__call__`'s real signature)
+items remain for epic triage.
 
 ---
 

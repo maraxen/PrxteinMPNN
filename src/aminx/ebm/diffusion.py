@@ -39,6 +39,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 
@@ -178,10 +179,72 @@ def forward_marginal(
   return x_t, score
 
 
+class VPSchedule(eqx.Module):
+  """Frozen VP-SDE hyperparameter bundle -- backlog node **E2**.
+
+  ``min_b``/``max_b``/``coordinate_scaling`` are fixed hyperparameters, not
+  trained arrays, so all three fields are ``eqx.field(static=True)`` (they
+  become part of the pytree's structure, not its leaves -- no gradient flows
+  through them, and they participate in JIT trace-cache keys like any other
+  static config, matching the precedent at
+  ``training/diffusion.py::NoiseSchedule`` and ``potts/model.py``'s
+  ``PottsTRWRunSpec``/``DifferentiableTRW`` static-config fields).
+
+  This exists purely to save E3 (``EnergyReadout``/``ScoreReadout``) and E8
+  (the training loop) from re-declaring and re-threading the same three
+  floats through every call to :func:`beta_t`, :func:`marginal_b_t`,
+  :func:`conditional_var`, :func:`score_target`, :func:`calc_trans_0`, and
+  :func:`forward_marginal` -- those future modules can instead hold one
+  ``VPSchedule`` field and call its methods. The methods are thin forwarders;
+  no math is duplicated here.
+  """
+
+  min_b: float = eqx.field(static=True, default=DEFAULT_MIN_B)
+  max_b: float = eqx.field(static=True, default=DEFAULT_MAX_B)
+  coordinate_scaling: float = eqx.field(static=True, default=DEFAULT_COORDINATE_SCALING)
+
+  def beta_t(self, t: DiffusionTime) -> DiffusionTime:
+    """See :func:`beta_t`."""
+    return beta_t(t, min_b=self.min_b, max_b=self.max_b)
+
+  def marginal_b_t(self, t: DiffusionTime) -> DiffusionTime:
+    """See :func:`marginal_b_t`."""
+    return marginal_b_t(t, min_b=self.min_b, max_b=self.max_b)
+
+  def conditional_var(self, t: DiffusionTime) -> DiffusionTime:
+    """See :func:`conditional_var`."""
+    return conditional_var(t, min_b=self.min_b, max_b=self.max_b)
+
+  def score_target(self, x_t: Coords, x0: Coords, t: DiffusionTime) -> Score:
+    """See :func:`score_target`."""
+    return score_target(x_t, x0, t, min_b=self.min_b, max_b=self.max_b)
+
+  def calc_trans_0(self, score: Score, x_t: Coords, t: DiffusionTime) -> Coords:
+    """See :func:`calc_trans_0`."""
+    return calc_trans_0(score, x_t, t, min_b=self.min_b, max_b=self.max_b)
+
+  def forward_marginal(
+    self,
+    x0: Coords,
+    t: DiffusionTime,
+    key: PRNGKeyArray,
+  ) -> tuple[Coords, Score]:
+    """See :func:`forward_marginal`."""
+    return forward_marginal(
+      x0,
+      t,
+      key,
+      min_b=self.min_b,
+      max_b=self.max_b,
+      coordinate_scaling=self.coordinate_scaling,
+    )
+
+
 __all__ = [
   "DEFAULT_COORDINATE_SCALING",
   "DEFAULT_MAX_B",
   "DEFAULT_MIN_B",
+  "VPSchedule",
   "beta_t",
   "calc_trans_0",
   "conditional_var",

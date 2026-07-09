@@ -107,19 +107,36 @@ _scoring_tensor_sink_ctx: ContextVar[DesignSink | None] = ContextVar(
   default=None,
 )
 
+# io_callback host threads may not inherit ContextVar (see _jacobian_sink_ctx's
+# identical fallback below, and jax.experimental.io_callback's own docs: unordered
+# callbacks dispatch via a background thread pool, not necessarily the thread that
+# entered the session). Confirmed empirically for streaming_tensor_sink_session:
+# single-structure batches happened to land the callback on the calling thread
+# (ContextVar visible, bug masked); multi-structure batches (e.g. a PoE bead's
+# multi-input fusion) landed it on a different thread, where the ContextVar reads
+# back None and the write silently no-ops -- surfaced as "Streaming tensor sink
+# missing entry" on read-back. campaign run/worker never run more than one row's
+# session concurrently in-process (run_manifest_row executes rows sequentially),
+# so a plain module global is safe here: there is exactly one active sink at a time.
+_active_streaming_tensor_sink_io: StreamingTensorStagingSink | None = None
+_active_scoring_sink_io: DesignSink | None = None
+
 
 @contextmanager
 def streaming_tensor_sink_session() -> Iterator[StreamingTensorStagingSink]:
   """Activate a fresh staging sink for one streaming sampling session."""
+  global _active_streaming_tensor_sink_io  # noqa: PLW0603
   factory = OUTPUT_SINKS.get("streaming_tensor_staging")
   sink_any = factory()
   if not isinstance(sink_any, StreamingTensorStagingSink):
     msg = "streaming_tensor_staging factory must return StreamingTensorStagingSink"
     raise TypeError(msg)
   token: Token[StreamingTensorStagingSink | None] = _streaming_tensor_sink_ctx.set(sink_any)
+  _active_streaming_tensor_sink_io = sink_any
   try:
     yield sink_any
   finally:
+    _active_streaming_tensor_sink_io = None
     _streaming_tensor_sink_ctx.reset(token)
 
 
@@ -129,7 +146,7 @@ def take_staging_sequences_logits(
   chunk_count: int,
 ) -> tuple[np.ndarray, np.ndarray]:
   """Drain tensor ``io_callback`` payloads for this streaming batch/chunk key."""
-  sink = _streaming_tensor_sink_ctx.get()
+  sink = active_sampling_staging_sink()
   if sink is None:
     msg = "Streaming tensor sink is not active."
     raise RuntimeError(msg)
@@ -138,21 +155,30 @@ def take_staging_sequences_logits(
 
 def active_sampling_staging_sink() -> StreamingTensorStagingSink | None:
   """Return the active staging sink, if any (for advanced callers/tests)."""
-  return _streaming_tensor_sink_ctx.get()
+  sink = _streaming_tensor_sink_ctx.get()
+  if sink is not None:
+    return sink
+  return _active_streaming_tensor_sink_io
 
 
 def active_scoring_sink() -> DesignSink | None:
   """Return the active scoring sink, if any."""
-  return _scoring_tensor_sink_ctx.get()
+  sink = _scoring_tensor_sink_ctx.get()
+  if sink is not None:
+    return sink
+  return _active_scoring_sink_io
 
 
 @contextmanager
 def scoring_tensor_sink_session(sink: DesignSink) -> Iterator[DesignSink]:
   """Optional host session for scoring tensor staging (streaming HDF5 follow-ups)."""
+  global _active_scoring_sink_io  # noqa: PLW0603
   token: Token[DesignSink | None] = _scoring_tensor_sink_ctx.set(sink)
+  _active_scoring_sink_io = sink
   try:
     yield sink
   finally:
+    _active_scoring_sink_io = None
     _scoring_tensor_sink_ctx.reset(token)
 
 
@@ -202,15 +228,22 @@ _encoder_intermediate_sink_ctx: ContextVar[EncoderIntermediateStagingSink | None
   default=None,
 )
 
+# See _active_streaming_tensor_sink_io's comment above: same io_callback
+# cross-thread ContextVar gap applies here.
+_active_encoder_intermediate_sink_io: EncoderIntermediateStagingSink | None = None
+
 
 @contextmanager
 def encoder_sink_session() -> Iterator[EncoderIntermediateStagingSink]:
   """Activate a fresh staging sink for encoder intermediate captures."""
+  global _active_encoder_intermediate_sink_io  # noqa: PLW0603
   sink = EncoderIntermediateStagingSink()
   token: Token[EncoderIntermediateStagingSink | None] = _encoder_intermediate_sink_ctx.set(sink)
+  _active_encoder_intermediate_sink_io = sink
   try:
     yield sink
   finally:
+    _active_encoder_intermediate_sink_io = None
     _encoder_intermediate_sink_ctx.reset(token)
 
 
@@ -220,7 +253,7 @@ def take_encoder_intermediates(
   noise_idx: int,
 ) -> tuple[np.ndarray, np.ndarray]:
   """Drain encoder intermediate payload for this (batch, structure, noise) key."""
-  sink = _encoder_intermediate_sink_ctx.get()
+  sink = active_encoder_staging_sink()
   if sink is None:
     msg = "Encoder intermediate sink is not active."
     raise RuntimeError(msg)
@@ -229,7 +262,10 @@ def take_encoder_intermediates(
 
 def active_encoder_staging_sink() -> EncoderIntermediateStagingSink | None:
   """Return the active encoder intermediate sink, if any."""
-  return _encoder_intermediate_sink_ctx.get()
+  sink = _encoder_intermediate_sink_ctx.get()
+  if sink is not None:
+    return sink
+  return _active_encoder_intermediate_sink_io
 
 
 def _dispatch_encoder_intermediate_io(
@@ -240,7 +276,7 @@ def _dispatch_encoder_intermediate_io(
   edge_features: object,
 ) -> None:
   """io_callback target: routes encoder intermediate to active staging sink."""
-  sink = _encoder_intermediate_sink_ctx.get()
+  sink = active_encoder_staging_sink()
   if sink is None:
     return
   sink.on_encoder_intermediate(batch_idx, structure_idx, noise_idx, node_features, edge_features)

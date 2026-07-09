@@ -640,6 +640,7 @@ def plan_campaign_manifest(
               ),
               "ligand_conditioning": ligand_on,
               "sidechain_conditioning": sidechain_on,
+              "chain_id": spec_variant.chain_id,
               "temperature": list(spec_variant.temperature),
               "backbone_noise": list(spec_variant.backbone_noise),
               "batch_size": spec_variant.batch_size,

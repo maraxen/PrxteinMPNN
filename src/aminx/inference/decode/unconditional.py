@@ -97,8 +97,12 @@ class UnconditionalDecode(eqx.Module):
           key=key,
           inference=config.inference,
         )
-      # Fallback: use model.decoder (unconditional path)
-      # Note: model.decoder() does not accept inference parameter
+      # Fallback: use model.decoder (unconditional path).
+      # model.decoder now accepts an `inference` kwarg (mirrors call_conditional),
+      # but this fallback deliberately does NOT yet forward config.inference — the
+      # decode_step branch above does. Aligning them changes unconditional-scoring
+      # dropout behavior when config.inference is True with a non-None key, so it is
+      # gated on a parity check (spec 260709 §4.1) before altering scoring numerics.
       return self.model.decoder(
         node_features,
         edge_features,

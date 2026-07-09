@@ -204,8 +204,8 @@ composition pays off — no bespoke loops, just declared axes.
 | :-- | :-- | :-- | :-- |
 | **Decoy ranking / structure QA** (Spearman 0.838) | Score N decoys at fixed `t` | `AxisSpec(decoys)` → **Vmap** (small N) / **SafeMap** (large N) | Each decoy has distinct coords → no `encode-once`; vmap `EnergyReadout` over the decoy axis. Noise-time sweep = a second **Vmap** axis over `t`, or a `Fuse` that reduces the `t` axis. |
 | **Mutation ΔΔG / stability** (Spearman 0.686, SOTA) | `E(x,s) − E(x,s′)` minus MC unfolded correction over `p_UF` samples | **Vmap** over mutants × a **Fuse** (mean) over the unfolded ensemble axis | The unfolded-ensemble mean is a textbook `Fuse[S]→[1]`. `dedup_eligible` if many mutants share a WT reference structure (**DedupGather**). |
-| **Conformational biasing / multistate** | `E(x_state1,s) − E(x_state2,s)` per fixed `s` | **difference-`Fuse`** (`DecodingFusionFn`) over a 2-element state axis | *Same subtraction-fuse pattern PBCNet2.0 uses* — structural symmetry worth noting. This is the multistate mechanism (§5). |
-| **Langevin annealing / folding simulation** | reverse-SDE + local Langevin equilibration per noise level | **`Scan` + `CarrySpec`** (carry = `(coords, key)`; xs = noise-level schedule); inner Langevin steps = nested `Scan` | Multi-checkpoint handoff at `t=0.1` (base vs. ProteinEBM-x) = model swap keyed on noise level → aminx **already has `inference/schedule_selector.py`**; wrap it as an `AxisBoundary`/schedule that selects the model per scan step. Aux (non-conservative) score used inside the sim loop; conservative energy for rescoring. |
+| **Conformational biasing / multistate** | `E(x_state1,s) − E(x_state2,s)` per fixed `s` | **difference-`Fuse`** via a **new `EnergyFusionFn` / generic xtrax `Fuse[S,O]`** over a 2-element state axis (⚠ **NOT** the logit-typed `DecodingFusionFn` — a scalar energy is not a `DecodeOutput`; see §10 BLOCKER-2) | This is the multistate mechanism (§5). |
+| **Langevin annealing / folding simulation** | reverse-SDE + local Langevin equilibration per noise level | Outer = **`Scan` + `CarrySpec`** (carry = `(coords, key)`; xs = noise-level schedule); inner Langevin = **`lax.while_loop`** (inference-only, fast compile) | ⚠ Multi-checkpoint handoff at `t=0.1` is a **net-new `lax.cond` dispatcher** over pre-loaded models — **NOT** `schedule_selector.py` (unrelated) and **NOT** an `AxisBoundary` (cannot hold weights); see §10 BLOCKER-1. Variable inner trip-count → pad-to-max+mask; MH accept → `lax.cond`; between-round resampling → host-side `Sink`. Aux score inside sim; conservative energy for rescoring. |
 | **Structure prediction (MSA-free)** | initial-sample → resample (Boltzmann) → 3× refine → optional AF2Rank | **`pipeline()`** of `Scan` stages, with an importance-resampling **`Fuse`** between rounds | Clustering + AF2Rank are host-side post-processing (numpy/scipy, outside jit) — a `Sink`/`Tap`, not a traced stage. |
 
 Design rules honored (from `using-xtrax`):
@@ -525,3 +525,31 @@ sweep.
   `developing-composable-jax` skills.
 - Cluster: `~/.claude/rules/CLUSTER.md` (SM120 XLA flag); measurement discipline:
   `~/.claude/rules/BATHOS.md`.
+
+---
+
+## 10. Adversarial review resolutions (2026-07-09)
+
+A 3-agent panel (brainstorm + spec-challenger + spec-defender; audits in `.praxia/audits.jsonl`)
+reviewed this spec. The **core thesis held** (energy is a new peer axis, not a logit-`StageSet`
+bolt-on), but the following claims were **wrong or underspecified** and are corrected here. The
+forward-looking resolutions (design forks, corrected DAG, risk register, bathos claim) live in
+[`plans/260709_proteinebm-epic-backlog-dag.md`](../plans/260709_proteinebm-epic-backlog-dag.md),
+which supersedes §7–§9 of this spec.
+
+| ID | Finding | Correction |
+| :-- | :-- | :-- |
+| **BLOCKER-1** | §3.3 claimed the Langevin noise-level model-swap reuses `inference/schedule_selector.py` wrapped as an `AxisBoundary`. **False**: `schedule_selector.py` is chromatic decode-*order* (W0.3) tooling; `AxisBoundary` must flatten to zero JAX leaves so it **cannot** hold swappable 85M-param models. | The model-swap is **net-new** (`lax.cond` over pre-loaded models, mirroring the reference `get_dynamics_model(t)`). Residual: N×85M memory if all-resident; else host-side per-t-range segmentation. (§3.3 corrected.) |
+| **BLOCKER-2** | §3.3 called the multistate difference-fuse a `DecodingFusionFn`. **False + self-contradictory** with §3.2: `DecodeOutput` is `{sequences, logits}` only; a scalar energy / `N×3` score is not a `DecodeOutput`. | The seam is a **new `EnergyFusionFn`** implementing the **generic** `FuseFn`/xtrax `Fuse[S,O]` protocol (`types/stages.py:64`), a peer of the logit-typed fusion — not the logit-typed class. Do **not** extend the JIT-boundary `DecodeOutput`. (§3.3 corrected.) |
+| **MAJOR-3** | Weight-port filed as "optional", yet every published-number gate depends on it (near-circular: port validated by the Spearman gate). | New **independent** gate node **E3.5** (per-tensor allclose vs ref forward; `E=0` on zero-`r`; `−∇E`==analytic score) validates the port itself. + validation-only retrain fallback. (EPIC §1 Fork 3, §2.) |
+| **MAJOR-4** | §3.3 modeled Langevin as a clean nested `Scan`. Reference has variable inner trip-count, Metropolis-Hastings, and host-side importance resampling. | Corrected in §3.3 + EPIC E9/E10 (pad-to-max+mask; `lax.cond`; host `Sink`). |
+| **MAJOR-5** | §8.2 accuracy "claim" was metric rows, not hypotheses (no null/misspec; no clause map) → Union Gate inert (bathos Signal 12); `0.838`/`0.686` conflated benchmarks. | Real claim with ≥2 hypotheses incl. a null (masked-sequence must degrade) + clause mapping + **disaggregated pinned targets** — EPIC §4.2. |
+| **MAJOR-6** | §3.1 "no new math… scalar head plus autograd" understates the **second-order** training grad (∂²E/∂x∂θ); §4/§8.1 invariants test first-order only; self-conditioning omitted stop-gradient. | `jax.checkpoint` + a **new 2nd-order finite-diff invariant** gating E8; `jax_debug_nans` once; self-cond recycled estimate is **stop-gradient** (2× forward cost noted). EPIC §1 Fork 2. |
+| **MAJOR-7** | §7.1 DAG edge `E9→E8` wrong; `E5/E6/E7 [P]` share the single `_sample_batch`. | EPIC §2: E9 depends on the **checkpoint gate E3.5**, not E8; E4 pre-stubs **3 separate dispatch fns**; E11 split per-application. |
+| **MINOR** | `resolve_kernel_fn` (§3.2, from `COMPOSITION_GUIDE.md:283`) does not exist; `driver.decode` is deprecated (`infer_topology` inert — real dispatch is `host/plan.py` mode resolution + `kernel_dispatch.py`). | Wiring lands in `host/plan.py` (`EnergyScoreDecode` mode class) + `kernel_dispatch.py`, not `driver.decode`. (EPIC §1 Fork 1.) |
+| **MINOR** | §3.4/E2 attributed `SinusoidalEmbedding`/`SwiGLU` to `training/diffusion.py`. | They live in **`model/diffusion_mpnn.py`**; `training/diffusion.py::NoiseSchedule` is the (distinct) sequence-space cosine schedule. |
+| **MINOR** | §3.1 omitted non-equivariance/augmentation. | Energy is not SO(3)-invariant by construction; deterministic decoy/`ΔE` ranking needs `rotate=False`; any augmentation rotation inside the differentiated energy must be **constant w.r.t. the grad**. |
+| **MINOR** | §8.3 lengths `{64,128,256,512}` vs §9.4 buckets `(128,256,384,512)` — L=64 → 4× pad waste; benchmark not apples-to-apples. | Buckets `(64,128,256,512)` aligned to the sweep (EPIC Fork 6); PyTorch baseline **drops `create_graph`** at inference; SM120 XLA-detune noted; exclude JIT warmup. |
+| **MINOR** | `coordinate_scaling` applied in the diffuser **and** `ebm.forward` **and** under `precondition` — a ~10× score-error footgun. | §8.1 invariant must pin single-application explicitly. |
+| **MINOR** | §6 PBCNet2.0 leaned on a topology-reuse argument that shares BLOCKER-2's flaw (scalar affinity ≠ `DecodeOutput`). | Deferral verdict stands, but the rationale now **leads with dependency/domain** (DGL 1.0.2/py3.8 pickled model, RDKit/pose, 8.6M-pair pipeline), not composition-topology reuse. |
+| **Stale-skill** | The `using-xtrax` "⚠ GAP: `make_inference_plan` validator does not exist" note is **false** on xtrax 0.4.0a5 — `validate_plan_topology` is wired at `host/plan.py:440-446`. | The ordered-`Sink`+`Vmap` trajectory conflict (§3.3) is caught at plan-construction time for free; do not re-file as an open risk. |

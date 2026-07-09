@@ -6,6 +6,7 @@
 - [260508_active-roadmap](roadmaps/260508_active-roadmap.md) — **Active** — MODELINPUTS PR-4/5, EncoderPreFn/PostFn, multi_state_temperature
 
 ## Plans
+- [260709_proteinebm-epic-backlog-dag](plans/260709_proteinebm-epic-backlog-dag.md) — **PROPOSAL, gated on user review before praxia filing** (task `260709_aminxtension`) — EPIC + backlog DAG for the ProteinEBM energy/score path, output of the compose→brainstorm→adversarial-critique pipeline (challenger `not_ready` + defender `needs_revision`, both resolved). Resolves design forks 1–11 (readout = additive `StageSet` peer slots; 2nd-order AD via nested `jax.grad`+`checkpoint` + new invariant gate; orbax weight-port + validation-retrain; buckets `(64,128,256,512)`; Langevin = outer `CarrySpec`+`Scan` / inner `while_loop` + net-new model-swap; Engine for E8 only). Corrected DAG (E0–E12 + gates E3.5/E4.5, E11a–d) fixing the 2 BLOCKERs (schedule_selector/`AxisBoundary` model-swap; scalar-energy≠`DecodeOutput`) + 5 MAJORs. Includes bathos parity/claim(Union Gate)/throughput instruments. Filing plan in §5 (not executed).
 - [260614_runspec-migration-map](plans/260614_runspec-migration-map.md) — RS-1 host-field inventory: 67 fields, 22 migrated, 16 to migrate, 9 RS-gaps, 21 protein-only
 - [260522_comp-new-sink-unify](plans/260522_comp-new-sink-unify.md) — COMP-NEW: unify result-sink topology; streaming_tensor_sink_session for non-streaming path
 - [260525_comp-unified-encoder-fusion](plans/260525_comp-unified-encoder-fusion.md) — COMP-UNIFIED: encoder fusion via InferencePlan; eliminate averaged-path branch

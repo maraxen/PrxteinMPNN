@@ -31,6 +31,7 @@ from aminx.host.output_sinks import (
     active_sampling_staging_sink,
     encoder_sink_session,
     streaming_tensor_sink_session,
+    take_staging_sequences_logits,
 )
 from aminx.host.plan import InferencePlan, InferenceComponents
 from aminx.inference.sample_autoregressive import SampleResult
@@ -396,6 +397,60 @@ def test_sample_batch_path_b_noise_dim_1(monkeypatch):
     assert seqs.shape[2] == 1, (
         f"Path B with K=1 fusion: expected dim[2]=1 (K), got shape {seqs.shape}"
     )
+
+
+def test_sample_batch_path_b_populates_streaming_tensor_sink(monkeypatch):
+    """Path B (encoding_fusion, i.e. multi-state/PoE) must stage into the
+    streaming tensor sink exactly like Path A does.
+
+    Regression test: necklace-p2 multi-state PoE campaign rows failed with
+    "Streaming tensor sink missing entry for key=(0, 0, N); pending=[]" when
+    run through the real `campaign run` -> `_sample_streaming` ->
+    `take_staging_sequences_logits` path. No existing test caught this --
+    test_sample_batch_path_b_noise_dim_1 (above) exercises Path B but only
+    checks _sample_batch's direct return value, never the io_callback-staged
+    sink; the Path-A-only sink tests in test_sampling_tensor_batch_io.py never
+    exercise Path B. This test closes that gap by combining both: run Path B
+    inside a real streaming_tensor_sink_session and confirm the take-back
+    succeeds.
+    """
+    from aminx.host.kernel_dispatch import _sample_batch
+
+    _make_dispatch_monkeypatches(monkeypatch, noise_dim=2)
+
+    def _mock_safe_map_path_b(fn, xs, batch_size=None):
+        # Simulate (B=1, K=1, T=1, N=2, L=10), matching test_sample_batch_path_b_noise_dim_1.
+        return (
+            jnp.zeros((1, 1, 1, 2, 10), dtype=jnp.int32),
+            jnp.zeros((1, 1, 1, 2, 10, 21), dtype=jnp.float32),
+        )
+
+    monkeypatch.setattr(
+        "aminx.host.kernel_dispatch._safe_map", _mock_safe_map_path_b
+    )
+
+    spec = _make_spec(backbone_noise=[0.0, 0.1])
+    batched_ensemble = _make_fake_protein(batch_size=1, seq_len=10)
+    plan = _make_mock_plan(encoding_fusion=ArithmeticMeanEncodingFusion())
+
+    with streaming_tensor_sink_session():
+        _sample_batch(
+            spec,
+            batched_ensemble,
+            plan,
+            batch_idx=0,
+            structure_batch_count=1,
+            chunk_sample_start=0,
+            chunk_sample_count=2,
+        )
+        jax.effects_barrier()
+        sink = active_sampling_staging_sink()
+        assert sink is not None, "streaming tensor sink must be active"
+
+        # This is the exact call real streaming code makes right after
+        # sample_batch_fn + sink_barrier(); it must find the entry Path B just staged.
+        sequences, logits = take_staging_sequences_logits(0, 0, 2)
+    assert sequences.shape[0] == 1  # noqa: PLR2004
 
 
 # ---------------------------------------------------------------------------

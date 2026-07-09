@@ -1,6 +1,6 @@
 ---
 title: MBR post-hoc consensus reranking — states via genuine jax.vmap over tev_design's already-canonicalized (padded, uniform-shape) bundle reusing existing ConditionalDecode/_VmapEncode machinery, candidates via xtrax AxisSpec/BatchPlanner on N_CANDIDATES; not a new axis_boundaries Fuse, not a Python loop over either axis, not SafeMap over a genuinely ragged array (impossible)
-status: Draft, fifth revision (supersedes a factually-incorrect contemplex brainstorm artifact — see "Provenance" below for the full correction history)
+status: Draft, sixth revision (supersedes a factually-incorrect contemplex brainstorm artifact — see "Provenance" below for the full correction history)
 date: 2026-07-09
 related: praxia debt #536 (tev_design), tev_design prereg 260709_multistate-fusion-strategy-comparison.md
 ---
@@ -114,6 +114,34 @@ axis. Non-fatal today (`_plan_axis_strategy` never emits `Scan`, the only strate
 reject), but worth fixing independently of this spec so the safety check isn't silently dead for the one
 axis most likely to need it.
 
+**Sixth round (maintainer question, oracle-level critique):** the maintainer asked the right follow-up —
+if `N_STATES.heterogeneous=True` is registered, shouldn't aminx's own `RunSpec`/`AxisSpec` machinery
+already handle padding/bucketing for it automatically via xtrax, rather than this design (and
+tev_design) relying on manual pre-padding? An independent oracle-level review confirmed: **no** —
+`N_STATES`'s registration is not connected to the real production encode path at all.
+`make_encode_fn` (`inference/encode.py:267-295`) selects `_VmapEncode`/`_ScanEncode` via a plain boolean
+(`use_rolling_state`, sourced from a spec field at `host/plan.py:790-791`), never consulting
+`AxisSpec`/`BatchPlanner`. `make_sampling_planner` (`plan.py:229-236`) — the one real place a
+heterogeneous-axis guard exists (`_plan_with_joint_budget`, `plan.py:106-116`) — passes only
+`N_STRUCTURES, N_SAMPLES, N_TEMPERATURES, N_NOISES`; `N_STATES` is never in that list.
+
+More fundamentally: `InferenceBundle`/`GeometryBundle` cannot even represent genuinely ragged states in
+the first place (`coords`/`atom_37`/masks are all single stacked arrays with a uniform leading `S` axis,
+`encode.py:52,118-132`) — there is no code path to construct a bundle with per-state-varying shapes at
+all. So this is a real, evidenced gap (the registry's `heterogeneous=True` claim is unenforced and, as
+currently written, unenforceable), but it is **not** a live landmine — zero blast radius today, since
+every real caller (confirmed: tev_design's `build_canonical_bundle.py`) pre-pads before ever
+constructing a bundle, and no code path exists for anyone to do otherwise.
+
+**Scoping decision:** fixing this properly (real padding/bucketing wired into the live
+`inference/encode.py`/`make_encode_fn` path, or relabeling `N_STATES.heterogeneous=False` to make the
+registry honest) is out of scope for this PR — it touches production encode/sampling code with its own
+JIT/parity/test burden, a different risk category than adding new post-hoc scoring code. Filed
+separately: `../decisions/260709_n-states-heterogeneous-flag-unenforced.md`. What DOES fold into this
+PR (cheap, zero risk to the production path): this design's dependency on pre-padded, uniform-shape
+input is made an **explicit, asserted precondition** rather than an implicit assumption — see §3's
+updated pseudocode and §6's new acceptance criterion.
+
 ## 1. What already exists (verified, reusable as-is)
 
 - **`build_canonical_bundle.py:28`** (tev_design side) — `N_CANONICAL = 214`. Every reference state's
@@ -224,8 +252,19 @@ production machinery, candidates via xtrax `BatchPlanner`):
 ```python
 def mbr_rerank(model, canonical_bundle, candidate_sequences, prng_key, top_k=1):
   # canonical_bundle: the padded, N_CANONICAL=214-uniform multi-state InferenceBundle/GeometryBundle
-  # tev_design's build_canonical_bundle.py already produces -- genuinely vmappable over S, no
-  # heterogeneous-axis handling needed (§1, §2).
+  # tev_design's build_canonical_bundle.py already produces -- genuinely vmappable over S.
+  #
+  # EXPLICIT PRECONDITION (sixth-round fold-in, not an implicit assumption): N_STATES.heterogeneous=True
+  # is NOT enforced anywhere in aminx's production encode path (see Provenance, sixth round, and
+  # ../decisions/260709_n-states-heterogeneous-flag-unenforced.md) -- this function REQUIRES uniform
+  # per-state shape and does not defend against ragged input itself. `canonical_bundle.geometry.coords`
+  # is already a single stacked (S, L, 4, 3) array by construction (the bundle type cannot hold ragged
+  # per-state data at all -- §6/oracle finding), so there is no runtime shape-heterogeneity check to
+  # write here; the real assertion this precondition calls for is a DOCSTRING/type-level statement on
+  # `mbr_rerank` itself ("canonical_bundle must be pre-padded to uniform L before this call; this
+  # function will not detect or reject a caller who somehow bypasses that"), not a runtime branch --
+  # implementer: write that docstring explicitly rather than letting it be implicit like it was through
+  # five rounds of this spec's own history.
   encode_fn = ...  # score_conditional.encode() / _VmapEncode, reused as-is -- no new code
   encodings = encode_fn(model, prng_key, canonical_bundle, config)  # (S, L, H) -- real jax.vmap over S
 
@@ -281,6 +320,13 @@ during AR sampling (not post-hoc scoring — that's a much smaller ask and could
 `mbr_rerank`-style pattern with a checkpoint axis substituted for the state axis, worth checking first).
 
 ## 6. Acceptance Criteria (Given/When/Then)
+
+- **Given** `mbr_rerank`'s final implementation and docstring.
+- **When** read by someone with no context on this spec's five-round correction history.
+- **Then** the docstring explicitly states the pre-padded-uniform-shape precondition (per the sixth-round
+  fold-in) — this must be a stated contract, not something a future maintainer has to rediscover by
+  reading `../decisions/260709_n-states-heterogeneous-flag-unenforced.md` or by hitting a `jax.vmap`
+  shape error themselves.
 
 - **Given** the k reference states, canonicalized via tev_design's `build_canonical_bundle.py`
   (`N_CANONICAL=214`, uniform shape), and a set of already-sampled candidate sequences (arbitrary count

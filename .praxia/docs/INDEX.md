@@ -51,6 +51,7 @@
 - [260706_planner-stays-on-aminx-tiling-by-design](decisions/260706_planner-stays-on-aminx-tiling-by-design.md) — **Superseded** (2026-07-06, same day) — the algorithmic gap this recorded is closed by xtrax 0.4.0a1's joint-budget mode; see the planner-migration spec.
 - [260706_carryspec-dedupspec-stay-local-carryshape-migrates](decisions/260706_carryspec-dedupspec-stay-local-carryshape-migrates.md) — **Superseded in part** (2026-07-06, same day) — `CarrySpec`/`DedupSpec` unblocked by the planner migration spec; `CarryShape` portion (migrated) still stands.
 - [260706_bucketing-pad-stay-local-epic-1541-p3-scope-closed](decisions/260706_bucketing-pad-stay-local-epic-1541-p3-scope-closed.md) — **Accepted 2026-07-06**: EPIC #1541 P3 scoping closed — `bucketing.py`/`pad.py` stay local (planner companion / pure domain logic). `aminx.tiling` will NOT be fully deletable as originally envisioned; recommends updating backlog #1483 accordingly.
+- [260709_n-states-heterogeneous-flag-unenforced](decisions/260709_n-states-heterogeneous-flag-unenforced.md) — **Open, deferred**: `N_STATES.heterogeneous=True` is unwired from the real encode path and currently unenforceable (bundle can't hold ragged states at all); zero blast radius today, decision needed (relabel vs. implement) is out of scope for PR #92.
 
 ## ADRs (Legacy)
 

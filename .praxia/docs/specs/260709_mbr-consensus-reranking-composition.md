@@ -1,6 +1,6 @@
 ---
-title: MBR post-hoc consensus reranking — S×C (state × candidate) composition via xtrax AxisSpec/BatchPlanner on both axes, mirroring the existing R×C precedent, not a new axis_boundaries Fuse and not a Python loop over either axis
-status: Draft (supersedes a factually-incorrect contemplex brainstorm artifact — see "Provenance" below)
+title: MBR post-hoc consensus reranking — states via genuine jax.vmap over tev_design's already-canonicalized (padded, uniform-shape) bundle reusing existing ConditionalDecode/_VmapEncode machinery, candidates via xtrax AxisSpec/BatchPlanner on N_CANDIDATES; not a new axis_boundaries Fuse, not a Python loop over either axis, not SafeMap over a genuinely ragged array (impossible)
+status: Draft, fifth revision (supersedes a factually-incorrect contemplex brainstorm artifact — see "Provenance" below for the full correction history)
 date: 2026-07-09
 related: praxia debt #536 (tev_design), tev_design prereg 260709_multistate-fusion-strategy-comparison.md
 ---
@@ -68,118 +68,148 @@ given `N_STATES`'s own heterogeneity-driven `default_batch_size=1`) executes clo
 difference is that it goes *through* xtrax's registered, memory-budget-aware, EDA-inspectable dispatch
 machinery — consistent with every other axis in this codebase — rather than around it.
 
+**Fifth round (independent Opus review, loaded `/using-jax` and `/using-xtrax` first):** the fourth
+round's fix is itself infeasible, and infeasible in a way that invalidates the entire mechanism, not
+just a detail. `SafeMap`/`jax.vmap` (`src/aminx/utils/safe_map.py:44-52`) require a **stacked array with
+a uniform leading axis** — they slice a rectangular array; they do not ragged-iterate Python objects.
+States with genuinely different shapes (the fourth round's own stated premise) **cannot be assembled
+into such an array at all** — `SafeMap(tile=1)` was never going to work regardless of tile size. Worse:
+the R×C precedent this design claimed to mirror is not actually analogous — `batched_encode_fn`
+(`conditional_logits.py:378-405`) maps over `replicate_keys` (a homogeneous key array) with the single
+structure **closed over as a constant**; it never varies the structure, so heterogeneity never arises
+there. "Mirror R×C, swap the axis" was structurally unsound from the start for an axis over
+*different structures*, not repeated draws of one structure.
+
+The actual fix, found by checking how aminx **already** solves this elsewhere rather than inventing a
+new mechanism: `GeometryBundle.coords` is `[S, L, 4, 3]` with a **static, padded** `n_canonical`
+(`types/bundles.py:57-63`); `inference/encode.py`'s `_VmapEncode` already vmaps over S on this padded,
+uniform-shape stack (genuinely, not SafeMap-over-ragged); and — checked directly during this
+correction — **tev_design's own `build_canonical_bundle.py:28` already sets `N_CANONICAL = 214` and pads
+every reference state's arrays to that fixed size before they ever reach aminx**
+(`can_coords = np.zeros((N_CANONICAL, N_ATOM37, 3), ...)`, line 237). So the states this design actually
+receives are **not** ragged by the time they arrive — `N_STATES`'s `heterogeneous=True` in the tiling
+registry is a conservative, general declaration covering the axis abstractly (some hypothetical future
+caller might not canonicalize first), not a fact about this concrete input. A genuine `jax.vmap` over
+states is legitimate here, reusing aminx's own existing, tested encode machinery — no SafeMap, no
+padding logic to invent, no heterogeneity problem to solve, because tev_design already solved it
+upstream. §1–§3 are rewritten a third time around this.
+
+One more thing this round found, reusable rather than needing new invention:
+`ConditionalDecode.__call__` (`inference/decode/conditional.py:79-155`) already computes
+`logits_stack = _project_logits(self.model, decoded)` (line 150) — genuine **per-state, unfused**
+logits via `jax.vmap` over the padded bundle — immediately BEFORE its two fusion calls
+(`_apply_logit_transform`, `_apply_tie_group_fuse`, lines 154-155). This is exactly the "independent
+per-state result computed via real vmap, no python loop, no fusion" this design needs, and it's an
+intermediate value inside existing, working code, built from pure, explicitly-vmappable helpers
+(`_decode_one_step`, `_project_logits`, `inference/decode/_kernel.py:16-108`, both docstring-documented
+as "Can be vmapped over states"). No need to hack `stage_set` with an identity transform (which risked
+breaking `_apply_tie_group_fuse`, per the second-round finding) — a small new function that mirrors
+`ConditionalDecode.__call__` up to and including the `logits_stack` line, and simply doesn't call the
+two fusion lines, sidesteps that risk entirely by construction.
+
+Minor, non-blocking observation from this round, worth recording so it isn't lost: `N_STATES.name` is
+`"n_states"`, but `make_axis_dispatch_via_xtrax`'s heterogeneity guard checks against the literal string
+`"state"` (`tiling/dispatch.py`) — a name mismatch that means the guard doesn't actually fire for this
+axis. Non-fatal today (`_plan_axis_strategy` never emits `Scan`, the only strategy that guard exists to
+reject), but worth fixing independently of this spec so the safety check isn't silently dead for the one
+axis most likely to need it.
+
 ## 1. What already exists (verified, reusable as-is)
 
-- **`N_STATES`** (`tiling/axes.py:44-51`) — already registered: `cardinality=64, default_batch_size=1,
-  tile_granularity=1, heterogeneous=True`. The comment above it ("Shapes vary across states") and the
-  `default_batch_size=1` are the codebase's own acknowledgment that this axis cannot be naively `vmap`'d
-  — a `BatchPlanner` decision for a heterogeneous axis correctly demotes toward `SafeMap` with a small
-  tile (here, effectively 1) rather than a true batched Vmap. **This design dispatches the state axis
-  through this existing registration**, not around it.
-- **`N_CANDIDATES`** (`tiling/axes.py:131-137`) — already registered, homogeneous (all candidates for a
+- **`build_canonical_bundle.py:28`** (tev_design side) — `N_CANONICAL = 214`. Every reference state's
+  arrays are padded to this fixed size (`can_coords = np.zeros((N_CANONICAL, N_ATOM37, 3), ...)`, line
+  237) before they reach aminx. **This is what makes the state axis genuinely uniform-shape in
+  practice** — the heterogeneity concern is already resolved upstream, by existing infra, not something
+  this design needs to solve.
+- **`inference/encode.py`'s `_VmapEncode`** (`encode.py:36-...`) — encodes S states via a genuine
+  `jax.vmap`, already used in production by `sample_autoregressive` and `score_conditional` (per this
+  module's own docstring, lines 1-9). Takes a padded, uniform-shape `InferenceBundle`/`GeometryBundle`.
+  **Reused as-is for encoding** — no new encode code needed.
+- **`ConditionalDecode.__call__`** (`inference/decode/conditional.py:79-155`) — computes
+  `logits_stack = _project_logits(self.model, decoded)` (line 150) — genuine **per-state, unfused**
+  logits via `jax.vmap` over the padded bundle (`decoded = self.state_iterator(per_state_fn,
+  per_state_inputs, in_axes=0)`, line 148) — **immediately before** its two fusion calls
+  (`_apply_logit_transform` line 154, `_apply_tie_group_fuse` line 155). This intermediate value is
+  exactly "independent per-state result, computed via real vmap, no fusion" — the thing MBR needs.
+- **`_decode_one_step`, `_project_logits`** (`inference/decode/_kernel.py:16-108`) — the pure helpers
+  `ConditionalDecode` calls internally to produce `logits_stack`. Both docstring-documented as "Can be
+  vmapped over states" — explicitly designed to be reused/composed this way, not private implementation
+  detail that happens to be reusable.
+- **`N_CANDIDATES`** (`tiling/axes.py:131-137`) — already registered, homogeneous (candidates for a
   given bead share sequence length `L`), consumed today by `make_batched_conditional_logits_split_fn`'s
-  `batched_decode_fn` (below).
-- **`_plan_axis_strategy`** (`sampling/conditional_logits.py:287-334`) — resolves any `AxisSpec` (not
-  candidate-specific) to `Vmap()`/`SafeMap(tile=N)` via `BatchPlanner`, with an explicit docstring
-  warning: *"never hand-roll `jax.vmap`/`lax.map` chunking here."* This is genuinely axis-generic — the
-  same function this design reuses for `N_STATES` is the one `batched_decode_fn` already uses for
-  `N_CANDIDATES`.
-- **`make_axis_dispatch_via_xtrax`** (`tiling/dispatch.py:146-...`) — the dispatch-to-iterator layer;
-  explicitly rejects `Scan` on a `heterogeneous_axes` member (not relevant here — `_plan_axis_strategy`
-  only ever selects `Vmap`/`SafeMap`, both of which remain valid for a heterogeneous axis via a
-  small-enough tile size) and rejects `DedupGather` outright.
-- **`make_batched_conditional_logits_split_fn`** (`sampling/conditional_logits.py:337-439`) — the
-  existing R×C (replicate × candidate) precedent this design's new S×C (state × candidate) function
-  mirrors structurally. `batched_encode_fn`/`batched_decode_fn` batch an arbitrary number of candidates
-  via `N_CANDIDATES` exactly as described above. `batched_decode_fn(encodings, candidate_sequences,
-  ar_mask=None)` returns `(R, C, L, 21)` logits (`conditional_logits.py:437`) — raw logits, not a score;
-  a scoring step is applied on top (see §3).
-- **`make_encoding_conditional_logits_split_fn`** (`conditional_logits.py:145-177`) — the underlying
-  single-call encode_fn/decode_fn pair `make_batched_conditional_logits_split_fn` wraps for R. This
-  pair is generic to "one structure in, encode once, decode many sequences against it" — it has no
-  R-specific or state-specific logic baked in, which is exactly why it's reusable as the inner kernel
-  for a new S-axis (state) dispatcher, mirroring how it's already reused as the inner kernel for the
-  R-axis (replicate) dispatcher.
-- **`compute_pseudo_perplexity`** (`host/logit_aggregation.py:14-53`) — pure JAX, correct as-is; used on
-  `batched_decode_fn`'s output to turn `(R, C, L, 21)` logits into per-candidate NLL. **Real integration
-  detail, not a blocker:** its signature hardcodes a rigid 4-leading-dim shape convention
-  (`[batch, samples, noise, temp, seq_len, 21]` in, `[batch, samples, noise, temp]` out, with
-  `mask_sum[:, None, None, None]` baked in at line 51) inherited from a different pipeline (the stage3
-  sampling grid). `batched_decode_fn`'s `(R, C, L, 21)` output only has 2 leading dims, not 4 — either
-  reshape to `(R, C, 1, 1, L, 21)` before calling it (R=1 in this design, so trivial), or write the
-  ~4-line NLL reduction directly (`-jnp.sum(one_hot(seq) * log_softmax(logits, axis=-1), axis=(-1,-2))`,
-  which is axis-generic and doesn't need the rigid wrapper at all). Flag this explicitly at
-  implementation time rather than assuming direct compatibility.
-- **`aminx.score()`** (fully public, top-level export — `aminx/__init__.py:24`,
-  `src/aminx/scoring/score.py:157-230`) — exists, returns `(masked_average_score, logits,
-  decoding_order)` where `masked_average_score` is masked-average NLL (`_nll_from_logits`,
-  `score.py:29-51`) — **lower is better**. Documented here for context and because it establishes the
-  scoring-direction convention (§2), but it is **not** used as this design's primary path: it takes
-  exactly one candidate sequence per call (`L = sequence.shape[0]` at `score.py:111`, no batch dimension
-  anywhere), which would force a Python loop over candidates instead of the xtrax-batched dispatch
-  above — precisely the wrong direction given xtrax's whole purpose is making arbitrary-axis batching
-  easy, not something to bypass with a manual loop.
-- Underneath both `aminx.score()` and this design's primary path:
-  `ConditionalDecode` fuses per-state logits via `self._apply_logit_transform(logits_stack, stage_set,
-  ...)` (`inference/decode/conditional.py:154`) when a `stage_set` is involved — this is what makes
-  calling with more than one state loaded at once the WRONG shape for MBR (see §2). The primary path
-  here (`make_encoding_conditional_logits_split_fn`) doesn't invoke this at all, so it isn't a concern
-  for it; it only matters as an explanation of why `aminx.score()`'s `multi_state_strategy` can't be
-  used to process multiple states in one call for this purpose.
+  `batched_decode_fn`. Still the right mechanism for the candidate axis — this round's correction is
+  about the state axis, not the candidate axis (rounds 3's fix there still holds).
+- **`_plan_axis_strategy`** (`sampling/conditional_logits.py:287-334`) — resolves any `AxisSpec` to
+  `Vmap()`/`SafeMap(tile=N)` via `BatchPlanner`. Reused for the candidate axis exactly as in round 3;
+  **not** reused for the state axis in this round's design (see below — the state axis now uses a
+  direct `jax.vmap` over the already-padded bundle, matching how `_VmapEncode`/`ConditionalDecode`
+  already do it, rather than routing through `BatchPlanner` a second time for an axis that's already
+  handled by existing, proven machinery).
+- **`compute_pseudo_perplexity`** (`host/logit_aggregation.py:14-53`) — pure JAX, correct as-is.
+  **Real integration detail, not a blocker:** its signature hardcodes a rigid 4-leading-dim shape
+  convention (`[batch, samples, noise, temp, seq_len, 21]` in) inherited from a different pipeline (the
+  stage3 sampling grid) — the new function's `(S, C, L, 21)` output (§3) has 2 leading dims, not 4;
+  either reshape before calling it, or write the ~4-line NLL reduction directly (axis-generic, doesn't
+  need the rigid wrapper). Flag this at implementation time rather than assuming direct compatibility.
+- **`aminx.score()`** — documented for context only (establishes the lower-is-better scoring
+  convention, §2), not used as this design's mechanism: it takes one candidate per call and internally
+  runs `ConditionalDecode`'s fusion, neither of which fit here.
 
-## 2. The actual shape mismatch this spec resolves
+## 2. The actual mismatch this spec resolves, and why the state axis is genuine `vmap`, not `SafeMap`-over-ragged
 
-MBR reranking (per tev_design idea-006 / the 260709 research prereg) needs the **average of k
-independently-computed per-state scores**, not a score against an already-state-fused logit tensor.
-Loading all k states into one call to anything that runs `ConditionalDecode`'s `stage_set.logit_transform`
-fusion (e.g. `aminx.score()`'s `multi_state_strategy`) would produce exactly the wrong quantity — a
-score against fused logits, not the average of independent per-state scores; worse, `_apply_logit_transform`'s
-output feeds directly into `_apply_tie_group_fuse` (`inference/decode/conditional.py:154-155`), which
-almost certainly assumes already-reduced (non-stacked) logits — passing an identity/no-op transform to
-get unfused per-state logits out of `ConditionalDecode` would risk breaking that downstream step in a
-non-obvious way. `ConditionalDecode` is the wrong tool for this regardless of how it's parameterized.
+MBR reranking needs the **average of k independently-computed per-state scores**, not a score against
+an already-state-fused logit tensor. `ConditionalDecode` always fuses (`_apply_logit_transform` then
+`_apply_tie_group_fuse`, `conditional.py:154-155`) — passing it an identity/no-op transform to suppress
+fusion would risk breaking `_apply_tie_group_fuse`, which almost certainly assumes already-reduced input
+(second-round finding). So this design does not use `ConditionalDecode` at all; it reuses the
+pre-fusion `logits_stack` computation pattern directly (§1, §3).
 
-**Resolution — dispatch BOTH axes through xtrax, none through a raw Python loop:**
-- **Candidate axis (`N_CANDIDATES`, homogeneous)** — already correctly dispatched by
-  `make_batched_conditional_logits_split_fn`'s `batched_decode_fn` via `BatchPlanner` (Vmap/SafeMap,
-  arbitrary cardinality). Reused as-is.
-- **State axis (`N_STATES`, heterogeneous)** — dispatched via the *same* `_plan_axis_strategy` +
-  `make_axis_dispatch_via_xtrax` idiom, applied to the already-registered `N_STATES` `AxisSpec` instead
-  of writing a new one. Because `N_STATES.heterogeneous=True` and `default_batch_size=1`,
-  `BatchPlanner` correctly resolves this to `SafeMap(tile=1)` — practically sequential, but *through*
-  xtrax's registered dispatch machinery (memory-budget-aware, EDA-inspectable, consistent with how every
-  other axis in this codebase is handled), not a bespoke loop that bypasses it. If states ever become
-  more uniform in practice (unlikely — reference states are fundamentally different structures, not
-  noise replicates of one structure) `N_STATES`'s registry entry could later gain `bucket_boundaries`
-  for padded Vmap batching without changing any call site — that flexibility is exactly what dispatching
-  through xtrax buys over a hand-rolled loop, even though today's execution shape looks similar either way.
+**On the state axis specifically:** an earlier version of this correction assumed states are
+irreducibly heterogeneous (different shapes) and tried to dispatch them through xtrax's `BatchPlanner`
+as a `SafeMap(tile=1)`. That's impossible in principle — `SafeMap`/`jax.vmap` require a genuinely
+uniform-shape stacked array to operate on at all; they cannot ragged-iterate differently-shaped Python
+objects (fifth-round finding, verified against `utils/safe_map.py`). The actual resolution: **states
+aren't ragged by the time they reach this design** — tev_design's `build_canonical_bundle.py` already
+pads every state to `N_CANONICAL=214` (§1). `N_STATES.heterogeneous=True` in the tiling registry is a
+conservative declaration covering the axis abstractly, for hypothetical callers who might not
+canonicalize first — it is not a fact about this concrete, already-padded input. A genuine `jax.vmap`
+over states is legitimate and is exactly what `_VmapEncode`/`ConditionalDecode` already do in production
+today. This design reuses that same mechanism rather than inventing padding logic or heterogeneous-axis
+handling that isn't needed.
 
 ## 3. New code
 
-**A new split-fn constructor, mirroring the existing R×C precedent structurally** — this is the one
-piece of genuinely new aminx code beyond small reduction/selection helpers, and it earns its place by
-directly mirroring an established, proven pattern rather than inventing a new one:
+**A new function that mirrors `ConditionalDecode.__call__` up to its pre-fusion intermediate, then
+stops** — this is the one piece of genuinely new aminx code beyond small reduction/selection helpers,
+and it earns its place by reusing the exact existing pure helpers (`_decode_one_step`, `_project_logits`)
+that already compute the value this design needs, rather than fusing further like `ConditionalDecode`
+does:
 
-- **`make_multistate_candidate_logits_split_fn(model)`** (new; name is a TBD — mirror
-  `make_batched_conditional_logits_split_fn`'s naming convention exactly, swapping "batched" for
-  whatever term best signals "state axis, not replicate axis," at implementation time) — structurally
-  identical to `make_batched_conditional_logits_split_fn` (`conditional_logits.py:337-439`): same
-  `encode_fn`/`decode_fn` inner kernel from `make_encoding_conditional_logits_split_fn`, same
-  `_plan_axis_strategy` + `make_axis_dispatch_via_xtrax` composition — the **only** change is which
-  `AxisSpec` drives the outer axis (`N_STATES` instead of `N_REPLICATES`) and what the outer input
-  represents (k distinct reference structures, not R noise-replicate keys of one structure). Returns
-  `(batched_encode_fn_over_states, batched_decode_fn_over_states_and_candidates)` with the same
-  R×C-style call shape, just S×C.
+- **`decode_states_unfused(model, encodings, sequence_oh, ar_mask, key, decode_step, state_iterator)`**
+  (new; name is a TBD) — living alongside `ConditionalDecode` in `inference/decode/` (same package, so
+  it can reuse `_decode_one_step`/`_project_logits` from `_kernel.py` the same way `ConditionalDecode`
+  does). Body: the same `per_state_fn`/`state_iterator(...)`/`_project_logits(...)` sequence as
+  `ConditionalDecode.__call__` lines 108-150 — **and returns `logits_stack` directly**, never calling
+  `_apply_logit_transform`/`_apply_tie_group_fuse`. Output shape `(S, L, 21)` — genuine per-state,
+  unfused logits, computed via the SAME `jax.vmap`-based `state_iterator` `ConditionalDecode` already
+  uses (typically `VmapIterator`, matching `score_conditional.py`'s existing usage) — no new vmap
+  machinery to write, just a shorter call chain than `ConditionalDecode`'s.
+- **Candidate batching, reusing round 3's fix as-is**: wrap the above in the same `_plan_axis_strategy`
+  + `make_axis_dispatch_via_xtrax` composition over `N_CANDIDATES` that `make_batched_conditional_logits_split_fn`'s
+  `batched_decode_fn` already uses (`conditional_logits.py:412-437`) — i.e. dispatch
+  `decode_states_unfused` once per candidate (or per candidate chunk, if `BatchPlanner` selects
+  `SafeMap`), varying `sequence_oh`, reusing the SAME `encodings` (computed once via `_VmapEncode`/
+  `score_conditional.encode()`, §1 — encoding doesn't depend on sequence, only on structure, so it's
+  correctly computed once and reused across all C candidates, mirroring exactly how
+  `make_encoding_conditional_logits_split_fn`'s "encode once, decode many" split already works for R).
 
 Given this, the remaining genuinely new logic is small:
 
-1. **A small NLL-from-logits reduction** applied to the new function's `(S, C, L, 21)` output —
-   either `compute_pseudo_perplexity` after reshaping to its rigid 4-leading-dim convention
-   (`[batch, samples, noise, temp, seq_len, 21]`, `host/logit_aggregation.py:14-53`), or a direct ~4-line
-   equivalent (`-jnp.sum(one_hot(seq) * log_softmax(logits, axis=-1), axis=(-1,-2))`, axis-generic,
-   doesn't need the rigid wrapper). Produces `(S, C)` per-candidate-per-state scores in one shot — no
-   loop needed even for this step, since the state axis is already materialized as a real array
-   dimension by the SafeMap(tile=1) dispatch, not iterated in Python.
+1. **A small NLL-from-logits reduction** applied to the resulting `(C, S, L, 21)` (or `(S, C, L, 21)`,
+   ordering is an implementation choice) logits — either `compute_pseudo_perplexity` after reshaping to
+   its rigid 4-leading-dim convention (`host/logit_aggregation.py:14-53`), or a direct ~4-line
+   equivalent (axis-generic, doesn't need the rigid wrapper). Produces per-candidate-per-state scores in
+   one shot — no loop, since both axes are already real array dimensions by this point.
 2. **`average_cross_state_scores(per_state_scores: Float[Array, "S C"]) -> Float[Array, "C"]`** — a
    small, pure-JAX reduction, genuinely `Stacked[S] -> Out[O]` (states → one score per candidate).
    Simple elementwise mean over axis 0.
@@ -188,31 +218,38 @@ Given this, the remaining genuinely new logic is small:
    `jnp.argsort`/`jnp.argmin` over the candidate axis — **not** argmax; get the direction right, it is
    easy to invert by mistake.
 
-Composition (pseudocode — no Python loop over either axis; both dispatch through xtrax):
+Composition (pseudocode — no Python loop over either axis; states via direct `jax.vmap` reusing existing
+production machinery, candidates via xtrax `BatchPlanner`):
 
 ```python
-def mbr_rerank(model, state_structures, candidate_sequences, replicate_keys, top_k=1):
-  # state_structures: stacked (coords, mask, residue_index, chain_index) over the S state axis --
-  # matches N_STATES semantics (heterogeneous shapes allowed; this is NOT an InferenceBundle).
-  # replicate_keys here plays the same role batched_encode_fn's replicate_keys does today, but keyed
-  # over states, not backbone-noise replicates -- naming TBD at implementation time (§8).
-  batched_encode_fn, batched_decode_fn = make_multistate_candidate_logits_split_fn(model)  # new, mirrors R×C
+def mbr_rerank(model, canonical_bundle, candidate_sequences, prng_key, top_k=1):
+  # canonical_bundle: the padded, N_CANONICAL=214-uniform multi-state InferenceBundle/GeometryBundle
+  # tev_design's build_canonical_bundle.py already produces -- genuinely vmappable over S, no
+  # heterogeneous-axis handling needed (§1, §2).
+  encode_fn = ...  # score_conditional.encode() / _VmapEncode, reused as-is -- no new code
+  encodings = encode_fn(model, prng_key, canonical_bundle, config)  # (S, L, H) -- real jax.vmap over S
 
-  encodings = batched_encode_fn(state_structures, replicate_keys)  # dispatched over N_STATES via xtrax
-  logits = batched_decode_fn(encodings, candidate_sequences)  # (S, C, L, 21) -- C dispatched via xtrax too
-  per_state_scores = nll_from_logits(logits, candidate_sequences)  # (S, C) -- §3 item 1, no loop
+  # Candidate axis: dispatch decode_states_unfused over N_CANDIDATES via xtrax, exactly as
+  # batched_decode_fn already does for R x C (round 3's fix, reused unchanged here).
+  strategy = _plan_axis_strategy(N_CANDIDATES, candidate_sequences.shape[0], None, activation_bytes_per_element=...)
+  iterator = make_axis_dispatch_via_xtrax(strategy, axis=N_CANDIDATES.name)
+  def _decode_one_candidate(seq_oh):
+    return decode_states_unfused(model, encodings, seq_oh, ar_mask, prng_key, decode_step, state_iterator)
+  logits = iterator(_decode_one_candidate, candidate_sequences_one_hot)  # (C, S, L, 21) -- C via xtrax
+
+  per_state_scores = nll_from_logits(logits, candidate_sequences)  # (C, S) or (S, C) -- §3 item 1, no loop
   mean_score = average_cross_state_scores(per_state_scores)  # (C,)
   return select_mbr_candidates(mean_score, candidate_sequences, top_k=top_k)
 ```
 
-Both axes go through `_plan_axis_strategy`/`make_axis_dispatch_via_xtrax` — the state axis resolves to
-`SafeMap(tile=1)` (heterogeneous), the candidate axis resolves to `Vmap`/`SafeMap(tile=N)` depending on
-`C` and the memory budget, exactly as `batched_decode_fn` already does today. §6's acceptance criteria
-are written against this version. **Implementer note:** confirm at implementation time that
-`make_encoding_conditional_logits_split_fn`'s `encode_fn` doesn't assume anything replicate-specific
-(e.g. a shared `backbone_noise` scalar across the batched axis) that wouldn't make sense across
-genuinely different structures — it shouldn't, since it's documented as generic to "one structure in,"
-but this needs eyes-on verification, not assumption, before treating the mirror as exact.
+Neither axis uses a Python loop: states go through a genuine `jax.vmap` (reusing `_VmapEncode`'s and
+`ConditionalDecode`'s existing, production-proven mechanism, made legitimate by tev_design's upstream
+`N_CANONICAL` padding), and candidates go through xtrax's `BatchPlanner`-driven `Vmap`/`SafeMap` dispatch
+(reusing round 3's fix unchanged). §6's acceptance criteria are written against this version.
+**Implementer note:** this pseudocode elides real argument-plumbing detail (exact `InferenceConfig`/
+`AutoRegressiveMask`/`decode_step` wiring) that a from-scratch implementation will need to get right by
+reading `ConditionalDecode.__call__` and `score_conditional.encode()`/`kernel()` directly at
+write time — treat this as a structural sketch of the composition, not literal final code.
 
 ## 4. Where this lives — NOT `StageSet.axis_boundaries`
 
@@ -222,14 +259,13 @@ is inherently a **post-hoc batch utility**, not a per-decode-call `StageSet` sta
 exists to extend a *live* decode/`StageSet` pipeline; MBR reranking runs entirely after sampling is
 already complete and files are already written.
 
-**Decision:** ship `mbr_rerank` (composition function) plus the new
-`make_multistate_candidate_logits_split_fn` (§3) as standalone functions (new module, e.g.
-`aminx.sampling.mbr_consensus` — implementer's choice, mirror the nearest existing sibling module's
-layout), reusing `_plan_axis_strategy`/`make_axis_dispatch_via_xtrax` and the already-registered
-`N_STATES`/`N_CANDIDATES` `AxisSpec`s for both axes, mirroring the R×C pattern rather than inventing a
-new dispatch idiom. `StageSet.axis_boundaries` remains unpopulated by this work — it is a real, distinct
-extension point for a *future* live-decode use case, not this one. Do not force this task to be that use
-case's first occupant merely because the slot exists and is otherwise idle.
+**Decision:** ship `mbr_rerank` (composition function) plus the new `decode_states_unfused` (§3) as
+standalone functions (new module, e.g. `aminx.sampling.mbr_consensus` — implementer's choice, mirror the
+nearest existing sibling module's layout), reusing existing production encode machinery for the state
+axis and `_plan_axis_strategy`/`make_axis_dispatch_via_xtrax` + `N_CANDIDATES` for the candidate axis.
+`StageSet.axis_boundaries` remains unpopulated by this work — it is a real, distinct extension point for
+a *future* live-decode use case, not this one. Do not force this task to be that use case's first
+occupant merely because the slot exists and is otherwise idle.
 
 ## 5. Cross-model fusion (praxia debt #536) — deferred, corrected pointer only
 
@@ -246,25 +282,24 @@ during AR sampling (not post-hoc scoring — that's a much smaller ask and could
 
 ## 6. Acceptance Criteria (Given/When/Then)
 
-- **Given** k reference-state structures with GENUINELY DIFFERENT shapes (e.g. 1LVB/1LVM's extra
-  water/hetero chains vs. reac1/reac2's absence of them — the real heterogeneity already confirmed to
-  exist across this project's actual reference states), and a set of already-sampled candidate sequences
-  (arbitrary count C).
+- **Given** the k reference states, canonicalized via tev_design's `build_canonical_bundle.py`
+  (`N_CANONICAL=214`, uniform shape), and a set of already-sampled candidate sequences (arbitrary count
+  C).
 - **When** `mbr_rerank` is called with these inputs.
-- **Then** it runs to completion and produces correct per-state scores for every state — this is the
-  test that actually exercises `N_STATES.heterogeneous=True` and confirms `SafeMap(tile=1)` handles
-  varying per-state shapes correctly, not just same-shape states (a test using k copies of one state
-  would not catch a heterogeneity-handling bug).
+- **Then** it runs to completion via genuine `jax.vmap` over states (not a Python loop, not a
+  ragged-array operation) and produces correct per-state scores for every state — confirm this with a
+  test using states that have DIFFERENT pre-canonicalization residue counts (e.g. 1LVB/1LVM vs.
+  reac1/reac2), verifying the padding step is what makes vmapping legitimate, not an assumption.
 
-- **Given** k reference-state structures and a set of already-sampled candidate sequences from a
-  completed production run.
-- **When** `mbr_rerank`'s output is compared against k×C separate manual calls to `aminx.score()` (one
-  call per state per candidate, S=1 each, `multi_state_temperature=1.0`, `state_weights=None`) averaged
-  by hand.
-- **Then** results are numerically equivalent — i.e. a unit test must assert this, not just "runs
-  without error." This cross-checks two structurally different code paths (the new xtrax-dispatched
-  S×C composition vs. `aminx.score()`'s own single-call encode/decode/score) against each other — a
-  stronger check than testing either path in isolation.
+- **Given** `decode_states_unfused`'s per-state output for a SINGLE state (S=1 slice).
+- **When** compared against `ConditionalDecode.__call__`'s fused output for that same single state
+  (trivially, fusion over one element is a no-op for `ArithmeticMeanLogits`/regardless of parameters —
+  the S=1 case, not the general multi-state case).
+- **Then** results are numerically equivalent — this ties the new pre-fusion function back to the
+  existing, trusted, already-tested `ConditionalDecode` path, rather than trusting a from-scratch
+  reimplementation on its own. This is a stronger, more direct check than comparing against
+  `aminx.score()` (which wraps additional encode/decode logic of its own) — it isolates exactly the
+  claim this design depends on: that stopping before the two fusion calls doesn't change anything else.
 
 - **Given** the same candidate set scored via the new S×C composition with `C` candidates in one call
   vs. `C` separate calls each with a single candidate.
@@ -288,43 +323,43 @@ during AR sampling (not post-hoc scoring — that's a much smaller ask and could
   accidental `argmax` instead of `argmin` produces a runnable, plausible-looking, wrong result with no
   error).
 
-- **Given** the finished `mbr_rerank`/`make_multistate_candidate_logits_split_fn` module.
-- **When** grepped for imports and for the literal string `for ` at the top level of any function body.
-- **Then** it imports `_plan_axis_strategy`/`make_axis_dispatch_via_xtrax` and the `N_STATES`/`N_CANDIDATES`
-  `AxisSpec`s — contains **no** hand-written `for`/`while` loop over either the state or candidate axis
-  anywhere in the implementation (the state axis's practical sequentiality must come from
-  `SafeMap(tile=1)`, not a Python loop that bypasses xtrax) — and does **not** touch `types/stages.py`'s
-  `axis_boundaries` field or `inference/decode/autoregressive.py`'s live AR-loop fusion call site.
+- **Given** the finished `mbr_rerank`/`decode_states_unfused` module.
+- **When** grepped for imports and for the literal string `for ` / `while ` at the top level of any
+  function body.
+- **Then** the state axis is processed via `jax.vmap` (reusing `_VmapEncode`/`ConditionalDecode`'s
+  existing iteration machinery, e.g. `state_iterator`/`VmapIterator`) and the candidate axis via
+  `_plan_axis_strategy`/`make_axis_dispatch_via_xtrax` on `N_CANDIDATES` — contains **no** hand-written
+  `for`/`while` loop over either axis anywhere in the implementation — and does **not** touch
+  `types/stages.py`'s `axis_boundaries` field or `inference/decode/autoregressive.py`'s live AR-loop
+  fusion call site.
 
 ## 7. Assumptions
 
-- The k reference states (1LVB, 1LVM, reac1-reac, reac2-reac per tev_design's necklace campaign) are
-  already available as the raw, per-state `(coords, mask, residue_index, chain_index)` arrays the new
-  `make_multistate_candidate_logits_split_fn`'s `batched_encode_fn`-equivalent takes, stacked/collected
-  over the `N_STATES` axis (heterogeneous shapes allowed — **not** an `InferenceBundle`, and **not**
-  required to be uniform-shape the way `N_REPLICATES`' backbone-noise keys are) — this spec does not
-  address how tev_design constructs those; that's existing, working infra (`canonical_bundle.npz` per
-  tev_design's `build_canonical_bundle.py`), which will need a small extraction step to pull out the
-  per-array, per-state fields this function wants.
+- The k reference states (1LVB, 1LVM, reac1-reac, reac2-reac per tev_design's necklace campaign) arrive
+  as tev_design's existing `canonical_bundle.npz`-style padded representation (`build_canonical_bundle.py`,
+  `N_CANONICAL=214`), already uniform-shape and vmappable — **not** raw, ragged per-state arrays. This
+  spec does not address the tev_design-side construction of that bundle; it's existing, working infra.
+  If a future caller ever wants to feed this design genuinely un-canonicalized, differently-shaped
+  states directly, that's out of scope here and would need real heterogeneous-axis handling (padding
+  via `bucket_boundaries`, or similar) — not assumed to work by extension of this design.
+- `decode_states_unfused`'s reuse of `_decode_one_step`/`_project_logits` (private helpers in
+  `inference/decode/_kernel.py`) is assumed safe because `ConditionalDecode` itself already does exactly
+  this, in the same package — not reaching across a public API boundary. Confirm at implementation time
+  that no other invariant `ConditionalDecode.__call__` relies on between encode and `logits_stack` is
+  silently skipped by the new function (§6's cross-check against `ConditionalDecode` at S=1 is the real
+  test of this, not this assumption alone).
 - `BatchPlanner`'s Vmap/SafeMap strategy selection for the candidate axis is assumed to require no
-  special handling beyond passing the full candidate array — verified structurally (§1) but not yet
-  run against a real large-C candidate set from an actual necklace production output; §6's acceptance
-  criteria close this gap with real tests across the Vmap/SafeMap boundary AND across genuinely
-  heterogeneous state shapes.
-- `_plan_axis_strategy`'s generic (`AxisSpec`-parameterized, not candidate-specific) design is assumed to
-  work correctly when applied to `N_STATES` the same way it already works for `N_CANDIDATES`/`N_REPLICATES`
-  — the function's own signature and docstring support this (§1), but it has not yet been exercised
-  against `N_STATES` in any existing test; this is the one point in this design that most needs a real
-  run before being trusted, since it's the newest application of an old pattern.
+  special handling beyond passing the full candidate array — verified structurally (§1, reusing round
+  3's already-working `N_CANDIDATES` dispatch unchanged) but not yet run against a real large-C
+  candidate set from an actual necklace production output; §6's acceptance criteria close this gap.
 
-## 8. TBDs (only genuinely open items remain — see §1/§2/§3 for what independent review resolved)
+## 8. TBDs (only genuinely open items remain)
 
 - Exact new module path/name (`aminx.sampling.mbr_consensus` vs. `aminx.host.mbr_rerank` vs. other) —
   implementer's call, follow the nearest sibling module's naming convention at time of implementation.
-- Exact name for `make_multistate_candidate_logits_split_fn` (placeholder name used in §3) and for its
-  "replicate_keys-equivalent-but-really-states" parameter — should read clearly as "states," not reuse
-  "replicate" terminology, per this project's descriptive-naming convention; implementer's call at
-  write time, not a correctness question.
+- Exact name and final signature for `decode_states_unfused` (placeholder name used in §3) — implementer's
+  call at write time, following `ConditionalDecode`'s existing parameter naming closely since it mirrors
+  that function's body almost exactly, minus the final two fusion calls.
   Neither of these has correctness or scope implications — genuinely fine to leave to implementation time.
 
 **Resolved, not left open** (two independent review passes flagged these as too important to leave as
@@ -340,10 +375,14 @@ TBDs; both are now decided in this document rather than deferred):
   `batched_decode_fn` already batches an arbitrary number of candidates via xtrax's `BatchPlanner` on
   `N_CANDIDATES`, and IS the primary path. There is no separate "batched follow-up" — the batched
   version is the only version this spec describes.
-- **State-axis dispatch question** — corrected a further time (Provenance, fourth round): a raw Python
-  loop over states was NOT acceptable even though states genuinely need independent (non-fused) scores —
-  independence is an argument against fusion, not an argument for bypassing xtrax's dispatch layer. The
-  state axis is dispatched through the already-registered `N_STATES` `AxisSpec` (heterogeneous,
-  `default_batch_size=1`) via the same `_plan_axis_strategy`/`make_axis_dispatch_via_xtrax` idiom already
-  used for candidates — resolving to `SafeMap(tile=1)`, not a hand-written loop. There is no Python `for`
-  loop over either axis anywhere in this design.
+- **State-axis dispatch question** — corrected twice more after the fourth round's fix was itself
+  infeasible (Provenance, fifth round): a raw Python loop over states was correctly rejected (fourth
+  round), but the replacement — dispatching through `_plan_axis_strategy` to get `SafeMap(tile=1)` on a
+  "heterogeneous" axis — doesn't work either: `SafeMap`/`jax.vmap` require a genuinely uniform-shape
+  stacked array, and cannot ragged-iterate differently-shaped states at all, at any tile size. The real
+  resolution: states aren't actually ragged by the time they reach this design — tev_design's
+  `build_canonical_bundle.py` already pads every state to `N_CANONICAL=214` — so a genuine `jax.vmap`
+  over states (reusing `_VmapEncode`/`ConditionalDecode`'s existing production mechanism directly,
+  §1/§3) is legitimate and requires no new dispatch layer at all for the state axis. `N_STATES`'s
+  `heterogeneous=True` registry flag is a conservative declaration for the axis in the abstract, not a
+  fact about this already-canonicalized input.

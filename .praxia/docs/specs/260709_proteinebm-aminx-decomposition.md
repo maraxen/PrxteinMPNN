@@ -129,10 +129,14 @@ that shape:
   `UNCONDITIONAL` — all producing `Logits` or a `SampleResult` of tokens.
 
 ProteinEBM's outputs are a **scalar energy** and a **coordinate score/force `∇_x E ∈ ℝ^{N×3}`**.
-There is no vocabulary, no per-position categorical, no token sampling. **It cannot be expressed as
-a `StageSet` logit fusion.** It needs a new *readout kind* and a new *topology*, and its "sampling"
-is coordinate Langevin dynamics (a scan over noise/MCMC steps updating coordinates), not
-autoregressive token decode.
+There is no vocabulary, no per-position categorical, no token sampling. It cannot be expressed by
+the *current* `StageSet`, whose slots are all logit-shaped. **This is the argument *for* the xtrax
+composition design, not a limitation:** the logit `StageSet` is one stage-bundle; the energy path is
+*another* composable stage-bundle, and xtrax composition (readout-agnostic `Fuse`/`Tap`/`Sink`/
+`AxisBoundary` + tiling strategies) is exactly the mechanism that lets both coexist and interoperate
+without either perturbing the other. We generalize the readout abstraction (see §3.2) so energy is a
+peer of logits, not a special case bolted onto the logit path. Its "sampling" is coordinate Langevin
+dynamics (a scan over noise/MCMC steps updating coordinates), not autoregressive token decode.
 
 The existing `model/diffusion_mpnn.py` + `training/diffusion.py` is **not** the same thing: that is
 **sequence-space** diffusion (diffusing the AA one-hot, denoising to logits). Its `NoiseSchedule`,
@@ -167,17 +171,28 @@ This is the exact JAX analog of the reference's `torch.autograd.grad(energy.sum(
 create_graph=True)` and is the entire "EBM mechanism." No new math is invented; the readout is a
 scalar head plus autograd.
 
-### 3.2 New topology
+### 3.2 New topology — a peer StageSet, not a bolt-on
 
-Extend `inference/driver.py::infer_topology` (and the mode-class resolution that superseded it in
-`host/plan.py`) with an **energy/score topology**:
+The intent (per the composition-first framing above) is to make the readout **kind** a first-class,
+readout-agnostic axis rather than special-casing logits. Two equivalent implementations, to be
+chosen at spec-critique time:
+
+- **(a) Generalize `StageSet`** so its decode/readout slot is typed over a `Readout` union
+  (`LogitReadout | EnergyReadout | ScoreReadout`), and `infer_topology` dispatches on the readout
+  kind — logits stay exactly as-is; energy is a peer variant.
+- **(b) A parallel `EnergyStageSet`** bundle resolved by the same `make_inference_plan` factory.
+
+Either way, extend `inference/driver.py::infer_topology` (and the mode-class resolution that
+superseded it in `host/plan.py`) with an **energy/score topology**:
 
 ```
 TOPOLOGY_ENERGY   — readout is EnergyReadout/ScoreReadout; output is (E, per_residue_E, score)
 ```
 
 Selection is by readout kind, exactly as the current code selects by `decode_step`/`sample_step`
-occupancy. This is additive; the three existing topologies are untouched. `host/kernel_dispatch.py`
+occupancy. This is **additive**; the three existing logit topologies are untouched. The unification
+seam between the energy bundle and the logit bundle is a plain xtrax `Fuse` over a state axis (§5) —
+which is why composing *other* StageSets under xtrax is the whole point. `host/kernel_dispatch.py`
 `resolve_kernel_fn` gains one case (per the COMPOSITION_GUIDE "new host dispatch path" row).
 
 ### 3.3 The five inference paths → xtrax primitives
@@ -273,6 +288,26 @@ VP-SDE `score` closed form a known `(x_0, t)` and assert it matches `−(x_t−�
 `EnergyReadout` a zero-`r` trunk and assert `E=0`; assert `−jax.grad(E)` equals the analytic score on
 a Gaussian toy. These 30-second invariants gate the reimplementation (bathos literature-parity
 Phase 5 invariant-test spec, §8).
+
+### 4.1 aminx-side hygiene found while writing this spec
+
+The EBM/score work builds on aminx's existing (sequence-space) diffusion path
+(`model/diffusion_mpnn.py`, `training/{diffusion,train_diffusion,trainer}.py`). A `ruff --select F`
++ `ty` sweep confirms aminx does **not** carry ProteinEBM's crash bugs (`cluster_sizes`,
+`target_ids`, missing `model.ema` — grep-clean), but surfaced the following in the diffusion path,
+which E0/E1 should inherit clean:
+
+| Finding | Location | Class | Disposition |
+| :-- | :-- | :-- | :-- |
+| Undefined name `Any` in `**kwargs: Any` | `model/diffusion_mpnn.py:170` | F821 (undefined name; latent at runtime only because of `from __future__ import annotations`, but fails CI `ruff`/`ty`) | **FIXED** in this branch (`from typing import TYPE_CHECKING, Any`) |
+| `inference = True` set when `key is None` then **never used** | `model/decoder.py:629` | F841 dead store — likely a **dropped dropout-gating flag** in the unconditional decode path (layers accept an `inference` kwarg elsewhere) | **FLAGGED** — behavioral, could change numerics; needs a decision before fixing (same family as the STE/fixed_mask/atom37 silent host-dispatch bugs) |
+| `PRNGKeyArray` imported from jaxtyping then redefined as `jax.Array` | `model/encoder.py:30` | F811 redefinition | **FLAGGED** — cosmetic, zero behavioral risk |
+| `super().__call__(...)` passes 7 positional args; `Aminx.__call__` expects 5 | `model/diffusion_mpnn.py:184` | `ty` `too-many-positional-arguments` (pre-existing) | **FLAGGED** — possible real signature bug in the diffusion path, or a `ty` false-positive; verify against `Aminx.__call__`'s actual signature before the port relies on it |
+
+Only the first is fixed here (it matches the "undefined-name" class you flagged and unblocks the CI
+gate). The other three are pre-existing, out of this spec's scope, and listed so the epic can triage
+them — the `decoder.py:629` dropped-`inference` flag in particular deserves a real look because it
+mirrors the silent inference-mode bugs this codebase has hit before.
 
 ---
 

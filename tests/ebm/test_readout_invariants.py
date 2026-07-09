@@ -2,10 +2,16 @@
 
 The real ``EnergyReadout``/``ScoreReadout`` land in backlog node E3 (design
 spec §3.1: ``EnergyReadout(a, mask) -> E``; ``ScoreReadout -> -jax.grad(E)``).
-These tests are written against that intended API so they are ready to
-un-xfail the moment E3 lands -- they currently ``ImportError`` (no
-``aminx.ebm.readout`` module yet) and are marked
-``xfail(reason="E3 not implemented", strict=False)``.
+These tests were originally written speculatively against that intended API
+(before E3 existed) and marked ``xfail(reason="E3 not implemented",
+strict=False)``. Now that ``aminx.ebm.readout`` is implemented, the xfail
+markers are removed. The real ``ScoreReadout`` takes its ``trunk_fn`` (the
+composition seam to E1's ``DiffusionTransformer``) as a **call-time**
+argument rather than a stored constructor field (see
+``aminx.ebm.readout.ScoreReadout``'s docstring for why) -- tests 3 and 4
+below were adjusted accordingly, preserving the exact invariant each was
+written to check (score = -grad(energy); the outer training grad through
+that nested grad is finite).
 
 The ``TestToyEnergyInvariants``/``TestSecondOrderTrainingGradOnToy`` classes
 prove the *same* invariants against an inline toy energy
@@ -33,7 +39,6 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(reason="E3 not implemented", strict=False)
 def test_energy_readout_zero_when_head_output_zero() -> None:
   from aminx.ebm.readout import EnergyReadout  # noqa: PLC0415
 
@@ -46,7 +51,6 @@ def test_energy_readout_zero_when_head_output_zero() -> None:
   assert jnp.allclose(energy, 0.0)
 
 
-@pytest.mark.xfail(reason="E3 not implemented", strict=False)
 def test_energy_readout_is_nonnegative() -> None:
   from aminx.ebm.readout import EnergyReadout  # noqa: PLC0415
 
@@ -60,7 +64,6 @@ def test_energy_readout_is_nonnegative() -> None:
   assert energy >= 0.0
 
 
-@pytest.mark.xfail(reason="E3 not implemented", strict=False)
 def test_score_readout_is_negative_grad_of_energy() -> None:
   from aminx.ebm.readout import EnergyReadout, ScoreReadout  # noqa: PLC0415
 
@@ -71,16 +74,17 @@ def test_score_readout_is_negative_grad_of_energy() -> None:
   coords = jax.random.normal(data_key, (5, 3))
   mask = jnp.ones((5,), dtype=bool)
 
+  def trunk_fn(x: jax.Array, _mask: jax.Array) -> jax.Array:
+    return jnp.zeros((5, 8)) + x.sum()  # placeholder trunk stand-in
+
   def energy_of_coords(x: jax.Array) -> jax.Array:
-    trunk_out = jnp.zeros((5, 8)) + x.sum()  # placeholder trunk stand-in
-    return energy_readout(trunk_out, mask)
+    return energy_readout(trunk_fn(x, mask), mask)
 
   expected_score = -jax.grad(energy_of_coords)(coords)
-  actual_score = score_readout(coords, mask)
+  actual_score = score_readout(coords, mask, trunk_fn)
   assert jnp.allclose(actual_score, expected_score)
 
 
-@pytest.mark.xfail(reason="E3 not implemented", strict=False)
 def test_second_order_training_grad_is_finite_on_real_model() -> None:
   import equinox as eqx  # noqa: PLC0415
 
@@ -93,9 +97,12 @@ def test_second_order_training_grad_is_finite_on_real_model() -> None:
   mask = jnp.ones((5,), dtype=bool)
   target = jax.random.normal(jax.random.PRNGKey(4), (5, 3))
 
+  def trunk_fn(x: jax.Array, _mask: jax.Array) -> jax.Array:
+    return jnp.pad(x, ((0, 0), (0, 5)))  # placeholder trunk stand-in, (5,3) -> (5,8)
+
   def loss_fn(model: EnergyReadout) -> jax.Array:
     score_readout = ScoreReadout(model)
-    predicted = score_readout(coords, mask)
+    predicted = score_readout(coords, mask, trunk_fn)
     return jnp.sum((predicted - target) ** 2)
 
   grads = eqx.filter_grad(loss_fn)(energy_readout)

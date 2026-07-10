@@ -596,3 +596,72 @@ class TestRunManifestRowZarrLifecycle:
             )
         assert result2["status"] == "already_done"
         mock_sample.assert_not_called()
+
+    def test_stale_schema_marker_is_recomputed_not_errored(self, tmp_path: Path) -> None:
+        """A done marker from a superseded schema (e.g. pre-Zarr-migration HDF5) must be
+        discarded and the row recomputed, not surfaced as a fatal error (COMP-536 regression:
+        this previously propagated as an unhandled ValueError and failed the whole row).
+        """
+        import json as _json
+
+        import numpy as np
+        import zarr
+
+        from aminx.host.campaign import (
+            DONE_MARKER_SCHEMA_VERSION,
+            _done_marker_path,
+            run_manifest_row,
+        )
+
+        output_path = tmp_path / "row_output.zarr"
+        manifest_path = tmp_path / "manifest.json"
+        row_hash = "test_row_hash_stale_schema"
+        manifest = {
+            "schema_version": MANIFEST_SCHEMA_VERSION,
+            "rows": [
+                {
+                    "manifest_row_hash": row_hash,
+                    "job_id": "job0",
+                    "job_index": 0,
+                    "sampling_spec": {
+                        "inputs": ["/tmp/test.pdb"],
+                        "output_h5_path": str(output_path),
+                    },
+                },
+            ],
+        }
+        manifest_path.write_text(json.dumps(manifest))
+
+        # Simulate a leftover pre-migration artifact: a plain HDF5-era output file (not a
+        # Zarr directory) plus a done marker written under the old schema.
+        output_path.write_bytes(b"stand-in for a pre-migration HDF5 file")
+        marker_path = _done_marker_path(output_path)
+        marker_path.write_text(
+            _json.dumps(
+                {
+                    "schema_version": "campaign_done_marker_v1",
+                    "manifest_row_hash": row_hash,
+                    "content_digest_sha256": "irrelevant-under-old-schema",
+                },
+            ),
+        )
+
+        def _fake_sample(spec):
+            root = zarr.open_group(str(spec.output_h5_path), mode="a")
+            arr = root.create_array(name="sequences", shape=(1,), dtype="int32")
+            arr[...] = np.array([7], dtype=np.int32)
+            return {"status": "completed"}
+
+        with patch("aminx.host.campaign.sample", side_effect=_fake_sample) as mock_sample:
+            result = run_manifest_row(
+                manifest_path=str(manifest_path),
+                row_hash=row_hash,
+                lock_backend="local_fs",
+            )
+
+        mock_sample.assert_called_once()
+        assert result["status"] == "completed"
+        assert output_path.is_dir()  # replaced by a real Zarr store, not the stale file
+
+        new_marker = json.loads(marker_path.read_text())
+        assert new_marker["schema_version"] == DONE_MARKER_SCHEMA_VERSION

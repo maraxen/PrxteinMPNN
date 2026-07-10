@@ -503,6 +503,25 @@ def _read_done_marker(path: Path) -> dict[str, Any] | None:
   return payload
 
 
+class StaleDoneMarkerSchemaError(ValueError):
+  """A done marker predates DONE_MARKER_SCHEMA_VERSION (e.g. pre-Zarr-migration HDF5).
+
+  Distinct from the other _validate_done_marker failures (hash/digest mismatch),
+  which indicate real corruption and must stay hard errors: a schema-version
+  mismatch means the row is safe to invalidate and recompute under the current
+  storage format.
+  """
+
+
+def _invalidate_stale_output(*, marker_path: Path, output_h5_path: Path) -> None:
+  """Discard a done marker and its output artifact written under a superseded schema."""
+  if output_h5_path.is_dir():
+    shutil.rmtree(output_h5_path)
+  elif output_h5_path.exists():
+    output_h5_path.unlink()
+  marker_path.unlink(missing_ok=True)
+
+
 def _validate_done_marker(
   *,
   marker: dict[str, Any],
@@ -515,7 +534,7 @@ def _validate_done_marker(
       f"Done marker schema mismatch at {marker_path}: "
       f"expected {DONE_MARKER_SCHEMA_VERSION!r}, got {marker.get('schema_version')!r}."
     )
-    raise ValueError(msg)
+    raise StaleDoneMarkerSchemaError(msg)
   if marker.get("manifest_row_hash") != manifest_row_hash:
     msg = (
       f"Done marker manifest hash mismatch at {marker_path}: "
@@ -755,21 +774,26 @@ def run_manifest_row(  # noqa: PLR0915
   manifest_hash = str(row["manifest_row_hash"])
 
   existing_marker = _read_done_marker(done_marker_path)
+  marker_is_stale = False
   if existing_marker is not None:
-    _validate_done_marker(
-      marker=existing_marker,
-      marker_path=done_marker_path,
-      output_h5_path=output_h5_path,
-      manifest_row_hash=manifest_hash,
-    )
-    return {
-      "status": "already_done",
-      "output_h5_path": str(output_h5_path),
-      "manifest_row_hash": manifest_hash,
-      "done_marker_path": str(done_marker_path),
-      "attempt_id": existing_marker.get("attempt_id"),
-    }
-  if output_h5_path.exists():
+    try:
+      _validate_done_marker(
+        marker=existing_marker,
+        marker_path=done_marker_path,
+        output_h5_path=output_h5_path,
+        manifest_row_hash=manifest_hash,
+      )
+    except StaleDoneMarkerSchemaError:
+      marker_is_stale = True
+    else:
+      return {
+        "status": "already_done",
+        "output_h5_path": str(output_h5_path),
+        "manifest_row_hash": manifest_hash,
+        "done_marker_path": str(done_marker_path),
+        "attempt_id": existing_marker.get("attempt_id"),
+      }
+  if not marker_is_stale and output_h5_path.exists():
     msg = (
       f"Output file already exists without done marker for manifest row {manifest_hash}: "
       f"{output_h5_path}"
@@ -791,19 +815,28 @@ def run_manifest_row(  # noqa: PLR0915
   ) as heartbeat_errors:
     existing_marker = _read_done_marker(done_marker_path)
     if existing_marker is not None:
-      _validate_done_marker(
-        marker=existing_marker,
-        marker_path=done_marker_path,
-        output_h5_path=output_h5_path,
-        manifest_row_hash=manifest_hash,
-      )
-      return {
-        "status": "already_done",
-        "output_h5_path": str(output_h5_path),
-        "manifest_row_hash": manifest_hash,
-        "done_marker_path": str(done_marker_path),
-        "attempt_id": existing_marker.get("attempt_id"),
-      }
+      try:
+        _validate_done_marker(
+          marker=existing_marker,
+          marker_path=done_marker_path,
+          output_h5_path=output_h5_path,
+          manifest_row_hash=manifest_hash,
+        )
+      except StaleDoneMarkerSchemaError as exc:
+        logger.warning(
+          "Discarding stale done marker for manifest row %s, recomputing: %s",
+          manifest_hash,
+          exc,
+        )
+        _invalidate_stale_output(marker_path=done_marker_path, output_h5_path=output_h5_path)
+      else:
+        return {
+          "status": "already_done",
+          "output_h5_path": str(output_h5_path),
+          "manifest_row_hash": manifest_hash,
+          "done_marker_path": str(done_marker_path),
+          "attempt_id": existing_marker.get("attempt_id"),
+        }
     if output_h5_path.exists():
       msg = (
         f"Output file already exists without done marker for manifest row {manifest_hash}: "

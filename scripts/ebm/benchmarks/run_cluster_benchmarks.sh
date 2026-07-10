@@ -13,6 +13,14 @@
 # set XLA_FLAGS=--xla_gpu_shard_autotuning=false in their environment: this
 # script also sets it explicitly (idempotent, safe) per ~/.claude/rules/CLUSTER.md
 # so the job is correct even if invoked under a different preset by mistake.
+#
+# CUDA extras: `torch` lives under the `benchmark` extra and jax's CUDA
+# plugin (bundling the matching libcudnn) lives under `cuda12` -- NEITHER is
+# in the base dependency set, so a bare `uv run` (which implicitly syncs only
+# the base set) silently drops both, even if a prior manual sync installed
+# them. `import torch` then fails with `ImportError: libcudnn.so.9: cannot
+# open shared object file` on GPU nodes (confirmed via a diagnostic job on
+# node4007). Explicit `uv sync --extra cuda12 --extra benchmark` fixes this.
 set -euo pipefail
 
 ASSETS_DIR="${PROTEINEBM_ASSETS_DIR:-$HOME/proteinebm_bench_assets}"
@@ -23,6 +31,9 @@ N_REPEATS="${BENCHMARK_N_REPEATS:-30}"
 OUT_DIR="${BENCHMARK_OUT_DIR:-outputs/ebm_benchmarks}"
 
 mkdir -p "${OUT_DIR}"
+
+echo "=== uv sync --extra cuda12 --extra benchmark ==="
+uv sync --extra cuda12 --extra benchmark
 
 # Mandatory Blackwell/SM120 workaround (see CLUSTER.md; safe no-op elsewhere).
 _NODE="${SLURM_JOB_NODELIST:-$(hostname -s)}"

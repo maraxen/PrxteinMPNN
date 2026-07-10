@@ -1,0 +1,93 @@
+[benchmark]
+baseline_ref = "<pytorch-proteinebm-run-id>"  # original PyTorch impl, same hardware -- fill in once an L3 cluster run is recorded.
+metric = "energy_evals_per_sec"
+regression_threshold = 0.05
+target = "JAX >= PyTorch throughput on pi_so3 (SM120) at L in {64,128,256,512}"
+
+# NOTE on [outcomes] + a confirmed tool bug (2026-07-10, installed bathos v0.10.0):
+# the design spec's/using-bathos skill's own documented "Benchmark Sidecar
+# Format" is [benchmark]+[result_schema] only (no [outcomes]). Empirically,
+# THIS installed `bth validate-sidecar` reports "No [outcomes] section found"
+# for ANY sidecar with a top-level [benchmark] table -- same finding already
+# recorded independently in the sibling E11a/E11b sidecars
+# (decoy_benchmark.bth.toml / ddg_benchmark.bth.toml), reproduced again here
+# on this file. This is a genuine gap/regression in the installed CLI's
+# benchmark-kind validation path (bathos/src/bathos/sidecar.py's "benchmark"
+# branch of parse_sidecar never populates Sidecar.outcomes even when an
+# [outcomes.*] table is present in the TOML, but bathos/src/bathos/
+# validate.py::validate_sidecar unconditionally requires it) -- not a defect
+# in this file, and out of this backlog node's scope to fix (bathos is a
+# separately `uv tool install`-ed CLI). The [outcomes.*] tables below are
+# kept anyway (harmless, forward-compatible with a future bathos fix); they
+# are a basic per-row sanity gate (both timing paths produced a positive,
+# finite measurement for every length swept) -- NOT the real JAX>=PyTorch
+# regression-vs-baseline verdict, which is [benchmark].baseline_ref/
+# regression_threshold's job (a cross-run comparison against a recorded
+# PyTorch baseline_ref, done once an L3+ cluster run exists) and is out of
+# scope for a single run's own outcome classification.
+[outcomes.pass]
+condition = "min(energy_evals_per_sec) > 0 AND min(diff_fuse_wall_clock_ms) > 0"
+decision = "Harness produced a positive, finite throughput and latency measurement for every (length, impl) row -- proceed to filing an L3 cluster run against baseline_ref for the real regression verdict."
+reasoning = "A basic measurement-pipeline sanity gate (BATHOS rule: verify before trusting); the real JAX>=PyTorch throughput verdict is [benchmark]'s cross-run baseline_ref/regression_threshold comparison, not this run's own outcome."
+is_residual = false
+
+[outcomes.marginal]
+condition = "min(energy_evals_per_sec) > 0 AND min(diff_fuse_wall_clock_ms) > 0 AND count(*) < 2"
+decision = "Ran, but produced fewer rows than expected (e.g. --skip-pytorch used, or a partial length sweep) -- treat as an incomplete, non-comparative smoke/debug run, not a filed benchmark result."
+reasoning = "A row count below 2 means either the JAX-only escape hatch was used or the sweep was interrupted -- still a valid harness sanity check, but not a JAX-vs-PyTorch comparison."
+is_residual = false
+
+[outcomes.fail]
+condition = "min(energy_evals_per_sec) <= 0 OR min(diff_fuse_wall_clock_ms) <= 0"
+decision = "Non-positive or missing throughput/latency measurement -- the timing harness itself is broken (e.g. a zero-duration timed loop, a NaN/inf energy). Fix the harness before trusting any comparison."
+reasoning = "energy_evals_per_sec and diff_fuse_wall_clock_ms are both strictly-positive-by-construction quantities (count/elapsed_seconds, elapsed_seconds*1000); a non-positive value means the timer or the underlying call is broken, not a real regression."
+is_residual = true
+
+[command]
+# L1 -- dry-run: validate args/paths/imports only, no model construction, no timing, no network fetches.
+dry_run = "uv run python scripts/ebm/benchmarks/biasing_benchmark.py --dry-run --out /dev/null"
+
+# L2 -- local CPU smoke test: L=64, S=2 states, 2 repeats; proves the harness runs end-to-end well under 60s.
+smoke = "uv run python scripts/ebm/benchmarks/biasing_benchmark.py --smoke --out /tmp/biasing_benchmark_smoke.json"
+
+# L3 -- cluster smoke (NOT run by this node; orchestrator's job): reduced sweep on pi_so3 (SM120), with
+# XLA_FLAGS=--xla_gpu_shard_autotuning=false mandatory in the sbatch environment.
+cluster_smoke = "uv run python scripts/ebm/benchmarks/biasing_benchmark.py --lengths 64 --n-repeats 3 --out outputs/results/biasing_benchmark_cluster_smoke.json"
+
+# Full sweep (cluster only, GPU): the real apples-to-apples {64,128,256,512} x JAX/PyTorch comparison.
+full = "uv run python scripts/ebm/benchmarks/biasing_benchmark.py --lengths 64,128,256,512 --n-repeats 20 --out outputs/results/biasing_benchmark.json"
+
+[result_schema]
+energy_evals_per_sec = "float"
+diff_fuse_wall_clock_ms = "float"
+protein_length = "int"
+device = "str"
+impl = "str"  # "jax" | "pytorch"
+
+[result_schema.provenance]
+script_commit = "git log --oneline -1"
+related_epic = "#3294 (ProteinEBM composable energy/score path), backlog #3309 (E11c Benchmark biasing)"
+related_spec = ".praxia/docs/specs/260709_proteinebm-aminx-decomposition.md §8.3, §5 (multistate mechanism)"
+related_dag = ".praxia/docs/plans/260709_proteinebm-epic-backlog-dag.md §2 (E7->E11c), §4.3"
+hardware_targets = ["CPU (local L1/L2 gates, no GPU in this dev environment)", "pi_so3 (SM120/Blackwell) for the real L3+full GPU sweep"]
+n_states = { type = "int", doc = "Always 2 -- the standard conformational-biasing case (design spec §5); not swept, see biasing_benchmark.py module docstring." }
+
+[methodology]
+bucket_aligned_lengths = "Sweep exactly {64,128,256,512} -- the EPIC's locked bucket boundaries (decision 6); zero padding waste at any point. Always 2 conformational states per length, one fixed shared sequence."
+pytorch_no_graph_retention = "Conformational biasing never differentiates energy (it is a plain energy gap, no -grad(E) anywhere in the E7 application). Both PyTorch metrics use torch.no_grad() for every call -- no autograd graph is built at all, strictly stronger than the create_graph=False discipline E11a/E11b document for their gradient-taking metrics; that discipline applies here only vacuously (there is nothing to retain)."
+energy_evals_per_sec_definition = "The 2-state Vmap dispatch throughput: JAX dispatches ProteinEBMModel.energy over the 2-element state axis via aminx.ebm.plan.plan_axis/dispatch_axis (the same E4 wiring score_state_difference uses internally, minus the fuse); PyTorch is a plain 2-call forward (two sequential, unbatched compute_energy calls -- NOT a single batch_dim=2 call)."
+diff_fuse_wall_clock_ms_definition = "The FULL difference-Fuse pipeline: energy for both states + the fuse (subtraction) reduction, per call. JAX times aminx.ebm.dispatch.score_state_difference directly (E4/E7's real composition seam); PyTorch times two sequential compute_energy calls plus the scalar subtraction."
+exclude_jit_warmup = "One untimed warmup call precedes every timed loop on both implementations (forces eqx.filter_jit tracing/compilation on the JAX side)."
+sm120_xla_flag = "Mandatory XLA_FLAGS=--xla_gpu_shard_autotuning=false for any GPU run on pi_so3 (node4007/node4008) -- set via os.environ.setdefault before jax is imported; absent it, throughput numbers come out ~1000x wrong. Not exercised by the local CPU L1/L2 gates."
+
+[notes]
+local_validation = """
+L1 (--dry-run) and L2 (--smoke) both gated locally on CPU (this dev environment has no GPU) before this
+sidecar was filed. See the E11c dispatch report for the actual L2 smoke numbers (L=64, S=2 states, 2
+repeats, real 85M-param checkpoint model_6_expert_frozen_1m_md.pt). These CPU numbers are NOT the
+apples-to-apples GPU/bucket-sweep comparison the [benchmark] target describes -- they only prove the
+harness (checkpoint load, reference-model strict-load, JAX port, jit warmup, both timing paths, JSON
+schema) runs correctly end-to-end. The real {64,128,256,512} x GPU throughput comparison is an L3+
+cluster job, not run by this node (E11c's task brief explicitly scopes cluster submission to the
+orchestrator).
+"""

@@ -99,6 +99,17 @@ class ConditioningBundle(eqx.Module):
       Tied-position group assignment. Positions with same group id
       receive same logit distribution (for symmetric design patterns).
       Shape: S = num states.
+  state_position_map : Int[Array, "S L"]
+      Per-state residue correspondence into the shared reference frame (state 0's
+      own numbering). state_position_map[s, i] is the index in state s's native
+      numbering corresponding to reference position i, or -1 if state s has no
+      residue at that reference position (indel). Default is the identity map
+      (state_position_map[s, i] = i for all s), reproducing naive same-index
+      cross-state fusion. Populate via aminx.utils.align.build_state_position_map
+      when states have genuinely different native lengths/numbering (e.g.
+      different PDB depositions of the same protein) so per-position multistate
+      fusion (_apply_logit_transform, ar_logit_transform) combines logits for the
+      same physical residue rather than the same raw array index.
   state_weights : Float[Array, "S"]
       Per-state contribution weights for logit fusion in multi-state models.
       Traced leaf; summed to 1.0 across states before fusion.
@@ -124,6 +135,7 @@ class ConditioningBundle(eqx.Module):
   fixed_tokens: Int[Array, L]
   bias: Float[Array, "L V"]
   tie_group_map: Int[Array, "S L"]
+  state_position_map: Int[Array, "S L"]
   state_weights: Float[Array, S]
   sequence_oh: Float[Array, "L V"]  # zeros for unconditional/AR
   ar_mask: Float[Array, "S L L"]  # full 1s for purely conditional

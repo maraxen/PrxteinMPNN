@@ -131,6 +131,7 @@ def test_inference_plan_decode_with_packer_active():
         fixed_tokens=jnp.zeros(L, dtype=jnp.int32),
         bias=jnp.zeros((L, 21)),
         tie_group_map=jnp.zeros((S, L), dtype=jnp.int32),
+        state_position_map=jnp.broadcast_to(jnp.arange(L)[None, :], (S, L)),
         state_weights=jnp.ones(S),
         sequence_oh=jnp.zeros((L, 21)),
         ar_mask=jnp.ones((S, L, L))
@@ -219,6 +220,7 @@ def test_inference_plan_decode_safety_validation():
         fixed_tokens=jnp.zeros(5, dtype=jnp.int32),
         bias=jnp.zeros((5, 21)),
         tie_group_map=jnp.zeros((1, 5), dtype=jnp.int32),
+        state_position_map=jnp.broadcast_to(jnp.arange(5)[None, :], (1, 5)),
         state_weights=jnp.ones(1),
         sequence_oh=jnp.zeros((5, 21)),
         ar_mask=jnp.ones((1, 5, 5))

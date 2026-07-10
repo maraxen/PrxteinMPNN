@@ -14,6 +14,7 @@ from aminx.model import Aminx
 from aminx.inference.decode._kernel import (
     _decode_one_step,
     _project_logits,
+    _realign_states_to_reference,
     _tied_group_einsum_average,
 )
 from aminx.types.bundles import EncoderOutput, ConditioningBundle
@@ -252,3 +253,73 @@ class TestTiedGroupEinsumAverage:
 
         # Verify first state matches
         assert jnp.allclose(averaged[0], expected_first_state, atol=1e-6)
+
+
+class TestRealignStatesToReference:
+    """Tests for _realign_states_to_reference (cross-state PoE alignment, debt #572)."""
+
+    def test_identity_map_is_noop(self):
+        """Identity state_position_map reproduces pre-fix (naive) behavior exactly."""
+        S, L, V = 3, 10, 21
+        key = jax.random.PRNGKey(0)
+        logits = jax.random.normal(key, (S, L, V))
+        identity_map = jnp.broadcast_to(jnp.arange(L)[None, :], (S, L))
+
+        realigned = _realign_states_to_reference(logits, identity_map)
+
+        assert jnp.array_equal(realigned, logits)
+
+    def test_known_insertion_gathers_correct_residue(self):
+        """A state with a known single-residue insertion realigns to the intended positions.
+
+        Reference (state 0): positions 0..4. State 1 has an extra residue inserted at
+        its own position 2 -- so state 1's position 3 is the one that actually
+        corresponds to reference position 2 (matches the build_state_position_map
+        smoke test in this session: MKVLA vs MK-D-VLA).
+        """
+        L, V = 6, 21
+        key = jax.random.PRNGKey(1)
+        state0_logits = jax.random.normal(key, (L, V))
+        state1_logits = jax.random.normal(jax.random.PRNGKey(2), (L, V))
+        logits = jnp.stack([state0_logits, state1_logits], axis=0)  # (2, L, V)
+
+        # Matches this session's build_state_position_map smoke test result exactly.
+        state_position_map = jnp.array([
+            [0, 1, 2, 3, 4, 5],
+            [0, 1, 3, 4, 5, -1],
+        ])
+
+        realigned = _realign_states_to_reference(logits, state_position_map)
+
+        assert realigned.shape == (2, L, V)
+        # State 0 (reference) is untouched.
+        assert jnp.array_equal(realigned[0], state0_logits)
+        # State 1's reference position 2 must pull from its OWN position 3, not 2.
+        assert jnp.allclose(realigned[1, 2], state1_logits[3])
+        assert jnp.allclose(realigned[1, 3], state1_logits[4])
+        assert jnp.allclose(realigned[1, 4], state1_logits[5])
+        # Naive (buggy) same-index fusion would have used state1_logits[2] here --
+        # explicitly assert the fix actually changed the result, not just shape.
+        assert not jnp.allclose(realigned[1, 2], state1_logits[2])
+
+    def test_gap_position_zeroed(self):
+        """A reference position with no correspondence in a state (-1) is zero-filled.
+
+        Zero is an exact neutral element for the 'product' strategy (a sum of
+        logits) -- see _realign_states_to_reference's docstring for the documented
+        (non-exact) approximation this represents for arithmetic_mean/geometric_mean.
+        """
+        L, V = 4, 21
+        logits = jax.random.normal(jax.random.PRNGKey(3), (2, L, V))
+        state_position_map = jnp.array([
+            [0, 1, 2, 3],
+            [0, 1, -1, 3],  # state 1 has no residue at reference position 2
+        ])
+
+        realigned = _realign_states_to_reference(logits, state_position_map)
+
+        assert jnp.array_equal(realigned[1, 2], jnp.zeros(V))
+        # Non-gap positions for state 1 are untouched (identity there).
+        assert jnp.array_equal(realigned[1, 0], logits[1, 0])
+        assert jnp.array_equal(realigned[1, 1], logits[1, 1])
+        assert jnp.array_equal(realigned[1, 3], logits[1, 3])

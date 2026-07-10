@@ -6,6 +6,7 @@ import pytest
 
 from aminx.utils.align import (
     align_sequences,
+    build_state_position_map,
     needleman_wunsch_alignment,
     smith_waterman,
     smith_waterman_affine,
@@ -135,3 +136,60 @@ class TestAlignments(chex.TestCase):
         alignment = align_fn(seqs)
         chex.assert_shape(alignment, (0, 0, 2))
         chex.assert_tree_all_finite(alignment)
+
+
+class TestBuildStatePositionMap:
+    """Tests for build_state_position_map (praxia debt #572's alignment builder).
+
+    Host-side, eager-numpy utility -- not jit-traced, so no chex.variants here
+    (matches _realign_states_to_reference's caller-side identity/gap contract in
+    tests/inference/decode/test_kernel.py::TestRealignStatesToReference).
+    """
+
+    # BLOSUM62 column order (see align.py's _AA_SCORE_MATRIX docstring):
+    # A,R,N,D,C,Q,E,G,H,I,L,K,M,F,P,S,T,W,Y,V
+    _M, _K, _V, _L, _A, _D = 12, 11, 19, 10, 0, 3
+
+    def test_identical_sequences_are_pure_identity(self):
+        """Two identical native sequences map to the identity in both directions."""
+        seq = jnp.array([self._M, self._K, self._V, self._L, self._A])
+        seqs = jnp.stack([seq, seq])
+
+        result = build_state_position_map(seqs, reference_state_index=0)
+
+        chex.assert_shape(result, (2, 5))
+        assert jnp.array_equal(result[0], jnp.arange(5))
+        assert jnp.array_equal(result[1], jnp.arange(5))
+
+    def test_single_insertion_recovered_reference_as_seq_a(self):
+        """Reference (index 0) vs a state with one inserted residue (D at position 2)."""
+        ref = jnp.array([self._M, self._K, self._V, self._L, self._A, -1])
+        inserted = jnp.array([self._M, self._K, self._D, self._V, self._L, self._A])
+        seqs = jnp.stack([ref, inserted])
+
+        result = build_state_position_map(seqs, reference_state_index=0)
+
+        assert jnp.array_equal(result[0], jnp.arange(6))
+        # Reference position 2 (V) is at the inserted state's position 3, not 2.
+        expected_row1 = jnp.array([0, 1, 3, 4, 5, -1])
+        assert jnp.array_equal(result[1], expected_row1)
+
+    def test_single_state_returns_identity(self):
+        """Fewer than 2 states: no alignment possible, returns the identity map."""
+        seqs = jnp.array([[self._M, self._K, self._V, self._L, self._A]])
+
+        result = build_state_position_map(seqs, reference_state_index=0)
+
+        assert jnp.array_equal(result[0], jnp.arange(5))
+
+    def test_non_zero_reference_state_index(self):
+        """Reference need not be state 0 -- its own row must still be the identity."""
+        ref = jnp.array([self._M, self._K, self._V, self._L, self._A, -1])
+        inserted = jnp.array([self._M, self._K, self._D, self._V, self._L, self._A])
+        seqs = jnp.stack([inserted, ref])  # reference is index 1 this time
+
+        result = build_state_position_map(seqs, reference_state_index=1)
+
+        assert jnp.array_equal(result[1], jnp.arange(6))
+        expected_row0 = jnp.array([0, 1, 3, 4, 5, -1])
+        assert jnp.array_equal(result[0], expected_row0)

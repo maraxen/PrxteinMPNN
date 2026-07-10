@@ -14,8 +14,11 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from aminx.inference.decode._kernel import _realign_states_to_reference
 from aminx.types.bundles import EncoderOutput, InferenceBundle
 from aminx.types.stages import StageSet
+
+_MULTI_STATE_NDIM = 3
 
 
 class _ConditionalDecodeBase(eqx.Module, abc.ABC):
@@ -83,6 +86,7 @@ class _ConditionalDecodeBase(eqx.Module, abc.ABC):
     logits: jnp.ndarray,
     stage_set: StageSet,
     bias: jnp.ndarray | None = None,
+    state_position_map: jnp.ndarray | None = None,
   ) -> jnp.ndarray:
     """Apply logit fusion via stage_set.logit_transform.
 
@@ -96,6 +100,14 @@ class _ConditionalDecodeBase(eqx.Module, abc.ABC):
         Contains logit_transform (may be None for identity).
     bias : ndarray | None, default None
         Optional position-specific bias. Shape (L, V).
+    state_position_map : ndarray | None, default None
+        Per-state gather index into the reference frame, shape (S, L) --
+        see ``ConditioningBundle.state_position_map`` and
+        ``_kernel._realign_states_to_reference``. When provided (and logits is
+        genuinely multi-state, ndim==3), states are realigned to the reference
+        frame before fusion so per-position fusion combines the same physical
+        residue across states, not the same raw array index. None (or a
+        single-state (L, V) input) skips realignment -- pre-fix behavior.
 
     Returns
     -------
@@ -106,6 +118,9 @@ class _ConditionalDecodeBase(eqx.Module, abc.ABC):
     if stage_set.logit_transform is None:
       # Identity: single-state passthrough (already shape (L, V))
       return logits
+
+    if state_position_map is not None and logits.ndim == _MULTI_STATE_NDIM:
+      logits = _realign_states_to_reference(logits, state_position_map)
 
     # logit_transform signature: (S, L, V) + (L, V) -> (L, V)
     return stage_set.logit_transform(logits, bias=bias)

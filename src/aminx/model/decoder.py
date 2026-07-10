@@ -598,6 +598,7 @@ class Decoder(eqx.Module):
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
     *,
+    inference: bool = False,
     key: PRNGKeyArray | None = None,
   ) -> NodeFeatures:
     """Forward pass for unconditional decoding.
@@ -612,6 +613,10 @@ class Decoder(eqx.Module):
         Neighbor indices for each node. Shape ``(L, K)``.
     mask : AlphaCarbonMask
         Alpha carbon mask. Shape ``(L,)``.
+    inference : bool
+        If True, disable dropout. Default: False. Passing ``key=None`` also
+        forces inference. Mirrors ``call_conditional`` so callers can request
+        deterministic decoding while still supplying a key.
     key : PRNGKeyArray | None
         PRNG key for dropout (optional).
 
@@ -642,6 +647,7 @@ class Decoder(eqx.Module):
         loop_node_features,
         layer_edge_features,
         mask,
+        inference=inference,
         key=keys[i],
       )
     return loop_node_features

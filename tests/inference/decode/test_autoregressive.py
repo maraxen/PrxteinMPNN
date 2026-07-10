@@ -542,6 +542,36 @@ def test_autoregressive_with_tied_positions():
     assert result.logits.shape == (L, 21)
 
 
+def test_ar_decode_state_position_map_changes_fused_logits() -> None:
+    """End-to-end: a non-identity state_position_map changes AutoregressiveDecode's
+    fused logits (praxia debt #572's fix) -- this is the actual live generative
+    sampling path the real necklace production run uses, distinct from
+    ConditionalDecode's teacher-forced path (covered separately in
+    test_conditional.py). Compares SampleResult.logits (not the sampled sequence,
+    which is a stochastic categorical draw) under the SAME PRNG key.
+    """
+    num_states, num_residues = 2, 8
+    model, bundle, config = _build_synthetic_fixture(
+        num_states=num_states, num_residues=num_residues, seed=11,
+    )
+    key = jax.random.PRNGKey(0)
+
+    baseline_result = _run_ar_decode(model, bundle, config, key)
+
+    permuted_row = jnp.roll(jnp.arange(num_residues), shift=1)
+    custom_map = jnp.stack([jnp.arange(num_residues), permuted_row])
+    permuted_bundle = eqx.tree_at(
+        lambda b: b.conditioning.state_position_map,
+        bundle,
+        custom_map,
+    )
+    permuted_result = _run_ar_decode(model, permuted_bundle, config, key)
+
+    assert not jnp.allclose(permuted_result.logits, baseline_result.logits), (
+        "state_position_map must actually change AutoregressiveDecode's fused logits"
+    )
+
+
 def test_autoregressive_with_tied_positions_s4():
     """Test AR decode with tied positions (S=4, tied groups)."""
     model, bundle, config = _build_synthetic_fixture(num_states=4, num_residues=12, seed=46)

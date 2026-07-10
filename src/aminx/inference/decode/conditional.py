@@ -151,5 +151,7 @@ class ConditionalDecode(_ConditionalDecodeBase):
 
     # Fuse across states (S axis) via logit_transform, then across tied positions
     # (L axis) so symmetric-design groups share a single logit distribution (#106).
-    fused_states = self._apply_logit_transform(logits_stack, stage_set, bias=cond.bias)
+    fused_states = self._apply_logit_transform(
+      logits_stack, stage_set, bias=cond.bias, state_position_map=cond.state_position_map,
+    )
     return self._apply_tie_group_fuse(fused_states, stage_set, cond.tie_group_map[0])

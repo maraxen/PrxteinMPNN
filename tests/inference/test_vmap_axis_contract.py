@@ -170,6 +170,7 @@ def make_minimal_bundle(L: int = 4, S: int = 1) -> InferenceBundle:
         fixed_tokens=jnp.zeros((L,), dtype=jnp.int32),
         bias=jnp.zeros((L, V)),
         tie_group_map=jnp.arange(L)[None, :].repeat(S, axis=0),
+        state_position_map=jnp.arange(L)[None, :].repeat(S, axis=0),
         state_weights=jnp.ones((S,)) / S,
         sequence_oh=jnp.zeros((L, V)),
         ar_mask=jnp.ones((S, L, L)),

@@ -31,6 +31,7 @@ from xtrax.tiling import CarryShape, MapIterator, ScanIterator
 from aminx.inference.decode._kernel import (
   _decode_one_step,
   _project_logits,
+  _realign_states_to_reference,
 )
 from aminx.inference.sample_autoregressive import SampleResult
 from aminx.types.bundles import EncoderOutput, InferenceBundle, WaveScheduleBundle
@@ -291,6 +292,11 @@ class AutoregressiveDecode(eqx.Module):
 
         # Project to logits: (S, L, H) -> (S, L, 21)
         logits = _project_logits(self.model, decoded)
+
+        # Realign states to the shared reference frame before cross-state fusion
+        # (identity state_position_map is a no-op -- pre-fix behavior). See
+        # ConditioningBundle.state_position_map / _kernel._realign_states_to_reference.
+        logits = _realign_states_to_reference(logits, cond.state_position_map)
 
         # Fuse per-position logits across states with and without bias
         # For stored logits: bias-free

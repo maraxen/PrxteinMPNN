@@ -1,7 +1,7 @@
 # EPIC (proposal): ProteinEBM composable energy/score path in aminx — backlog DAG
 
 - **task_id**: `260709_aminxtension`
-- **status**: APPROVED 2026-07-09 — filed into praxia. User decisions: (1) orbax weight-port first (retrain deferred); (2) buckets `(64,128,256,512)`; (3) **E9/E10/E11d (Langevin + structure prediction) → FOLLOW-ON epic**, not this one; (4) PBCNet2.0/E12 → later epic. In-epic nodes: E0–E8 + gates E3.5/E4.5 + benchmarks E11a–c.
+- **status**: **COMPLETE 2026-07-10** — all 14 in-epic nodes (E0–E8 + gates E3.5/E4.5 + benchmarks E11a–c) implemented, independently verified, and committed on `worktree-proteinebm-decomposition`. User decisions: (1) orbax weight-port first (retrain deferred); (2) buckets `(64,128,256,512)`; (3) **E9/E10/E11d (Langevin + structure prediction) → FOLLOW-ON epic**, not this one; (4) PBCNet2.0/E12 → later epic. See §7 for final benchmark results (JAX beats PyTorch 11–44× across all tested lengths; one Blackwell/SM120 XLA compiler limitation found and worked around via a differential-hardware test, documented as a known limitation, not a code bug).
 - **date**: 2026-07-09
 - **branch**: `worktree-proteinebm-decomposition`
 - **design spec**: [`specs/260709_proteinebm-aminx-decomposition.md`](../specs/260709_proteinebm-aminx-decomposition.md) (this EPIC supersedes its §7–§9 planning content with the resolved versions below)
@@ -163,3 +163,50 @@ Follow-on epic (deferred): E9 Langevin sampler, E10 structure-prediction pipelin
 2. **Bucket boundaries**: confirm `(64,128,256,512)` (the xtrax HiTL gate) or supply corpus length stats to derive them.
 3. **Scope of E9/E10 (Langevin + structure prediction)** in *this* epic vs. a follow-on — they carry the heaviest residual risk (2nd-order + model-swap memory) and don't affect the 3 headline parity numbers.
 4. **PBCNet2.0**: confirm deferral to a separate epic.
+
+## 7. E11a–c benchmark results (2026-07-10) ✅
+
+All three throughput/latency benchmarks completed with real GPU numbers across all four bucket lengths. Raw JSON at `outputs/ebm_benchmarks/{decoy,ddg,biasing}_benchmark_full.json` (30 timed repeats/length after one untimed JIT-warmup call each side, real 85M-param ProteinEBM-x checkpoint, PyTorch baseline with `create_graph=False`/`torch.no_grad()` per the apples-to-apples methodology in §4.3).
+
+### Two real findings during the cluster run
+
+1. **Blackwell/SM120 XLA compiler bug in the gradient path (not a code bug).** On `engaging`'s `pi_so3` partition (RTX PRO 6000 Blackwell, node4007/4008), the plain forward energy pass runs correctly on GPU, but `-jax.grad(energy)` (the conservative score — used by all three benchmarks) crashes at XLA compile time: `'scf.if' op along control flow edge ... successor operand type #0 'tensor<1x1x1xf32>' should match successor input type #0 'tensor<1x256x64xf32>'`. The traceback bottoms out inside XLA's own compiler (`backend_compile_and_load`), not user code — no `lax.cond`/`lax.scan` exists anywhere in `aminx.ebm` (grep-confirmed), so this is XLA generating an internal control-flow structure during autodiff of the heavily-`vmap`'d (including doubly-nested) trunk that fails to shape-check on this specific, very new hardware. Confirmed as hardware/compiler-specific, not a logic bug, via a differential test: the **identical code, same checkpoint, same computation** ran cleanly end-to-end on `titanix` (4× NVIDIA TITAN RTX, Turing/sm_75 — a much more mature JAX/XLA target). All benchmark numbers below are therefore from `titanix`, not `engaging`. **Filed as a known limitation, not fixed by this epic** — worth a jaxlib-version bump check or an XLA flag search as a future, separate investigation; it does not block any of E0–E8's correctness (all validated on CPU, and the plain forward pass is unaffected).
+2. **GPU memory ceiling at L=512 with the default batch size.** The wrapper script's default `n_decoys`/`n_mutants=16` at L=512 requires ~17GB for a single batched JAX call (16-layer trunk × pairwise `(L,L,D)` tensors), which exceeded available GPU memory (`RESOURCE_EXHAUSTED`). Not a bug — a real, documentable capacity boundary (consistent with E4.5's own earlier bucket-analysis finding that lengths near the top of the range carry the most padding/memory cost). Final runs used `--n-decoys 4`/`--n-mutants 4` (biasing already uses a fixed 2-state axis, unaffected) to fit comfortably; this is a batch-size tuning parameter for a real deployment, not a correctness issue.
+
+### Real results (titanix, TITAN RTX, n_repeats=30)
+
+**Decoy ranking** (`score_decoy_batch`, E5): `energy_evals_per_sec` / `score_grad_ms`, JAX vs PyTorch:
+
+| L | JAX evals/s | PyTorch evals/s | speedup | JAX grad ms | PyTorch grad ms |
+|--:|--:|--:|--:|--:|--:|
+| 64 | 286.0 | 25.2 | **11.4×** | 14.9 | 181.5 |
+| 128 | 173.9 | 6.9 | **25.3×** | 21.2 | 398.6 |
+| 256 | 70.8 | 1.9 | **37.0×** | 41.6 | 1255.1 |
+| 512 | 22.0 | 0.5 | **44.1×** | 116.3 | 4223.5 |
+
+**ΔΔG stability** (`score_mutant_ensemble`, E6): same metrics —
+
+| L | JAX evals/s | PyTorch evals/s | speedup | JAX grad ms | PyTorch grad ms |
+|--:|--:|--:|--:|--:|--:|
+| 64 | 304.2 | 19.0 | **16.0×** | 15.6 | 179.1 |
+| 128 | 170.5 | 6.3 | **27.0×** | 21.8 | 400.0 |
+| 256 | 70.9 | 1.9 | **38.1×** | 42.3 | 1246.5 |
+| 512 | 21.9 | 0.5 | **43.8×** | 118.8 | 4129.7 |
+
+**Conformational biasing** (`score_state_difference`, E7): `energy_evals_per_sec` / `diff_fuse_wall_clock_ms` —
+
+| L | JAX evals/s | PyTorch evals/s | speedup | JAX fuse ms | PyTorch fuse ms |
+|--:|--:|--:|--:|--:|--:|
+| 64 | 184.0 | 15.4 | **11.9×** | 10.8 | 129.7 |
+| 128 | 128.9 | 7.7 | **16.8×** | 16.2 | 262.0 |
+| 256 | 64.4 | 1.8 | **36.8×** | 32.0 | 1151.9 |
+| 512 | 21.3 | 0.5 | **41.5×** | 94.4 | 3961.2 |
+
+**Consistent pattern across all three:** JAX beats PyTorch throughout, with the margin **widening as protein length grows** (11–16× at L=64 up to 42–44× at L=512) — expected, since JAX's compiled/fused XLA execution amortizes overhead far better than PyTorch's eager per-op dispatch as the computation scales up. This satisfies the design spec §8.3 target ("JAX ≥ PyTorch throughput") comfortably at every tested length.
+
+### Process notes (for future cluster work on this epic)
+
+- `myxcel push`/`pull` were unreliable mid-session for specific file updates (reported success while the remote file remained unchanged, or a pull reported success while nothing landed locally) — always independently verify (checksum/`grep`/direct `ls`) after any `myxcel push`/`pull` before trusting it, and fall back to a direct, scoped `rsync` for the specific files in question if verification fails.
+- `myxcel submit-job` intermittently hit its own internal 30s SSH timeout during `engaging` login-node overload; a direct `sbatch` submission (with explicit `--output`/`--error` paths) is an acceptable, sanctioned fallback for job *submission* specifically when this happens — `myxcel push`/`pull`/`job-status`/`logs` remain the right tool otherwise.
+- `myxcel submit-job`'s returned JSON reveals the real log path convention: `outputs/logs/slurm/<job_id>.{out,err}` (relative to the project directory) — useful for manual log inspection when a submission's own job ID wasn't captured due to a timeout.
+- `/tmp` is genuinely ephemeral across a long session (cleared mid-session here) — large downloaded artifacts (like the 430MB checkpoint) should go under the job's own scoped tmp dir, not bare `/tmp`, to survive the whole session.

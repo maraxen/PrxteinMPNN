@@ -1,0 +1,41 @@
+[metadata]
+title = "ProteinEBM Langevin Sampler Throughput/Latency Benchmark (JAX vs PyTorch)"
+created = "260710"
+schema_version = "0.3"
+
+[benchmark]
+# No PyTorch baseline run has been recorded in the bathos catalog yet -- this
+# script has only been run locally (CPU, --smoke/--dry-run L1/L2 gates), not
+# via `bth run` against the real checkpoint, so there is no run_uuid to pin.
+# Set this to the run_uuid of the first `bth run` invocation of this script
+# against the real ProteinEBM checkpoint (impl="pytorch" rows) -- see
+# langevin_benchmark.py's --checkpoint/--reference-repo flags.
+baseline_ref = "TODO: set after first PyTorch baseline bth run (see langevin_benchmark.py module docstring)"
+metric = "langevin_steps_per_sec"
+regression_threshold = 0.05
+regression_threshold_basis = "Matches the sibling E11a/E11b/E11c sidecars' own convention (5%); no prior aminx Langevin-sampler benchmark run exists yet to derive an empirical noise floor from."
+target = "JAX >= PyTorch throughput on pi_so3 (SM120) at L in {64,128,256,512} (design spec §8.3; EPIC DAG §4.3), single fixed noise level t, use_metropolis=False"
+
+[result_schema]
+langevin_steps_per_sec = "float"
+langevin_step_ms = "float"
+protein_length = "int"
+device = "str"
+impl = "str"  # "jax" | "pytorch"
+
+[result_schema.provenance]
+n_trajectories = { type = "int", doc = "Independent-trajectory batch size used for the langevin_steps_per_sec metric this row was measured at" }
+n_steps = { type = "int", doc = "Euler-Maruyama steps per trajectory in the langevin_steps_per_sec metric's batched equilibration run" }
+n_repeats = { type = "int", doc = "Timed repeats averaged into this row's metrics, after the untimed warmup call" }
+diffusion_time = { type = "float", doc = "Fixed VP-SDE diffusion time t the row was measured at (ProteinEBM-x MVP target, design spec §9)" }
+dt = { type = "float", doc = "Euler-Maruyama step size (matches run_dynamics.py's --dt default, 0.001)" }
+checkpoint = { type = "str", doc = "Path to the ProteinEBM PyTorch-Lightning checkpoint ported for this run, or null under --smoke" }
+smoke = { type = "bool", doc = "True if this run used the reduced-scale --smoke architecture (tiny random-init dims, not the real 85M-param checkpoint) -- see langevin_benchmark.py module docstring" }
+use_metropolis = { type = "bool", doc = "Always false for this script -- only the plain Euler-Maruyama langevin_step path is benchmarked, not metropolis_hastings_step" }
+xla_shard_autotuning_workaround_applied = { type = "bool", doc = "Must be true for any GPU/pi_so3 (SM120) run per ~/.claude/rules/CLUSTER.md -- false/absent on CPU-only local runs" }
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true, doc = "aminx commit SHA (worktree-proteinebm-decomposition)" }
+jax_version = { type = "string", required = true, doc = "JAX version used in run" }
+torch_version = { type = "string", required = true, doc = "PyTorch reference baseline version" }
+proteinebm_checkpoint = { type = "string", required = false, doc = "Checkpoint filename/hash ported for the PyTorch/JAX comparison (absent under --smoke)" }

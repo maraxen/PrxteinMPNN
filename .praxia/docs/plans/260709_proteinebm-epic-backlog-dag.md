@@ -225,4 +225,41 @@ Per the user's explicit directive ("let's do the followup before we merge"), the
 
 **Full regression check after all four nodes**: `uv run pytest tests/ebm/ -q` → **261 passed, 4 pre-existing skips**, zero regressions across the whole module.
 
-**What is genuinely NOT done, honestly stated:** a real GPU cluster run of E11d (only CPU L1/L2 gates so far — unlike E11a–c, which have real `titanix` GPU numbers in §7); the multi-checkpoint model-swap has never been exercised against two *real* (non-toy) checkpoints simultaneously resident on one device (only same-architecture-different-random-key stand-ins in tests) — the BLOCKER-1 N×85M-param memory cost is documented, not empirically measured; AF2Rank rescoring, scipy hierarchical-clustering resampling, and the third-checkpoint round-2+ model swap are all explicitly out of scope, matching how they're optional/flag-gated in the reference itself.
+**What is genuinely NOT done, honestly stated:** a real GPU cluster run of E11d (only CPU L1/L2 gates so far — unlike E11a–c, which have real `titanix` GPU numbers in §7); the multi-checkpoint model-swap has never been exercised against two *real* (non-toy) checkpoints simultaneously resident on one device (only same-architecture-different-random-key stand-ins in tests) — the BLOCKER-1 N×85M-param memory cost is documented, not empirically measured; AF2Rank rescoring, scipy hierarchical-clustering resampling, and the third-checkpoint round-2+ model swap are all explicitly out of scope, matching how they're optional/flag-gated in the reference itself. **Update: E11d's GPU gap is closed — see §9.**
+
+## 9. Real `engaging`/Blackwell (pi_so3) GPU benchmark results (2026-07-11)
+
+Per user request ("let's use engaging for the benchmark... to get numbers on modern gpus"), all four benchmark scripts were re-run on `engaging`'s `pi_so3` partition (RTX PRO 6000 Blackwell, `node4007`), superseding/supplementing the `titanix` (Turing) numbers in §7 where they succeeded. Jobs: `17700952` (decoy), `17701019` (ddg), `17701022` (biasing), `17701023` (langevin) — all four submitted with the mandatory `XLA_FLAGS=--xla_gpu_shard_autotuning=false` workaround via the `pi-so3-gpu` myxcel preset, `uv sync --extra cuda12 --extra benchmark` run fresh on the node, real 85M-param checkpoint, reduced batch sizes (`--n-decoys 4`/`--n-mutants 4`/`--n-trajectories 4`) to stay under the L=512 memory ceiling documented in §7.
+
+### Confirmed: the Blackwell XLA compiler bug (§7) is still present, unfixed by the current jaxlib
+
+**Decoy (`17700952`) and ddg (`17701019`) both FAILED**, crashing at the exact same signature documented in §7 finding 1 (`'scf.if' op along control flow edge ... successor operand type #0 'tensor<1x1x1xf32>' should match successor input type #0 'tensor<1x256x64xf32>'`), now confirmed on **jaxlib 0.10.2** (a materially newer release than whatever was current when §7 was written) — this resolves §7's "worth a jaxlib-version bump check" open question with a **negative result**: the bug is not a stale-jaxlib artifact, it reproduces on current jaxlib too. Both crashed at `L=64`, the very first (smallest) length, on the `score`/gradient path (`-jax.grad(energy)`), *after* successfully completing the pure forward `energy_evals_per_sec` timing for that length — consistent with §7's characterization that the plain forward pass is unaffected and only the gradient path trips the compiler. Neither script has a per-metric try/except, so the whole run aborts before any JSON is written; **no engaging numbers exist yet for decoy/ddg** — their only real numbers remain the `titanix` ones in §7's tables. Filed as the same known limitation, now confirmed to survive a jaxlib version bump; fixing it (an XLA flag search, or adding per-metric fault isolation to the scripts) is a separate, not-yet-requested piece of work.
+
+### Real, complete Blackwell numbers: biasing (E11c) and langevin (E11d)
+
+Both scripts' JAX-side metrics never call `jax.grad` (biasing's `energy_evals_per_sec`/`diff_fuse_wall_clock_ms` are forward-only; langevin's `langevin_steps_per_sec`/`langevin_step_ms` only call the non-conservative `aux_score`, never the conservative `-jax.grad(energy)` score) — both ran clean end-to-end across all four lengths, no crash, no workaround needed beyond the standing XLA flag.
+
+**Conformational biasing** (`biasing_benchmark.py`, real checkpoint, 30 repeats, `outputs/ebm_benchmarks/biasing_benchmark_full_engaging.json`):
+
+| L | JAX evals/s | PyTorch evals/s | speedup | JAX fuse ms | PyTorch fuse ms |
+|--:|--:|--:|--:|--:|--:|
+| 64 | 1040.6 | 25.5 | **40.8×** | 1.93 | 77.3 |
+| 128 | 721.1 | 13.7 | **52.8×** | 2.79 | 145.8 |
+| 256 | 326.3 | 5.5 | **59.6×** | 6.14 | 361.6 |
+| 512 | 84.9 | 1.6 | **54.2×** | 23.55 | 1331.9 |
+
+**Langevin sampler** (`langevin_benchmark.py`, E11d, real checkpoint, `n_trajectories=4`, `n_steps=20`, 30 repeats, `outputs/ebm_benchmarks/langevin_benchmark_full_engaging.json`):
+
+| L | JAX steps/s | PyTorch steps/s | speedup | JAX ms/step | PyTorch ms/step |
+|--:|--:|--:|--:|--:|--:|
+| 64 | 2016.8 | 46.3 | **43.5×** | 1.65 | 36.9 |
+| 128 | 992.7 | 21.2 | **46.9×** | 1.88 | 71.0 |
+| 256 | 284.3 | 6.4 | **44.4×** | 3.54 | 161.9 |
+| 512 | 79.5 | 1.4 | **54.9×** | 12.30 | 567.8 |
+
+**Both are on Blackwell, ahead of every `titanix` speedup in §7** (11–44×) — consistent with Blackwell being genuinely faster hardware for JAX's compiled execution than titanix's Turing TITAN RTX, and confirming the E11d follow-on gap flagged at the end of §8 ("no real GPU numbers yet for E11d") is now closed with real, complete, non-smoke numbers.
+
+### Net status after this run
+
+- **E11a (decoy) / E11b (ddg):** real numbers only from `titanix` (§7); `engaging`/Blackwell blocked by the confirmed-still-present XLA gradient-path bug.
+- **E11c (biasing) / E11d (langevin):** real numbers from **both** `titanix` (§7) and `engaging`/Blackwell (this section) — Blackwell numbers are the newer, more modern hardware and the ones to cite going forward for these two.

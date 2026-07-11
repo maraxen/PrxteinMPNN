@@ -263,3 +263,22 @@ Both scripts' JAX-side metrics never call `jax.grad` (biasing's `energy_evals_pe
 
 - **E11a (decoy) / E11b (ddg):** real numbers only from `titanix` (§7); `engaging`/Blackwell blocked by the confirmed-still-present XLA gradient-path bug.
 - **E11c (biasing) / E11d (langevin):** real numbers from **both** `titanix` (§7) and `engaging`/Blackwell (this section) — Blackwell numbers are the newer, more modern hardware and the ones to cite going forward for these two.
+
+## 10. Due diligence on the XLA grad-path bug: flag sweep + cross-architecture test (2026-07-11)
+
+Per user request ("let's do due diligence on xla flag workaround. we could also try mit preemptable for h100, a100, or l40"), two follow-up investigations were run to characterize the §9 gradient-path bug more precisely, rather than accepting it as an unexplained Blackwell quirk.
+
+### XLA flag sweep: no flag fixes it (jobs `17704080`, `pi_so3`/Blackwell)
+
+Six candidate `XLA_FLAGS` combinations were tried against a minimal repro (`model.score()` — the same `-jax.grad(energy)` call that crashes in decoy/ddg — at `L=64`, the exact shape the real benchmarks first crash on): the standing baseline, `--xla_gpu_autotune_level=0`, `--xla_gpu_enable_triton_gemm=false`, `--xla_gpu_enable_command_buffer=` (disabled), `--xla_gpu_enable_latency_hiding_scheduler=false`, and all four combined. **All six produced the exact identical error** (`'scf.if' op along control flow edge ... successor operand type #0 'tensor<1x1x1xf32>' should match successor input type #0 'tensor<1x256x64xf32>'`) — not a flag-tunable autotuning/scheduling/fusion-selection issue; the bug sits deeper in XLA's core compilation (shape/layout inference through a control-flow region), unreachable by disabling any of the optional codegen paths tried.
+
+### Cross-architecture test: the bug is NOT Blackwell-specific — it reproduces on H100, A100, and L40S too (jobs `17704171`, `17704183`, `17704184`, `mit_preemptable`)
+
+`decoy_benchmark.py` (real checkpoint, `--n-decoys 4`) was run on three more GPU generations via `mit_preemptable` (`--gres=gpu:{h100,a100,l40s}:1`, direct `sbatch` — `myxcel submit_job`'s `extra_sbatch` gres override failed with an unparseable-sbatch-output error against these gres-tagged nodes; direct `sbatch` is the sanctioned fallback per `CLUSTER.md`). **All three failed with the same `scf.if` error class** (H100 and L40S: identical `tensor<1x1x1xf32>`/`tensor<1x256x64xf32>` shapes to Blackwell; A100: same bug, different intermediate shape `tensor<1x128x128xf32>` — a hardware-dependent tiling detail, not a different bug). This overturns §7/§9's "Blackwell/SM120-specific" characterization: **the bug reproduces on every modern (Ampere/Ada/Hopper/Blackwell) GPU tested on jaxlib 0.10.2** — only `titanix`'s Turing (sm_75) cards, the *oldest* architecture tried, avoid it. The likely explanation (not yet confirmed against XLA source) is that Turing falls back to an older, simpler GPU codegen/lowering path that never generates the problematic `scf.if` construct, while every sm_80+ architecture routes through a newer codegen path that does.
+
+### Net conclusion
+
+This is a genuine, version-specific XLA:GPU compiler bug (present in jaxlib 0.10.2), not a Blackwell/SM120 hardware quirk, not fixable by any XLA flag tried, and blocking the gradient path (`-jax.grad(energy)`, hence decoy/ddg's `score_grad_ms` metric) on **every modern GPU generation available on this cluster**. It does not block the plain forward pass (`energy_evals_per_sec`, all of E11c, all of E11d) on any architecture tested. Real next steps, none attempted here (a genuine scope decision, not decided unilaterally):
+1. **File a minimal upstream repro with the JAX/XLA team** — precedent exists: a structurally similar grad+vmap+scan XLA layout bug (jax-ml/jax#25759) was fixed via an upstream `openxla/xla` PR after a minimal HLO repro was provided, so this class of bug is fixable once isolated to a small reproducer (this investigation used the full 85M-param model as the repro, not yet minimized).
+2. **Try a different jaxlib version** (older or a newer nightly) — not attempted; carries its own support/consistency tradeoffs across the whole project.
+3. **Restructure the trunk's doubly-nested `vmap`** to avoid whichever fused shape triggers the bug — a real, riskier change to already-shipped, tested code (`src/aminx/ebm/trunk.py`), not undertaken speculatively.

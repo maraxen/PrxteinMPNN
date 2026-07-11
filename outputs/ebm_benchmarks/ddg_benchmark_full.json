@@ -1,0 +1,58 @@
+[
+  {
+    "protein_length": 64,
+    "device": "gpu",
+    "impl": "jax",
+    "energy_evals_per_sec": 304.162297526022,
+    "score_grad_ms": 15.571716932269435
+  },
+  {
+    "protein_length": 64,
+    "device": "cuda",
+    "impl": "pytorch",
+    "energy_evals_per_sec": 18.9697618548538,
+    "score_grad_ms": 179.13874779672673
+  },
+  {
+    "protein_length": 128,
+    "device": "gpu",
+    "impl": "jax",
+    "energy_evals_per_sec": 170.48056289315846,
+    "score_grad_ms": 21.784937762034435
+  },
+  {
+    "protein_length": 128,
+    "device": "cuda",
+    "impl": "pytorch",
+    "energy_evals_per_sec": 6.332470519816373,
+    "score_grad_ms": 400.035369861871
+  },
+  {
+    "protein_length": 256,
+    "device": "gpu",
+    "impl": "jax",
+    "energy_evals_per_sec": 70.884074775896,
+    "score_grad_ms": 42.31891163314382
+  },
+  {
+    "protein_length": 256,
+    "device": "cuda",
+    "impl": "pytorch",
+    "energy_evals_per_sec": 1.859561743692817,
+    "score_grad_ms": 1246.5030240360647
+  },
+  {
+    "protein_length": 512,
+    "device": "gpu",
+    "impl": "jax",
+    "energy_evals_per_sec": 21.900790641351346,
+    "score_grad_ms": 118.83917370190224
+  },
+  {
+    "protein_length": 512,
+    "device": "cuda",
+    "impl": "pytorch",
+    "energy_evals_per_sec": 0.5003877063407232,
+    "score_grad_ms": 4129.677155093911
+  }
+]

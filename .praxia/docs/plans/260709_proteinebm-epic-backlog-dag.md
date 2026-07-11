@@ -282,3 +282,23 @@ This is a genuine, version-specific XLA:GPU compiler bug (present in jaxlib 0.10
 1. **File a minimal upstream repro with the JAX/XLA team** — precedent exists: a structurally similar grad+vmap+scan XLA layout bug (jax-ml/jax#25759) was fixed via an upstream `openxla/xla` PR after a minimal HLO repro was provided, so this class of bug is fixable once isolated to a small reproducer (this investigation used the full 85M-param model as the repro, not yet minimized).
 2. **Try a different jaxlib version** (older or a newer nightly) — not attempted; carries its own support/consistency tradeoffs across the whole project.
 3. **Restructure the trunk's doubly-nested `vmap`** to avoid whichever fused shape triggers the bug — a real, riskier change to already-shipped, tested code (`src/aminx/ebm/trunk.py`), not undertaken speculatively.
+
+## 11. Root cause pinned: a jaxlib 0.10.x regression, not present in 0.8.0–0.9.2 (2026-07-11)
+
+Per user follow-up ("what's the lightest weight path... web search and review github issues"), two more steps were taken before touching any code or dependency pin.
+
+**GitHub/web research: no existing tracked issue matches.** Searched `jax-ml/jax` and `openxla/xla` issues (`gh search issues`) for the exact error text (`scf.if`, `successor operand type`, `add_any`) and broader terms (`grad vmap GPU compile crash`) — no match. WebSearch corroborated: nothing indexed with this exact signature. One structurally similar, since-fixed bug was found (`jax-ml/jax#25759`, a grad+vmap+scan XLA layout-normalization crash, fixed via `openxla/xla#21511`) — useful precedent that this *class* of bug is fixable once isolated, but not the same bug. Likely explanation for the search coming up empty: `jaxlib 0.10.2` (installed on `engaging`) is newer than anything on PyPI at query time (latest there: `0.9.2`) — this may be recent/bleeding-edge territory not yet reported by anyone else.
+
+**Version-bisection job (`17704871`, `pi_so3`/Blackwell) — clean, actionable result.** The same minimal `-jax.grad(energy)` repro (§10) was run once per version via `uv run --with "jax[cuda12]==<ver>" --with "jaxlib==<ver>"` (an ad-hoc per-invocation override — nothing written to `pyproject.toml`/the lockfile), sweeping the current pin plus four progressively older releases:
+
+| jax/jaxlib version | Result |
+| :-- | :-- |
+| `0.10.2` (current project pin) | **FAIL** — `scf.if` crash, identical signature |
+| `0.9.2` | **PASS** (`REPRO_OK`) |
+| `0.9.0` | **PASS** |
+| `0.8.3` | **PASS** |
+| `0.8.0` | **PASS** |
+
+**This is a genuine regression introduced somewhere in the `0.9.2 → 0.10.2` window, not an inherent limitation of the computation graph.** Every version from `0.8.0` through `0.9.2` compiles and runs the exact same `-jax.grad(energy)` call cleanly on the exact same Blackwell hardware; only the currently-pinned `0.10.2` fails.
+
+**Practical implication — the lightest-weight real fix is a version pin, not a code change.** Pinning `jax`/`jaxlib` (and the matching `cuda12` plugin) to `0.9.2` project-wide would very likely restore the gradient path on every architecture already confirmed to fail on `0.10.2` (Blackwell/H100/A100/L40S) — no restructuring of `src/aminx/ebm/trunk.py` needed, and no upstream bug report is even necessary for aminx's own purposes (though still worth filing for the JAX/XLA team, now with a precise, evidence-backed regression window to report). **Not yet applied** — downgrading a core project-wide dependency is a real, hard-to-reverse-feeling change with its own compatibility surface (every other `aminx` module, not just `ebm`), so it was left for explicit confirmation rather than applied unilaterally. If approved: re-run the full E11a/E11b test suite (`tests/ebm/`, plus a repo-wide `uv run pytest`) under the new pin before trusting it, exactly like every other change in this epic.

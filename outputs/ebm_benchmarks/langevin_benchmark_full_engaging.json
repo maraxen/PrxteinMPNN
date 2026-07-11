@@ -1,0 +1,83 @@
+{
+  "meta": {
+    "smoke": false,
+    "n_trajectories": 4,
+    "n_steps": 20,
+    "n_repeats": 30,
+    "diffusion_time": 0.05,
+    "dt": 0.001,
+    "seed": 0,
+    "checkpoint": "/home/maarxaru/proteinebm_bench_assets/model_6_expert_frozen_1m_md.pt",
+    "reference_repo": "/home/maarxaru/proteinebm_bench_assets/ProteinEBM",
+    "coordinate_scaling": 0.1,
+    "effective_temp_scaling": 1.0,
+    "use_metropolis": false,
+    "wall_clock_seconds": 2423.6645066300407,
+    "methodology_notes": [
+      "Fixed single noise level t, single model -- the outer noise-schedule loop and model-swap dispatcher (aminx.ebm.langevin_schedule) are out of scope for this script; see module docstring.",
+      "langevin_steps_per_sec batches n_trajectories independent chains via jax.vmap (JAX) / a plain batch dimension (PyTorch), each run for a fixed n_steps -- not a per-trajectory-varying trip count.",
+      "langevin_step_ms is a single-trajectory, single-step latency (one langevin_step call), not a batched-throughput number -- E11d's analog of E11a/E11b's score_grad_ms.",
+      "Both impls get one untimed warmup call per (length, metric) before timing (JAX: forces jit compilation; PyTorch: cache/allocator warm-up).",
+      "No SM120 XLA autotuning workaround applied here -- CPU-only local run. A cluster (GPU) run of this script MUST set XLA_FLAGS=--xla_gpu_shard_autotuning=false per ~/.claude/rules/CLUSTER.md or JAX throughput numbers will be wrong by orders of magnitude.",
+      "Only the plain Euler-Maruyama langevin_step path is benchmarked (use_metropolis=False) -- metropolis_hastings_step is not exercised here."
+    ]
+  },
+  "results": [
+    {
+      "protein_length": 64,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 2016.7877347940764,
+      "langevin_step_ms": 1.646511264455815
+    },
+    {
+      "protein_length": 64,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 46.33177220816131,
+      "langevin_step_ms": 36.90579020573447
+    },
+    {
+      "protein_length": 128,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 992.6525236728735,
+      "langevin_step_ms": 1.8759481531257431
+    },
+    {
+      "protein_length": 128,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 21.160814287562054,
+      "langevin_step_ms": 71.03359454000989
+    },
+    {
+      "protein_length": 256,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 284.3104482249329,
+      "langevin_step_ms": 3.535965511885782
+    },
+    {
+      "protein_length": 256,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 6.400178775575602,
+      "langevin_step_ms": 161.93332246039063
+    },
+    {
+      "protein_length": 512,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 79.50964335885963,
+      "langevin_step_ms": 12.30435933296879
+    },
+    {
+      "protein_length": 512,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 1.4476907975368756,
+      "langevin_step_ms": 567.8372599106904
+    }
+  ]
+}

@@ -49,6 +49,7 @@ def build_inference_bundle(
   fixed_mask: jax.Array | None = None,
   fixed_tokens: jax.Array | None = None,
   tie_group_map: jax.Array | None = None,
+  state_position_map: jax.Array | None = None,
   state_weights: jax.Array | None = None,
   ligand_coords: jax.Array | None = None,
   ligand_atom_types: jax.Array | None = None,
@@ -151,6 +152,15 @@ def build_inference_bundle(
   elif tie_group_map.ndim == 1:
     tie_group_map = jnp.broadcast_to(tie_group_map[None, :], (num_states, seq_len))
 
+  if state_position_map is None:
+    # Identity: reference position i == state s's own native index i (today's
+    # naive, pre-fix behavior). Populate via
+    # aminx.utils.align.build_state_position_map when states have genuinely
+    # different native lengths/numbering.
+    state_position_map = jnp.broadcast_to(jnp.arange(seq_len)[None, :], (num_states, seq_len))
+  elif state_position_map.ndim == 1:
+    state_position_map = jnp.broadcast_to(state_position_map[None, :], (num_states, seq_len))
+
   # 2b. Wave schedule (W0.3).
   #
   # IMPORTANT (jit/vmap safety): `schedule="fixed_n_to_c"` (the default) stays
@@ -228,6 +238,7 @@ def build_inference_bundle(
     fixed_tokens=fixed_tokens if fixed_tokens is not None else jnp.zeros(seq_len, dtype=jnp.int32),
     bias=bias if bias is not None else jnp.zeros((seq_len, 21)),
     tie_group_map=tie_group_map,
+    state_position_map=state_position_map,
     state_weights=state_weights,
     sequence_oh=sequence_oh,
     ar_mask=ar_mask,

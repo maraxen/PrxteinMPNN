@@ -10,7 +10,7 @@ from typing import Any
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import PRNGKeyArray
+from jaxtyping import Array, Float, Int, PRNGKeyArray
 
 
 def _decode_one_step(
@@ -168,3 +168,53 @@ def _tied_group_einsum_average(
 
   # Vmap over S axis
   return jax.vmap(average_one_state, in_axes=0)(logits)
+
+
+def _realign_states_to_reference(
+  logits: Float[Array, "S L V"],
+  state_position_map: Int[Array, "S L"],
+) -> Float[Array, "S L V"]:
+  """Gather per-state logits into a shared reference frame before cross-state fusion.
+
+  Reorders each state's own (S, L, V) logits along the L axis via
+  ``state_position_map`` (see ``ConditioningBundle.state_position_map`` and
+  ``aminx.utils.align.build_state_position_map``) so that per-position fusion
+  (``LOGIT_STRATEGIES``'s arithmetic_mean/geometric_mean/product, called
+  immediately after this) combines logits for the same physical residue across
+  states, not the same raw array index. With the default identity
+  ``state_position_map``, this is a no-op (every state's own index i gathers
+  from itself), reproducing pre-fix behavior exactly.
+
+  Gap positions (``state_position_map == -1``, i.e. an indel relative to the
+  reference) are filled with zero logits. This is an exact neutral element for
+  the ``product`` strategy (a weighted *sum* of logits -- a zero contribution
+  from a missing state leaves the sum unchanged, correctly excluding it). It is
+  a documented approximation, not an exact per-position renormalization, for
+  ``arithmetic_mean``/``geometric_mean``: both divide by a fixed,
+  position-independent sum of per-state weights (``LOGIT_STRATEGIES``'s
+  ``weights`` are shape (S,), not position-aware), so a state's zero-logit
+  contribution at a gap still participates in that denominator rather than
+  being excluded from it. Exact renormalization for those two strategies would
+  require making ``LOGIT_STRATEGIES``'s weights position-aware -- out of scope
+  here (the necklace campaign's locked strategy is ``product`` specifically,
+  which this handles exactly; see praxia debt #572/#575).
+
+  Parameters
+  ----------
+  logits : ndarray
+      Per-state logits before cross-state fusion. Shape (S, L, V).
+  state_position_map : ndarray
+      Per-state gather index into the reference frame. Shape (S, L). Entry
+      [s, i] is the index in state s's own native numbering corresponding to
+      reference position i, or -1 for no correspondence (indel).
+
+  Returns
+  -------
+  ndarray
+      Realigned logits, shape (S, L, V), ready for cross-state fusion.
+
+  """
+  is_valid = state_position_map != -1
+  safe_indices = jnp.where(is_valid, state_position_map, 0)
+  gathered = jnp.take_along_axis(logits, safe_indices[..., None], axis=1)
+  return jnp.where(is_valid[..., None], gathered, 0.0)

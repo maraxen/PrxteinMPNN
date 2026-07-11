@@ -233,6 +233,7 @@ def minimal_bundle_fixture():
         fixed_tokens=jnp.zeros(L, dtype=jnp.int32),
         bias=jnp.zeros((L, V)),
         tie_group_map=jnp.zeros((S, L), dtype=jnp.int32),
+        state_position_map=jnp.broadcast_to(jnp.arange(L)[None, :], (S, L)),
         state_weights=jnp.ones(S),
         sequence_oh=jnp.zeros((L, V)),
         ar_mask=jnp.ones((S, L, L)),

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 
 def smith_waterman_no_gap(unroll_factor: int = 2, *, batch: bool = True) -> Callable:
@@ -598,3 +599,83 @@ def align_sequences(
   masks_b = jnp.arange(max_seq_len) < true_lengths[j_indices][:, None]
 
   return jax.vmap(_align_and_map_pair)(seqs_a, masks_a, seqs_b, masks_b)
+
+
+def build_state_position_map(
+  native_sequences: ProteinSequence | OneHotProteinSequence,
+  reference_state_index: int = 0,
+  gap_open: float = -1.0,
+  gap_extend: float = -0.1,
+  temp: float = 0.1,
+) -> jax.Array:
+  """Build a per-state residue correspondence map into one reference state's frame.
+
+  Star-topology alignment: every state is aligned directly to
+  ``reference_state_index`` via :func:`align_sequences` (no transitive merging of
+  multiple pairwise alignments -- see praxia debt #575 for the deferred, more
+  general n-way case). Intended to populate
+  :attr:`aminx.types.bundles.ConditioningBundle.state_position_map` when states
+  have genuinely different native lengths/numbering (e.g. different PDB
+  depositions of the same protein) so per-position multistate fusion combines
+  logits for the same physical residue rather than the same raw array index.
+
+  This is a host-side, one-time bundle-construction-time utility (analogous to
+  ``WaveScheduleBundle.from_tie_groups``/``from_colors``) -- called once per
+  campaign/bead against the fixed reference structures, not per decode step or
+  per sample, so eager numpy index bookkeeping (rather than a fully traced JAX
+  reduction) is the right tool here.
+
+  Args:
+    native_sequences: Native/backbone amino-acid sequences (or one-hot), one per
+      state, shape (S, L). -1-padded past each state's true native length, per
+      :func:`align_sequences`'s convention.
+    reference_state_index: Which state's own native numbering is the shared
+      reference frame. Its own row of the returned map is always the identity.
+    gap_open: Forwarded to :func:`align_sequences`.
+    gap_extend: Forwarded to :func:`align_sequences`.
+    temp: Forwarded to :func:`align_sequences`.
+
+  Returns:
+    Int array, shape (S, L). ``result[s, i]`` is the index in state ``s``'s own
+    native numbering corresponding to reference position ``i``, or -1 if state
+    ``s`` has no residue there (indel relative to the reference).
+
+  """
+  if native_sequences.dtype == jnp.float32 and native_sequences.ndim == _ONE_HOT_NDIM:
+    native_sequences = jnp.argmax(native_sequences, axis=-1)
+
+  num_states, seq_len = native_sequences.shape
+  identity_row = np.arange(seq_len, dtype=np.int32)
+
+  if num_states < _MINIMUM_PROTEINS_COUNT:
+    return jnp.broadcast_to(jnp.asarray(identity_row)[None, :], (num_states, seq_len))
+
+  pairwise_mappings = np.asarray(
+    align_sequences(native_sequences, gap_open=gap_open, gap_extend=gap_extend, temp=temp),
+  )  # (num_pairs, L, 2); pairs ordered per np.triu_indices(num_states, k=1)
+  pair_i, pair_j = np.triu_indices(num_states, k=1)
+
+  state_position_map = np.tile(identity_row, (num_states, 1))
+
+  for state_idx in range(num_states):
+    if state_idx == reference_state_index:
+      continue
+    lo, hi = min(reference_state_index, state_idx), max(reference_state_index, state_idx)
+    pair_idx = int(np.where((pair_i == lo) & (pair_j == hi))[0][0])
+    mapping = pairwise_mappings[pair_idx]  # (L, 2): [pos_in_lo, pos_in_hi] or [-1, -1]
+
+    row_map = np.full(seq_len, -1, dtype=np.int32)
+    if reference_state_index == lo:
+      # Row r of `mapping` is reference position r; mapping[r, 1] is state_idx's
+      # corresponding position.
+      valid = mapping[:, 0] != -1
+      row_map[mapping[valid, 0]] = mapping[valid, 1]
+    else:
+      # Row r of `mapping` is state_idx's own position r; mapping[r, 1] is the
+      # reference's corresponding position -- invert.
+      valid = mapping[:, 1] != -1
+      row_map[mapping[valid, 1]] = mapping[valid, 0]
+
+    state_position_map[state_idx] = row_map
+
+  return jnp.asarray(state_position_map, dtype=jnp.int32)

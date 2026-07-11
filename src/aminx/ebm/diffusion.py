@@ -179,6 +179,39 @@ def forward_marginal(
   return x_t, score
 
 
+def diffusion_coef(
+  t: DiffusionTime,
+  min_b: float = DEFAULT_MIN_B,
+  max_b: float = DEFAULT_MAX_B,
+) -> DiffusionTime:
+  """Time-dependent diffusion coefficient, ``g(t) = sqrt(b_t(t))``.
+
+  Backlog node **E9** (Langevin sampler; see ``aminx.ebm.langevin``). Matches
+  ``R3Diffuser.diffusion_coef`` (``~/repos/ProteinEBM/protein_ebm/model/
+  r3_diffuser.py`` lines ~29-31) exactly -- a thin wrapper around
+  :func:`beta_t`, not a new schedule.
+  """
+  return jnp.sqrt(beta_t(t, min_b=min_b, max_b=max_b))
+
+
+def drift_coef(
+  x: Coords,
+  t: DiffusionTime,
+  min_b: float = DEFAULT_MIN_B,
+  max_b: float = DEFAULT_MAX_B,
+) -> Coords:
+  """Time-dependent VP-SDE drift coefficient, ``f(x, t) = -0.5 * b_t(t) * x``.
+
+  Backlog node **E9** (Langevin sampler; see ``aminx.ebm.langevin``). Matches
+  ``R3Diffuser.drift_coef`` (``~/repos/ProteinEBM/protein_ebm/model/
+  r3_diffuser.py`` lines ~33-35) exactly: ``-1/2 * b_t(t) * x``. Operates in
+  whatever coordinate space ``x`` already lives in -- no ``coordinate_scaling``
+  applied here (see module docstring; that boundary is :func:`forward_marginal`
+  only).
+  """
+  return -0.5 * beta_t(t, min_b=min_b, max_b=max_b) * x
+
+
 class VPSchedule(eqx.Module):
   """Frozen VP-SDE hyperparameter bundle -- backlog node **E2**.
 
@@ -223,6 +256,14 @@ class VPSchedule(eqx.Module):
     """See :func:`calc_trans_0`."""
     return calc_trans_0(score, x_t, t, min_b=self.min_b, max_b=self.max_b)
 
+  def diffusion_coef(self, t: DiffusionTime) -> DiffusionTime:
+    """See :func:`diffusion_coef`."""
+    return diffusion_coef(t, min_b=self.min_b, max_b=self.max_b)
+
+  def drift_coef(self, x: Coords, t: DiffusionTime) -> Coords:
+    """See :func:`drift_coef`."""
+    return drift_coef(x, t, min_b=self.min_b, max_b=self.max_b)
+
   def forward_marginal(
     self,
     x0: Coords,
@@ -248,6 +289,8 @@ __all__ = [
   "beta_t",
   "calc_trans_0",
   "conditional_var",
+  "diffusion_coef",
+  "drift_coef",
   "forward_marginal",
   "marginal_b_t",
   "score_target",

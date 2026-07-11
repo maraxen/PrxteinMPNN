@@ -1,0 +1,82 @@
+{
+  "meta": {
+    "smoke": false,
+    "n_decoys": 4,
+    "n_repeats": 30,
+    "diffusion_time": 0.05,
+    "seed": 0,
+    "checkpoint": "/home/solab/proteinebm_bench_assets/model_6_expert_frozen_1m_md.pt",
+    "reference_repo": "/home/solab/proteinebm_bench_assets/ProteinEBM",
+    "model_dims": {
+      "token_s": 256,
+      "token_z": 128,
+      "transformer_depth": 16,
+      "transformer_heads": 8,
+      "num_contact_embeddings": 3
+    },
+    "wall_clock_seconds": 574.4194888849743,
+    "methodology_notes": [
+      "PyTorch score_grad_ms uses torch.autograd.grad(..., create_graph=False) explicitly -- the reference's own compute_score always uses create_graph=True even at inference (design spec \u00a78.3 / EPIC MINOR-2).",
+      "Both impls get one untimed warmup call per (length, metric) before timing (JAX: forces jit compilation; PyTorch: cache/allocator warm-up).",
+      "No SM120 XLA autotuning workaround applied here -- CPU-only local run. A cluster (GPU) run of this script MUST set XLA_FLAGS=--xla_gpu_shard_autotuning=false per ~/.claude/rules/CLUSTER.md or JAX throughput numbers will be wrong by orders of magnitude."
+    ]
+  },
+  "results": [
+    {
+      "protein_length": 64,
+      "impl": "jax",
+      "device": "gpu",
+      "energy_evals_per_sec": 285.9854336965531,
+      "score_grad_ms": 14.947479940019548
+    },
+    {
+      "protein_length": 64,
+      "impl": "pytorch",
+      "device": "cuda",
+      "energy_evals_per_sec": 25.175842249458974,
+      "score_grad_ms": 181.46981083167097
+    },
+    {
+      "protein_length": 128,
+      "impl": "jax",
+      "device": "gpu",
+      "energy_evals_per_sec": 173.91595417351385,
+      "score_grad_ms": 21.212680474855006
+    },
+    {
+      "protein_length": 128,
+      "impl": "pytorch",
+      "device": "cuda",
+      "energy_evals_per_sec": 6.8799756898263285,
+      "score_grad_ms": 398.64461418086046
+    },
+    {
+      "protein_length": 256,
+      "impl": "jax",
+      "device": "gpu",
+      "energy_evals_per_sec": 70.76044659162417,
+      "score_grad_ms": 41.561146810029946
+    },
+    {
+      "protein_length": 256,
+      "impl": "pytorch",
+      "device": "cuda",
+      "energy_evals_per_sec": 1.912553183735553,
+      "score_grad_ms": 1255.1458913367242
+    },
+    {
+      "protein_length": 512,
+      "impl": "jax",
+      "device": "gpu",
+      "energy_evals_per_sec": 22.011618956216594,
+      "score_grad_ms": 116.34452977062513
+    },
+    {
+      "protein_length": 512,
+      "impl": "pytorch",
+      "device": "cuda",
+      "energy_evals_per_sec": 0.4986922361533272,
+      "score_grad_ms": 4223.480811187376
+    }
+  ]
+}

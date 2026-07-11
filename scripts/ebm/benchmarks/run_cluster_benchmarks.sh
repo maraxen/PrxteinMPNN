@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Cluster-side runner for the E11a/E11b/E11c ProteinEBM benchmark harnesses
-# (backlog nodes #3307/#3308/#3309, EPIC #3294). Runs all three JAX-vs-PyTorch
-# throughput/latency comparisons at the design spec's bucket-aligned lengths
-# {64,128,256,512} against the real 85M-param ProteinEBM-x checkpoint.
+# Cluster-side runner for the E11a/E11b/E11c/E11d ProteinEBM benchmark
+# harnesses (backlog nodes #3307/#3308/#3309/E11d, EPIC #3294). Runs all four
+# JAX-vs-PyTorch throughput/latency comparisons at the design spec's
+# bucket-aligned lengths {64,128,256,512} against the real 85M-param
+# ProteinEBM-x checkpoint.
 #
 # Expects (pushed separately, outside the aminx project's git tree, since
 # neither is committed to the repo):
@@ -61,4 +62,9 @@ uv run python scripts/ebm/benchmarks/biasing_benchmark.py \
   --lengths "${LENGTHS}" --n-repeats "${N_REPEATS}" \
   --out "${OUT_DIR}/biasing_benchmark_full.json"
 
-echo "=== All three benchmarks complete; results in ${OUT_DIR} ==="
+uv run python scripts/ebm/benchmarks/langevin_benchmark.py \
+  --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
+  --lengths "${LENGTHS}" --n-repeats "${N_REPEATS}" \
+  --out "${OUT_DIR}/langevin_benchmark_full.json"
+
+echo "=== All four benchmarks complete; results in ${OUT_DIR} ==="

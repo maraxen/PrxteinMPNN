@@ -304,6 +304,10 @@ class RunSpecification:
   tied_positions: Sequence[tuple[int, int]] | TiedPositionMode = None
   pass_mode: Literal["inter", "intra"] = "intra"  # noqa: S105
   tie_group_map: ArrayLike | None = None
+  # Cross-state residue alignment for multistate PoE fusion (debt #572). Per-state
+  # gather index into a shared reference frame, shape (S, L); -1 marks an indel.
+  # See ConditioningBundle.state_position_map and utils.align.build_state_position_map.
+  state_position_map: ArrayLike | None = None
   structure_mapping: ArrayLike | None = None
   multi_state_temperature: float = 1.0
   fixed_mask: ArrayLike | None = None

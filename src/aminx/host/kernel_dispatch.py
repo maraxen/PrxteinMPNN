@@ -146,6 +146,16 @@ def _sample_batch(
       (batch_size, spec.tie_group_map.shape[0]),
     )
 
+  # Ensure state_position_map (cross-state alignment, debt #572) has a batch
+  # dimension for vmap. Shape (S, L) — shared across the batch — or already
+  # (batch_size, S, L) if the caller supplies one map per structure.
+  state_position_map_for_vmap = None
+  if spec.state_position_map is not None:
+    _spm = jnp.asarray(spec.state_position_map)
+    if _spm.ndim == 2:
+      _spm = _spm[None, ...]
+    state_position_map_for_vmap = jnp.broadcast_to(_spm, (batch_size, *_spm.shape[1:]))
+
   mapping_for_vmap = (
     jnp.asarray(spec.structure_mapping, dtype=jnp.int32)
     if spec.structure_mapping is not None
@@ -217,6 +227,9 @@ def _sample_batch(
         bias=jnp.asarray(spec.run_spec.sampling.bias, dtype=jnp.float32) if spec.run_spec.sampling.bias is not None else None,
         tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
         state_weights=state_weights,
+        state_position_map=state_position_map_for_vmap[structure_idx]
+        if state_position_map_for_vmap is not None
+        else None,
         ligand_coords=ligand_context["Y"][structure_idx]
         if ligand_context["Y"] is not None
         else None,
@@ -297,6 +310,9 @@ def _sample_batch(
           bias=jnp.asarray(spec.run_spec.sampling.bias, dtype=jnp.float32) if spec.run_spec.sampling.bias is not None else None,
           tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
           state_weights=state_weights,
+          state_position_map=state_position_map_for_vmap[structure_idx]
+          if state_position_map_for_vmap is not None
+          else None,
           ligand_coords=ligand_context["Y"][structure_idx]
           if ligand_context["Y"] is not None
           else None,
@@ -401,6 +417,9 @@ def _sample_batch(
         bias=jnp.asarray(spec.run_spec.sampling.bias, dtype=jnp.float32) if spec.run_spec.sampling.bias is not None else None,
         tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
         state_weights=state_weights,
+        state_position_map=state_position_map_for_vmap[structure_idx]
+        if state_position_map_for_vmap is not None
+        else None,
         ligand_coords=ligand_context["Y"][structure_idx]
         if ligand_context["Y"] is not None
         else None,
@@ -477,6 +496,9 @@ def _sample_batch(
           bias=jnp.asarray(spec.run_spec.sampling.bias, dtype=jnp.float32) if spec.run_spec.sampling.bias is not None else None,
           tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
           state_weights=state_weights,
+          state_position_map=state_position_map_for_vmap[structure_idx]
+          if state_position_map_for_vmap is not None
+          else None,
           ligand_coords=ligand_context["Y"][structure_idx]
           if ligand_context["Y"] is not None
           else None,

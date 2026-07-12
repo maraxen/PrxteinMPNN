@@ -137,6 +137,7 @@ def test_kernel_dispatch_unified_path_when_spec_lacks_attr(monkeypatch):
         tie_group_map=None,
         structure_mapping=None,
         state_weights=None,
+        state_position_map=None,
         compute_pseudo_perplexity=False,
         run_spec=SimpleNamespace(
             sampling=SimpleNamespace(

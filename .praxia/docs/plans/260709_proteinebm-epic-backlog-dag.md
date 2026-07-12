@@ -301,4 +301,28 @@ Per user follow-up ("what's the lightest weight path... web search and review gi
 
 **This is a genuine regression introduced somewhere in the `0.9.2 → 0.10.2` window, not an inherent limitation of the computation graph.** Every version from `0.8.0` through `0.9.2` compiles and runs the exact same `-jax.grad(energy)` call cleanly on the exact same Blackwell hardware; only the currently-pinned `0.10.2` fails.
 
-**Practical implication — the lightest-weight real fix is a version pin, not a code change.** Pinning `jax`/`jaxlib` (and the matching `cuda12` plugin) to `0.9.2` project-wide would very likely restore the gradient path on every architecture already confirmed to fail on `0.10.2` (Blackwell/H100/A100/L40S) — no restructuring of `src/aminx/ebm/trunk.py` needed, and no upstream bug report is even necessary for aminx's own purposes (though still worth filing for the JAX/XLA team, now with a precise, evidence-backed regression window to report). **Not yet applied** — downgrading a core project-wide dependency is a real, hard-to-reverse-feeling change with its own compatibility surface (every other `aminx` module, not just `ebm`), so it was left for explicit confirmation rather than applied unilaterally. If approved: re-run the full E11a/E11b test suite (`tests/ebm/`, plus a repo-wide `uv run pytest`) under the new pin before trusting it, exactly like every other change in this epic.
+**Practical implication — the lightest-weight real fix is a version pin, not a code change.** Pinning `jax`/`jaxlib` (and the matching `cuda12` plugin) to `0.9.2` project-wide would very likely restore the gradient path on every architecture already confirmed to fail on `0.10.2` (Blackwell/H100/A100/L40S) — no restructuring of `src/aminx/ebm/trunk.py` needed, and no upstream bug report is even necessary for aminx's own purposes (though still worth filing for the JAX/XLA team, now with a precise, evidence-backed regression window to report).
+
+**Scoping decision: an ad-hoc `uv run --with` override, not a `pyproject.toml`/lockfile change.** Before touching any pin, the user asked whether scoping this to an "ebm dependency group" would isolate it the way they expected. It would not, by default: `jax` is a **base** (non-optional) dependency (`jax>=0.4.35`, no upper bound, in `[project.dependencies]`) — none of the existing extras (`cpu`, `cuda12`) constrain its version. Adding a new group/extra with an exact `jax==0.9.2` pin, without an explicit `tool.uv.conflicts` fork declaration (which this project doesn't have), would very likely collapse uv's single universal lockfile resolution to `0.9.2` **for the whole project**, not just when that group is selected — since `0.9.2` is the only version satisfying both the new exact pin and the base's open floor simultaneously. A genuine per-group fork is possible via `tool.uv.conflicts`, but that's new complexity for this project and still only per-`uv sync`-invocation isolation (switch by re-syncing), not simultaneous coexistence in one venv. **Decision: use the already-proven `uv run --with "jax[cuda12]==0.9.2" --with "jaxlib==0.9.2"` ad-hoc override instead** — zero `pyproject.toml`/lockfile risk, trivially reversible, scoped to exactly the two invocations that need it. Wired into `scripts/ebm/benchmarks/run_cluster_benchmarks.sh`'s `decoy_benchmark.py`/`ddg_benchmark.py` calls only (via a `JAX_GRAD_PATH_PIN` array); `biasing_benchmark.py`/`langevin_benchmark.py` are deliberately left unpinned (they don't hit this bug, and pinning them would make their numbers incomparable to the already-recorded §9 results on `0.10.2`).
+
+**Confirmed fixed on the real benchmarks, not just the minimal repro** (jobs `17766393` decoy, `17766394` ddg, `pi_so3`/Blackwell, real 85M-param checkpoint, `--n-decoys 4`/`--n-mutants 4`, 30 repeats):
+
+**Decoy ranking** (`outputs/ebm_benchmarks/decoy_benchmark_full_engaging_pinned.json`):
+
+| L | JAX evals/s | PyTorch evals/s | speedup | JAX grad ms | PyTorch grad ms | grad speedup |
+|--:|--:|--:|--:|--:|--:|--:|
+| 64 | 1840.0 | 40.3 | **45.7×** | 3.32 | 94.28 | **28.4×** |
+| 128 | 1032.9 | 11.1 | **92.9×** | 4.54 | 194.57 | **42.9×** |
+| 256 | 321.0 | 4.1 | **79.2×** | 9.23 | 425.90 | **46.1×** |
+| 512 | 92.7 | 1.1 | **87.6×** | 28.59 | 1869.91 | **65.4×** |
+
+**ΔΔG stability** (`outputs/ebm_benchmarks/ddg_benchmark_full_engaging_pinned.json`):
+
+| L | JAX evals/s | PyTorch evals/s | speedup | JAX grad ms | PyTorch grad ms | grad speedup |
+|--:|--:|--:|--:|--:|--:|--:|
+| 64 | 1799.4 | 44.5 | **40.5×** | 3.43 | 91.83 | **26.8×** |
+| 128 | 1032.1 | 19.3 | **53.6×** | 4.54 | 142.09 | **31.3×** |
+| 256 | 321.0 | 7.0 | **46.0×** | 9.25 | 324.19 | **35.0×** |
+| 512 | 92.1 | 1.7 | **54.8×** | 28.61 | 1219.75 | **42.6×** |
+
+**Net status: all four E11a–d benchmarks now have real, complete GPU numbers on Blackwell.** decoy/ddg previously had only `titanix`/Turing numbers (the grad path was completely blocked on every modern GPU); with the `0.9.2` pin, they now also have full modern-GPU numbers, matching biasing/langevin's already-established §9 pattern. The pin is a diagnostic/benchmark-only scoping choice — it does not change what version the rest of `aminx` (or even the `ebm` module's own tests) run against day to day.

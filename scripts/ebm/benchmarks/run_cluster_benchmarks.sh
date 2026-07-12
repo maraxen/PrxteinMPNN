@@ -22,6 +22,20 @@
 # them. `import torch` then fails with `ImportError: libcudnn.so.9: cannot
 # open shared object file` on GPU nodes (confirmed via a diagnostic job on
 # node4007). Explicit `uv sync --extra cuda12 --extra benchmark` fixes this.
+#
+# jax/jaxlib grad-path regression (decoy/ddg only): jaxlib 0.10.2's XLA:GPU
+# compiler crashes on `-jax.grad(energy)` (the `score_grad_ms` metric) on
+# every modern GPU generation tested (Blackwell/H100/A100/L40S) --
+# 'scf.if' control-flow shape mismatch, confirmed via a version bisection
+# (see .praxia/docs/plans/260709_proteinebm-epic-backlog-dag.md §11) to be
+# a genuine 0.9.2->0.10.2 regression, not present in 0.8.0-0.9.2. Pin these
+# two scripts to the last known-good version via an ad-hoc `uv run --with`
+# override -- NOT a pyproject.toml/lockfile change, so it affects only
+# these two invocations, not the rest of the project's resolved jax
+# version. biasing/langevin don't hit this bug (no jax.grad in their hot
+# path) and are deliberately left on the project's normal jax version so
+# their numbers stay comparable to the already-recorded §9 results.
+JAX_GRAD_PATH_PIN=(--with "jax[cuda12]==0.9.2" --with "jaxlib==0.9.2")
 set -euo pipefail
 
 ASSETS_DIR="${PROTEINEBM_ASSETS_DIR:-$HOME/proteinebm_bench_assets}"
@@ -47,12 +61,12 @@ echo "=== Node: ${_NODE} | XLA_FLAGS=${XLA_FLAGS} ==="
 echo "=== Checkpoint: ${CHECKPOINT} | Reference repo: ${REFERENCE_REPO} ==="
 echo "=== Lengths: ${LENGTHS} | n_repeats: ${N_REPEATS} ==="
 
-uv run python scripts/ebm/benchmarks/decoy_benchmark.py \
+uv run "${JAX_GRAD_PATH_PIN[@]}" python scripts/ebm/benchmarks/decoy_benchmark.py \
   --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
   --lengths "${LENGTHS}" --n-repeats "${N_REPEATS}" \
   --out "${OUT_DIR}/decoy_benchmark_full.json"
 
-uv run python scripts/ebm/benchmarks/ddg_benchmark.py \
+uv run "${JAX_GRAD_PATH_PIN[@]}" python scripts/ebm/benchmarks/ddg_benchmark.py \
   --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
   --lengths "${LENGTHS}" --n-repeats "${N_REPEATS}" \
   --out "${OUT_DIR}/ddg_benchmark_full.json"

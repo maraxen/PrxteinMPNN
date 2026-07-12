@@ -326,3 +326,20 @@ Per user follow-up ("what's the lightest weight path... web search and review gi
 | 512 | 92.1 | 1.7 | **54.8×** | 28.61 | 1219.75 | **42.6×** |
 
 **Net status: all four E11a–d benchmarks now have real, complete GPU numbers on Blackwell.** decoy/ddg previously had only `titanix`/Turing numbers (the grad path was completely blocked on every modern GPU); with the `0.9.2` pin, they now also have full modern-GPU numbers, matching biasing/langevin's already-established §9 pattern. The pin is a diagnostic/benchmark-only scoping choice — it does not change what version the rest of `aminx` (or even the `ebm` module's own tests) run against day to day.
+
+## 12. Upstream bug report drafted (not filed) — jax-ml/jax#TBD (2026-07-12)
+
+A draft external bug report for the `jaxlib` regression (§11) was written to
+[`research/260712_jax-xla-scf-if-gradient-regression-bug-report.md`](../research/260712_jax-xla-scf-if-gradient-regression-bug-report.md),
+following `jax-ml/jax`'s own `bug-report.yml` issue template (`Description` + `System info` fields)
+plus NVIDIA's GPU-bug-reporting guidance (driver/CUDA/architecture detail). **Not filed yet** — flagged
+in the draft as needing one more decision (push a public extract of the repro, or fully inline it)
+before submission, since the current repro imports `aminx.ebm.model.ProteinEBMModel` from this
+branch, which has never been pushed to origin.
+
+One new finding from preparing the draft, not previously recorded: a model-size × sequence-length
+sweep (2-layer/16-dim through 16-layer/384-dim, at lengths 16/64/256) shows the crash is **purely
+sequence-length-dependent, not model-size-dependent** — every model size passes at length 16 and
+every model size (including the smallest, 2-layer test-suite-dims architecture) fails at 64 and 256.
+This substantially lightens any future repro (the tiny architecture reproduces just as reliably as
+the full 85M-param model) and is included in the draft's "Additional findings" section.

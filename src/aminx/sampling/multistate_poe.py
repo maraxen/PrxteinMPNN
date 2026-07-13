@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 
@@ -48,6 +49,7 @@ if TYPE_CHECKING:
   from aminx.types.stages import StageSet
 
 
+@eqx.filter_jit
 def sample_states_fused(
   model: Aminx,
   bundle: InferenceBundle,
@@ -192,6 +194,16 @@ def sample_multistate_poe_bead(
   # further downstream (confirmed 2026-07-13: this exact mistake broke AutoregressiveDecode's
   # wave-scan with a `Cannot broadcast to shape with fewer dimensions` error at do_sample's
   # seq_oh_stack construction -- not an aminx bug, a caller contract violation).
+  #
+  # The row-identity assertion below assumes fixed positions are the same across all states
+  # for this call -- true for every real caller checked so far (tev_design's necklace P2
+  # manifest builder never sets fixed_positions/fixed_mask at all; the prereg locks junction
+  # placement identical across strata by design, see scripts/analysis/necklace_junction_placement.py).
+  # _broadcast_per_structure/_prepare_fixed_controls DO support genuinely different fixed
+  # positions per structure in general (that's their whole purpose for kernel_dispatch.py's
+  # independent-structures case) -- a future caller with real per-state heterogeneous fixed
+  # positions would hit the ValueError below, correctly, rather than this function silently
+  # picking an arbitrary one of several different real fixed-position sets.
   fixed_mask_per_structure, fixed_tokens_per_structure = _prepare_fixed_controls(
     spec, batched_ensemble=batched_ensemble,
   )

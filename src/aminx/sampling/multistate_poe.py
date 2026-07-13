@@ -18,26 +18,56 @@ per-structure_idx slicing loop) and samples from it via `aminx.inference.sample_
 which already correctly wires `AutoregressiveMode` and genuinely fuses an `S>1` state axis
 (confirmed by the existing `test_ar_decode_state_position_map_changes_fused_logits` test).
 
-Does NOT touch `_sample_batch`/`kernel_dispatch.py`, `campaign.py`, or `bundle_builder.py` --
-every existing campaign row (single-structure spike-in beads) is unaffected. Does not wire into
-`aminx campaign plan/run`'s CLI or manifest/Zarr-writer machinery; that integration (and the more
-general, xtrax-composable arbitrary-fusion-axis version of this idea) is real, separate follow-up
-work, tracked as praxia debt #589.
+Does NOT touch `_sample_batch`/`kernel_dispatch.py`, or `bundle_builder.py` -- every existing
+campaign row (single-structure spike-in beads) is unaffected.
+
+`sample_multistate_poe_campaign_row` (added 2026-07-14) wires this into `aminx campaign
+plan/run`'s execution path: `host/campaign.py::run_manifest_row` detects a genuine multi-state
+PoE row (`len(sampling_spec.inputs) > 1`) and calls it instead of `sample()`, so real campaign
+manifests actually produce fused output through the normal `aminx campaign run` CLI, retaining
+the surrounding locking/done-marker/retry/resumability infrastructure unchanged. It writes via
+`xtrax.run.ZarrStagingSink`/`SinkSpec` -- the same Sink primitive `host/streaming.py::
+_sample_streaming` uses -- matching that function's campaign-mode attrs/schema convention as
+closely as the fused (not per-structure) output shape allows. The more general,
+xtrax-composable arbitrary-fusion-axis version of the *underlying dispatch itself* (option 2
+from the decision doc, a real `N_POE_STATES`-style `AxisSpec`) remains real, separate follow-up
+work, tracked as praxia debt #589 -- this campaign wiring does not close that debt, it just makes
+option 1's MVP actually reachable from a real campaign run.
 """
 
 from __future__ import annotations
 
+import dataclasses
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import numpy as np
+from xtrax.run import SinkSpec, ZarrStagingSink
 
-from aminx.host._sampling_helper import _prepare_fixed_controls, _prepare_ligand_context
+from aminx.host._sampling_grid_lineage import (
+  _base_sampling_key,
+  _grid_iteration_arrays,
+  _grid_manifest_row_hash,
+  _grid_sample_indices,
+  _resolve_grid_lineage,
+)
+from aminx.host._sampling_helper import (
+  _canonical_structure_ids_for_spec,
+  _prepare_fixed_controls,
+  _prepare_ligand_context,
+)
+from aminx.host.plan import resolve_chunk_size, resolve_sample_start, resolve_target_samples
 from aminx.host.prep import prep_protein_stream_and_model
+from aminx.host.streaming import GRID_SCHEMA_VERSION, SAMPLING_SCHEMA_VERSION, _grid_lineage_attrs
 from aminx.inference.bundle_builder import build_inference_bundle
 from aminx.inference.logits import make_stage_set
 from aminx.inference.sample_autoregressive import kernel as _sample_autoregressive_kernel
+from aminx.sampling.conditional_logits import _plan_axis_strategy
+from aminx.tiling.axes import N_SAMPLES
+from aminx.tiling.dispatch import make_axis_dispatch_via_xtrax
 
 if TYPE_CHECKING:
   from jaxtyping import Array, Float, Int, PRNGKeyArray
@@ -49,7 +79,6 @@ if TYPE_CHECKING:
   from aminx.types.stages import StageSet
 
 
-@eqx.filter_jit
 def sample_states_fused(
   model: Aminx,
   bundle: InferenceBundle,
@@ -57,11 +86,24 @@ def sample_states_fused(
   stage_set: StageSet,
   prng_key: PRNGKeyArray,
   n_samples: int,
+  sample_batch_size: int | None = None,
 ) -> tuple[Int[Array, "n_samples L"], Float[Array, "n_samples L 21"]]:
   """Draw n_samples independent samples from an already-built, already-fused bundle.
 
-  Thin vmap wrapper around `aminx.inference.sample_autoregressive.kernel` -- the genuine,
-  already-tested `AutoregressiveMode` sampling path, which fuses `bundle`'s own state axis
+  Dispatches the sample-key axis via the same composable_jax idiom every other axis in this
+  package uses -- `_plan_axis_strategy` (`aminx.sampling.conditional_logits`) resolves a real
+  `xtrax.tiling.BatchPlanner` decision (Vmap when `n_samples` fits the device memory budget,
+  SafeMap-chunked otherwise) against the existing `N_SAMPLES` `AxisSpec`
+  (`aminx.tiling.axes`), then `make_axis_dispatch_via_xtrax` turns that decision into a typed
+  iterator -- exactly how `make_batched_conditional_logits_split_fn` dispatches
+  `N_REPLICATES`/`N_CANDIDATES` (`conditional_logits.py:390-397,421-427`). Deliberately not a
+  bare `jax.vmap`: a fixed `jax.vmap` over an unbounded `n_samples` would attempt every sample
+  in one shot regardless of the device's actual memory, exactly the failure mode
+  `_plan_axis_strategy`'s `BatchPlanner`/`MemoryBudget` exists to prevent for large campaign-
+  scale sample counts (thousands of samples per bead).
+
+  Calls `aminx.inference.sample_autoregressive.kernel` -- the genuine, already-tested
+  `AutoregressiveMode` sampling path, which fuses `bundle`'s own state axis
   (`bundle.geometry.n_states`) via `stage_set.logit_transform`/`_realign_states_to_reference`
   exactly as `ConditionalDecode`'s teacher-forced scoring path does. Each sample gets its own
   PRNG key (`jax.random.split`); `bundle`/`config`/`stage_set` are shared and re-encoded once
@@ -83,6 +125,11 @@ def sample_states_fused(
       Base key; split into `n_samples` independent per-sample keys.
   n_samples : int
       Number of independent samples to draw.
+  sample_batch_size : int | None, default None
+      Fixed SafeMap tile size for the sample axis. None defers to the BatchPlanner's
+      memory-budget-driven Vmap/SafeMap choice, matching
+      `make_batched_conditional_logits_split_fn`'s `replicate_batch_size`/
+      `candidate_batch_size` default behavior.
 
   Returns
   -------
@@ -93,11 +140,27 @@ def sample_states_fused(
   """
   sample_keys = jax.random.split(prng_key, n_samples)
 
+  seq_len = bundle.geometry.coords.shape[1]
+  num_states = bundle.geometry.coords.shape[0]
+  # Conservative per-sample activation estimate: per-state decode features (node+edge,
+  # float32) scaled by num_states, plus the (L, 21) logits output -- mirrors the
+  # replicate-axis estimate in conditional_logits.py:390, scaled for the extra state axis
+  # AR sampling carries that encode-only replicate estimation doesn't.
+  activation_bytes = num_states * seq_len * (128 + 32 * 48) * 4
+  strategy = _plan_axis_strategy(
+    N_SAMPLES,
+    n_samples,
+    sample_batch_size,
+    activation_bytes_per_element=activation_bytes,
+  )
+  iterator = make_axis_dispatch_via_xtrax(strategy, axis=N_SAMPLES.name)
+
+  @eqx.filter_jit
   def _one_sample(key: PRNGKeyArray) -> tuple[Any, Any]:
     result = _sample_autoregressive_kernel(model, key, bundle, config, stage_set)
     return result.sequence, result.logits
 
-  sequences, logits = jax.vmap(_one_sample)(sample_keys)
+  sequences, logits = iterator(_one_sample, sample_keys)
   return sequences, logits
 
 
@@ -289,3 +352,198 @@ def sample_multistate_poe_bead(
   )
 
   return sample_states_fused(model, bundle, config, stage_set, prng_key, n_samples)
+
+
+def sample_multistate_poe_campaign_row(spec: SamplingSpecification) -> dict[str, Any]:
+  """Execute one campaign manifest row as a genuine multi-state PoE bead.
+
+  Real integration point for `host/campaign.py::run_manifest_row`: called INSTEAD of
+  `host/runner.py::sample()` for rows where `len(spec.inputs) > 1` (a genuine multi-state PoE
+  bead), so `aminx campaign run` produces real fused output for these rows rather than
+  `_sample_batch`'s per-structure-independent output. Single-structure ("spike-in") rows are
+  untouched -- they still go through `sample()`/`_sample_batch` exactly as before; this function
+  is never called for them.
+
+  Writes to `spec.run_spec.io.output_h5_path` via `xtrax.run.ZarrStagingSink`/`SinkSpec` -- the
+  same Sink primitive `host/streaming.py::_sample_streaming` uses -- so
+  `run_manifest_row`'s surrounding done-marker/lock/retry machinery (which only cares that
+  `output_h5_path` gets populated and content-digested, not which function populated it) works
+  completely unchanged. The written schema mirrors `_sample_streaming`'s campaign-mode attrs
+  as closely as a genuinely fused (not per-structure) result allows: ONE Zarr group
+  (`"poe_fused"`) replaces the `structure_0..structure_{k-1}` groups `_sample_streaming` would
+  otherwise write for this many `--inputs`, since there is no longer "k independent structures"
+  to store -- states are fused into one design series per sample.
+
+  Resolves the real campaign chunk/sample-count/lineage axes via the SAME helpers
+  `_sample_streaming` uses (`resolve_target_samples`/`resolve_chunk_size`/`resolve_sample_start`/
+  `_resolve_grid_lineage`), so chunked resubmission (`samples_chunk_size`, necklace's real
+  SAMPLES_CHUNK_SIZE=20 convention) and grid-lineage manifest-row-hash bookkeeping behave
+  identically to every other row. Derives its base PRNG key via the same
+  `_base_sampling_key(spec, grid_lineage=...)` helper (keyed off `spec.run_spec.sampling.
+  random_seed` + grid lineage), matching this campaign's real determinism/reproducibility
+  convention -- NOT bit-identical to `_sample_batch`'s own per-sample `compute_sample_keys`
+  fold-in scheme (a deliberately separate code path, not meant to reproduce that scheme
+  key-for-key; only the SEED derivation matches, not every downstream fold_in step).
+
+  Handles `spec.run_spec.sampling.temperature`/`backbone_noise` as real grid axes (each real
+  necklace PoE row uses 5 temperatures x 1 noise level): loops over every (noise, temperature)
+  combination, building a per-cell `SamplingSpecification` via `dataclasses.replace` (confirmed
+  to correctly re-sync the nested `run_spec.sampling.{temperature,backbone_noise}` fields, not
+  just the flat ones) and calling `sample_multistate_poe_bead` once per cell -- this means
+  `prep_protein_stream_and_model` (the real PDB parsing/padding/chain-filtering step) reruns
+  once per (noise, temperature) cell rather than once total. This is a known, deliberate
+  correctness-first tradeoff, not an oversight: real necklace rows have 5 temperatures x 1
+  noise = 5 redundant structure reloads per row, cheap relative to the AR sampling compute
+  itself. Refactoring to load structures once and reuse across cells is a real, tracked
+  follow-up optimization if profiling ever shows this reload cost matters at production scale --
+  not applied here to keep this integration's first version small and easy to verify correct.
+
+  Parameters
+  ----------
+  spec : SamplingSpecification
+      Real campaign row spec (as `run_manifest_row` constructs via
+      `SamplingSpecification(**worker_payload)`) -- must have `len(spec.inputs) > 1` and
+      `spec.batch_size == len(spec.inputs)` (same precondition as `sample_multistate_poe_bead`).
+
+  Returns
+  -------
+  dict
+      Matches `sample()`'s streaming-mode return contract: `output_zarr_path`,
+      `schema_version`, `metadata` (with `specification`, `skipped_inputs`, `structure_ids`,
+      and `lineage` if grid_mode). `run_manifest_row` merges this into its own result payload
+      exactly as it does for `sample()`'s return value.
+
+  Raises
+  ------
+  ValueError
+      If `spec.inputs` has fewer than 2 entries (same precondition as
+      `sample_multistate_poe_bead`; this function should only ever be called for genuine
+      multi-state rows, but re-asserts the precondition rather than trusting the caller).
+
+  """
+  if not isinstance(spec.inputs, (list, tuple)) or len(spec.inputs) < 2:
+    msg = (
+      f"sample_multistate_poe_campaign_row needs >=2 states in spec.inputs to fuse across "
+      f"(got {spec.inputs!r}) -- single-structure rows must go through sample() instead."
+    )
+    raise ValueError(msg)
+
+  grid_lineage = _resolve_grid_lineage(spec)
+  canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
+  total_num_samples = resolve_target_samples(spec, grid_lineage=grid_lineage)
+  chunk_size = resolve_chunk_size(spec, total_num_samples, grid_lineage)
+  base_key = _base_sampling_key(spec, grid_lineage=grid_lineage)
+
+  temperature_val = spec.run_spec.sampling.temperature
+  temperatures = (
+    list(temperature_val) if isinstance(temperature_val, (list, tuple)) else [temperature_val]
+  )
+  noise_val = spec.run_spec.sampling.backbone_noise
+  noises = list(noise_val) if isinstance(noise_val, (list, tuple)) else [noise_val]
+  return_logits = spec.run_spec.sampling.return_logits
+
+  sequence_rows: list[list[np.ndarray]] = []
+  logits_rows: list[list[np.ndarray]] = []
+  seq_len: int | None = None
+  for noise_idx, noise in enumerate(noises):
+    sequence_row: list[np.ndarray] = []
+    logits_row: list[np.ndarray] = []
+    for temp_idx, temperature in enumerate(temperatures):
+      cell_key = jax.random.fold_in(jax.random.fold_in(base_key, noise_idx), temp_idx)
+      cell_spec = dataclasses.replace(
+        spec, backbone_noise=[noise], temperature=[temperature],
+      )
+      cell_sequences, cell_logits = sample_multistate_poe_bead(
+        cell_spec, cell_key, n_samples=chunk_size,
+      )
+      cell_sequences_np = np.asarray(jax.device_get(cell_sequences), dtype=np.int32)
+      cell_logits_np = np.asarray(jax.device_get(cell_logits), dtype=np.float32)
+      if seq_len is None:
+        seq_len = cell_sequences_np.shape[-1]
+      sequence_row.append(cell_sequences_np)
+      logits_row.append(cell_logits_np)
+    sequence_rows.append(sequence_row)
+    logits_rows.append(logits_row)
+
+  # sequence_rows[noise_idx][temp_idx] has shape (chunk_size, L) -- stack into the
+  # (chunk_size, num_noise, num_temperatures, L) convention _sample_streaming's campaign-mode
+  # schema uses, so a reader (e.g. a future necklace_zarr_reader.py) sees the same axis order
+  # regardless of whether a row is fused or per-structure.
+  sequences_arr = np.stack(
+    [np.stack(row, axis=1) for row in sequence_rows], axis=1,
+  )  # (chunk_size, num_noise, num_temperatures, L)
+  logits_arr = (
+    np.stack([np.stack(row, axis=1) for row in logits_rows], axis=1)
+    if return_logits
+    else None
+  )  # (chunk_size, num_noise, num_temperatures, L, 21)
+
+  output_dir = Path(spec.run_spec.io.output_h5_path)
+  sink = ZarrStagingSink(SinkSpec(output_dir=output_dir, format="zarr", flush_every=1))
+
+  root_attrs: dict[str, Any] = {
+    "schema_version": GRID_SCHEMA_VERSION if spec.grid_mode else SAMPLING_SCHEMA_VERSION,
+    "model_family": spec.model_family,
+    "ligand_conditioning": int(spec.ligand_conditioning),
+    "sidechain_conditioning": int(spec.sidechain_conditioning),
+    "samples_chunk_size": chunk_size,
+    "multistate_poe_fused": 1,
+  }
+  root_arrays: dict[str, np.ndarray] = {}
+  if grid_lineage is not None:
+    manifest_row_hash = _grid_manifest_row_hash(spec, grid_lineage)
+    root_attrs.update(_grid_lineage_attrs(grid_lineage))
+    root_attrs["manifest_row_hash"] = manifest_row_hash
+    iteration_ids, iteration_starts, iteration_counts = _grid_iteration_arrays(
+      grid_lineage, chunk_size=chunk_size,
+    )
+    root_arrays = {
+      "sample_indices": _grid_sample_indices(grid_lineage),
+      "grid_iteration_ids": iteration_ids,
+      "grid_iteration_sample_start": iteration_starts,
+      "grid_iteration_sample_count": iteration_counts,
+    }
+  sink.stage((), attrs=root_attrs, **root_arrays)
+
+  key = ("poe_fused",)
+  arrays: dict[str, np.ndarray] = {"sequences": sequences_arr}
+  if logits_arr is not None:
+    arrays["logits"] = logits_arr
+  attrs: dict[str, Any] = {
+    "structure_index": 0,
+    "structure_id": "poe_fused",
+    "fused_structure_ids": list(canonical_structure_ids),
+    "num_samples": chunk_size,
+    "num_noise_levels": len(noises),
+    "num_temperatures": len(temperatures),
+    "sequence_length": int(seq_len),
+  }
+  if grid_lineage is not None:
+    attrs.update(_grid_lineage_attrs(grid_lineage))
+  sink.stage(key, attrs=attrs, **arrays)
+  sink.drain()
+
+  results: dict[str, Any] = {
+    "output_zarr_path": str(output_dir),
+    "schema_version": GRID_SCHEMA_VERSION if spec.grid_mode else SAMPLING_SCHEMA_VERSION,
+    "metadata": {
+      "specification": spec,
+      "skipped_inputs": [],
+      "structure_ids": ["poe_fused"],
+      "fused_structure_ids": list(canonical_structure_ids),
+    },
+  }
+  if grid_lineage is not None:
+    manifest_row_hash = _grid_manifest_row_hash(spec, grid_lineage)
+    iteration_ids, iteration_starts, iteration_counts = _grid_iteration_arrays(
+      grid_lineage, chunk_size=chunk_size,
+    )
+    results["metadata"]["lineage"] = {
+      **grid_lineage,
+      "manifest_row_hash": manifest_row_hash,
+      "sample_indices": _grid_sample_indices(grid_lineage).tolist(),
+      "grid_iteration_ids": iteration_ids.tolist(),
+      "grid_iteration_sample_start": iteration_starts.tolist(),
+      "grid_iteration_sample_count": iteration_counts.tolist(),
+    }
+  return results

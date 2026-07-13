@@ -30,6 +30,7 @@ from xtrax.run import (
 # campaign manifest functions are implemented in this module (see build_manifest_row et al.)
 from aminx.host.runner import sample
 from aminx.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
+from aminx.sampling.multistate_poe import sample_multistate_poe_campaign_row
 from aminx.runtime import configure_multiprocessing
 
 if TYPE_CHECKING:
@@ -848,8 +849,22 @@ def run_manifest_row(  # noqa: PLR0915
     worker_payload["output_h5_path"] = str(partial_path)
     pop_deprecated_spec_kwargs(worker_payload)
     sampling_spec = SamplingSpecification(**worker_payload)
+    # Genuine multi-state PoE rows (len(inputs) > 1) route to
+    # sample_multistate_poe_campaign_row instead of sample() -- sample()'s real dispatcher
+    # (_sample_batch) treats every --inputs path as an independent single-state structure and
+    # never actually fuses states (praxia debt #572 follow-up, decisions/
+    # 260713_no-real-multistate-sampling-path-exists.md). Single-structure ("spike-in") rows
+    # are unaffected -- len(inputs) == 1 for those, so they keep going through sample() exactly
+    # as before.
+    is_multistate_poe_row = (
+      isinstance(sampling_spec.inputs, (list, tuple)) and len(sampling_spec.inputs) > 1
+    )
     try:
-      sample_result = sample(sampling_spec)
+      sample_result = (
+        sample_multistate_poe_campaign_row(sampling_spec)
+        if is_multistate_poe_row
+        else sample(sampling_spec)
+      )
       if heartbeat_errors:
         msg = (
           f"Lock heartbeat failed while executing manifest row {manifest_hash}: "

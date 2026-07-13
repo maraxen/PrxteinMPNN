@@ -79,6 +79,7 @@ if TYPE_CHECKING:
   from aminx.types.stages import StageSet
 
 
+@eqx.filter_jit
 def sample_states_fused(
   model: Aminx,
   bundle: InferenceBundle,
@@ -155,7 +156,6 @@ def sample_states_fused(
   )
   iterator = make_axis_dispatch_via_xtrax(strategy, axis=N_SAMPLES.name)
 
-  @eqx.filter_jit
   def _one_sample(key: PRNGKeyArray) -> tuple[Any, Any]:
     result = _sample_autoregressive_kernel(model, key, bundle, config, stage_set)
     return result.sequence, result.logits
@@ -385,6 +385,21 @@ def sample_multistate_poe_campaign_row(spec: SamplingSpecification) -> dict[str,
   fold-in scheme (a deliberately separate code path, not meant to reproduce that scheme
   key-for-key; only the SEED derivation matches, not every downstream fold_in step).
 
+  CRITICAL (found by independent PR audit, 2026-07-14): `_base_sampling_key`'s own hash
+  (`_grid_job_seed_hash`) is keyed off `job_id` + strategy/conditioning fields -- it does NOT
+  incorporate `chunk_id`/`sample_start`. A bead whose real design count exceeds
+  `samples_chunk_size` (necklace's real SAMPLES_CHUNK_SIZE=20 -- i.e. any bead with more than
+  20 designs, which is the real production target, not the current placeholder default) is
+  split into MULTIPLE manifest rows sharing one `job_id` but different `chunk_id`/
+  `sample_start` (`build_necklace_p2_manifest.py`'s real chunking). Without folding
+  `sample_start` into the key, every chunk of the same job would derive the IDENTICAL base key
+  and produce byte-identical duplicated samples -- this was caught before it could ship: this
+  function explicitly folds `resolve_sample_start(grid_lineage)` into `base_key` below before
+  any per-cell derivation, specifically so different chunks of the same job produce genuinely
+  different (not duplicated) samples. Do not remove this fold_in as "redundant" without adding
+  an equivalent safeguard -- see the regression test asserting two rows with the same job_id
+  but different chunk_id/sample_start produce distinct sequences.
+
   Handles `spec.run_spec.sampling.temperature`/`backbone_noise` as real grid axes (each real
   necklace PoE row uses 5 temperatures x 1 noise level): loops over every (noise, temperature)
   combination, building a per-cell `SamplingSpecification` via `dataclasses.replace` (confirmed
@@ -393,10 +408,15 @@ def sample_multistate_poe_campaign_row(spec: SamplingSpecification) -> dict[str,
   `prep_protein_stream_and_model` (the real PDB parsing/padding/chain-filtering step) reruns
   once per (noise, temperature) cell rather than once total. This is a known, deliberate
   correctness-first tradeoff, not an oversight: real necklace rows have 5 temperatures x 1
-  noise = 5 redundant structure reloads per row, cheap relative to the AR sampling compute
-  itself. Refactoring to load structures once and reuse across cells is a real, tracked
-  follow-up optimization if profiling ever shows this reload cost matters at production scale --
-  not applied here to keep this integration's first version small and easy to verify correct.
+  noise = 5 redundant structure reloads (real PDB I/O + padding + chain filtering) per row --
+  cheap relative to the AR sampling compute itself (an independent PR audit confirmed
+  `sample_states_fused`'s `@eqx.filter_jit` sits on the OUTER function specifically so the
+  compiled AR-sampling executable is traced ONCE and reused across all 5 cells' worth of
+  structure-reload-then-sample calls, not retraced per cell -- only the cheap host-side
+  reload repeats, not the expensive JIT compile). Refactoring to load structures once and
+  reuse across cells is a real, tracked follow-up optimization if profiling ever shows this
+  reload cost matters at production scale -- not applied here to keep this integration's
+  first version small and easy to verify correct.
 
   Parameters
   ----------
@@ -432,7 +452,26 @@ def sample_multistate_poe_campaign_row(spec: SamplingSpecification) -> dict[str,
   canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
   total_num_samples = resolve_target_samples(spec, grid_lineage=grid_lineage)
   chunk_size = resolve_chunk_size(spec, total_num_samples, grid_lineage)
-  base_key = _base_sampling_key(spec, grid_lineage=grid_lineage)
+  if total_num_samples != chunk_size:
+    msg = (
+      f"sample_multistate_poe_campaign_row assumes one manifest row produces exactly one "
+      f"chunk (total_num_samples == chunk_size); got total_num_samples={total_num_samples}, "
+      f"chunk_size={chunk_size}. Every real necklace manifest row sets samples_chunk_size == "
+      "sample_count per row (build_necklace_p2_manifest.py's chunking splits a bead across "
+      "MULTIPLE rows, not multiple chunks within one row) -- this row's manifest builder "
+      "violated that convention. Multi-chunk-per-row accumulation is not implemented here; "
+      "fix the manifest builder rather than silently truncating output to chunk_size."
+    )
+    raise ValueError(msg)
+
+  # CRITICAL: fold sample_start into the base key -- _base_sampling_key's own hash does not
+  # incorporate chunk_id/sample_start (it's keyed off job_id + strategy/conditioning fields
+  # only), so without this, two manifest rows sharing one job_id but different chunk_id/
+  # sample_start (exactly how a >samples_chunk_size bead gets split into multiple rows) would
+  # derive the SAME base key and produce byte-identical duplicated samples. See this
+  # function's docstring "CRITICAL" note and the two-rows-same-job regression test.
+  sample_start = resolve_sample_start(grid_lineage)
+  base_key = jax.random.fold_in(_base_sampling_key(spec, grid_lineage=grid_lineage), sample_start)
 
   temperature_val = spec.run_spec.sampling.temperature
   temperatures = (

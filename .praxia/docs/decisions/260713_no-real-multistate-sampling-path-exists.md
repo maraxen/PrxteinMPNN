@@ -1,8 +1,8 @@
 ---
-title: No campaign-reachable code path ever constructs a genuine num_states>1 bundle for autoregressive sampling — decide the fix architecture
-status: Open — deferred by explicit project-owner decision (2026-07-13); the silent-corruption symptom is fixed separately (this session), this doc scopes the remaining real gap
+title: No campaign-reachable code path ever constructs a genuine num_states>1 bundle for autoregressive sampling — MVP decided, tech debt filed for the general axis
+status: Decided (2026-07-13) — option 1 (new stacked-bundle sampling entry point) chosen as MVP, in progress. Option 2 (general N_POE_STATES-style axis via xtrax) filed as real, should-be-done tech debt, not closed by option 1. Option 3 rejected.
 date: 2026-07-13
-related: spec ../specs/260709_mbr-consensus-reranking-composition.md (PR #92, #95), decisions/260709_n-states-heterogeneous-flag-unenforced.md, praxia debt #572/#575, tev_design task 260709_multistate-fusion-strategy-comparison Phase 3
+related: spec ../specs/260709_mbr-consensus-reranking-composition.md (PR #92, #95), decisions/260709_n-states-heterogeneous-flag-unenforced.md, praxia debt #572/#575/#589, tev_design task 260709_multistate-fusion-strategy-comparison Phase 3, PR #100 (corruption-symptom fix, merged)
 ---
 
 # Decision needed: how to give `aminx campaign plan`/`run` a real multi-state PoE sampling path
@@ -66,35 +66,64 @@ and every earlier necklace library version was sampled through the corrupted pat
 and should not be treated as real product-of-experts consensus data for any downstream analysis
 or design decision until regenerated against a real fix.
 
-## Decision options (not decided here — flagging for deliberate choice, per tev_design project
-owner's 2026-07-13 direction to defer this and fix only the corruption symptom in this pass)
+## Decision (made 2026-07-13, tev_design project owner)
 
-1. **New, separate sampling entry point** (small-medium): construct a genuine `(S=4, L, ...)`
-   stacked bundle once per PoE bead (reusing tev_design's existing `compute_poe_chain_id`/
-   `compute_state_position_map` padding-and-alignment work) and call `AutoregressiveDecode.do_sample`
-   directly — mirroring how `stage1_conditioning_logits_comparison.py` calls `build_inference_bundle`
-   directly for scoring, but for `mode="sample_ar"`. Needs a new `SamplingSpecification` field/
-   campaign row type (or a documented way to request it) since `--inputs` today always means
-   "N independent structures." Lowest regression risk — `_sample_batch`'s existing N_STRUCTURES
-   path is untouched.
-2. **Real `N_POE_STATES`-style axis in `_sample_batch` itself** (medium-large): give the existing
-   `AxisDecision`/`Vmap`/`SafeMap` dispatch machinery (`host/plan.py`) a genuine states-to-fuse axis
-   distinct from `N_STRUCTURES`, so a manifest row can request "N_STRUCTURES=1, states=4" instead of
-   today's implicit "N_STRUCTURES=4, states=1 each." More architecturally consistent with how every
-   other axis in this codebase is dispatched, but touches all four near-duplicate branches in
-   `kernel_dispatch.py` — real engineering work on the live production sampling path, its own
-   JIT/parity/test burden.
-3. **Relabel the necklace campaign's intent** instead of fixing aminx: if genuine per-token
-   cross-state fusion turns out not to be worth the engineering cost, formally re-scope the
-   necklace "PoE" library as "4 independent single-state libraries co-manifested for convenience"
-   and drop the `multi_state_strategy="product"`/`state_position_map` framing entirely — a scope
-   decision, not a code fix, and would mean re-litigating the necklace campaign's core premise
-   (`project_necklace_library_campaign` memory's 2026-06-29 lock).
+**Option 1 is the MVP, being implemented now** (branch `feat-poe-stacked-bundle-sampling`).
+**Option 2 is real tech debt, filed below, not resolved by shipping option 1.** Option 3 is
+rejected — the necklace campaign's PoE premise is being made real, not abandoned.
+
+1. **[CHOSEN, MVP, in progress] New, separate sampling entry point** (small-medium): construct a
+   genuine `(S=4, L, ...)` stacked bundle once per PoE bead (reusing tev_design's existing
+   `compute_poe_chain_id`/`compute_state_position_map` padding-and-alignment work) and call
+   `AutoregressiveDecode.do_sample` directly — mirroring how `stage1_conditioning_logits_comparison.py`
+   calls `build_inference_bundle` directly for scoring, but for real sampling. Needs a new
+   `SamplingSpecification` field/campaign row type (or a documented way to request it) since
+   `--inputs` today always means "N independent structures." Lowest regression risk —
+   `_sample_batch`'s existing N_STRUCTURES path is untouched by this option, so nothing that works
+   today can regress.
+2. **[NOT CHOSEN for MVP — filed as real tech debt, praxia debt #589, see below] Real
+   `N_POE_STATES`-style axis in `_sample_batch` itself.**
+3. **[REJECTED] Relabel the necklace campaign's intent instead of fixing aminx** — dropping the
+   `multi_state_strategy="product"`/`state_position_map` framing and re-scoping "PoE" as 4
+   independent single-state libraries. Explicitly rejected by the project owner (2026-07-13): the
+   goal is to make the campaign's locked PoE premise real, not retreat from it.
+
+## Tech debt (praxia debt #589): option 2 should genuinely be built, and should be xtrax-composable
+
+**This is flagged explicitly as work that REALLY SHOULD happen, not a nice-to-have** — option 1
+(the MVP) is scoped as a special-purpose entry point for exactly one case (k reference states,
+one PoE bead, sampling only). It does not generalize. The moment a second axis needs the same
+"fuse instead of batch-independently" treatment — e.g. an ensemble-over-checkpoints axis (debt
+#536's deferred cross-model fusion), a multi-conformation axis for a different campaign, or
+literally any future experiment that wants "N things fused into one call" instead of "N
+independent batch items" — a hand-rolled option-1-style entry point would need to be rebuilt from
+scratch for that axis too. That is the wrong shape for a codebase whose entire tiling/dispatch
+layer (`host/plan.py`'s `AxisDecision`, `tiling/axes.py`'s `AxisSpec` registry,
+`make_axis_dispatch_via_xtrax`) already exists specifically to make "batch/dispatch an arbitrary
+axis" a solved, composable problem — `N_STRUCTURES`, `N_SAMPLES`, `N_TEMPERATURES`, `N_NOISES`,
+and (for candidates) `N_CANDIDATES` all already go through this machinery. `N_STATES`/a
+states-to-fuse axis for real autoregressive sampling is the one dispatch-relevant axis that
+doesn't, and it should, via the same idiom, not a bespoke path per caller.
+
+**Concretely, when this is picked up:** design a real `N_POE_STATES`-or-similar `AxisSpec`
+registry entry (distinct from the existing `N_STATES` — see
+`decisions/260709_n-states-heterogeneous-flag-unenforced.md`, which is about a different,
+currently-unenforced heterogeneity flag on an axis that isn't wired to sampling at all) that plugs
+into `_plan_axis_strategy`/`make_axis_dispatch_via_xtrax`/`BatchPlanner` the same way
+`N_CANDIDATES` already does for `make_batched_conditional_logits_split_fn`'s candidate axis
+(`sampling/conditional_logits.py:287-334,412-437` — the existing, proven idiom to mirror, per this
+session's earlier MBR-rerank spec correction history). The goal is that a future caller wanting
+"fuse N things instead of batching them independently" — whatever N and whatever the things are —
+declares an `AxisSpec` and gets `Vmap`/`SafeMap` dispatch, JIT behavior, and memory-budget
+awareness for free, exactly like every other axis in this codebase, instead of every new fusion
+use case getting its own one-off entry point like option 1's MVP will be. This is real engineering
+work on the live production sampling path (touches all four near-duplicate dispatch branches in
+`kernel_dispatch.py`) with its own JIT/parity/test burden — do not attempt it as a quick follow-up
+to option 1; scope and resource it as its own real piece of work.
 
 ## Non-decision for now
 
-This document exists so the underlying gap isn't lost, decided by default, or discovered the hard
-way a second time by a future session. Per explicit project-owner direction (2026-07-13), this
-pass fixes only the silent-corruption symptom (see above) and defers the architecture decision
-above; tev_design's Phase 3 Stage 0-2 work stays blocked until one of options 1-3 is chosen and
-implemented.
+Option 1's MVP unblocks tev_design's Phase 3 Stage 0-2 work for the necklace campaign
+specifically. It does **not** close debt #589 (option 2) — that remains open, tracked, and should
+be picked up deliberately once a second real caller needing arbitrary-axis fusion emerges (or
+sooner, if resourced), not left to rot the way `N_STATES.heterogeneous` did.

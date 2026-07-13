@@ -52,6 +52,7 @@
 - [260706_carryspec-dedupspec-stay-local-carryshape-migrates](decisions/260706_carryspec-dedupspec-stay-local-carryshape-migrates.md) — **Superseded in part** (2026-07-06, same day) — `CarrySpec`/`DedupSpec` unblocked by the planner migration spec; `CarryShape` portion (migrated) still stands.
 - [260706_bucketing-pad-stay-local-epic-1541-p3-scope-closed](decisions/260706_bucketing-pad-stay-local-epic-1541-p3-scope-closed.md) — **Accepted 2026-07-06**: EPIC #1541 P3 scoping closed — `bucketing.py`/`pad.py` stay local (planner companion / pure domain logic). `aminx.tiling` will NOT be fully deletable as originally envisioned; recommends updating backlog #1483 accordingly.
 - [260709_n-states-heterogeneous-flag-unenforced](decisions/260709_n-states-heterogeneous-flag-unenforced.md) — **Open, deferred**: `N_STATES.heterogeneous=True` is unwired from the real encode path and currently unenforceable (bundle can't hold ragged states at all); zero blast radius today, decision needed (relabel vs. implement) is out of scope for PR #92.
+- [260713_no-real-multistate-sampling-path-exists](decisions/260713_no-real-multistate-sampling-path-exists.md) — **Open, deferred, blocking**: no campaign-reachable path ever builds a genuine `num_states>1` bundle for AR sampling — every necklace "PoE" row is 4 independent unfused single-state decodes. A related silent-corruption bug (`state_position_map` cardinality mismatch) is fixed this session; the sampling-architecture gap itself is not. Blocks tev_design Phase 3 until one of 3 fix options is chosen.
 
 ## ADRs (Legacy)
 

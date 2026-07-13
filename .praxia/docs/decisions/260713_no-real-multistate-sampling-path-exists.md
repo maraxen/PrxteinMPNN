@@ -1,6 +1,6 @@
 ---
 title: No campaign-reachable code path ever constructs a genuine num_states>1 bundle for autoregressive sampling — MVP decided, tech debt filed for the general axis
-status: Decided (2026-07-13) — option 1 (new stacked-bundle sampling entry point) chosen as MVP, in progress. Option 2 (general N_POE_STATES-style axis via xtrax) filed as real, should-be-done tech debt, not closed by option 1. Option 3 rejected.
+status: Decided and MVP IMPLEMENTED (2026-07-13) — option 1 shipped as aminx.sampling.multistate_poe (PR TBD, branch feat-poe-stacked-bundle-sampling); genuine cross-state fusion confirmed end-to-end against real reference-state PDBs. Option 2 (general N_POE_STATES-style axis via xtrax) filed as real, should-be-done tech debt (praxia debt #589), not closed by option 1. Option 3 rejected.
 date: 2026-07-13
 related: spec ../specs/260709_mbr-consensus-reranking-composition.md (PR #92, #95), decisions/260709_n-states-heterogeneous-flag-unenforced.md, praxia debt #572/#575/#589, tev_design task 260709_multistate-fusion-strategy-comparison Phase 3, PR #100 (corruption-symptom fix, merged)
 ---
@@ -66,21 +66,46 @@ and every earlier necklace library version was sampled through the corrupted pat
 and should not be treated as real product-of-experts consensus data for any downstream analysis
 or design decision until regenerated against a real fix.
 
-## Decision (made 2026-07-13, tev_design project owner)
+## Decision (made 2026-07-13, tev_design project owner) — option 1 IMPLEMENTED
 
-**Option 1 is the MVP, being implemented now** (branch `feat-poe-stacked-bundle-sampling`).
+**Option 1 is the MVP, implemented** as `aminx.sampling.multistate_poe`
+(`sample_multistate_poe_bead` / `sample_states_fused`, branch `feat-poe-stacked-bundle-sampling`).
 **Option 2 is real tech debt, filed below, not resolved by shipping option 1.** Option 3 is
 rejected — the necklace campaign's PoE premise is being made real, not abandoned.
 
-1. **[CHOSEN, MVP, in progress] New, separate sampling entry point** (small-medium): construct a
-   genuine `(S=4, L, ...)` stacked bundle once per PoE bead (reusing tev_design's existing
-   `compute_poe_chain_id`/`compute_state_position_map` padding-and-alignment work) and call
-   `AutoregressiveDecode.do_sample` directly — mirroring how `stage1_conditioning_logits_comparison.py`
-   calls `build_inference_bundle` directly for scoring, but for real sampling. Needs a new
-   `SamplingSpecification` field/campaign row type (or a documented way to request it) since
-   `--inputs` today always means "N independent structures." Lowest regression risk —
-   `_sample_batch`'s existing N_STRUCTURES path is untouched by this option, so nothing that works
-   today can regress.
+1. **[CHOSEN, MVP, IMPLEMENTED] New, separate sampling entry point** (small-medium): builds ONE
+   genuine `(S, L, ...)` stacked bundle for a bead's k reference states (reusing
+   `prep_protein_stream_and_model`'s real structure-loading/padding pipeline, unchanged, plus
+   `build_inference_bundle` — already S>1-capable when given a genuinely stacked coords array,
+   confirmed by the pre-existing `test_autoregressive_produces_valid_output_s4` test) and samples
+   via `aminx.inference.sample_autoregressive.kernel` (the already-correct, already-tested
+   `AutoregressiveMode` path). Precondition: `spec.batch_size == len(spec.inputs)`, so the protein
+   dataset iterator yields exactly one combined batch. Does not touch `_sample_batch`/
+   `kernel_dispatch.py`/`campaign.py` at all — every existing (single-structure) campaign row is
+   unaffected; lowest regression risk, confirmed by the unchanged full test suite.
+
+   **Two real bugs found and fixed during implementation** (both caller-side, in the new module —
+   not aminx architecture bugs):
+   - `_prepare_fixed_controls` returns a `(num_states, L)` array shaped for
+     `kernel_dispatch.py`'s per-structure_idx *slicing* (each independent call takes its own 1D
+     `(L,)` row). `build_inference_bundle`'s `fixed_mask`/`fixed_tokens` are design-level, not
+     per-state (its own default is 1D: `jnp.zeros(seq_len)`). Passing the full un-sliced 2D array
+     silently built a wrong-shaped `ConditioningBundle.fixed_mask`/`fixed_tokens`, which corrupted
+     `AutoregressiveDecode`'s wave-scan carry shape several call-frames later (`Cannot broadcast to
+     shape with fewer dimensions` inside `do_sample`'s `seq_oh_stack` construction) — a genuinely
+     confusing failure mode to trace (see the module's inline comment for the full diagnosis).
+     Fixed by taking row 0 (every row is already an identical broadcast, now asserted explicitly
+     rather than assumed) before passing to `build_inference_bundle`.
+   - Dispatching `n_samples` via `jax.vmap`/`jax.lax.map` over the sample-key axis breaks
+     `AutoregressiveDecode`'s internal `(S, L, V)` explicit-shape broadcasts once a genuine
+     `num_states>1` bundle is involved (every existing production call site has `num_states=1`,
+     where this never manifests). Confirmed both `vmap` and `lax.map` fail identically. Fixed by
+     looping the sample-key axis explicitly (no extra batching layer) in `sample_states_fused`.
+     **This second issue may be a real, narrower aminx limitation worth its own note** — combining
+     an outer sample-batching vmap with an inner genuine multi-state fusion axis inside
+     `AutoregressiveDecode` is untested territory; flagged here rather than filed as a separate
+     debt item since the MVP's explicit-loop workaround is sufficient and no other caller
+     currently needs the vmapped-samples-over-S>1 combination.
 2. **[NOT CHOSEN for MVP — filed as real tech debt, praxia debt #589, see below] Real
    `N_POE_STATES`-style axis in `_sample_batch` itself.**
 3. **[REJECTED] Relabel the necklace campaign's intent instead of fixing aminx** — dropping the

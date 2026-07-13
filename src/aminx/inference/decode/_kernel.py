@@ -213,7 +213,37 @@ def _realign_states_to_reference(
   ndarray
       Realigned logits, shape (S, L, V), ready for cross-state fusion.
 
+  Raises
+  ------
+  ValueError
+      If ``state_position_map``'s declared state cardinality doesn't match
+      ``logits``'s actual one. Without this check, ``jnp.take_along_axis``
+      silently broadcasts a smaller ``logits`` (e.g. a real ``num_states=1``
+      bundle fed a caller-supplied ``(S=4, L)`` map) across the mismatched
+      axis, gathering the SAME single state's logits through several
+      different (and, past state 0, wrong) permutation rows before summing
+      them under ``product`` fusion -- fabricating a fake multi-state result
+      out of one real state rather than either fusing correctly or passing
+      the single state through unchanged. Confirmed root cause of a real
+      necklace-campaign data-corruption bug (praxia debt #572 follow-up,
+      2026-07-13): every call site that builds a bundle with fewer states
+      than the ``state_position_map`` it's paired with must either slice the
+      map down to that call's real cardinality first, or not pass a
+      multi-state map into a single-state bundle at all -- both are bugs in
+      the *caller*, and this function must not paper over them by broadcasting.
+
   """
+  if state_position_map.shape[0] != logits.shape[0]:
+    msg = (
+      f"state_position_map declares {state_position_map.shape[0]} states but "
+      f"logits has {logits.shape[0]} -- refusing to broadcast-fuse a "
+      "mismatched cardinality (this previously fabricated fake multi-state "
+      "logits from a single real state; see this function's Raises docstring). "
+      "The caller must construct a bundle whose real num_states matches "
+      "state_position_map's declared S, or slice state_position_map down to "
+      "match the bundle it's actually paired with."
+    )
+    raise ValueError(msg)
   is_valid = state_position_map != -1
   safe_indices = jnp.where(is_valid, state_position_map, 0)
   gathered = jnp.take_along_axis(logits, safe_indices[..., None], axis=1)

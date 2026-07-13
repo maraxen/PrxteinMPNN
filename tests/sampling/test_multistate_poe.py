@@ -16,6 +16,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from aminx.host.prep import prep_protein_stream_and_model
 from aminx.inference.bundle_builder import build_inference_bundle
 from aminx.inference.logits import make_stage_set
 from aminx.model import Aminx
@@ -194,4 +195,150 @@ class TestSampleMultistatePoeBead:
     assert logits.shape[0] == 2
     assert logits.shape[-1] == 21
     assert sequences.dtype == jnp.int32
+    assert bool(jnp.all(jnp.isfinite(logits)))
+
+  def test_real_state_position_map_through_full_pipeline_changes_output(self):
+    """The core claim this module exists for, proven through the FULL real pipeline --
+    not just a hand-built synthetic bundle (see TestSampleStatesFused's version of this
+    assertion). Computes a genuine, non-identity state_position_map via
+    aminx.utils.align.build_state_position_map on two real, genuinely different-length
+    structures (1ubq=76 residues, 1mbn=153), threads it through
+    prep_protein_stream_and_model -> _prepare_fixed_controls -> _prepare_ligand_context ->
+    build_inference_bundle exactly as sample_multistate_poe_bead does in production, and
+    confirms the resulting fused logits differ from the identity-map (default) case under
+    the SAME PRNG key. Added 2026-07-13 per independent PR audit finding F1: the original
+    test suite proved fusion-is-real only on a synthetic bundle, and proved the real
+    pipeline doesn't crash only with a trivial identity map -- never both together.
+    """
+    from aminx.utils.align import build_state_position_map
+
+    inputs = [f"{REPO_TESTS_DATA}/1ubq.pdb", f"{REPO_TESTS_DATA}/1mbn.pdb"]
+    base_spec = SamplingSpecification(
+      inputs=inputs,
+      batch_size=len(inputs),
+      multi_state_strategy="product",
+      return_logits=True,
+    )
+
+    synthetic_model = Aminx(
+      node_features=32,
+      edge_features=32,
+      hidden_features=32,
+      num_encoder_layers=1,
+      num_decoder_layers=1,
+      k_neighbors=8,
+      dropout_rate=0.0,
+      key=jax.random.PRNGKey(3),
+    )
+    synthetic_model = eqx.tree_inference(synthetic_model, value=True)
+
+    with patch("aminx.host.prep.load_model", return_value=synthetic_model):
+      protein_iterator, _ = prep_protein_stream_and_model(base_spec)
+      batched_ensemble = list(protein_iterator)[0]
+
+    seq_len = batched_ensemble.coordinates.shape[1]
+    n_states = batched_ensemble.coordinates.shape[0]
+    native_lens = [int(m.sum()) for m in batched_ensemble.mask]
+    assert native_lens[0] != native_lens[1], (
+      "fixture structures must have genuinely different native lengths for this test "
+      "to exercise a real, non-identity alignment"
+    )
+
+    # aminx.utils.align expects native sequences -1-padded to a common max NATIVE length
+    # (not the campaign's full padded seq_len) -- extract each state's true native prefix
+    # via its own mask, matching tev_design's compute_state_position_map exactly.
+    max_native_len = max(native_lens)
+    native_seqs = jnp.full((n_states, max_native_len), -1, dtype=jnp.int32)
+    for s in range(n_states):
+      native_seqs = native_seqs.at[s, : native_lens[s]].set(
+        batched_ensemble.aatype[s, : native_lens[s]].astype(jnp.int32),
+      )
+
+    real_map_native = build_state_position_map(native_seqs, reference_state_index=0)
+    assert not jnp.array_equal(real_map_native[1], jnp.arange(max_native_len)), (
+      "expected a genuinely non-identity alignment for state 1 given different native "
+      "lengths -- if this is identity, the alignment call itself isn't exercising real "
+      "divergence and this test proves nothing"
+    )
+
+    # Pad the alignment result (S, max_native_len) out to the campaign's full seq_len
+    # (S, 512) with -1, matching build_necklace_p2_manifest.py's own
+    # compute_state_position_map padding convention.
+    real_map = jnp.full((n_states, seq_len), -1, dtype=jnp.int32)
+    real_map = real_map.at[:, :max_native_len].set(real_map_native)
+
+    key = jax.random.PRNGKey(0)
+
+    def _sample_with_map(state_position_map):
+      spec = SamplingSpecification(
+        inputs=inputs,
+        batch_size=len(inputs),
+        multi_state_strategy="product",
+        return_logits=True,
+        state_position_map=state_position_map,
+      )
+      with patch("aminx.host.prep.load_model", return_value=synthetic_model):
+        return sample_multistate_poe_bead(spec, key, n_samples=1)
+
+    _, identity_logits = _sample_with_map(None)
+    _, real_map_logits = _sample_with_map(real_map)
+
+    assert not jnp.allclose(identity_logits, real_map_logits), (
+      "a real, non-identity state_position_map computed from actual structural alignment "
+      "must change fused logits through the FULL real pipeline -- if it doesn't, states "
+      "aren't genuinely being combined despite build_inference_bundle/sample_states_fused "
+      "each individually appearing to work"
+    )
+    assert bool(jnp.all(jnp.isfinite(real_map_logits)))
+
+  def test_ligandmpnn_sidechain_conditioning_end_to_end(self):
+    """The real necklace campaign's actual production configuration
+    (model_family="ligandmpnn", sidechain_conditioning=True, e.g. the
+    ligand_mpnn_v32_020_25_sc_only model) -- entirely untested by the rest of this suite
+    (which only exercises the default proteinmpnn/no-ligand path) until this test, added
+    2026-07-13 per independent PR audit finding F4. No real ligand molecule is needed --
+    sidechain_conditioning alone routes through _prepare_ligand_context's atom_37 path
+    using batched_ensemble.coordinates/atom_mask, both already populated by real PDB
+    parsing regardless of ligand presence.
+
+    Uses PrxteinLigandMPNN (ligand_mpnn_use_side_chain_context=True), not the base Aminx
+    class -- a first attempt with a plain Aminx model failed with
+    `TypeError: Aminx.__call__() got an unexpected keyword argument 'atom_37'`, matching
+    the model-construction pattern already established in
+    tests/inference/test_side_chain_context.py's own _small_ligand_model helper.
+    """
+    from aminx.model.ligand_mpnn import PrxteinLigandMPNN
+
+    inputs = [f"{REPO_TESTS_DATA}/1ubq.pdb", f"{REPO_TESTS_DATA}/1mbn.pdb"]
+    spec = SamplingSpecification(
+      inputs=inputs,
+      batch_size=len(inputs),
+      multi_state_strategy="product",
+      model_family="ligandmpnn",
+      sidechain_conditioning=True,
+      return_logits=True,
+    )
+
+    synthetic_model = PrxteinLigandMPNN(
+      node_features=32,
+      edge_features=32,
+      hidden_features=32,
+      num_encoder_layers=2,
+      num_decoder_layers=2,
+      k_neighbors=6,
+      num_context_layers=2,
+      dropout_rate=0.0,
+      ligand_mpnn_use_side_chain_context=True,
+      key=jax.random.PRNGKey(4),
+    )
+    synthetic_model = eqx.tree_inference(synthetic_model, value=True)
+
+    with patch("aminx.host.prep.load_model", return_value=synthetic_model):
+      sequences, logits = sample_multistate_poe_bead(
+        spec, jax.random.PRNGKey(0), n_samples=2,
+      )
+
+    assert sequences.shape[0] == 2
+    assert logits.shape[0] == 2
+    assert logits.shape[-1] == 21
     assert bool(jnp.all(jnp.isfinite(logits)))

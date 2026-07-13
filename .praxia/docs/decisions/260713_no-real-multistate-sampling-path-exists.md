@@ -96,22 +96,72 @@ rejected — the necklace campaign's PoE premise is being made real, not abandon
      confusing failure mode to trace (see the module's inline comment for the full diagnosis).
      Fixed by taking row 0 (every row is already an identical broadcast, now asserted explicitly
      rather than assumed) before passing to `build_inference_bundle`.
-   - Dispatching `n_samples` via `jax.vmap`/`jax.lax.map` over the sample-key axis breaks
-     `AutoregressiveDecode`'s internal `(S, L, V)` explicit-shape broadcasts once a genuine
-     `num_states>1` bundle is involved (every existing production call site has `num_states=1`,
-     where this never manifests). Confirmed both `vmap` and `lax.map` fail identically. Fixed by
-     looping the sample-key axis explicitly (no extra batching layer) in `sample_states_fused`.
-     **This second issue may be a real, narrower aminx limitation worth its own note** — combining
-     an outer sample-batching vmap with an inner genuine multi-state fusion axis inside
-     `AutoregressiveDecode` is untested territory; flagged here rather than filed as a separate
-     debt item since the MVP's explicit-loop workaround is sufficient and no other caller
-     currently needs the vmapped-samples-over-S>1 combination.
+   - **CORRECTED (2026-07-13, caught by an independent PR audit — this bullet previously claimed
+     a fix that was never actually shipped):** during debugging, `jax.vmap` and `jax.lax.map`
+     over the sample-key axis both appeared to fail with the same `Cannot broadcast to shape
+     with fewer dimensions` error as the fixed_mask bug above. At the time this was misattributed
+     to vmap/lax.map itself being incompatible with a genuine `num_states>1` bundle, and this
+     document previously claimed the fix was "looping the sample-key axis explicitly instead."
+     **That is not what shipped.** `sample_states_fused` uses `jax.vmap` over `n_samples`,
+     unchanged, in the merged code — and the audit independently reproduced `num_states=2,
+     n_samples=8, multi_state_strategy="product"` against real PDB data with no crash. The
+     actual explanation: both vmap and lax.map attempts were made *before* the fixed_mask bug
+     (above) was found and fixed, so both were failing for the *same* underlying reason (the
+     malformed 2D fixed_mask), not because of anything specific to vmap/lax.map. Once the
+     fixed_mask bug was fixed, the original vmap-based code simply worked, and no separate
+     sample-dispatch fix was ever needed. There is no evidence of a real vmap/multi-state
+     incompatibility in `AutoregressiveDecode` — this bullet is corrected to avoid future
+     sessions treating a debugging red herring as a documented aminx limitation.
 2. **[NOT CHOSEN for MVP — filed as real tech debt, praxia debt #589, see below] Real
    `N_POE_STATES`-style axis in `_sample_batch` itself.**
 3. **[REJECTED] Relabel the necklace campaign's intent instead of fixing aminx** — dropping the
    `multi_state_strategy="product"`/`state_position_map` framing and re-scoping "PoE" as 4
    independent single-state libraries. Explicitly rejected by the project owner (2026-07-13): the
    goal is to make the campaign's locked PoE premise real, not retreat from it.
+
+## Independent PR audit (2026-07-13, before merge with admin override)
+
+An independent subagent audit of the shipped diff (not this doc's own claims) returned
+**CHANGES REQUESTED**, with the following findings, all now addressed before merge:
+
+- **F1 (High, fixed):** the original test suite proved genuine fusion only on a synthetic
+  hand-built bundle, and proved the real host pipeline doesn't crash only with a trivial
+  identity `state_position_map` — never both together, so "fusion works end-to-end against
+  real data" was not actually demonstrated for the campaign's real use case (heterogeneous
+  junction lengths). Fixed: added
+  `test_real_state_position_map_through_full_pipeline_changes_output`, which computes a
+  genuine non-identity map via `aminx.utils.align.build_state_position_map` on two real,
+  differently-numbered PDB structures and threads it through the full real
+  `sample_multistate_poe_bead` pipeline, confirming fused logits differ from the
+  identity-map case under the same PRNG key.
+- **F2 (resolved, no code change):** flagged the row-0-identity assumption on
+  `fixed_mask`/`fixed_tokens` as a possible real-production risk. A follow-up research
+  pass confirmed against the actual tev_design necklace manifest-building scripts that
+  fixed positions are locked identical across all k states by design (the prereg requires
+  uniform junction placement regardless of stratum) — the assumption is safe as practiced.
+  Downgraded to a docstring note (added) rather than a required fix.
+- **F3 (Medium, fixed):** this document's Provenance section previously claimed a
+  `jax.vmap`→explicit-loop fix for a sample-dispatch/multi-state incompatibility that was
+  **never actually shipped** — `sample_states_fused` still uses `jax.vmap`, unchanged, and
+  the audit independently reproduced `num_states=2, n_samples=8` against real data with no
+  crash. The real explanation: both `vmap` and `lax.map` were tried *before* the
+  `fixed_mask` bug (above) was found, so both failed for that same reason, not because of
+  anything specific to vmap/multi-state. Corrected in the Provenance section above rather
+  than left as a false claim about a nonexistent aminx limitation.
+- **F4 (High, fixed):** zero test coverage existed for `model_family="ligandmpnn"` +
+  `sidechain_conditioning=True` — the real necklace campaign's actual production model
+  configuration (e.g. `ligand_mpnn_v32_020_25_sc_only`). Fixed: added
+  `test_ligandmpnn_sidechain_conditioning_end_to_end`, using `PrxteinLigandMPNN`
+  (`ligand_mpnn_use_side_chain_context=True`) rather than the base `Aminx` class (a first
+  attempt with the base class failed loudly with a clear `TypeError`, confirming the
+  gap was real, not hypothetical).
+- **F5 (Medium, fixed):** no `@eqx.filter_jit` wrapping anywhere in the new module, unlike
+  every comparable production sampling call site (`host/plan.py`'s `InferencePlan.encode`/
+  `.decode`/`.sample`/`.score`). Fixed: `sample_states_fused` is now `@eqx.filter_jit`-decorated,
+  matching the codebase's existing convention; full test file re-verified green after adding it.
+
+All 5 findings closed; full new test file (9 tests) passes; full aminx suite re-verified
+before merge (see commit history for exact pass count).
 
 ## Tech debt (praxia debt #589): option 2 should genuinely be built, and should be xtrax-composable
 

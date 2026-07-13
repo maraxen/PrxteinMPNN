@@ -323,3 +323,33 @@ class TestRealignStatesToReference:
         assert jnp.array_equal(realigned[1, 0], logits[1, 0])
         assert jnp.array_equal(realigned[1, 1], logits[1, 1])
         assert jnp.array_equal(realigned[1, 3], logits[1, 3])
+
+    def test_state_cardinality_mismatch_raises(self):
+        """A state_position_map declaring more states than logits actually has
+        must raise, not silently broadcast-fuse a fake multi-state result out of
+        one real state.
+
+        Regression test for a real necklace-campaign data-corruption bug
+        (2026-07-13): host/kernel_dispatch.py's per-structure sampling loop builds
+        a genuinely single-state (num_states=1) bundle per call but was passing it
+        a caller-supplied (S=4, L) state_position_map unchanged. Before this fix,
+        jnp.take_along_axis silently broadcast the (1, L, V) logits across the
+        mismatched axis, gathering the SAME real state's logits through four
+        different permutation rows (from state_position_map's rows 1-3, which are
+        NOT the identity) and summing them under 'product' fusion -- a real logit
+        distortion, not a no-op and not a genuine fusion of independent states.
+        """
+        S_logits, S_map, L, V = 1, 4, 6, 21
+        logits = jax.random.normal(jax.random.PRNGKey(4), (S_logits, L, V))
+        # Non-identity past row 0 -- exactly the shape necklace's real
+        # build_state_position_map output takes (state 0 == reference == identity,
+        # states 1+ genuinely permuted).
+        state_position_map = jnp.array([
+            [0, 1, 2, 3, 4, 5],
+            [1, 0, 2, 3, 4, 5],
+            [0, 1, 2, 3, 5, 4],
+            [5, 4, 3, 2, 1, 0],
+        ])
+
+        with pytest.raises(ValueError, match="state_position_map declares"):
+            _realign_states_to_reference(logits, state_position_map)

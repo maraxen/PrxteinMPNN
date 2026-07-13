@@ -154,8 +154,35 @@ Filed via `workspace_handshake` → `scope set aminx` → `backlog add` (with `d
 | E11a Benchmark decoy | #3307 | E5 |
 | E11b Benchmark ΔΔG | #3308 | E6 |
 | E11c Benchmark biasing | #3309 | E7 |
+| E3.6 Model assembly (gap found mid-session) | #3310 | E1, E3 |
 
-Follow-on epic (deferred): E9 Langevin sampler, E10 structure-prediction pipeline, E11d Langevin benchmark. Later epic (deferred): E12 differentiable multistate design; PBCNet2.0 pairwise scoring.
+Follow-on epic (deferred at filing time): E9 Langevin sampler, E10 structure-prediction pipeline, E11d Langevin benchmark. Later epic (deferred): E12 differentiable multistate design; PBCNet2.0 pairwise scoring.
+
+### Update (2026-07-13): all nodes marked `completed`; follow-on epic filed
+
+Once the praxia MCP server was reconnected (it had been down for the middle portion of this
+session — two infra issues found and fixed by the user: a stuck `sqlx` migration, then a missing
+`praxia-tool-host` binary), the backlog was brought up to date:
+
+- **All 18 pre-existing items** (`#3294` EPIC, `#3295`–`#3306`, `#3310`, `#3307`–`#3309`) moved from
+  `open`/`in_progress` to **`completed`** via `backlog(action: "update", payload: {status:
+  "completed"})` — the schema-valid terminal status (per `migrations/schema-v3.sql:69`'s check
+  constraint: `open`/`in_progress`/`promoted`/`completed`/`archived`/`cancelled`/`deferred`/
+  `awaiting_feedback` — **not** `"complete"` or `"done"`, both of which fail the constraint; the
+  intended `complete` *action* additionally demands a worktree via a `promote` step that isn't
+  currently reachable as a `backlog` action at all). This `update`-with-`status:"completed"` path is
+  the correct workaround, not `backlog(action: "complete")`.
+- **E9/E10/E11d newly filed**: `#3471` (E9 Langevin sampler, `depends_on: [3299]` i.e. the E3.5
+  checkpoint gate, matching the DAG's explicit "E9 depends on CHECKPOINT, NOT E8" correction),
+  `#3472` (E10, `depends_on: [3471]`), `#3473` (E11d, `depends_on: [3471]`) — all filed `completed`,
+  reflecting that the follow-on epic was fully implemented before this filing happened (§8–§11).
+- **A real mistake made and corrected in the same session**: before discovering that `backlog list()`
+  silently hides `completed` items by default (no `status` filter = only non-terminal items shown),
+  11 duplicate items were filed for E0–E8/gates (`#3460`–`#3470`) under the mistaken belief that only
+  the EPIC + E11a–c had ever been filed. Caught by listing with `payload: {"status": "completed"}`
+  and seeing the pre-existing `#3295`–`#3306`/`#3310` — all 11 duplicates were cancelled with a
+  `[DUPLICATE, ignore — see #NNNN]` title prefix pointing at the real item, not silently left
+  cluttering the backlog.
 
 ## 6. Still-open decisions for you
 

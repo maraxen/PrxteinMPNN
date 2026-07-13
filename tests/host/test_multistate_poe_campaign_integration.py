@@ -17,6 +17,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 import zarr
 
 from aminx.host.campaign import MANIFEST_SCHEMA_VERSION, run_manifest_row
@@ -192,3 +193,121 @@ class TestMultistatePoeCampaignRowRouting:
     assert result["status"] == "completed"
     mock_sample.assert_called_once()
     mock_poe_row.assert_not_called()
+
+
+class TestGridLineageChunking:
+  """Regression coverage for the critical finding from the 2026-07-14 PR audit: two manifest
+  rows sharing one job_id but different chunk_id/sample_start (exactly how a real necklace bead
+  whose design count exceeds samples_chunk_size gets split into multiple rows,
+  build_necklace_p2_manifest.py) must NOT derive the same base key and produce duplicated
+  samples. Previously, _base_sampling_key's own hash never incorporated chunk_id/sample_start,
+  so this scenario silently duplicated output -- caught by an independent audit before merge,
+  not previously exercised by any test (grid_mode was never set in earlier tests).
+  """
+
+  def _grid_row_manifest(self, tmp_path, inputs, state_position_map, *, job_id, chunk_id,
+                          sample_start, sample_count, row_hash):
+    output_path = tmp_path / f"{row_hash}.h5"
+    manifest_path = tmp_path / f"{row_hash}_manifest.json"
+    manifest = {
+      "schema_version": MANIFEST_SCHEMA_VERSION,
+      "rows": [
+        {
+          "manifest_row_hash": row_hash,
+          "job_id": job_id,
+          "job_index": 0,
+          "sampling_spec": {
+            "inputs": inputs,
+            "batch_size": len(inputs),
+            "multi_state_strategy": "product",
+            "state_position_map": state_position_map,
+            "return_logits": True,
+            "grid_mode": True,
+            "job_id": job_id,
+            "chunk_id": chunk_id,
+            "sample_start": sample_start,
+            "sample_count": sample_count,
+            "samples_chunk_size": sample_count,
+            "output_h5_path": str(output_path),
+          },
+        },
+      ],
+    }
+    manifest_path.write_text(json.dumps(manifest))
+    return manifest_path, output_path
+
+  def test_two_chunks_of_same_job_produce_distinct_samples(self, tmp_path):
+    """The critical regression: chunk_id=0/sample_start=0 vs chunk_id=1/sample_start=2 of the
+    SAME job_id must produce genuinely different sequences, not a byte-identical duplicate.
+    """
+    inputs = [f"{REPO_TESTS_DATA}/1ubq.pdb", f"{REPO_TESTS_DATA}/1mbn.pdb"]
+    synthetic_model = _synthetic_model()
+    state_position_map = _real_state_position_map(inputs, synthetic_model)
+    job_id = "necklace_p2_shared_job"
+
+    manifest_a, output_a = self._grid_row_manifest(
+      tmp_path, inputs, state_position_map,
+      job_id=job_id, chunk_id=0, sample_start=0, sample_count=2, row_hash="chunk_a",
+    )
+    manifest_b, output_b = self._grid_row_manifest(
+      tmp_path, inputs, state_position_map,
+      job_id=job_id, chunk_id=1, sample_start=2, sample_count=2, row_hash="chunk_b",
+    )
+
+    with patch("aminx.host.prep.load_model", return_value=synthetic_model):
+      result_a = run_manifest_row(manifest_path=str(manifest_a), row_hash="chunk_a")
+      result_b = run_manifest_row(manifest_path=str(manifest_b), row_hash="chunk_b")
+
+    assert result_a["status"] == "completed"
+    assert result_b["status"] == "completed"
+
+    sequences_a = np.asarray(zarr.open_group(str(output_a), mode="r")["poe_fused"]["sequences"])
+    sequences_b = np.asarray(zarr.open_group(str(output_b), mode="r")["poe_fused"]["sequences"])
+
+    assert not np.array_equal(sequences_a, sequences_b), (
+      "two chunks of the same job (same job_id, different chunk_id/sample_start) produced "
+      "byte-identical sequences -- the sample_start fold-in regression is back"
+    )
+
+  def test_chunk_size_mismatch_raises_instead_of_silently_truncating(self, tmp_path):
+    """If a manifest row's sample_count != samples_chunk_size (a manifest-builder bug --
+    every real necklace row sets these equal), this must raise a clear error rather than
+    silently writing only chunk_size samples while claiming num_samples=chunk_size in attrs.
+    """
+    inputs = [f"{REPO_TESTS_DATA}/1ubq.pdb", f"{REPO_TESTS_DATA}/1mbn.pdb"]
+    synthetic_model = _synthetic_model()
+    state_position_map = _real_state_position_map(inputs, synthetic_model)
+
+    output_path = tmp_path / "mismatch.h5"
+    manifest_path = tmp_path / "mismatch_manifest.json"
+    manifest = {
+      "schema_version": MANIFEST_SCHEMA_VERSION,
+      "rows": [
+        {
+          "manifest_row_hash": "mismatch_row",
+          "job_id": "job_mismatch",
+          "job_index": 0,
+          "sampling_spec": {
+            "inputs": inputs,
+            "batch_size": len(inputs),
+            "multi_state_strategy": "product",
+            "state_position_map": state_position_map,
+            "return_logits": True,
+            "grid_mode": True,
+            "job_id": "job_mismatch",
+            "chunk_id": 0,
+            "sample_start": 0,
+            "sample_count": 4,
+            "samples_chunk_size": 2,  # deliberately mismatched
+            "output_h5_path": str(output_path),
+          },
+        },
+      ],
+    }
+    manifest_path.write_text(json.dumps(manifest))
+
+    with (
+      patch("aminx.host.prep.load_model", return_value=synthetic_model),
+      pytest.raises(Exception, match="assumes one manifest row produces exactly one chunk"),
+    ):
+      run_manifest_row(manifest_path=str(manifest_path), row_hash="mismatch_row")

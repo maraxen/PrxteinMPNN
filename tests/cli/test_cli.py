@@ -275,3 +275,142 @@ class TestPortableRoundtrip:
         assert result.exit_code == 0, result.output
         parsed = json.loads(result.output)
         assert isinstance(parsed, dict)
+
+
+class TestModelFamilyCliDefaultAutoDerives:
+  """`aminx run`/`aminx spec` share a `--model-family` Typer option that used to hardcode
+  the literal default `"proteinmpnn"` -- bypassing RunSpecification.__post_init__'s
+  checkpoint_id-derived auto-correction entirely for these CLI entry points (a caller
+  running `aminx run sample --checkpoint-id ligandmpnn_v_32_020_25` without also passing
+  `--model-family ligandmpnn` got the exact same silent no-op the fix elsewhere in this PR
+  closes). Fixed by defaulting the CLI option to None, matching the dataclass field's own
+  default, so the callback's None flows through _base_spec_kwargs into RunSpecification
+  unchanged and gets derived the same way as any other caller.
+  """
+
+  def test_run_base_model_family_option_defaults_to_none(self):
+    """Typer option default must be None, not the string "proteinmpnn" -- a hardcoded
+    string default here silently bypasses the checkpoint_id-derived auto-correction for
+    every `aminx run` invocation, regardless of what RunSpecification.__post_init__ does.
+    """
+    import inspect
+
+    from aminx.cli import _run_base
+
+    sig = inspect.signature(_run_base)
+    assert sig.parameters["model_family"].default is None
+
+  def test_spec_base_model_family_option_defaults_to_none(self):
+    """Same check for `aminx spec`'s callback (a separate Typer app/callback sharing the
+    same option shape, not automatically covered by the `run` callback's own fix).
+    """
+    import inspect
+
+    from aminx.cli import _spec_base
+
+    sig = inspect.signature(_spec_base)
+    assert sig.parameters["model_family"].default is None
+
+  def test_base_spec_kwargs_forwards_none_model_family_unchanged(self):
+    """_base_spec_kwargs must forward model_family=None as-is (not coerce it back to a
+    string) so RunSpecification.__post_init__ still sees the real "unset" sentinel.
+    """
+    from aminx.cli import _RunBase, _base_spec_kwargs
+
+    base = _RunBase(
+      topology=None,
+      model_weights="original",
+      model_version="v_48_020",
+      model_family=None,
+      checkpoint_id="ligandmpnn_v_32_020_25",
+      model_local_path=None,
+      checkpoint_registry_path=None,
+      ligand_mpnn_use_side_chain_context=None,
+      batch_size=None,
+      backbone_noise="0.0",
+      backbone_noise_mode=None,
+      estat_noise=None,
+      estat_noise_mode=None,
+      vdw_noise=None,
+      vdw_noise_mode=None,
+      use_electrostatics=False,
+      use_vdw=False,
+      random_seed=42,
+      chain_id=None,
+      model=None,
+      altloc="first",
+      cache_path=None,
+      output_dir=None,
+      max_buffer_size=None,
+      overwrite_cache=False,
+      max_length=None,
+      truncation_strategy="none",
+      host_resource_allocation_strategy="auto",
+      ram_budget_mb=None,
+      max_workers=None,
+      n_devices=None,
+      use_preprocessed=False,
+      preprocessed_index_path=None,
+      split="train",
+      tied_position=[],
+      pass_mode="intra",
+      multi_state_temperature=1.0,
+      input_type="auto",
+      input_cache_dir=None,
+    )
+    kwargs = _base_spec_kwargs(base)
+    assert kwargs["model_family"] is None
+
+  def test_run_base_with_ligand_checkpoint_and_no_model_family_derives_correctly(self):
+    """End-to-end: constructing a real SamplingSpecification from _base_spec_kwargs'
+    output (the exact dict `aminx run`'s subcommands pass into spec constructors) with a
+    LigandMPNN checkpoint_id and no --model-family derives 'ligandmpnn', matching the
+    campaign/manifest pipeline's already-fixed behavior.
+    """
+    from aminx.cli import _RunBase, _base_spec_kwargs
+    from aminx.run.specs import SamplingSpecification
+
+    base = _RunBase(
+      topology=None,
+      model_weights="original",
+      model_version="v_48_020",
+      model_family=None,
+      checkpoint_id="ligandmpnn_v_32_020_25",
+      model_local_path=None,
+      checkpoint_registry_path=None,
+      ligand_mpnn_use_side_chain_context=None,
+      batch_size=None,
+      backbone_noise="0.0",
+      backbone_noise_mode=None,
+      estat_noise=None,
+      estat_noise_mode=None,
+      vdw_noise=None,
+      vdw_noise_mode=None,
+      use_electrostatics=False,
+      use_vdw=False,
+      random_seed=42,
+      chain_id=None,
+      model=None,
+      altloc="first",
+      cache_path=None,
+      output_dir=None,
+      max_buffer_size=None,
+      overwrite_cache=False,
+      max_length=None,
+      truncation_strategy="none",
+      host_resource_allocation_strategy="auto",
+      ram_budget_mb=None,
+      max_workers=None,
+      n_devices=None,
+      use_preprocessed=False,
+      preprocessed_index_path=None,
+      split="train",
+      tied_position=[],
+      pass_mode="intra",
+      multi_state_temperature=1.0,
+      input_type="auto",
+      input_cache_dir=None,
+    )
+    kwargs = _base_spec_kwargs(base)
+    spec = SamplingSpecification(inputs="test.pdb", **kwargs)
+    assert spec.model_family == "ligandmpnn"

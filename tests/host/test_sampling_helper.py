@@ -1,6 +1,8 @@
-"""Tests for _sampling_helper._prepare_fixed_controls function.
+"""Tests for _sampling_helper._prepare_fixed_controls and _prepare_ligand_context functions.
 
-Focus: Fixed mask application correctness, no double-application bug.
+Focus: Fixed mask application correctness, no double-application bug; and that
+model_family (checkpoint_id-derived per run/specs.py::RunSpecification.__post_init__) is
+what actually gates real ligand/sidechain-atom injection.
 """
 
 from __future__ import annotations
@@ -9,7 +11,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from aminx.host._sampling_helper import _prepare_fixed_controls
+from aminx.host._sampling_helper import _prepare_fixed_controls, _prepare_ligand_context
 from aminx.run.specs import SamplingSpecification
 from aminx.utils.data_structures import Protein
 
@@ -171,3 +173,98 @@ class TestPrepareFixedControlsFixedMask:
 
     # Verify that all values are <= 1.0 (sanity check for double-application)
     assert np.all(np.asarray(fixed_mask_out) <= 1.0), "Mask values exceed 1.0 (possible double-application)"
+
+
+class TestPrepareLigandContextModelFamilyGate:
+  """_prepare_ligand_context gates BOTH real ligand-atom (Y/Y_t/Y_m) and real
+  sidechain-atom (atom_37/atom_37_mask) injection on a single early-return keyed off
+  spec.model_family == "ligandmpnn" -- not checkpoint_id, not sidechain_conditioning
+  directly. A caller who set checkpoint_id to a LigandMPNN checkpoint but never touched
+  model_family got that checkpoint's weights loaded correctly (get_topology_for_checkpoint
+  already derives architecture from checkpoint_id for weight selection) while real
+  ligand/sidechain context was silently never passed to it -- found live 2026-07-14 in
+  tev_design's necklace P2 campaign (three of six model beads sampled with zero real
+  ligand/sidechain atoms, no crash, no error).
+
+  These tests exercise the REAL construction path a production caller uses -- kwargs into
+  SamplingSpecification's __init__, letting __post_init__ derive model_family from
+  checkpoint_id -- rather than a hand-constructed spec with model_family already set
+  correctly (which is what every OTHER test touching _prepare_ligand_context does, and
+  exactly the gap that let this bug ship: the unit was well-tested in isolation, the wiring
+  from a realistic construction path was not).
+  """
+
+  def test_sidechain_atom_context_reaches_model_when_model_family_unset(self):
+    """The exact regression: checkpoint_id set, model_family left unset,
+    sidechain_conditioning=True -- atom_37/atom_37_mask must be real arrays, not None.
+    """
+    batch_size = 1
+    seq_len = 10
+    protein = _make_fake_protein(batch_size=batch_size, seq_len=seq_len)
+
+    spec = SamplingSpecification(
+      inputs=[],
+      checkpoint_id="ligandmpnn_v_32_020_25",
+      sidechain_conditioning=True,
+    )
+    assert spec.model_family == "ligandmpnn", (
+      "precondition: model_family must have been auto-derived from checkpoint_id"
+    )
+
+    ligand_context = _prepare_ligand_context(
+      spec, batched_ensemble=protein, batch_size=batch_size, seq_len=seq_len,
+    )
+
+    assert ligand_context["atom_37"] is not None, (
+      "sidechain_conditioning=True with a LigandMPNN checkpoint must produce real "
+      "atom_37 coordinates -- got None, meaning the model_family gate silently closed."
+    )
+    assert ligand_context["atom_37_mask"] is not None
+    np.testing.assert_array_equal(
+      np.asarray(ligand_context["atom_37"]), np.asarray(protein.coordinates),
+    )
+
+  def test_sidechain_atom_context_is_none_without_sidechain_conditioning(self):
+    """Sanity check on the OTHER half of the branch: even with model_family correctly
+    'ligandmpnn', atom_37 stays None when sidechain_conditioning=False (default) -- this
+    confirms the test above is exercising the real gate, not a fixture that always returns
+    non-None regardless of configuration.
+    """
+    batch_size = 1
+    seq_len = 10
+    protein = _make_fake_protein(batch_size=batch_size, seq_len=seq_len)
+
+    spec = SamplingSpecification(
+      inputs=[],
+      checkpoint_id="ligandmpnn_v_32_020_25",
+      sidechain_conditioning=False,
+    )
+    assert spec.model_family == "ligandmpnn"
+
+    ligand_context = _prepare_ligand_context(
+      spec, batched_ensemble=protein, batch_size=batch_size, seq_len=seq_len,
+    )
+    assert ligand_context["atom_37"] is None
+    assert ligand_context["atom_37_mask"] is None
+
+  def test_all_context_is_none_for_proteinmpnn_checkpoint(self):
+    """Baseline: a genuinely proteinmpnn checkpoint (no ligand family at all) correctly
+    gets None ligand/sidechain context regardless of sidechain_conditioning -- confirms the
+    fix didn't flip this into an always-real-context bug in the other direction.
+    """
+    batch_size = 1
+    seq_len = 10
+    protein = _make_fake_protein(batch_size=batch_size, seq_len=seq_len)
+
+    spec = SamplingSpecification(
+      inputs=[],
+      checkpoint_id="proteinmpnn_v_48_020",
+      sidechain_conditioning=True,
+    )
+    assert spec.model_family == "proteinmpnn"
+
+    ligand_context = _prepare_ligand_context(
+      spec, batched_ensemble=protein, batch_size=batch_size, seq_len=seq_len,
+    )
+    assert ligand_context["atom_37"] is None
+    assert ligand_context["Y"] is None

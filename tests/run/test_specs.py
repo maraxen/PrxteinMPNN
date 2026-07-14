@@ -336,6 +336,25 @@ class TestModelFamilyCheckpointDerivation:
         )
         assert spec.model_family == "ligandmpnn"
 
+    def test_explicit_model_family_ligandmpnn_with_protein_checkpoint_warns(
+        self, minimal_run_spec_kwargs: dict, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The symmetric case of test_explicit_model_family_never_silently_overridden:
+        explicit model_family='ligandmpnn' with a checkpoint_id that does NOT indicate a
+        LigandMPNN-family checkpoint is an equally suspicious disagreement and must also
+        warn (an earlier version of this fix only warned in one direction).
+        """
+        with caplog.at_level("WARNING"):
+            spec = RunSpecification(
+                **minimal_run_spec_kwargs,
+                checkpoint_id="proteinmpnn_v_48_020",
+                model_family="ligandmpnn",
+            )
+        assert spec.model_family == "ligandmpnn", "explicit value must still be respected"
+        assert any(
+            "explicitly set to 'ligandmpnn'" in record.message for record in caplog.records
+        )
+
 
 # ============================================================================
 # ScoringSpecification Tests

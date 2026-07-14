@@ -501,6 +501,23 @@ class RunSpecification:
         "the explicit model_family='proteinmpnn' and let it auto-derive.",
         self.checkpoint_id,
       )
+    elif (
+      self.model_family == "ligandmpnn"
+      and derived_topology is not None
+      and not is_ligand_checkpoint
+    ):
+      # Symmetric case: explicit "ligandmpnn" but checkpoint_id clearly indicates a
+      # non-ligand (protein/membrane) checkpoint -- flagged for the same reason as the
+      # branch above (equally suspicious caller/checkpoint disagreement), even though
+      # get_topology_for_checkpoint's real architecture selection (used by load_model for
+      # weight loading, independent of this field) will likely surface this as a loud
+      # shape/kwarg mismatch downstream rather than a silent no-op.
+      logger.warning(
+        "model_family explicitly set to 'ligandmpnn' but checkpoint_id=%r does not indicate "
+        "a LigandMPNN-family checkpoint -- this combination is unusual; verify checkpoint_id "
+        "is correct.",
+        self.checkpoint_id,
+      )
 
     self._sync_run_spec()
 

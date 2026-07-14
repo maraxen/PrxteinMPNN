@@ -407,7 +407,7 @@ class _RunBase:
   topology: str | None
   model_weights: str
   model_version: str
-  model_family: str
+  model_family: str | None
   checkpoint_id: str | None
   model_local_path: Path | None
   checkpoint_registry_path: Path | None
@@ -452,9 +452,13 @@ def _run_base(
   model_weights: Annotated[str, _OPT(help="Model weights name")] = "original",
   model_version: Annotated[str, _OPT(help="Model version")] = "v_48_020",
   model_family: Annotated[
-    str,
-    _OPT(help="Model family: proteinmpnn or ligandmpnn"),
-  ] = "proteinmpnn",
+    str | None,
+    _OPT(
+      help="Model family: proteinmpnn or ligandmpnn. Leave unset to auto-derive from "
+      "checkpoint_id (RunSpecification.__post_init__); an explicit value here is always "
+      "respected even if it disagrees with checkpoint_id.",
+    ),
+  ] = None,
   checkpoint_id: Annotated[str | None, _OPT(help="Checkpoint identifier")] = None,
   model_local_path: Annotated[Path | None, _OPT(help="Local model checkpoint path")] = None,
   checkpoint_registry_path: Annotated[Path | None, _OPT(help="Checkpoint registry path")] = None,
@@ -1020,9 +1024,13 @@ def _spec_base(
   model_weights: Annotated[str, _OPT(help="Model weights name")] = "original",
   model_version: Annotated[str, _OPT(help="Model version")] = "v_48_020",
   model_family: Annotated[
-    str,
-    _OPT(help="Model family: proteinmpnn or ligandmpnn"),
-  ] = "proteinmpnn",
+    str | None,
+    _OPT(
+      help="Model family: proteinmpnn or ligandmpnn. Leave unset to auto-derive from "
+      "checkpoint_id (RunSpecification.__post_init__); an explicit value here is always "
+      "respected even if it disagrees with checkpoint_id.",
+    ),
+  ] = None,
   checkpoint_id: Annotated[str | None, _OPT(help="Checkpoint identifier")] = None,
   model_local_path: Annotated[Path | None, _OPT(help="Local model checkpoint path")] = None,
   checkpoint_registry_path: Annotated[Path | None, _OPT(help="Checkpoint registry path")] = None,

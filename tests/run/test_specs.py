@@ -228,6 +228,115 @@ class TestRunSpecificationValidation:
         assert spec.pass_mode == "intra"
 
 
+class TestModelFamilyCheckpointDerivation:
+    """model_family gates real ligand/sidechain-atom injection in
+    host/_sampling_helper.py::_prepare_ligand_context, independent of checkpoint_id -- a
+    caller who set a LigandMPNN checkpoint_id but never touched model_family got weights
+    loaded correctly (get_topology_for_checkpoint already derives architecture from
+    checkpoint_id) while real ligand/sidechain context silently never reached the model
+    (found live 2026-07-14, tev_design necklace P2 campaign -- three of six model beads
+    sampled with zero real ligand/sidechain atoms, no crash, no error). These tests cover
+    __post_init__'s auto-derivation of model_family from checkpoint_id when unset, and
+    confirm an explicit caller value is never silently overridden.
+    """
+
+    def test_unset_model_family_derived_from_ligand_checkpoint(
+        self, minimal_run_spec_kwargs: dict
+    ) -> None:
+        """model_family=None (unset) + a ligandmpnn checkpoint_id derives 'ligandmpnn'."""
+        spec = RunSpecification(
+            **minimal_run_spec_kwargs,
+            checkpoint_id="ligandmpnn_v_32_020_25",
+        )
+        assert spec.model_family == "ligandmpnn"
+
+    def test_unset_model_family_derived_from_packer_checkpoint(
+        self, minimal_run_spec_kwargs: dict
+    ) -> None:
+        """A dedicated SC/packer checkpoint (get_topology_for_checkpoint model_type='packer')
+        also derives 'ligandmpnn', matching _prepare_ligand_context's ligand-family gate.
+        """
+        spec = RunSpecification(
+            **minimal_run_spec_kwargs,
+            checkpoint_id="ligandmpnn_sc_v_32_020_25",
+        )
+        assert spec.model_family == "ligandmpnn"
+
+    def test_unset_model_family_stays_proteinmpnn_for_protein_checkpoint(
+        self, minimal_run_spec_kwargs: dict
+    ) -> None:
+        """model_family=None + a proteinmpnn checkpoint_id resolves to 'proteinmpnn'."""
+        spec = RunSpecification(
+            **minimal_run_spec_kwargs,
+            checkpoint_id="proteinmpnn_v_48_020",
+        )
+        assert spec.model_family == "proteinmpnn"
+
+    def test_unset_model_family_stays_proteinmpnn_with_no_checkpoint_id(
+        self, minimal_run_spec_kwargs: dict
+    ) -> None:
+        """model_family=None with no checkpoint_id at all falls back to the historical
+        'proteinmpnn' default -- no checkpoint_id means nothing to derive from.
+        """
+        spec = RunSpecification(**minimal_run_spec_kwargs)
+        assert spec.checkpoint_id is None
+        assert spec.model_family == "proteinmpnn"
+
+    def test_explicit_model_family_never_silently_overridden(
+        self, minimal_run_spec_kwargs: dict, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An explicit model_family='proteinmpnn' is respected even with a LigandMPNN
+        checkpoint_id (e.g. a deliberate ablation) -- this is the exact regression this test
+        suite exists to catch: an earlier version of this fix used the string default
+        "proteinmpnn" as its trigger condition and could not distinguish "caller explicitly
+        chose proteinmpnn" from "caller never set it", silently overriding real explicit
+        intent. A loud warning is still expected, since this combination is unusual.
+        """
+        with caplog.at_level("WARNING"):
+            spec = RunSpecification(
+                **minimal_run_spec_kwargs,
+                checkpoint_id="ligandmpnn_v_32_020_25",
+                model_family="proteinmpnn",
+            )
+        assert spec.model_family == "proteinmpnn"
+        assert any(
+            "explicitly set to 'proteinmpnn'" in record.message for record in caplog.records
+        )
+
+    def test_explicit_model_family_ligandmpnn_respected_no_warning(
+        self, minimal_run_spec_kwargs: dict, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An explicit model_family matching the checkpoint's real family is respected and
+        does not warn (nothing anomalous about this combination).
+        """
+        with caplog.at_level("WARNING"):
+            spec = RunSpecification(
+                **minimal_run_spec_kwargs,
+                checkpoint_id="ligandmpnn_v_32_020_25",
+                model_family="ligandmpnn",
+            )
+        assert spec.model_family == "ligandmpnn"
+        assert not any(
+            "model_family" in record.message.lower() and record.levelname == "WARNING"
+            for record in caplog.records
+        )
+
+    def test_sampling_specification_also_derives(self, minimal_sampling_kwargs: dict) -> None:
+        """SamplingSpecification (a RunSpecification subclass, used by the real
+        `aminx campaign plan/run` pipeline) also gets the derivation via
+        super().__post_init__() -- this is the actual code path that was broken in
+        production, not just the base class in isolation.
+        """
+        spec = SamplingSpecification(
+            **minimal_sampling_kwargs,
+            checkpoint_id="ligandmpnn_v_32_020_25",
+            batch_size=4,
+            samples_chunk_size=20,
+            return_logits=False,
+        )
+        assert spec.model_family == "ligandmpnn"
+
+
 # ============================================================================
 # ScoringSpecification Tests
 # ============================================================================

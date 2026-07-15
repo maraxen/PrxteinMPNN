@@ -107,24 +107,25 @@ CLOSED_BY_S1A: tuple[str, ...] = (
 # Empty after S1a. A new entry here means the manifest-drop class has returned.
 KNOWN_BROKEN_TIER_A: dict[str, str] = {}
 
-# Tier B: does it reach the MODEL? Deliberately NOT emptied by S1a.
+# Tier B: does it reach the MODEL? Empty after S3.
 #
-# These three are broken in TWO places -- dropped by the manifest AND never forwarded at
-# prep.py:133,140 -> load_model. S1a fixed only the first. Their Tier A tests now pass, which is
-# exactly the false green this split exists to prevent: 12 markers clearing does not mean these
-# knobs work. They reach the manifest and die at the model boundary. Cleared by S3, not S1.
-KNOWN_BROKEN_TIER_B: dict[str, str] = {
-  "ligand_mpnn_use_side_chain_context": (
-    "occurrence #6 -- survives the manifest after S1a, but prep.py:133,140 still never forward "
-    "it to load_model, so the model is built with sidechains off regardless. Cleared by S3."
-  ),
-  "use_electrostatics": (
-    "occurrence #11 -- forwarded to the DATASET (prep.py:111) but never to load_model, so "
-    "physics_feature_dim stays checkpoint-name-derived (contrast trainer.py:159-164, which does "
-    "forward it). Cleared by S3."
-  ),
-  "use_vdw": "occurrence #11 -- same as use_electrostatics (prep.py:114 dataset only). Cleared by S3.",
-}
+# Deliberately NOT emptied by S1a, and that split earned its keep. `ligand_mpnn_use_side_chain_context`,
+# `use_electrostatics` and `use_vdw` were broken in TWO places -- dropped by the manifest AND
+# never forwarded at prep.py -> load_model. S1a fixed only the first, at which point their Tier A
+# tests went green while the knobs still did nothing: the model was built with sidechains off and
+# physics_feature_dim checkpoint-name-derived, regardless of what the caller asked for. Twelve
+# markers clearing did not mean twelve knobs worked. A single-tier harness would have declared
+# victory here.
+#
+# S3 forwards all three (prep.py's model_conditioning dict). Removing their markers is what
+# proved it: each went XPASS(strict) -> FAILED first, then green once removed -- the fix forces
+# the marker off. That property only exists because these are declarative
+# `request.node.add_marker(pytest.mark.xfail(strict=True))`; the imperative `pytest.xfail()`
+# aborts the test body, so a test using it can NEVER XPASS and would have sat here lying
+# indefinitely.
+#
+# A new entry here means a knob reaches the manifest and dies at the model boundary.
+KNOWN_BROKEN_TIER_B: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------

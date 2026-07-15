@@ -304,6 +304,98 @@ class TestInertKnobsStayInert:
     )
 
 
+class TestArrayKnobFidelity:
+  """Array knobs must reach the worker as arrays, not as the JSON lists they travel as.
+
+  These fields were DROPPED entirely by the old hand-written literal, so no campaign worker had
+  ever received them. The field-driven write is the first time they arrive at all -- and they
+  arrive as plain lists, because the worker's constructor deliberately bypasses spec_json's
+  decoder (to keep strict unknown-key rejection).
+
+  I originally reported this round-trip as "87/88 fields survive". That number came from a
+  comparison containing `if not hasattr(a, "shape") else True` -- it auto-passed every array
+  field, i.e. exactly the ones that change. An independent pass caught it. These tests exist so
+  the claim is checked rather than asserted.
+  """
+
+  # ar_mask is deliberately absent: it is a DEAD spec field -- no consumer anywhere reads it
+  # (build_inference_bundle derives its own from mode/schedule), per this table's own verdict.
+  # Asserting fidelity on a value nothing consumes would be theatre.
+  ARRAY_KNOBS = ("fixed_mask", "fixed_tokens", "bias", "state_weights", "tie_group_map",
+                 "structure_mapping", "state_position_map")
+
+  def _worker_spec(self, **spec_kwargs: Any) -> SamplingSpecification:
+    """Reconstruct via the REAL worker path, including its coercion step."""
+    from aminx.run.spec_json import _coerce_field_value
+
+    payload = dict(_plan_one_row(**spec_kwargs))
+    pop_deprecated_spec_kwargs(payload)
+    coerced = {k: _coerce_field_value(SamplingSpecification, k, v) for k, v in payload.items()}
+    return SamplingSpecification(**coerced)
+
+  @pytest.mark.parametrize("field", ARRAY_KNOBS)
+  def test_array_knob_arrives_as_an_array(self, field: str) -> None:
+    value_a, value_b = DIFFERENTIAL_PAIRS[field]
+    spec = self._worker_spec(**{field: value_b})
+    got = getattr(spec, field)
+
+    assert hasattr(got, "shape"), (
+      f"{field!r} reached the worker as {type(got).__name__}, not an array. It travels as a "
+      f"JSON list and nothing restored the type, so any consumer doing numpy-style indexing "
+      f"(x[:, None], x.shape, take_along_axis) breaks or misbehaves on it."
+    )
+    assert np.array_equal(np.asarray(got), np.asarray(value_b)), (
+      f"{field!r} arrived as an array but with the wrong value"
+    )
+
+  def test_temperature_arrives_as_a_tuple(self) -> None:
+    """temperature is Sequence[float]; __post_init__ coerces a float but never a list."""
+    spec = self._worker_spec(temperature=0.9)
+    assert isinstance(spec.temperature, tuple), (
+      f"temperature reached the worker as {type(spec.temperature).__name__}, not tuple"
+    )
+
+  def test_tie_group_map_survives_kernel_dispatchs_raw_use(self) -> None:
+    """The one consumer that does NOT wrap defensively -- found by an independent audit pass.
+
+    `kernel_dispatch.py:143-147` does `jnp.atleast_2d(spec.tie_group_map)` and
+    `spec.tie_group_map.shape[0]` on the RAW value. `jnp.atleast_2d` refuses a plain list
+    outright (stricter than numpy's), so a single-structure campaign row setting tie_group_map
+    hard-crashes without coercion. The PoE path (multistate_poe.py:310) wraps correctly; this
+    one does not.
+
+    Note the behavior history: before the field-driven write, such a row ran SILENTLY WITHOUT
+    tying (the field was dropped). After it, the row crashed. After coercion, it works. Tier A
+    could never have caught this -- it only checks the reconstructed spec's value, never drives
+    it through kernel_dispatch.
+    """
+    import jax.numpy as jnp
+
+    spec = self._worker_spec(tie_group_map=np.array([0, 0, 1, 1], dtype=np.int32))
+    # The exact expression from kernel_dispatch.py:143-147.
+    result = jnp.broadcast_to(
+      jnp.atleast_2d(spec.tie_group_map), (2, spec.tie_group_map.shape[0]),
+    )
+    assert result.shape == (2, 4)
+
+  def test_coercion_does_not_cost_strict_unknown_key_rejection(self) -> None:
+    """The reason the worker keeps the plain constructor rather than spec_json's decoder.
+
+    Coercion is a value transform, so an unknown key still reaches the constructor and raises.
+    If this ever regresses, the manifest silently accepts typo'd keys -- trading one
+    silent-failure class for another, which would be an absurd outcome for this audit.
+    """
+    from aminx.run.spec_json import _coerce_field_value
+
+    payload = dict(_plan_one_row())
+    pop_deprecated_spec_kwargs(payload)
+    payload["not_a_real_field"] = 123
+    coerced = {k: _coerce_field_value(SamplingSpecification, k, v) for k, v in payload.items()}
+
+    with pytest.raises(TypeError, match="not_a_real_field"):
+      SamplingSpecification(**coerced)
+
+
 class TestTierBModelBoundary:
   """Does the value reach the MODEL, not just the manifest?
 

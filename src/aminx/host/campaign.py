@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 import threading
@@ -615,26 +616,105 @@ def _write_done_marker(
 _NO_ARM = "none"
 
 
-def _resolve_arm_mask(label: str, source: Any) -> Any:  # noqa: ANN401 -- ArrayLike | PathLike | None
-  """Turn an arm's mask SOURCE into a 1-D canonical mask array.
+# `H38|D73|C143` -- an IDENTITY letter and a canonical (0-based) index, per position.
+_ARM_RESIDUE_RE = re.compile(r"^([A-Z])(\d+)$")
 
-  Accepts an array (library callers) or a path to a ``.npy`` (every CLI surface -- an
-  84-residue mask is not typeable as a flag literal, and `_parse_csv` would shatter any comma
-  grammar anyway).
+
+def _parse_arm_declaration(label: str, text: str, *, length: int) -> tuple[np.ndarray, np.ndarray]:
+  """Parse ``H38|D73|C143`` into a (mask, tokens) pair.
+
+  **The letter is the point.** A bare position list would say *where* to freeze but not *what*
+  to, and the two are one decision -- freezing without stating the identity locks every frozen
+  position to token 0 (Alanine), which is why `_prepare_fixed_controls` refuses the pair. The
+  letters supply `fixed_tokens` directly, so nothing has to infer them: no structure parsing
+  at plan time, and no alphabet to get wrong.
+
+  It also makes the deliberate overrides *visible*. TEV's 1LVB is a C151A mutant -- the
+  crystal carries Ala where the catalysis needs Cys -- and `C143` says "hold Cys here" in the
+  declaration itself, where a reader sees it, rather than in a comment somewhere else.
+
+  And it is self-checking in a way a position list can never be. `CATALYTIC_PDB_IDS =
+  [135,181,183]` shipped in a consumer for weeks as "the catalytic triad"; those indices hold
+  **Ser/Ser/Pro**. Nothing about a bare `[127,173,175]` could have flagged that. `S127|S173|P175`
+  would have looked wrong to anyone who knows what a catalytic triad is -- and a worker holding
+  the structure can check the claim outright.
+
+  Pipe-separated, never comma: `_parse_csv` splits on comma and would shatter this into
+  separate bogus arms.
+
+  Args:
+    label: The arm's label, for error messages.
+    text: The declaration, e.g. ``"H38|D73|C143"``.
+    length: Mask length -- ``base_spec.max_length``, since the dataset op pads to it.
+
+  Returns:
+    ``(mask, tokens)``: a 1-D ``float32`` mask and a 1-D ``int32`` MPNN token array.
+
+  Raises:
+    ValueError: malformed entry, unknown residue letter, or an out-of-range index.
+
+  """
+  from aminx.utils.aa_convert import MPNN_ALPHABET  # noqa: PLC0415
+
+  mask = np.zeros(length, dtype=np.float32)
+  tokens = np.zeros(length, dtype=np.int32)
+  for entry in (e.strip() for e in text.split("|") if e.strip()):
+    match = _ARM_RESIDUE_RE.match(entry)
+    if match is None:
+      msg = (
+        f"fixed_arms[{label!r}]: {entry!r} is not a RESIDUE+POSITION like 'H38'. Declare the "
+        f"identity, not just the position -- freezing a position without saying what to hold "
+        f"it at locks it to Alanine. Example: catalytic_triad=H38|D73|C143"
+      )
+      raise ValueError(msg)
+    letter, index = match.group(1), int(match.group(2))
+    if letter not in MPNN_ALPHABET:
+      msg = f"fixed_arms[{label!r}]: {letter!r} in {entry!r} is not an amino acid letter."
+      raise ValueError(msg)
+    if not 0 <= index < length:
+      msg = (
+        f"fixed_arms[{label!r}]: position {index} in {entry!r} is outside [0, {length}). "
+        f"Positions are 0-based CANONICAL indices (the reference state's own numbering), not "
+        f"author/PDB numbering -- for TEV the catalytic triad His46/Asp81/Cys151 is "
+        f"[38, 73, 143], i.e. author number minus 8."
+      )
+      raise ValueError(msg)
+    mask[index] = 1.0
+    tokens[index] = MPNN_ALPHABET.index(letter)
+  if not np.any(mask):
+    msg = f"fixed_arms[{label!r}]: {text!r} declares no positions."
+    raise ValueError(msg)
+  return mask, tokens
+
+
+def _resolve_arm(
+  label: str,
+  source: Any,  # noqa: ANN401 -- str declaration | ArrayLike | PathLike | None
+  *,
+  length: int,
+) -> tuple[Any, Any]:
+  """Resolve an arm SOURCE into ``(mask, tokens)``. Tokens are None unless declared.
+
+  Three shapes, in the order a caller is likely to reach for them:
+    - ``"H38|D73|C143"`` -- the inline declaration. No file needed for the common case, which
+      is the whole point: materialising a `.npy` to say "hold three residues" is friction.
+    - a path to a ``.npy`` -- the escape hatch for large sets (an 84-residue active-site shell
+      is not worth typing). Carries a mask only, so `fixed_tokens` must come from elsewhere.
+    - an array -- library callers who already have one.
 
   Raises:
     ValueError: the mask is not 1-D. Per-state `(S, L)` masks are refused HERE, at the
-      declaration, rather than at `multistate_poe.py`'s much later guard -- same verdict,
-      but the error arrives while the caller still has the context to fix it.
+      declaration, rather than at `multistate_poe.py`'s much later guard -- same verdict, but
+      the error arrives while the caller still has the context to fix it.
 
   """
   if source is None:
-    return None
+    return None, None
 
-  mask = source
-  if isinstance(source, (str, Path)):
-    mask = np.load(Path(source))
+  if isinstance(source, str) and not source.endswith(".npy"):
+    return _parse_arm_declaration(label, source, length=length)
 
+  mask = np.load(Path(source)) if isinstance(source, (str, Path)) else source
   mask = np.asarray(mask)
   if mask.ndim != 1:
     msg = (
@@ -646,7 +726,7 @@ def _resolve_arm_mask(label: str, source: Any) -> Any:  # noqa: ANN401 -- ArrayL
       f"instead."
     )
     raise ValueError(msg)
-  return mask
+  return mask, None
 
 
 def plan_campaign_manifest(
@@ -719,13 +799,20 @@ def plan_campaign_manifest(
   # validate_manifest_rows' existing emptiness check still means something, and keeps
   # "nothing fixed" a first-class, nameable arm rather than an absence.
   arms: Mapping[str, Any] = fixed_arms if fixed_arms is not None else {_NO_ARM: None}
-  resolved_arms = {label: _resolve_arm_mask(label, src) for label, src in arms.items()}
+  # Length comes from base_spec.max_length: the dataset op pads to it (prep.py:117), and
+  # _prepare_fixed_controls sizes the mask against the PARSED structure. The planner parses
+  # nothing, so this is the only length it can honestly use -- and the campaign CLIs expose
+  # no --max-length, so it is the one every campaign actually runs.
+  arm_length = base_spec.max_length or 512
+  resolved_arms = {
+    label: _resolve_arm(label, src, length=arm_length) for label, src in arms.items()
+  }
 
   output_root_path = Path(output_root)
   rows: list[dict[str, Any]] = []
   job_index = 0
 
-  for fixed_policy, arm_mask in resolved_arms.items():
+  for fixed_policy, (arm_mask, arm_tokens) in resolved_arms.items():
     for state_weight_profile in state_weight_profiles:
       for ligand_on in (False, True):
         for sidechain_on in (False, True):
@@ -749,6 +836,11 @@ def plan_campaign_manifest(
             # mask directly (the pre-existing route, and the one tev_design uses today via
             # its manifest patch) keeps working untouched.
             fixed_mask=arm_mask if arm_mask is not None else base_spec.fixed_mask,
+            # The declaration's letters ARE the tokens -- H38 says "hold His here". Nothing
+            # has to infer them, so there is no alphabet to get wrong and no structure to
+            # parse at plan time. Falls back to the caller's own tokens for the .npy/array
+            # shapes, which carry a mask only.
+            fixed_tokens=arm_tokens if arm_tokens is not None else base_spec.fixed_tokens,
           )
           for chunk_index, sample_start in enumerate(
             range(0, designs_per_library_type, samples_chunk_size),
@@ -1467,7 +1559,11 @@ def _parse_csv(value: str) -> tuple[str, ...]:
 
 
 def parse_fixed_arms(values: Sequence[str] | None) -> dict[str, str] | None:
-  """Parse repeated ``label=path.npy`` into a ``fixed_arms`` mapping.
+  """Parse repeated ``label=declaration`` into a ``fixed_arms`` mapping.
+
+  The value is passed through untouched -- ``_resolve_arm`` decides whether it is an inline
+  declaration (``H38|D73|C143``) or a ``.npy`` path. This function only splits label from
+  value, so there is exactly one place that knows the arm grammar.
 
   A REPEATED flag, deliberately not CSV. ``_parse_csv`` splits on comma, so any comma-bearing
   grammar (``triad=H38,D73,C143``) would be shattered into bogus separate cells -- and
@@ -1475,10 +1571,9 @@ def parse_fixed_arms(values: Sequence[str] | None) -> dict[str, str] | None:
   idiom as ``cli._parse_tied_positions``: repeat the flag, split once on a non-comma
   separator.
 
-  The value is a PATH, not literals. An arm's mask can be 84 of 214 positions; that is not
-  typeable as a flag, and inlining positions would put the referent somewhere the file cannot
-  check. A ``.npy`` also means the caller's own tooling produced it from their own bundle --
-  which is the point, since aminx cannot know any protein's catalytic triad.
+  Inline is the common case and needs no file: requiring a caller to materialise a ``.npy``
+  to say "hold three residues" is friction with nothing to show for it. A path stays supported
+  for large sets (an 84-residue active-site shell is not worth typing).
 
   Returns None for no flags, so the caller gets the honest "fix nothing" default rather than
   an empty mapping (which `plan_campaign_manifest` rejects as a contradiction).
@@ -1495,8 +1590,9 @@ def parse_fixed_arms(values: Sequence[str] | None) -> dict[str, str] | None:
     label, path = label.strip(), path.strip()
     if not sep or not label or not path:
       msg = (
-        f"--fixed-arm expects LABEL=PATH (e.g. --fixed-arm catalytic_triad=masks/triad.npy), "
-        f"got {raw!r}. Repeat the flag for additional arms; each becomes its own row-set."
+        f"--fixed-arm expects LABEL=DECLARATION (e.g. --fixed-arm "
+        f"catalytic_triad=H38|D73|C143), got {raw!r}. Repeat the flag for additional arms; "
+        f"each becomes its own row-set. A .npy mask path also works for large sets."
       )
       raise ValueError(msg)
     if label in arms:
@@ -1538,7 +1634,10 @@ def _add_plan_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentPar
   # label and never reached the model. Absent => fix nothing.
   parser.add_argument(
     "--fixed-arm", action="append", default=None, metavar="LABEL=PATH",
-    help="Arm label -> path to a 1-D canonical fixed_mask .npy. Repeatable.",
+    help=(
+      "Arm LABEL=DECLARATION, e.g. catalytic_triad=H38|D73|C143 (residue letter + 0-based "
+      "canonical index). A .npy mask path also works. Repeatable."
+    ),
   )
   parser.add_argument("--state-weight-profiles", default="equal")
 
@@ -1607,7 +1706,10 @@ def _add_ramp_plan_parser(subparsers: argparse._SubParsersAction[argparse.Argume
   # label and never reached the model. Absent => fix nothing.
   parser.add_argument(
     "--fixed-arm", action="append", default=None, metavar="LABEL=PATH",
-    help="Arm label -> path to a 1-D canonical fixed_mask .npy. Repeatable.",
+    help=(
+      "Arm LABEL=DECLARATION, e.g. catalytic_triad=H38|D73|C143 (residue letter + 0-based "
+      "canonical index). A .npy mask path also works. Repeatable."
+    ),
   )
   parser.add_argument("--state-weight-profiles", default="equal")
   parser.add_argument("--plan-path", default=None)

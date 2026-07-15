@@ -249,6 +249,62 @@ class TestInertKnobsStayInert:
     )
 
 
+class TestTierBModelBoundary:
+  """Does the value reach the MODEL, not just the manifest?
+
+  Tier A cannot see this hop, and that gap is dangerous rather than merely incomplete: the
+  three knobs below are broken in TWO places -- dropped by the manifest AND never forwarded
+  from prep.py to load_model. Fix only the manifest (4a) and all three XPASS Tier A while
+  remaining broken, so their xfail markers get deleted and three real bugs are certified
+  working. Tier B is what keeps that honest.
+
+  Drives the real path: plan -> manifest JSON -> reconstructed spec -> prep_protein_stream_and_model
+  -> load_model. Spies on load_model rather than loading real weights, so no checkpoint is needed.
+  """
+
+  # spec field -> the load_model kwarg it must arrive as
+  FORWARDING_KNOBS = {
+    "ligand_mpnn_use_side_chain_context": "use_side_chain_context",
+    "use_electrostatics": "use_electrostatics",
+    "use_vdw": "use_vdw",
+  }
+
+  @pytest.mark.parametrize("field", sorted(FORWARDING_KNOBS))
+  def test_value_reaches_load_model(
+    self, field: str, minimal_model: Any, monkeypatch: pytest.MonkeyPatch,
+  ) -> None:
+    _maybe_xfail(field)
+    kwarg = self.FORWARDING_KNOBS[field]
+    captured: list[dict[str, Any]] = []
+
+    def _spy_load_model(**kwargs: Any) -> Any:
+      captured.append(kwargs)
+      return minimal_model
+
+    monkeypatch.setattr("aminx.host.prep.load_model", _spy_load_model)
+
+    from aminx.host.prep import prep_protein_stream_and_model
+
+    def _kwarg_for(value: Any) -> Any:
+      captured.clear()
+      payload = _plan_one_row(**{field: value})
+      payload["inputs"] = ["tests/data/1ubq.pdb"]
+      spec = _reconstruct(payload)
+      prep_protein_stream_and_model(spec)
+      assert captured, "load_model was never called -- the spy is misplaced, not the knob broken"
+      return captured[-1].get(kwarg, "<ABSENT>")
+
+    got_false = _kwarg_for(False)
+    got_true = _kwarg_for(True)
+
+    assert got_false != got_true, (
+      f"{field!r} never reaches the model: caller set False vs True, but load_model received "
+      f"{kwarg}={got_false!r} both times. The model is built identically either way, so the knob "
+      f"is inert at the model boundary even if it survives the manifest. "
+      f"Declared verdict: {OBSERVATIONS[field]}"
+    )
+
+
 class TestNonSerializableKnobsRejected:
   """Callables must not silently vanish into the manifest."""
 

@@ -198,8 +198,29 @@ OBSERVATIONS: dict[str, Verdict] = {
   "compute_pseudo_perplexity": NotApplicable(reason="requires return_logits=True, which campaign hardcodes off"),
   "return_decoding_orders": NotApplicable(reason="output-shape knob; not carried by the manifest and not a boundary arg"),
   "return_logit_fingerprint": NotApplicable(reason="output-shape knob; requires logits"),
-  "carry_specs": NotApplicable(reason="streaming/sink bookkeeping (host/streaming.py); never touches the model"),
-  "dedup_specs": NotApplicable(reason="streaming/sink bookkeeping; never touches the model"),
+  # CORRECTED 2026-07-15. These were declared NotApplicable("streaming/sink bookkeeping
+  # (host/streaming.py); never touches the model") -- a FABRICATED reason. They feed the
+  # PLANNER (host/plan.py:79-80,98-100: carry_names = {cs.axis_name for cs in carry_specs}).
+  # The fabrication survived because test_every_reason_cites_something checked reason LENGTH
+  # (>20 chars), not whether the citation resolved. An external architecture review caught it,
+  # not the test built to catch exactly this. Both are now fixed.
+  "carry_specs": NonSerializable(
+    reason=(
+      "list[CarrySpec]; CarrySpec.transition is a ScanTransition CALLABLE and .init holds JAX "
+      "arrays. spec_json's _to_json_value has no nested-dataclass branch, so encoding a non-None "
+      "value raises SpecJSONEncodeError rather than dropping it. Feeds the planner "
+      "(host/plan.py:79-80,98-100), so a campaign row genuinely cannot carry a Scan axis -- a "
+      "real limitation to surface, not bookkeeping to ignore."
+    ),
+  ),
+  "dedup_specs": NonSerializable(
+    reason=(
+      "list[DedupSpec]; its unique_indices/index_map/k would serialize, but dedup_fn/gather_fn "
+      "are optional callables and _to_json_value has no nested-dataclass branch -> "
+      "SpecJSONEncodeError. Feeds the planner (host/plan.py:80,99), so a campaign row cannot "
+      "carry a dedup axis."
+    ),
+  ),
   "multi_state_temperature": NotApplicable(reason="reaches stage_set.logit_transform, not a bundle arg; only affects geometric_mean (logits.py:130,175)"),
   "use_unified_driver": NotApplicable(reason="selects the dispatch path in kernel_dispatch, not a model-facing value"),
   "tied_positions": NotApplicable(reason="requires pass_mode='inter' (specs.py:440-445); the campaign literal carries neither"),

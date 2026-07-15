@@ -7,11 +7,18 @@ what actually gates real ligand/sidechain-atom injection.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from aminx.host._sampling_helper import _prepare_fixed_controls, _prepare_ligand_context
+from aminx.host._sampling_helper import (
+    _canonical_structure_ids_for_spec,
+    _load_ligand_context_file,
+    _prepare_fixed_controls,
+    _prepare_ligand_context,
+)
 from aminx.run.specs import SamplingSpecification
 from aminx.utils.data_structures import Protein
 
@@ -268,3 +275,261 @@ class TestPrepareLigandContextModelFamilyGate:
     )
     assert ligand_context["atom_37"] is None
     assert ligand_context["Y"] is None
+
+
+def _write_keyed_npz(
+    path: Path,
+    payload: dict[str, dict[str, np.ndarray]],
+) -> None:
+  """payload: {structure_id: {"Y": arr, "Y_t": arr, "Y_m": arr}, ...}."""
+  flat: dict[str, np.ndarray] = {}
+  for structure_id, tensors in payload.items():
+    for tensor_name, arr in tensors.items():
+      flat[f"{structure_id}::{tensor_name}"] = arr
+  np.savez(path, **flat)
+
+
+def _make_ligand_tensors(
+    rng: np.random.Generator, seq_len: int, atoms: int,
+) -> dict[str, np.ndarray]:
+  return {
+      "Y": rng.standard_normal((seq_len, atoms, 3)).astype(np.float32),
+      "Y_t": rng.integers(1, 20, size=(seq_len, atoms)).astype(np.int64),
+      "Y_m": np.ones((seq_len, atoms), dtype=np.float32),
+  }
+
+
+class TestLoadLigandContextFileKeyedFormat:
+  """Keyed npz format: '<structure_id>::Y' / '<structure_id>::Y_t' / '<structure_id>::Y_m'.
+
+  Covers the round-trip stacking/ordering contract of _load_ligand_context_file
+  (src/aminx/host/_sampling_helper.py:123-243) for the '::'-separated keying convention,
+  and both its strict error paths (missing tensors, id mismatch between the npz payload
+  and the canonical structure roster).
+  """
+
+  def test_round_trip_two_structures_preserves_values_and_shapes(self, tmp_path: Path):
+    seq_len, atoms = 4, 3
+    rng = np.random.default_rng(0)
+    tensors_a = _make_ligand_tensors(rng, seq_len, atoms)
+    tensors_b = _make_ligand_tensors(rng, seq_len, atoms)
+    path = tmp_path / "ligand_context.npz"
+    _write_keyed_npz(path, {"struct_a": tensors_a, "struct_b": tensors_b})
+
+    Y, Y_t, Y_m = _load_ligand_context_file(
+        path,
+        canonical_structure_ids=["struct_a", "struct_b"],
+        batch_structure_ids=["struct_a", "struct_b"],
+    )
+
+    assert Y.shape == (2, seq_len, atoms, 3)
+    assert Y_t.shape == (2, seq_len, atoms)
+    assert Y_m.shape == (2, seq_len, atoms)
+    np.testing.assert_array_equal(np.asarray(Y[0]), tensors_a["Y"])
+    np.testing.assert_array_equal(np.asarray(Y[1]), tensors_b["Y"])
+    np.testing.assert_array_equal(np.asarray(Y_t[0]), tensors_a["Y_t"])
+    np.testing.assert_array_equal(np.asarray(Y_m[1]), tensors_b["Y_m"])
+
+  def test_batch_structure_ids_controls_stacking_order_independent_of_canonical_order(
+      self, tmp_path: Path,
+  ):
+    """batch_structure_ids (not canonical_structure_ids, and not npz insertion order)
+    determines the order rows are stacked in -- this is the order kernel_dispatch.py's
+    real per-chunk batch relies on to line up ligand context rows with structure rows.
+    """
+    seq_len, atoms = 4, 3
+    rng = np.random.default_rng(1)
+    tensors_a = _make_ligand_tensors(rng, seq_len, atoms)
+    tensors_b = _make_ligand_tensors(rng, seq_len, atoms)
+    path = tmp_path / "ligand_context.npz"
+    _write_keyed_npz(path, {"struct_a": tensors_a, "struct_b": tensors_b})
+
+    # canonical roster order is [a, b]; this batch's row order is reversed: [b, a]
+    Y, Y_t, Y_m = _load_ligand_context_file(
+        path,
+        canonical_structure_ids=["struct_a", "struct_b"],
+        batch_structure_ids=["struct_b", "struct_a"],
+    )
+
+    np.testing.assert_array_equal(np.asarray(Y[0]), tensors_b["Y"])
+    np.testing.assert_array_equal(np.asarray(Y[1]), tensors_a["Y"])
+
+  def test_missing_tensor_key_raises_value_error(self, tmp_path: Path):
+    seq_len, atoms = 4, 3
+    rng = np.random.default_rng(2)
+    tensors_a = _make_ligand_tensors(rng, seq_len, atoms)
+    tensors_b = _make_ligand_tensors(rng, seq_len, atoms)
+    del tensors_b["Y_m"]  # struct_b is missing its Y_m tensor
+    path = tmp_path / "ligand_context.npz"
+    _write_keyed_npz(path, {"struct_a": tensors_a, "struct_b": tensors_b})
+
+    with pytest.raises(ValueError, match="missing keyed tensors"):
+      _load_ligand_context_file(
+          path,
+          canonical_structure_ids=["struct_a", "struct_b"],
+          batch_structure_ids=None,
+      )
+
+  def test_extra_structure_id_in_npz_raises_value_error(self, tmp_path: Path):
+    """npz has a structure the canonical roster doesn't -- must fail loudly, not silently
+    ignore the extra data or silently accept a roster mismatch.
+    """
+    seq_len, atoms = 4, 3
+    rng = np.random.default_rng(3)
+    tensors_a = _make_ligand_tensors(rng, seq_len, atoms)
+    tensors_b = _make_ligand_tensors(rng, seq_len, atoms)
+    path = tmp_path / "ligand_context.npz"
+    _write_keyed_npz(path, {"struct_a": tensors_a, "struct_b": tensors_b})
+
+    with pytest.raises(ValueError, match="must exactly match canonical structure IDs"):
+      _load_ligand_context_file(
+          path,
+          canonical_structure_ids=["struct_a"],
+          batch_structure_ids=None,
+      )
+
+  def test_missing_structure_id_in_npz_raises_value_error(self, tmp_path: Path):
+    """canonical roster expects a structure the npz doesn't have -- must fail loudly."""
+    seq_len, atoms = 4, 3
+    rng = np.random.default_rng(4)
+    tensors_a = _make_ligand_tensors(rng, seq_len, atoms)
+    path = tmp_path / "ligand_context.npz"
+    _write_keyed_npz(path, {"struct_a": tensors_a})
+
+    with pytest.raises(ValueError, match="must exactly match canonical structure IDs"):
+      _load_ligand_context_file(
+          path,
+          canonical_structure_ids=["struct_a", "struct_b"],
+          batch_structure_ids=None,
+      )
+
+
+class TestLoadLigandContextFileLegacyFormat:
+  """Legacy npz format: flat 'Y'/'Y_t'/'Y_m' arrays + a parallel 'structure_ids' array.
+
+  _load_ligand_context_file supports this format as a fallback when no '<id>::Y'-style
+  keys are found in the npz (src/aminx/host/_sampling_helper.py:213-244).
+  """
+
+  def test_round_trip_two_structures_preserves_values_and_reorders_by_batch_ids(
+      self, tmp_path: Path,
+  ):
+    seq_len, atoms = 4, 3
+    rng = np.random.default_rng(5)
+    Y = rng.standard_normal((2, seq_len, atoms, 3)).astype(np.float32)
+    Y_t = rng.integers(1, 20, size=(2, seq_len, atoms)).astype(np.int64)
+    Y_m = np.ones((2, seq_len, atoms), dtype=np.float32)
+    path = tmp_path / "legacy.npz"
+    np.savez(
+        path,
+        Y=Y,
+        Y_t=Y_t,
+        Y_m=Y_m,
+        structure_ids=np.array(["struct_a", "struct_b"]),
+    )
+
+    out_Y, out_Y_t, out_Y_m = _load_ligand_context_file(
+        path,
+        canonical_structure_ids=["struct_a", "struct_b"],
+        batch_structure_ids=["struct_b", "struct_a"],
+    )
+
+    assert out_Y.shape == (2, seq_len, atoms, 3)
+    np.testing.assert_array_equal(np.asarray(out_Y[0]), Y[1])  # struct_b first
+    np.testing.assert_array_equal(np.asarray(out_Y[1]), Y[0])  # struct_a second
+    np.testing.assert_array_equal(np.asarray(out_Y_t[0]), Y_t[1])
+    np.testing.assert_array_equal(np.asarray(out_Y_m[1]), Y_m[0])
+
+  def test_missing_required_key_raises_value_error(self, tmp_path: Path):
+    seq_len, atoms = 4, 3
+    rng = np.random.default_rng(6)
+    Y = rng.standard_normal((1, seq_len, atoms, 3)).astype(np.float32)
+    Y_t = rng.integers(1, 20, size=(1, seq_len, atoms)).astype(np.int64)
+    path = tmp_path / "legacy_missing.npz"
+    np.savez(path, Y=Y, Y_t=Y_t, structure_ids=np.array(["struct_a"]))  # Y_m omitted
+
+    with pytest.raises(ValueError, match="missing required keys"):
+      _load_ligand_context_file(path, canonical_structure_ids=None, batch_structure_ids=None)
+
+  def test_structure_id_mismatch_raises_value_error(self, tmp_path: Path):
+    seq_len, atoms = 4, 3
+    rng = np.random.default_rng(7)
+    Y = rng.standard_normal((2, seq_len, atoms, 3)).astype(np.float32)
+    Y_t = rng.integers(1, 20, size=(2, seq_len, atoms)).astype(np.int64)
+    Y_m = np.ones((2, seq_len, atoms), dtype=np.float32)
+    path = tmp_path / "legacy_mismatch.npz"
+    np.savez(
+        path,
+        Y=Y,
+        Y_t=Y_t,
+        Y_m=Y_m,
+        structure_ids=np.array(["struct_a", "struct_b"]),
+    )
+
+    with pytest.raises(ValueError, match="must exactly match canonical structure IDs"):
+      _load_ligand_context_file(
+          path,
+          canonical_structure_ids=["struct_a", "struct_c"],
+          batch_structure_ids=None,
+      )
+
+
+class TestPrepareLigandContextRequiresRealTensors:
+  """_prepare_ligand_context's ligand_conditioning=True enforcement -- the exact original
+  bug symptom this wiring fix addresses: a caller who asked for real ligand conditioning
+  but supplied no way to get real Y/Y_t/Y_m tensors (no ligand_context_path, no Y already
+  on the batch) must get a loud ValueError, not silently fall back to the zero-atom
+  placeholder used for the "no ligand conditioning requested" case.
+  """
+
+  def test_ligand_conditioning_without_any_source_raises(self):
+    batch_size, seq_len = 1, 4
+    protein = _make_fake_protein(batch_size=batch_size, seq_len=seq_len)
+
+    spec = SamplingSpecification(
+        inputs=["/tmp/struct_a.pdb"],
+        checkpoint_id="ligandmpnn_v_32_020_25",
+        ligand_conditioning=True,
+    )
+    assert spec.model_family == "ligandmpnn"
+    assert spec.ligand_context_path is None
+
+    with pytest.raises(ValueError, match="ligand_conditioning=True requires ligand context"):
+      _prepare_ligand_context(spec, batched_ensemble=protein, batch_size=batch_size, seq_len=seq_len)
+
+  def test_ligand_conditioning_with_valid_ligand_context_path_succeeds(self, tmp_path: Path):
+    batch_size, seq_len, atoms = 1, 4, 3
+    protein = _make_fake_protein(batch_size=batch_size, seq_len=seq_len)
+    rng = np.random.default_rng(8)
+    tensors_a = _make_ligand_tensors(rng, seq_len, atoms)
+    path = tmp_path / "ligand_context.npz"
+    _write_keyed_npz(path, {"struct_a": tensors_a})
+
+    spec = SamplingSpecification(
+        inputs=["/tmp/struct_a.pdb"],
+        checkpoint_id="ligandmpnn_v_32_020_25",
+        ligand_conditioning=True,
+        ligand_context_path=path,
+    )
+    assert spec.model_family == "ligandmpnn"
+    # mirror the real caller in kernel_dispatch.py: derive canonical structure ids from
+    # spec.inputs rather than relying on _load_ligand_context_file's sorted-keys fallback.
+    canonical_ids = _canonical_structure_ids_for_spec(spec)
+    assert canonical_ids == ["struct_a"]
+
+    ligand_context = _prepare_ligand_context(
+        spec,
+        batched_ensemble=protein,
+        batch_size=batch_size,
+        seq_len=seq_len,
+        canonical_structure_ids=canonical_ids,
+        batch_structure_ids=canonical_ids,
+    )
+
+    assert ligand_context["Y"] is not None
+    assert ligand_context["Y_t"] is not None
+    assert ligand_context["Y_m"] is not None
+    assert ligand_context["Y"].shape == (batch_size, seq_len, atoms, 3)
+    np.testing.assert_array_equal(np.asarray(ligand_context["Y"][0]), tensors_a["Y"])
+    np.testing.assert_array_equal(np.asarray(ligand_context["Y_t"][0]), tensors_a["Y_t"])
+    np.testing.assert_array_equal(np.asarray(ligand_context["Y_m"][0]), tensors_a["Y_m"])

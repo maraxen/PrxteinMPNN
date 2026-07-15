@@ -407,7 +407,7 @@ class _RunBase:
   topology: str | None
   model_weights: str
   model_version: str
-  model_family: str
+  model_family: str | None
   checkpoint_id: str | None
   model_local_path: Path | None
   checkpoint_registry_path: Path | None
@@ -452,9 +452,13 @@ def _run_base(
   model_weights: Annotated[str, _OPT(help="Model weights name")] = "original",
   model_version: Annotated[str, _OPT(help="Model version")] = "v_48_020",
   model_family: Annotated[
-    str,
-    _OPT(help="Model family: proteinmpnn or ligandmpnn"),
-  ] = "proteinmpnn",
+    str | None,
+    _OPT(
+      help="Model family: proteinmpnn or ligandmpnn. Leave unset to auto-derive from "
+      "checkpoint_id (RunSpecification.__post_init__); an explicit value here is always "
+      "respected even if it disagrees with checkpoint_id.",
+    ),
+  ] = None,
   checkpoint_id: Annotated[str | None, _OPT(help="Checkpoint identifier")] = None,
   model_local_path: Annotated[Path | None, _OPT(help="Local model checkpoint path")] = None,
   checkpoint_registry_path: Annotated[Path | None, _OPT(help="Checkpoint registry path")] = None,
@@ -1020,9 +1024,13 @@ def _spec_base(
   model_weights: Annotated[str, _OPT(help="Model weights name")] = "original",
   model_version: Annotated[str, _OPT(help="Model version")] = "v_48_020",
   model_family: Annotated[
-    str,
-    _OPT(help="Model family: proteinmpnn or ligandmpnn"),
-  ] = "proteinmpnn",
+    str | None,
+    _OPT(
+      help="Model family: proteinmpnn or ligandmpnn. Leave unset to auto-derive from "
+      "checkpoint_id (RunSpecification.__post_init__); an explicit value here is always "
+      "respected even if it disagrees with checkpoint_id.",
+    ),
+  ] = None,
   checkpoint_id: Annotated[str | None, _OPT(help="Checkpoint identifier")] = None,
   model_local_path: Annotated[Path | None, _OPT(help="Local model checkpoint path")] = None,
   checkpoint_registry_path: Annotated[Path | None, _OPT(help="Checkpoint registry path")] = None,
@@ -1668,6 +1676,20 @@ def campaign_plan(
       ),
     ),
   ] = None,
+  ligand_context_path: Annotated[
+    Path | None,
+    _OPT(
+      "--ligand-context-path",
+      help=(
+        "Path to a keyed npz file supplying real Y/Y_t/Y_m ligand-atom-cloud "
+        "tensors, forwarded to SamplingSpecification.ligand_context_path (see "
+        "aminx.run.specs.SamplingSpecification.ligand_context_path / "
+        "aminx.host._sampling_helper._load_ligand_context_file for the expected "
+        "'<structure_id>::Y', '<structure_id>::Y_t', '<structure_id>::Y_m' keying "
+        "convention, structure_id = Path(input_path).stem)."
+      ),
+    ),
+  ] = None,
 ) -> None:
   """Generate campaign manifest JSON."""
   from aminx.host.campaign import (  # noqa: PLC0415
@@ -1682,6 +1704,7 @@ def campaign_plan(
     return_logits=False,
     **({"checkpoint_id": checkpoint_id} if checkpoint_id is not None else {}),
     **({"chain_id": parsed_chain_id} if parsed_chain_id is not None else {}),
+    **({"ligand_context_path": ligand_context_path} if ligand_context_path is not None else {}),
   )
   write_campaign_manifest(
     base_spec=base_spec,

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TextIO, cast
 
 from aminx.io.proxide_fetch import InputResolutionError
+from aminx.io.weights import get_topology_for_checkpoint
 from aminx.model.versions import MODEL_VERSION, MODEL_WEIGHTS
 
 from .spec import RunSpec, build_run_spec
@@ -224,7 +225,16 @@ class RunSpecification:
   topology: str | Path | None = None
   model_weights: ModelWeights = "original"
   model_version: ModelVersion = "v_48_020"
-  model_family: Literal["proteinmpnn", "ligandmpnn"] = "proteinmpnn"
+  # None means "not explicitly set by the caller" -- __post_init__ resolves this to a real
+  # Literal value (derived from checkpoint_id when possible, else "proteinmpnn") before
+  # __init__ returns, so every RunSpecification/SamplingSpecification instance always has a
+  # concrete model_family by the time any caller reads it. An explicit "proteinmpnn"/
+  # "ligandmpnn" from the caller is never overridden -- only the None (unset) case gets
+  # auto-derived. See __post_init__ for why this matters: model_family gates real ligand/
+  # sidechain context injection (host/_sampling_helper.py::_prepare_ligand_context)
+  # independent of checkpoint_id, and a caller who forgot to set it got a silent no-op
+  # (found live 2026-07-14).
+  model_family: Literal["proteinmpnn", "ligandmpnn"] | None = None
   checkpoint_id: str | None = None
   model_local_path: str | Path | None = None
   checkpoint_registry_path: str | Path | None = None
@@ -304,6 +314,10 @@ class RunSpecification:
   tied_positions: Sequence[tuple[int, int]] | TiedPositionMode = None
   pass_mode: Literal["inter", "intra"] = "intra"  # noqa: S105
   tie_group_map: ArrayLike | None = None
+  # Cross-state residue alignment for multistate PoE fusion (debt #572). Per-state
+  # gather index into a shared reference frame, shape (S, L); -1 marks an indel.
+  # See ConditioningBundle.state_position_map and utils.align.build_state_position_map.
+  state_position_map: ArrayLike | None = None
   structure_mapping: ArrayLike | None = None
   multi_state_temperature: float = 1.0
   fixed_mask: ArrayLike | None = None
@@ -443,6 +457,68 @@ class RunSpecification:
         f"Got pass_mode='{self.pass_mode}'."
       )
       raise ValueError(msg)
+
+    # model_family gates real ligand-atom AND sidechain-atom injection
+    # (host/_sampling_helper.py::_prepare_ligand_context), completely independent of
+    # checkpoint_id -- the two fields must stay in sync but nothing enforced that, so a
+    # caller who set checkpoint_id="ligandmpnn_v_32_020_25" but never touched model_family
+    # got a LigandMPNN checkpoint's weights loaded correctly (get_topology_for_checkpoint
+    # already derives architecture from checkpoint_id for weight selection) while real
+    # ligand/sidechain context was silently never passed to it -- a clean, no-crash no-op
+    # (found live 2026-07-14, tev_design necklace P2 campaign: every ligand- and
+    # sidechain-conditioned row sampled through `aminx campaign plan/run` ran with zero real
+    # ligand/sidechain atoms).
+    #
+    # model_family defaults to None (not a Literal) specifically so this resolution can tell
+    # "caller never set it" apart from "caller explicitly set it to 'proteinmpnn'" -- an
+    # earlier version of this fix used the string default "proteinmpnn" as the trigger
+    # condition and, caught by its own test, silently overrode a genuinely explicit
+    # model_family="proteinmpnn" the same as an unset one. Only the None (truly unset) case
+    # is auto-derived here; an explicit value is never touched.
+    derived_topology = (
+      get_topology_for_checkpoint(self.checkpoint_id) if self.checkpoint_id is not None else None
+    )
+    is_ligand_checkpoint = derived_topology is not None and derived_topology["model_type"] in (
+      "ligand",
+      "packer",
+    )
+    if self.model_family is None:
+      resolved = "ligandmpnn" if is_ligand_checkpoint else "proteinmpnn"
+      if is_ligand_checkpoint:
+        logger.info(
+          "model_family not set; derived 'ligandmpnn' from checkpoint_id=%r.",
+          self.checkpoint_id,
+        )
+      object.__setattr__(self, "model_family", resolved)
+    elif self.model_family == "proteinmpnn" and is_ligand_checkpoint:
+      # Explicit value respected, but flagged loudly -- this combination is either a
+      # deliberate ablation (LigandMPNN weights, intentionally no real ligand/sidechain
+      # context) or a real caller mistake; either way it should never be silent.
+      logger.warning(
+        "model_family explicitly set to 'proteinmpnn' but checkpoint_id=%r indicates a "
+        "LigandMPNN-family checkpoint -- real ligand/sidechain context will NOT reach the "
+        "model. If this is intentional (an ablation), ignore this warning; if not, remove "
+        "the explicit model_family='proteinmpnn' and let it auto-derive.",
+        self.checkpoint_id,
+      )
+    elif (
+      self.model_family == "ligandmpnn"
+      and derived_topology is not None
+      and not is_ligand_checkpoint
+    ):
+      # Symmetric case: explicit "ligandmpnn" but checkpoint_id clearly indicates a
+      # non-ligand (protein/membrane) checkpoint -- flagged for the same reason as the
+      # branch above (equally suspicious caller/checkpoint disagreement), even though
+      # get_topology_for_checkpoint's real architecture selection (used by load_model for
+      # weight loading, independent of this field) will likely surface this as a loud
+      # shape/kwarg mismatch downstream rather than a silent no-op.
+      logger.warning(
+        "model_family explicitly set to 'ligandmpnn' but checkpoint_id=%r does not indicate "
+        "a LigandMPNN-family checkpoint -- this combination is unusual; verify checkpoint_id "
+        "is correct.",
+        self.checkpoint_id,
+      )
+
     self._sync_run_spec()
 
 

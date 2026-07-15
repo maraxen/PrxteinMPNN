@@ -24,18 +24,11 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Entry points that construct a spec. `campaign worker` is deliberately excluded from the
-# CLI columns: it takes zero spec flags by design (all content arrives from the manifest
-# row), so a "missing flag" there is correct, not a gap.
-CLI_COMMANDS = [
-  ("run", ["run"]),
-  ("run sample", ["run", "sample"]),
-  ("spec", ["spec"]),
-  ("spec emit-sample", ["spec", "emit-sample"]),
-  ("campaign plan", ["campaign", "plan"]),
-  ("campaign worker", ["campaign", "worker"]),
-  ("campaign ramp-plan", ["campaign", "ramp-plan"]),
-]
+# Entry points are DISCOVERED by walking the click tree, never hand-listed. An earlier
+# version of this script hardcoded seven command paths and silently audited 3 of the 6
+# campaign subcommands -- reproducing, in the audit tool itself, the exact hand-maintained-
+# list-drifts-from-reality bug it exists to find. Enumerate, don't enumerate-by-hand.
+MAX_DEPTH = 2
 
 
 def _git_ref(repo: Path) -> dict[str, str]:
@@ -66,36 +59,31 @@ def _spec_fields() -> dict[str, dict[str, Any]]:
 
 
 def _cli_params() -> dict[str, set[str]]:
-  """Map each command to the spec-field names it can set.
+  """Map every discovered command to the spec-field names it can set.
 
   Uses click's own param objects rather than parsing help text, so a flag cannot appear
-  present here unless it is genuinely registered on the command.
+  present here unless it is genuinely registered on the command. Groups (`run`, `spec`,
+  `campaign`) are reported too: their shared model flags live on the group callback, and a
+  subcommand inherits them only when invoked as `aminx run --flag sample`.
   """
   import typer.main
 
   from aminx.cli import app
 
-  root = typer.main.get_command(app)
   out: dict[str, set[str]] = {}
 
-  for label, path in CLI_COMMANDS:
-    cmd = root
-    ok = True
-    for part in path:
-      sub = getattr(cmd, "commands", {}).get(part)
-      if sub is None:
-        logger.warning("command path not found: %s", label)
-        ok = False
-        break
-      cmd = sub
-    if not ok:
-      continue
+  def walk(cmd: Any, path: list[str], depth: int) -> None:
+    label = " ".join(path) if path else "<root>"
+    if path:
+      out[label] = {p.name for p in cmd.params if p.name}
+    subs = getattr(cmd, "commands", None)
+    if not subs or depth >= MAX_DEPTH:
+      return
+    for name in sorted(subs):
+      walk(subs[name], [*path, name], depth + 1)
 
-    names = {p.name for p in cmd.params if p.name}
-    # `run`/`spec` are groups whose shared model flags live on the group callback; click
-    # exposes those on the group itself, which is what we just collected.
-    out[label] = names
-
+  walk(typer.main.get_command(app), [], 0)
+  logger.info("discovered %d CLI commands: %s", len(out), ", ".join(sorted(out)))
   return out
 
 
@@ -205,13 +193,14 @@ def build_matrix(repo: Path) -> dict[str, Any]:
       "array_coerced_on_decode": name in coercion,
       "read_under_host": reads.get(name, []),
     }
-    for label, _ in CLI_COMMANDS:
-      row[f"cli::{label}"] = name in cli.get(label, set())
+    for label in sorted(cli):
+      row[f"cli::{label}"] = name in cli[label]
     rows.append(row)
 
   return {
     "task_id": "260715_aminx-campaign-control-knob-audit",
     "aminx_ref": _git_ref(repo),
+    "cli_commands_discovered": sorted(cli),
     "field_count": len(rows),
     "manifest_dict_key_count": len(manifest_keys),
     # Keys written into the manifest that are not spec fields at all: these would raise
@@ -223,20 +212,23 @@ def build_matrix(repo: Path) -> dict[str, Any]:
 
 def summarize(matrix: dict[str, Any]) -> str:
   rows = matrix["rows"]
-  reachable_via_plan = [r for r in rows if r["cli::campaign plan"]]
+  # Subcommands only -- the bare "campaign" group carries no spec flags of its own.
+  campaign_cols = [c for c in matrix["cli_commands_discovered"] if c.startswith("campaign ")]
+  reachable_via_plan = [r for r in rows if r.get("cli::campaign plan")]
   in_manifest = [r for r in rows if r["in_manifest_dict"]]
-  # The core gap: a field that no campaign entry point can set AND that the manifest
-  # never carries is unreachable in campaign mode, whatever its default claims.
+  # The core gap: a field that NO campaign entry point can set and that the manifest never
+  # carries is unreachable in campaign mode, whatever its default claims.
   unreachable = [
     r for r in rows
     if not r["in_manifest_dict"]
-    and not r["cli::campaign plan"]
-    and not r["cli::campaign ramp-plan"]
+    and not any(r.get(f"cli::{c}") for c in campaign_cols)
   ]
   never_read = [r for r in rows if not r["read_under_host"]]
 
   lines = [
     f"aminx ref:            {matrix['aminx_ref']['describe']} ({matrix['aminx_ref']['head'][:10]})",
+    f"CLI commands found:   {len(matrix['cli_commands_discovered'])}"
+    f" ({len(campaign_cols)} campaign: {', '.join(c.split(' ', 1)[1] for c in campaign_cols)})",
     f"spec fields:          {matrix['field_count']}",
     f"manifest dict keys:   {matrix['manifest_dict_key_count']}",
     f"settable via plan:    {len(reachable_via_plan)}",

@@ -386,6 +386,23 @@ class TestNonSerializableKnobsRejected:
       f"declaration -- or the payload is lying."
     )
 
+  def test_a_callable_knob_raises_rather_than_dropping_silently(self) -> None:
+    """Occurrence #13, created by the fix for the first twelve, and caught by an audit agent.
+
+    spec_json drops callables silently (`if callable(val): continue`), so `decoding_order_fn` --
+    a real, supported knob -- still vanished from the manifest after the field-driven write.
+    Worse, spec_partition's own documentation asserted this was impossible. A campaign that
+    silently substitutes the default decoding order produces designs that differ from what was
+    asked for, with no error: precisely the bug class this audit exists to end.
+    """
+    from aminx.host.spec_partition import SpecPartitionError
+
+    def custom_order(*_args: Any, **_kwargs: Any) -> None:
+      return None
+
+    with pytest.raises(SpecPartitionError, match="decoding_order_fn"):
+      _plan_one_row(decoding_order_fn=custom_order)
+
   def test_setting_a_non_serializable_field_raises_rather_than_drops(self) -> None:
     """The behavior change that is the point: silent drop -> loud error.
 

@@ -58,10 +58,13 @@ CAMPAIGN_OWNED_KEYS: frozenset[str] = frozenset(
 # Fields that genuinely cannot cross the manifest's JSON boundary. Each entry is the REASON,
 # and it must name a mechanism -- "it contains a callable" is a reason; "not applicable" is not.
 #
-# `run_specification_to_json_dict` already refuses these by raising SpecJSONEncodeError, so this
-# set does not suppress anything; it documents *why* the raise is correct and gives the
-# completeness check something to check against. Setting one of these on a campaign base_spec is
-# an error, not a silent no-op -- that change (silent-drop -> loud error) is the entire point.
+# CORRECTED. An earlier version of this comment claimed `run_specification_to_json_dict` "already
+# refuses these by raising", so setting one was "an error, not a silent no-op". **That was false
+# for the three callable fields**: spec_json does `if callable(val): continue`
+# (spec_json.py:141), so a real `decoding_order_fn` -- a supported knob -- was still SILENTLY
+# DROPPED by the campaign. I asserted the impossibility of the exact bug this module exists to
+# end, in this module, and shipped it. `_CALLABLE_FIELDS` + `_assert_no_callable_knobs` below
+# make the claim true instead of deleting it.
 EXCLUDED_WITH_REASON: Mapping[str, str] = {
   "run_spec": "init=False; rebuilt by __post_init__ from the other fields",
   "_run_spec_synced": "init=False; an internal guard flag",
@@ -154,6 +157,42 @@ def assert_partition_is_exhaustive() -> None:
     raise SpecPartitionError(msg)
 
 
+# Callable-valued knobs. spec_json DROPS these silently (`if callable(val): continue`,
+# spec_json.py:141) rather than raising, because `aminx spec emit-*` may legitimately want a
+# best-effort export. A campaign row may not: a manifest that omits a caller's decoding_order_fn
+# produces designs from a DIFFERENT decoding order than requested, silently -- the audit's exact
+# failure mode. Refuse in the campaign path only; do not change spec_json's behavior for its
+# other callers.
+_CALLABLE_FIELDS: Mapping[str, str] = {
+  "decoding_order_fn": "pass a decode strategy the manifest can name, or run outside a campaign",
+  "encoding_fusion": "encoding fusion is a composable Python-API step; it cannot be named in JSON",
+  "decoding_fusion": "decoding fusion is a composable Python-API step; it cannot be named in JSON",
+}
+
+
+def _assert_no_callable_knobs(spec: SamplingSpecification) -> None:
+  """Refuse a callable knob rather than dropping it silently.
+
+  Raises:
+    SpecPartitionError: a callable-valued field is set on a campaign spec.
+
+  """
+  offenders = [
+    f"{name} ({hint})"
+    for name, hint in _CALLABLE_FIELDS.items()
+    if callable(getattr(spec, name, None))
+  ]
+  if offenders:
+    msg = (
+      "Callable knob(s) set on a campaign spec, which the manifest cannot carry: "
+      + "; ".join(offenders)
+      + ". spec_json drops callables silently, so this would run with the DEFAULT and produce "
+      "designs that differ from what you asked for, with no error -- the failure this audit "
+      "exists to end. Refusing instead."
+    )
+    raise SpecPartitionError(msg)
+
+
 def campaign_sampling_spec_payload(
   spec_variant: SamplingSpecification,
   *,
@@ -177,6 +216,8 @@ def campaign_sampling_spec_payload(
       loud by design; these were previously dropped in silence.
 
   """
+  _assert_no_callable_knobs(spec_variant)
+
   supplied = set(campaign_owned)
   if supplied != CAMPAIGN_OWNED_KEYS:
     missing, extra = CAMPAIGN_OWNED_KEYS - supplied, supplied - CAMPAIGN_OWNED_KEYS

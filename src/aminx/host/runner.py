@@ -769,9 +769,14 @@ def inspect(  # noqa: PLR0915
           results_per_feature[feature_name].append(logits)
 
         elif feature_name == "conditional_logits":
-          # Use native sequence from parsed structure
+          # Use native sequence from parsed structure, converted to the model's alphabet.
+          # aatype is AF; the model's token space is MPNN. Note :802 below already converts
+          # candidate *strings* via string_to_protein_sequence -- the two alphabets were
+          # ~30 lines apart in this same loop, compared against each other.
+          from aminx.utils.aa_convert import af_to_mpnn  # noqa: PLC0415
+
           if hasattr(batched_ensemble, "aatype") and batched_ensemble.aatype is not None:
-            native_seq = batched_ensemble.aatype[struct_idx]
+            native_seq = af_to_mpnn(batched_ensemble.aatype[struct_idx])
           else:
             msg = (
               "Structure does not contain sequence information; cannot compute conditional_logits"
@@ -829,8 +834,10 @@ def inspect(  # noqa: PLR0915
           results_per_feature[feature_name].append(batched_logits)
 
         elif feature_name == "decoded_node_features":
+          from aminx.utils.aa_convert import af_to_mpnn  # noqa: PLC0415
+
           if hasattr(batched_ensemble, "aatype") and batched_ensemble.aatype is not None:
-            native_seq = batched_ensemble.aatype[struct_idx]
+            native_seq = af_to_mpnn(batched_ensemble.aatype[struct_idx])  # AF -> model space
           else:
             msg = "Structure does not contain sequence information; cannot compute decoded_node_features"
             raise ValueError(msg)
@@ -1009,8 +1016,10 @@ def jacobian(
         struct_residue_index = batched_ensemble.residue_index[struct_idx]
         struct_chain_index = batched_ensemble.chain_index[struct_idx]
 
+        from aminx.utils.aa_convert import af_to_mpnn  # noqa: PLC0415
+
         if hasattr(batched_ensemble, "aatype") and batched_ensemble.aatype is not None:
-          native_seq = batched_ensemble.aatype[struct_idx]
+          native_seq = af_to_mpnn(batched_ensemble.aatype[struct_idx])  # AF -> model space
         else:
           msg = "Structure does not contain sequence information; cannot compute Jacobian"
           raise ValueError(msg)

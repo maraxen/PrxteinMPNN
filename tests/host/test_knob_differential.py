@@ -26,6 +26,7 @@ from __future__ import annotations
 import re
 from dataclasses import fields
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
@@ -34,7 +35,8 @@ import pytest
 from aminx.host.campaign import plan_campaign_manifest
 from aminx.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
 from tests.host.knob_observations import (
-  KNOWN_BROKEN_AT_A17,
+  KNOWN_BROKEN_TIER_A,
+  KNOWN_BROKEN_TIER_B,
   OBSERVATIONS,
   Bundle,
   Internal,
@@ -131,9 +133,20 @@ def _tier_a_fields() -> list[str]:
   )
 
 
-def _maybe_xfail(field: str) -> None:
-  if field in KNOWN_BROKEN_AT_A17:
-    pytest.xfail(KNOWN_BROKEN_AT_A17[field])
+def _maybe_xfail(request: pytest.FixtureRequest, field: str, known_broken: Mapping[str, str]) -> None:
+  """Apply a STRICT xfail marker so a fix XPASSes into a red build.
+
+  This used to call `pytest.xfail(reason)` -- which is IMPERATIVE: it aborts the test body
+  immediately and unconditionally marks xfail. The body never ran, so it could never XPASS, so
+  the "a real fix forces the marker's removal" property I relied on all along **did not exist**.
+  Proven when S1a fixed all 12 knobs and the suite still reported 12 xfailed; only `--runxfail`
+  revealed they had started passing.
+
+  A check that cannot fail and a check that cannot pass are the same bug wearing different hats.
+  `request.node.add_marker` runs the body and detects XPASS, which is what strict xfail is for.
+  """
+  if field in known_broken:
+    request.node.add_marker(pytest.mark.xfail(strict=True, reason=known_broken[field]))
 
 
 class TestDeclarationCompleteness:
@@ -207,8 +220,8 @@ class TestDeclarationCompleteness:
     )
 
   def test_known_broken_entries_are_declared(self) -> None:
-    undeclared = set(KNOWN_BROKEN_AT_A17) - set(OBSERVATIONS)
-    assert not undeclared, f"KNOWN_BROKEN_AT_A17 names not in OBSERVATIONS: {sorted(undeclared)}"
+    undeclared = (set(KNOWN_BROKEN_TIER_A) | set(KNOWN_BROKEN_TIER_B)) - set(OBSERVATIONS)
+    assert not undeclared, f"known-broken names not in OBSERVATIONS: {sorted(undeclared)}"
 
 
 class TestTierAManifestSurvival:
@@ -218,8 +231,10 @@ class TestTierAManifestSurvival:
   """
 
   @pytest.mark.parametrize("field", _tier_a_fields())
-  def test_value_survives_the_real_round_trip(self, field: str) -> None:
-    _maybe_xfail(field)
+  def test_value_survives_the_real_round_trip(
+    self, field: str, request: pytest.FixtureRequest,
+  ) -> None:
+    _maybe_xfail(request, field, KNOWN_BROKEN_TIER_A)
     value_a, value_b = DIFFERENTIAL_PAIRS[field]
 
     got_a = _round_trip(field, value_a)
@@ -312,8 +327,9 @@ class TestTierBModelBoundary:
   @pytest.mark.parametrize("field", sorted(FORWARDING_KNOBS))
   def test_value_reaches_load_model(
     self, field: str, minimal_model: Any, monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
   ) -> None:
-    _maybe_xfail(field)
+    _maybe_xfail(request, field, KNOWN_BROKEN_TIER_B)
     kwarg = self.FORWARDING_KNOBS[field]
     captured: list[dict[str, Any]] = []
 
@@ -346,15 +362,40 @@ class TestTierBModelBoundary:
 
 
 class TestNonSerializableKnobsRejected:
-  """Callables must not silently vanish into the manifest."""
+  """Callables must not silently vanish into the manifest.
+
+  UPDATED for the field-driven write. Under the hand-written literal these fields were simply
+  absent, so the test asserted absence. The dump is exhaustive over `fields()`, so a None-valued
+  non-serializable field now appears AS None -- which round-trips correctly and carries no lie.
+
+  The property that actually matters was never "is it absent"; it is **"can it silently carry a
+  wrong value"**. So: None is fine, and a real value must RAISE rather than be dropped. That
+  distinction is the whole audit.
+  """
 
   @pytest.mark.parametrize(
     "field",
     sorted(n for n, v in OBSERVATIONS.items() if isinstance(v, (NonSerializable, Internal))),
   )
-  def test_not_carried_by_the_manifest(self, field: str) -> None:
+  def test_never_carries_a_value(self, field: str) -> None:
     payload = _plan_one_row()
-    assert field not in payload, (
-      f"{field!r} is declared non-serializable/internal but appears in the manifest literal. "
-      "Either it is now serializable (update the declaration) or the literal is wrong."
+    assert payload.get(field) is None, (
+      f"{field!r} is declared non-serializable/internal but the manifest carries "
+      f"{payload.get(field)!r}. A non-serializable field may appear as None (harmless, "
+      f"round-trips); carrying a VALUE means it is serializable after all -- update the "
+      f"declaration -- or the payload is lying."
     )
+
+  def test_setting_a_non_serializable_field_raises_rather_than_drops(self) -> None:
+    """The behavior change that is the point: silent drop -> loud error.
+
+    Under the literal, setting carry_specs on a campaign base_spec was silently ignored. It now
+    raises. No live caller sets it (cli.py's campaign sites set only inputs/return_logits/
+    checkpoint_id/chain_id/ligand_context_path), so this breaks nobody and tells the truth.
+    """
+    from aminx.run.spec_json import SpecJSONEncodeError
+    from xtrax.tiling import CarrySpec
+
+    spec = CarrySpec(axis_name="n_samples", init={"x": 0.0}, transition=lambda c, x: (c, x))
+    with pytest.raises(SpecJSONEncodeError, match="CarrySpec"):
+      _plan_one_row(carry_specs=[spec])

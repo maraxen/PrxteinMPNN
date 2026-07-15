@@ -82,21 +82,48 @@ class Internal(Verdict):
 # today (proving the harness detects real bugs) and, once fixed, XPASS -> red build,
 # forcing the marker's removal. Both directions guarded, permanently.
 # ---------------------------------------------------------------------------
-KNOWN_BROKEN_AT_A17: dict[str, str] = {
-  "fixed_mask": "occurrence #7 -- not in the manifest literal; --fixed-policies never resolves to positions",
-  "fixed_positions": "occurrence #7 -- same; also a mask alias, not indices (runner.py:103 misdocuments it)",
-  "fixed_tokens": "occurrence #7 -- same",
-  "state_position_map": "occurrence #8 -- on the spec + spec_json whitelist, absent from campaign.py entirely",
-  "multi_state_strategy": "silently reverts to arithmetic_mean; row hash records the request, falsely implying it was honored",
-  "state_weights": "not in the manifest literal; --state-weight-profiles never resolves a name to weights (occurrence #10)",
-  "bias": "not in the manifest literal",
-  "tie_group_map": "not in the manifest literal",
-  "structure_mapping": "not in the manifest literal",
+# CLOSED by S1a's field-driven manifest write. All twelve are gone from this set because they
+# now genuinely survive the manifest -- verified by the suite going red (XPASS) until removed.
+#
+# Kept as a record rather than deleted: these twelve are what the audit was for, and the empty
+# dict below is the claim "the manifest-drop class no longer exists". If any regresses, its Tier
+# A test fails outright -- no marker to hide behind.
+CLOSED_BY_S1A: tuple[str, ...] = (
+  "fixed_mask",            # occurrence #7 -- the blocker; no residue was ever held fixed
+  "fixed_positions",       # occurrence #7
+  "fixed_tokens",          # occurrence #7
+  "state_position_map",    # occurrence #8 -- found during this audit
+  "multi_state_strategy",  # silently reverted to arithmetic_mean while the row hash claimed otherwise
+  "state_weights",         # occurrence #10
+  "bias",
+  "tie_group_map",
+  "structure_mapping",
+  "ligand_mpnn_use_side_chain_context",  # manifest hop only; model hop still broken -- see TIER B
+  "use_electrostatics",                  # ditto
+  "use_vdw",                             # ditto
+)
+
+# Tier A: does the caller's value survive plan -> manifest JSON -> reconstructed spec?
+# Empty after S1a. A new entry here means the manifest-drop class has returned.
+KNOWN_BROKEN_TIER_A: dict[str, str] = {}
+
+# Tier B: does it reach the MODEL? Deliberately NOT emptied by S1a.
+#
+# These three are broken in TWO places -- dropped by the manifest AND never forwarded at
+# prep.py:133,140 -> load_model. S1a fixed only the first. Their Tier A tests now pass, which is
+# exactly the false green this split exists to prevent: 12 markers clearing does not mean these
+# knobs work. They reach the manifest and die at the model boundary. Cleared by S3, not S1.
+KNOWN_BROKEN_TIER_B: dict[str, str] = {
   "ligand_mpnn_use_side_chain_context": (
-    "occurrence #6 -- absent from the manifest AND not forwarded prep.py:133,140 -> load_model"
+    "occurrence #6 -- survives the manifest after S1a, but prep.py:133,140 still never forward "
+    "it to load_model, so the model is built with sidechains off regardless. Cleared by S3."
   ),
-  "use_electrostatics": "not forwarded to load_model at prep.py:133,140 (contrast trainer.py:159-164 which does)",
-  "use_vdw": "same as use_electrostatics",
+  "use_electrostatics": (
+    "occurrence #11 -- forwarded to the DATASET (prep.py:111) but never to load_model, so "
+    "physics_feature_dim stays checkpoint-name-derived (contrast trainer.py:159-164, which does "
+    "forward it). Cleared by S3."
+  ),
+  "use_vdw": "occurrence #11 -- same as use_electrostatics (prep.py:114 dataset only). Cleared by S3.",
 }
 
 

@@ -29,6 +29,7 @@ from xtrax.run import (
 
 # campaign manifest functions are implemented in this module (see build_manifest_row et al.)
 from aminx.host.runner import sample
+from aminx.host.spec_partition import CAMPAIGN_OWNED_KEYS, campaign_sampling_spec_payload
 from aminx.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
 from aminx.sampling.multistate_poe import sample_multistate_poe_campaign_row
 from aminx.runtime import configure_multiprocessing
@@ -644,41 +645,25 @@ def plan_campaign_manifest(
               campaign_id=campaign_id,
               row_hash=row["manifest_row_hash"],
             )
-            row["sampling_spec"] = {
-              "inputs": _normalize_inputs(base_spec.inputs),
-              "model_family": spec_variant.model_family,
-              "model_weights": spec_variant.model_weights,
-              "model_version": spec_variant.model_version,
-              "checkpoint_id": spec_variant.checkpoint_id,
-              "model_local_path": (
-                str(spec_variant.model_local_path) if spec_variant.model_local_path else None
-              ),
-              "checkpoint_registry_path": (
-                str(spec_variant.checkpoint_registry_path)
-                if spec_variant.checkpoint_registry_path
-                else None
-              ),
-              "ligand_conditioning": ligand_on,
-              "sidechain_conditioning": sidechain_on,
-              "chain_id": spec_variant.chain_id,
-              "ligand_context_path": (
-                str(spec_variant.ligand_context_path)
-                if spec_variant.ligand_context_path
-                else None
-              ),
-              "temperature": list(spec_variant.temperature),
-              "backbone_noise": list(spec_variant.backbone_noise),
-              "batch_size": spec_variant.batch_size,
-              "samples_chunk_size": sample_count,
-              "campaign_mode": True,
-              "return_logits": False,
-              "grid_mode": True,
-              "job_id": row["job_id"],
-              "chunk_id": row["chunk_id"],
-              "sample_start": row["sample_start"],
-              "sample_count": row["sample_count"],
-              "output_h5_path": row["output_h5_path"],
-            }
+            # Built from dataclasses.fields(), NOT hand-listed. The hand-written 23-key literal
+            # this replaces drifted from an 88-field dataclass with nothing enforcing the sync,
+            # which is the single root cause of all twelve silently-dropped knobs -- including
+            # fixed_mask, i.e. no residue was ever actually held fixed in any produced design.
+            # spec_partition raises at import if any field is classified nowhere.
+            row["sampling_spec"] = campaign_sampling_spec_payload(
+              spec_variant,
+              campaign_owned={
+                "grid_mode": True,
+                # The planner owns chunking; the caller's samples_chunk_size is replaced, not
+                # dropped -- this row covers exactly sample_count designs.
+                "samples_chunk_size": sample_count,
+                "job_id": row["job_id"],
+                "chunk_id": row["chunk_id"],
+                "sample_start": row["sample_start"],
+                "sample_count": row["sample_count"],
+                "output_h5_path": row["output_h5_path"],
+              },
+            )
             rows.append(row)
           job_index += 1
 

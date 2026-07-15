@@ -30,6 +30,7 @@ from xtrax.run import (
 # campaign manifest functions are implemented in this module (see build_manifest_row et al.)
 from aminx.host.runner import sample
 from aminx.host.spec_partition import CAMPAIGN_OWNED_KEYS, campaign_sampling_spec_payload
+from aminx.run.spec_json import _coerce_field_value
 from aminx.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
 from aminx.sampling.multistate_poe import sample_multistate_poe_campaign_row
 from aminx.runtime import configure_multiprocessing
@@ -838,6 +839,22 @@ def run_manifest_row(  # noqa: PLR0915
     worker_payload = dict(sampling_spec_payload)
     worker_payload["output_h5_path"] = str(partial_path)
     pop_deprecated_spec_kwargs(worker_payload)
+    # Coerce JSON scalars back to their spec types (lists -> ndarray for the array knobs,
+    # list -> tuple for temperature) using spec_json's whitelist, which names exactly these
+    # fields and exists for exactly this. Before the field-driven manifest write, array knobs
+    # were dropped entirely and no worker ever saw them; now they arrive, and they arrive as
+    # plain lists. Most consumers wrap defensively (_sample_batch does
+    # jnp.asarray(spec...bias)), but relying on EVERY consumer to be careful is the posture
+    # this audit exists to end -- restore the type at the boundary instead.
+    #
+    # Coercion is a VALUE transform, so strict unknown-key rejection is unaffected: an unknown
+    # key still reaches the constructor and raises TypeError. That strictness is why this path
+    # uses the plain constructor rather than run_specification_from_json_dict, which would
+    # silently ignore unknown keys.
+    worker_payload = {
+      key: _coerce_field_value(SamplingSpecification, key, value)
+      for key, value in worker_payload.items()
+    }
     sampling_spec = SamplingSpecification(**worker_payload)
     # Genuine multi-state PoE rows (len(inputs) > 1) route to
     # sample_multistate_poe_campaign_row instead of sample() -- sample()'s real dispatcher

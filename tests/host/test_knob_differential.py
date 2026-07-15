@@ -65,7 +65,9 @@ def _plan_one_row(**spec_kwargs: Any) -> dict[str, Any]:
     output_root="/tmp/knob-differential",
     designs_per_library_type=1,
     samples_chunk_size=1,
-    fixed_policies=("catalytic_triad",),
+    # No arms: this harness probes whether a knob survives plan -> manifest -> spec, which
+    # is orthogonal to fixing residues. Arms are covered in tests/host/test_fixed_arms.py.
+    fixed_arms=None,
   )
   return dict(rows[0]["sampling_spec"])
 

@@ -224,6 +224,7 @@ markers = [
     "phase0a_spike: Phase 0a state_vmap_exact vs explicit vmap stack (roadmap REFACTOR_ROADMAP §227)",
     "requires_weights: test requires model weight files (bundled or HF Hub)",
     "knob_differential: control-knob reachability through the real CLI/manifest/spec/runner path",
+    "alphabet_boundary: AF-vs-MPNN convention at a real parse/model boundary (never a fixture)",
 ]
 
 [tool.ty.environment]

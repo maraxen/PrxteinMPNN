@@ -58,6 +58,7 @@ from aminx.host._sampling_helper import (
   _canonical_structure_ids_for_spec,
   _prepare_fixed_controls,
   _prepare_ligand_context,
+  fixed_provenance_outputs,
 )
 from aminx.host.plan import resolve_chunk_size, resolve_sample_start, resolve_target_samples
 from aminx.host.prep import prep_protein_stream_and_model
@@ -559,6 +560,12 @@ def sample_multistate_poe_campaign_row(spec: SamplingSpecification) -> dict[str,
   }
   if grid_lineage is not None:
     attrs.update(_grid_lineage_attrs(grid_lineage))
+  # Same provenance as the single-structure branch. These two writers share no write function
+  # -- they only share the sink primitive -- so anything added to one and not the other leaves
+  # exactly the arm that matters here (the necklace's PoE beads) with no evidence at all.
+  fixed_arrays, fixed_attrs = fixed_provenance_outputs(spec, seq_len=int(seq_len))
+  arrays.update(fixed_arrays)
+  attrs.update(fixed_attrs)
   sink.stage(key, attrs=attrs, **arrays)
   sink.drain()
 

@@ -40,6 +40,7 @@ task_id: 260715_aminx-campaign-control-knob-audit
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
@@ -51,7 +52,19 @@ from aminx.run.specs import SamplingSpecification
 pytestmark = pytest.mark.knob_differential
 
 _CKPT = "ligandmpnn_v_32_020_25"
-_L = 512  # CAMPAIGN_MAX_LENGTH -- the spec-boundary length, not the native 214
+
+# `SamplingSpecification.max_length`'s default (run/specs.py:270). The mask must match the
+# PARSED structure's padded length -- `_prepare_fixed_controls` takes seq_len from
+# `batched_ensemble.coordinates.shape[1]`, and `prep.py:117` pads the dataset to
+# `spec.max_length`. `campaign plan` exposes neither --max-length nor --truncation-strategy,
+# so a campaign always runs this default and 512 is always right *there*.
+#
+# An earlier version of this comment called it CAMPAIGN_MAX_LENGTH. **No such constant exists
+# anywhere in aminx** -- the name was carried out of a stale plan and written here as though
+# it were real. It is an ordinary spec field with an ordinary default. Left as a note because
+# an invented citation in a test is exactly the kind of confident-looking wrong thing this
+# audit keeps finding.
+_L = 512
 _TRIAD = (38, 73, 143)  # canonical indices: His46/Asp81/Cys151 == tev_num - 8
 
 
@@ -91,6 +104,57 @@ def test_arm_mask_reaches_the_sampling_spec() -> None:
   )
   got = np.asarray(spec["fixed_mask"])
   assert sorted(np.nonzero(got)[0].tolist()) == list(_TRIAD)
+
+
+def test_the_arm_s_mask_SURVIVES_TO_THE_WORKER_not_just_into_json() -> None:
+  """Plan -> manifest JSON -> reconstructed spec -> `_prepare_fixed_controls`. End to end.
+
+  **This is the test cycle 1 should have had and did not.** Every other assertion here stops
+  at the manifest JSON, which proves the planner wrote a key -- not that the mask is intact
+  and correctly shaped by the time anything could act on it. "It's in the JSON" was the same
+  confidence level as "the row says catalytic_triad", which is what the whole epic is about.
+
+  Shape is the live risk: `_prepare_fixed_controls` derives seq_len from the PARSED
+  structure's padded length and hard-errors on a mismatch, so a mask sized against the wrong
+  assumption fails here and nowhere earlier.
+  """
+  import jax.numpy as jnp
+
+  from aminx.host._sampling_helper import _prepare_fixed_controls
+  from aminx.run.spec_json import _coerce_field_value
+  from aminx.utils.data_structures import Protein
+
+  rows = _plan(fixed_arms={"catalytic_triad": _mask(*_TRIAD)})
+
+  # The worker's REAL reconstruction path (campaign.py:838-856): coerce the JSON payload
+  # back through the plain constructor. Not a stand-in for it.
+  payload = {
+    k: _coerce_field_value(SamplingSpecification, k, v)
+    for k, v in dict(rows[0]["sampling_spec"]).items()
+  }
+  spec = SamplingSpecification(**payload)
+
+  ensemble = Protein(
+    coordinates=jnp.zeros((1, _L, 4, 3), dtype=jnp.float32),
+    aatype=jnp.zeros((1, _L), dtype=jnp.int32),
+    atom_mask=jnp.ones((1, _L, 37), dtype=jnp.float32),
+    residue_index=jnp.arange(_L, dtype=jnp.int32)[None, :],
+    chain_index=jnp.zeros((1, _L), dtype=jnp.int32),
+    mask=jnp.ones((1, _L), dtype=jnp.float32),
+    mapping=None,
+  )
+  # fixed_tokens must accompany the mask or the Alanine guard refuses the pair -- freezing
+  # without saying to what locks every frozen position to token 0 (Ala).
+  spec = replace(spec, fixed_tokens=np.zeros(_L, dtype=np.int32))
+
+  fixed_mask, _tokens = _prepare_fixed_controls(spec, batched_ensemble=ensemble)
+
+  frozen = sorted(np.nonzero(np.asarray(fixed_mask)[0])[0].tolist())
+  assert frozen == list(_TRIAD), (
+    f"The arm's mask did not survive to the worker: frozen positions are {frozen}, expected "
+    f"{list(_TRIAD)}. It reached the manifest but not the thing that acts on it -- which is "
+    f"the entire failure mode this audit exists to close."
+  )
 
 
 def test_arm_label_still_travels_for_provenance() -> None:
@@ -157,3 +221,51 @@ def test_the_old_decorative_flag_is_a_hard_error() -> None:
   """
   with pytest.raises(TypeError, match="fixed_polic"):
     _plan(fixed_policies=("catalytic_triad",))
+
+
+# ---------------------------------------------------------------------------
+# The evidence channel: can a reader PROVE what was frozen, after the fact?
+# ---------------------------------------------------------------------------
+
+
+def test_provenance_outputs_carry_the_mask_and_name_their_alphabet() -> None:
+  """`fixed_mask` must reach the OUTPUT, not just the model.
+
+  Before this, the mask reached the model and vanished: no `fixed_mask` anywhere in `io/` or
+  any sink. So a finished campaign could not be interrogated -- 882/882 rows, every done
+  marker valid, every content digest intact, and not one residue held. The completion record
+  was perfect precisely because completion was the only thing recorded.
+  """
+  from aminx.host._sampling_helper import fixed_provenance_outputs
+
+  mask = _mask(*_TRIAD)
+  spec = SamplingSpecification(
+    inputs=["ref.pdb"],
+    checkpoint_id=_CKPT,
+    fixed_mask=mask,
+    fixed_tokens=np.zeros(_L, dtype=np.int32),
+  )
+  arrays, attrs = fixed_provenance_outputs(spec, seq_len=_L)
+
+  assert sorted(np.nonzero(arrays["fixed_mask"])[0].tolist()) == list(_TRIAD)
+  assert attrs["n_fixed"] == len(_TRIAD)
+  # The alphabet travels as DATA. The consumer-side bug this audit found was a rename
+  # stripping an `_af` suffix and taking the convention with it; a rename cannot strip a value.
+  assert attrs["fixed_tokens_alphabet"] == "MPNN"
+
+
+def test_an_unfixed_row_says_so_rather_than_staying_silent() -> None:
+  """Nothing-fixed must be a WRITTEN zero, not an absent key.
+
+  "No mask" and "a mask that froze nothing" are the same silence to a reader, and this whole
+  epic is what silence costs. n_fixed == 0 is a fact someone can see in the metadata and act
+  on; a missing key is something they have to notice.
+  """
+  from aminx.host._sampling_helper import fixed_provenance_outputs
+
+  spec = SamplingSpecification(inputs=["ref.pdb"], checkpoint_id=_CKPT)
+  arrays, attrs = fixed_provenance_outputs(spec, seq_len=_L)
+
+  assert "fixed_mask" in arrays, "an unfixed row must still SAY it fixed nothing"
+  assert arrays["fixed_mask"].shape == (_L,)
+  assert attrs["n_fixed"] == 0

@@ -449,6 +449,67 @@ def _broadcast_per_structure(
   raise ValueError(msg)
 
 
+def fixed_provenance_outputs(
+  spec: SamplingSpecification,
+  *,
+  seq_len: int,
+) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
+  """The evidence that a residue was actually held fixed. Emit this beside the sequences.
+
+  Returns ``(arrays, attrs)`` to merge into the row's staged output.
+
+  **Why this exists.** ``fixed_mask`` reached the model and stopped there: it appeared nowhere
+  in ``io/`` or any sink, so after a run there was NO WAY to prove which positions had been
+  frozen. A campaign produced 882/882 rows, every done-marker valid, every content digest
+  intact -- and not one residue held fixed anywhere. The completion record was perfect and the
+  science was void, because completion and validity were the only two things nobody had
+  written down separately.
+
+  **Why not the done marker.** ``_write_done_marker`` carries the row hash, attempt id and
+  content digest -- integrity, not science. Worse, its digest is computed over the zarr tree
+  *before* the marker is written, so anything added there sits outside the very hash that
+  attests to it. This belongs inside the digested artifact, beside the data it describes.
+
+  **Why 1-D and not the broadcast (batch, L).** This records the DECLARATION -- "these
+  positions were requested frozen, at these identities" -- which is what a reader needs to
+  check the sequences against. ``_prepare_fixed_controls``' per-structure broadcast is an
+  implementation detail of one call.
+
+  ``n_fixed`` is an attr, not a derived read, so a reader can reject an unfixed row without
+  loading the mask -- and so "0 positions were fixed" is a value someone can SEE in the
+  metadata rather than a silence they have to notice.
+
+  Args:
+    spec: The row's spec, post-reconstruction.
+    seq_len: The parsed structure's padded length, used to emit an honest all-zero mask when
+      nothing is fixed -- an absent key and "nothing was fixed" must not look alike.
+
+  """
+  sampling = spec.run_spec.sampling
+  declared = sampling.fixed_mask
+  mask = (
+    np.zeros(seq_len, dtype=np.uint8)
+    if declared is None
+    else np.asarray(declared).reshape(-1)[:seq_len].astype(np.uint8)
+  )
+  arrays: dict[str, np.ndarray] = {"fixed_mask": mask}
+  attrs: dict[str, Any] = {"n_fixed": int(np.count_nonzero(mask))}
+
+  # Tokens only mean something where the mask selects, but emit the whole array: a reader
+  # comparing sequences against it needs the same indexing, and slicing here would invent a
+  # second convention to get wrong.
+  if sampling.fixed_tokens is not None:
+    arrays["fixed_tokens"] = np.asarray(sampling.fixed_tokens).reshape(-1)[:seq_len].astype(
+      np.int32,
+    )
+    # Name the alphabet AS DATA, not in a key name. The consumer-side bug this audit found was
+    # exactly a rename stripping an `_af` suffix and taking the convention with it: a rename
+    # cannot strip a value. fixed_tokens are MPNN by contract (decode substitutes them
+    # directly against MPNN-sampled tokens).
+    attrs["fixed_tokens_alphabet"] = "MPNN"
+  return arrays, attrs
+
+
 def _token_name(token: int, alphabet: str) -> str:
   """Human-readable amino acid for an error message (never used for control flow).
 

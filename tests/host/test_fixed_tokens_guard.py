@@ -21,10 +21,30 @@ import pytest
 
 from aminx.host._sampling_helper import _prepare_fixed_controls, resolve_native_tokens
 from aminx.run.specs import SamplingSpecification
+from aminx.utils.aa_convert import AF_ALPHABET, MPNN_ALPHABET
 from aminx.utils.data_structures import Protein
 
 _SEQ_LEN = 8
 _TRIAD = (2, 4, 6)
+
+# Fixtures are **AF**, because that is what `aatype` actually is. This is not a detail: the
+# previous fixtures were written in MPNN -- `[0, 5, 6, 5, 2, 5, 1, 5]` with a comment reading
+# "position 6 -> C", which is true in MPNN (index 1 = Cys) and false in AF (index 1 = Arg).
+# The author assumed aatype was MPNN, encoded that assumption into the fixture, and the test
+# then agreed with them. A synthetic fixture can only ever confirm its author's belief about
+# the alphabet, which is why the alphabet-sensitive assertions now live in
+# tests/utils/test_alphabet_boundary.py against a real parse. These fixtures stay synthetic
+# because what they test -- whether the guard raises -- is alphabet-agnostic; they just have
+# to stop lying about what they contain.
+def _af(*residues: str) -> np.ndarray:
+  """Build an AF-encoded aatype row from residue letters, so the fixture reads as biology."""
+  return np.array([AF_ALPHABET.index(r) for r in residues], dtype=np.int32)
+
+
+# TEV's catalytic triad at _TRIAD, Gln elsewhere as filler.
+_AF_HDC = _af("A", "Q", "H", "Q", "D", "Q", "C", "Q")[None, :]
+# The C151A mutant: identical except the triad Cys is Ala -- the real 1LVB case.
+_AF_HDA = _af("A", "Q", "H", "Q", "D", "Q", "A", "Q")[None, :]
 
 
 def _protein(batch_size: int = 1, aatype: np.ndarray | None = None) -> Protein:
@@ -111,13 +131,16 @@ class TestNativeOverride:
   """resolve_native_tokens: freeze each position at whatever is already there."""
 
   def test_resolves_native_and_satisfies_the_guard(self) -> None:
-    aatype = np.array([[0, 5, 6, 5, 2, 5, 1, 5]], dtype=np.int32)
-    ensemble = _protein(aatype=aatype)
+    ensemble = _protein(aatype=_AF_HDC)
 
     tokens = resolve_native_tokens(ensemble, _triad_mask())
     spec = _spec(fixed_mask=_triad_mask(), fixed_tokens=tokens)
     _fm, ft = _prepare_fixed_controls(spec, batched_ensemble=ensemble)
 
+    # AF in, MPNN out -- the RESIDUES are preserved, the encoding changes. Asserting the
+    # residues rather than the raw ints is the whole point: `tokens == aatype` was the old
+    # assertion, and it can only hold in one alphabet while naming neither.
+    assert [MPNN_ALPHABET[int(ft[0, p])] for p in _TRIAD] == ["H", "D", "C"]
     assert [int(ft[0, p]) for p in _TRIAD] == [6, 2, 1]
 
   def test_divergent_natives_raise_naming_the_positions(self) -> None:
@@ -127,8 +150,8 @@ class TestNativeOverride:
     """
     aatype = np.array(
       [
-        [0, 5, 6, 5, 2, 5, 1, 5],  # position 6 -> C
-        [0, 5, 6, 5, 2, 5, 0, 5],  # position 6 -> A  (the C151A mutant)
+        *_AF_HDC,  # position 6 -> C
+        *_AF_HDA,  # position 6 -> A  (the C151A mutant)
       ],
       dtype=np.int32,
     )
@@ -141,19 +164,15 @@ class TestNativeOverride:
     assert "allow_heterogeneous" in text
 
   def test_divergence_accepted_only_when_asked_for(self) -> None:
-    aatype = np.array(
-      [
-        [0, 5, 6, 5, 2, 5, 1, 5],
-        [0, 5, 6, 5, 2, 5, 0, 5],
-      ],
-      dtype=np.int32,
-    )
+    aatype = np.concatenate([_AF_HDC, _AF_HDA], axis=0)
     tokens = resolve_native_tokens(
       _protein(batch_size=2, aatype=aatype), _triad_mask(), allow_heterogeneous=True,
     )
-    assert int(tokens[0, 6]) == 1, "structure 0's residue is taken, deliberately"
+    assert MPNN_ALPHABET[int(tokens[0, 6])] == "C", (
+      "structure 0's residue is taken, deliberately -- and it is Cys, not the mutant's Ala"
+    )
 
   def test_agreeing_natives_need_no_override(self) -> None:
-    aatype = np.array([[0, 5, 6, 5, 2, 5, 1, 5]] * 3, dtype=np.int32)
+    aatype = np.repeat(_AF_HDC, 3, axis=0)
     tokens = resolve_native_tokens(_protein(batch_size=3, aatype=aatype), _triad_mask())
-    assert [int(tokens[0, p]) for p in _TRIAD] == [6, 2, 1]
+    assert [MPNN_ALPHABET[int(tokens[0, p])] for p in _TRIAD] == ["H", "D", "C"]

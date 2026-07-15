@@ -223,6 +223,7 @@ markers = [
     "parity_audit: checkpoint-family audit parity checks and conversion validation",
     "phase0a_spike: Phase 0a state_vmap_exact vs explicit vmap stack (roadmap REFACTOR_ROADMAP §227)",
     "requires_weights: test requires model weight files (bundled or HF Hub)",
+    "knob_differential: control-knob reachability through the real CLI/manifest/spec/runner path",
 ]
 
 [tool.ty.environment]

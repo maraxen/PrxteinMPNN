@@ -137,12 +137,12 @@ def _ubq_structure() -> dict:
   }
 
 
-def _native_recovery(structure: dict, sequence: jnp.ndarray) -> float:
-  """Fraction of positions where the model's argmax equals the supplied sequence.
+def _conditional_logits(structure: dict, sequence: jnp.ndarray) -> jnp.ndarray:
+  """Conditional logits for ``sequence`` against ``structure``, via the real factory.
 
   Uses ``make_conditional_logits_fn`` deliberately: it is the exact factory
-  ``host/runner.py:774`` uses for the ``conditional_logits`` feature, so this measures the
-  real shipped path rather than a reconstruction of it.
+  ``host/runner.py:779`` uses for the ``conditional_logits`` feature, so tests built on this
+  measure the shipped path rather than a reconstruction of it.
   """
   from aminx.io.weights import load_model  # noqa: PLC0415
   from aminx.sampling.conditional_logits import make_conditional_logits_fn  # noqa: PLC0415
@@ -161,6 +161,19 @@ def _native_recovery(structure: dict, sequence: jnp.ndarray) -> float:
   )
   if logits.ndim == 3:  # noqa: PLR2004 -- (1, L, 21) vs (L, 21)
     logits = logits[0]
+  return logits
+
+
+def _native_recovery(structure: dict, sequence: jnp.ndarray) -> float:
+  """Fraction of positions where the model's argmax equals the sequence it was given.
+
+  Self-consistency, deliberately: "did the model agree with what I told it?" A model asked
+  to score a sequence it was handed in the wrong alphabet cannot agree with it, and no
+  amount of structural signal rescues that. Compare
+  ``test_inspect_conditions_on_the_converted_sequence``, which documents why the *other*
+  reading of recovery -- against the true native -- is insensitive here.
+  """
+  logits = _conditional_logits(structure, sequence)
   return float((jnp.argmax(logits, axis=-1) == sequence).mean())
 
 
@@ -240,4 +253,69 @@ def test_model_consumes_mpnn_not_af(_ubq_structure: dict) -> None:
     f"be impossible while the two alphabets differ, so this test has lost its power to "
     f"discriminate and would pass even with the conversion removed. Do not relax this "
     f"threshold to make it green -- find out why the permutation stopped mattering."
+  )
+
+
+@pytest.mark.alphabet_boundary
+@pytest.mark.requires_weights
+@pytest.mark.slow
+def test_inspect_conditions_on_the_converted_sequence(_ubq_structure: dict) -> None:
+  """``inspect()``'s ``conditional_logits`` must condition on MPNN, matching the factory.
+
+  **This is an exact-equality wiring check, deliberately, and the first version of it was a
+  false green.** The obvious test -- "assert inspect()'s recovery beats chance" -- does not
+  work here, and the reason is worth writing down.
+
+  ``conditional_logits`` sees the structure *and* the sequence, and the structure dominates.
+  Measured on 1UBQ with real proteinmpnn_v_48_020 weights:
+
+  ==========================  ===========================  =========================
+  conditioning fed            recovery vs *true* native    recovery vs *fed* sequence
+  ==========================  ===========================  =========================
+  MPNN (correct)              0.592                        0.592
+  raw AF (the bug)            0.487                        0.118
+  ==========================  ===========================  =========================
+
+  So feeding a permuted sequence degrades recovery 0.592 -> 0.487. It does **not** collapse
+  to chance, and a threshold test at any defensible floor sails straight past it. The widely
+  quoted "0.09, i.e. chance" figure is the *right-hand* column -- self-consistency against
+  whatever was fed -- not evidence that the feature returns noise.
+
+  That does not make the bug benign: the logits answer a different question than the caller
+  asked, so any downstream NLL or per-residue analysis built on them is wrong. It makes the
+  bug **undetectable by the metric everyone reaches for first**, which is exactly why it sat
+  in a shipped CLI command for five weeks (since 2119537, 2026-06-08).
+
+  Hence exact equality against the factory called with the converted sequence. It pins the
+  one thing at issue -- *which sequence runner hands over* -- and it fails the moment the
+  conversion is removed. ``jacobian()`` (``runner.py:1022``) and ``decoded_node_features``
+  (``:840``) share the identical defect; this covers the cheapest to exercise.
+  """
+  from aminx.host.runner import inspect  # noqa: PLC0415
+
+  native_mpnn = af_to_mpnn(_ubq_structure["aatype"]).astype(jnp.int32)
+  length = int(native_mpnn.shape[0])
+
+  reference = _conditional_logits(_ubq_structure, native_mpnn)
+  wrong = _conditional_logits(_ubq_structure, _ubq_structure["aatype"])
+
+  result = inspect(
+    inputs=[str(_UBQ)],
+    inspection_features=["conditional_logits"],
+    checkpoint_id="proteinmpnn_v_48_020",
+  )
+  actual = np.asarray(result["conditional_logits"][0])[:length]  # inspect pads to max_length
+
+  assert np.allclose(actual, np.asarray(reference), atol=1e-4), (
+    "inspect()'s conditional_logits do not match the logits produced by conditioning on "
+    "af_to_mpnn(aatype). runner is handing the model a sequence in the wrong alphabet, so "
+    "the feature answers a different question than the caller asked. This is a shipped CLI "
+    "command (`aminx run inspect`)."
+  )
+  # Proves the check above can fail: the two conditionings really do produce different
+  # logits. Without this, a bug that made both paths identically wrong would pass silently.
+  assert not np.allclose(np.asarray(reference), np.asarray(wrong), atol=1e-4), (
+    "Conditioning on AF and on MPNN produced identical logits, so this test cannot "
+    "distinguish them and proves nothing. Do not delete it -- find out why the sequence "
+    "input stopped mattering."
   )

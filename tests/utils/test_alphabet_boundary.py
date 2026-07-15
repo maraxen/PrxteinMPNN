@@ -165,6 +165,49 @@ def _native_recovery(structure: dict, sequence: jnp.ndarray) -> float:
 
 
 @pytest.mark.alphabet_boundary
+def test_resolve_native_tokens_returns_mpnn() -> None:
+  """``resolve_native_tokens`` must return MPNN, because decode substitutes it as MPNN.
+
+  Real parse, deliberately. ``tests/host/test_fixed_tokens_guard.py`` covers this function
+  well for *raising* behaviour, which is alphabet-agnostic, using synthetic fixtures -- and
+  that is fine. What no test covered was the **alphabet of the return value**, and a
+  synthetic fixture could never have covered it: the fixture author would have written the
+  aatype in whichever alphabet they already believed, and the test would have agreed with
+  them. That is exactly how this bug shipped in 026403d.
+
+  The check is against 1UBQ's real residues: freeze position 0 and the function must report
+  the token for Met, in MPNN. Under the old raw-AF return it reported AF's Met (12), which
+  MPNN reads as Asn.
+  """
+  from aminx.host._sampling_helper import resolve_native_tokens  # noqa: PLC0415
+  from aminx.io.parsing import parse_structure  # noqa: PLC0415
+
+  protein = _first_protein(parse_structure(str(_UBQ)))
+  aatype = np.asarray(protein.aatype)[None, :]  # type: ignore[attr-defined]
+
+  class _Ensemble:
+    pass
+
+  ensemble = _Ensemble()
+  ensemble.aatype = jnp.asarray(aatype)  # type: ignore[attr-defined]
+
+  fixed_mask = np.zeros(aatype.shape[1], dtype=np.float32)
+  fixed_mask[0] = 1.0  # 1UBQ position 0 is Met
+
+  tokens = np.asarray(resolve_native_tokens(ensemble, fixed_mask))  # type: ignore[arg-type]
+
+  assert MPNN_ALPHABET[int(tokens[0, 0])] == "M", (
+    f"resolve_native_tokens returned token {int(tokens[0, 0])}, which is "
+    f"'{MPNN_ALPHABET[int(tokens[0, 0])]}' in MPNN -- but 1UBQ position 0 is Met. The "
+    f"return value feeds fixed_tokens, which decode substitutes directly against "
+    f"MPNN-sampled tokens, so it must be MPNN."
+  )
+  # The whole sequence, not just the frozen position: the function returns a full-length
+  # array and every entry has to be in the same alphabet.
+  assert _decode(tokens[0], MPNN_ALPHABET) == _UBQ_SEQUENCE
+
+
+@pytest.mark.alphabet_boundary
 @pytest.mark.requires_weights
 @pytest.mark.slow
 def test_model_consumes_mpnn_not_af(_ubq_structure: dict) -> None:

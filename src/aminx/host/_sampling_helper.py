@@ -449,11 +449,22 @@ def _broadcast_per_structure(
   raise ValueError(msg)
 
 
-def _token_name(token: int) -> str:
-  """Human-readable amino acid for an error message (never used for control flow)."""
-  from aminx.utils.aa_convert import MPNN_ALPHABET
+def _token_name(token: int, alphabet: str) -> str:
+  """Human-readable amino acid for an error message (never used for control flow).
 
-  return MPNN_ALPHABET[token] if 0 <= token < len(MPNN_ALPHABET) else str(token)
+  ``alphabet`` is REQUIRED and deliberately not defaulted. This helper is reachable from two
+  contexts in different alphabets -- native ``aatype`` (AF) and ``fixed_tokens`` (MPNN) --
+  and a default would silently pick one of them for both. The previous version defaulted to
+  MPNN and was called with AF ``aatype``, so a divergence at a His position reported "K".
+  An error message that misnames the residue is worse than no message: it sends the reader
+  hunting for a mutation that isn't there.
+
+  Args:
+    token: The integer token.
+    alphabet: The alphabet ``token`` is indexed in -- ``AF_ALPHABET`` or ``MPNN_ALPHABET``.
+
+  """
+  return alphabet[token] if 0 <= token < len(alphabet) else str(token)
 
 
 def resolve_native_tokens(
@@ -485,13 +496,28 @@ def resolve_native_tokens(
     allow_heterogeneous: Accept structure 0's residue where natives disagree.
 
   Returns:
-    ``fixed_tokens``, suitable for ``SamplingSpecification(fixed_tokens=...)``.
+    ``fixed_tokens`` in the **MPNN alphabet** (``ACDEFGHIKLMNPQRSTVWYX``), suitable for
+    ``SamplingSpecification(fixed_tokens=...)``. The conversion from ``aatype``'s AF ordering
+    happens here; callers must not convert again. Naming the alphabet is not decoration --
+    every bug this function has had, and every one found in the surrounding audit, traces to
+    a contract that said "integer labels" and left the ordering to be guessed.
 
   Raises:
     ValueError: Natives disagree at a frozen position and ``allow_heterogeneous`` is False.
 
   """
-  aatype = np.asarray(batched_ensemble.aatype, dtype=np.int32)
+  from aminx.utils.aa_convert import MPNN_ALPHABET, af_to_mpnn  # noqa: PLC0415
+
+  # Convert ONCE, here, so the whole function below is MPNN and there is no second
+  # convention to keep straight. `aatype` is AF (proxide is AF-native); `fixed_tokens` is
+  # substituted directly against model-sampled tokens at
+  # inference/decode/autoregressive.py:346, which are MPNN. Returning the raw array -- what
+  # this function did until now -- froze every position to a *different* residue than the
+  # caller's own structure: AF His(8) reads as MPNN Lys. A "fixed catalytic triad" would
+  # have come back H->K, D->E, C->F. Shipped in 026403d, the commit whose stated purpose was
+  # preventing a silently-wrong fixed identity, and hidden by test fixtures hand-written in
+  # the alphabet their author assumed.
+  aatype = np.asarray(af_to_mpnn(jnp.asarray(batched_ensemble.aatype)), dtype=np.int32)
   if aatype.ndim == 1:
     aatype = aatype[None, :]
   mask = np.asarray(fixed_mask, dtype=np.float32)
@@ -503,8 +529,11 @@ def resolve_native_tokens(
     divergent = [int(p) for p in frozen if len(np.unique(aatype[:, p])) > 1]
     if divergent:
       detail = "; ".join(
-        f"position {p}: " + ", ".join(f"structure {s}={_token_name(int(aatype[s, p]))}"
-                                      for s in range(aatype.shape[0]))
+        f"position {p}: "
+        + ", ".join(
+          f"structure {s}={_token_name(int(aatype[s, p]), MPNN_ALPHABET)}"
+          for s in range(aatype.shape[0])
+        )
         for p in divergent[:4]
       )
       msg = (
@@ -515,7 +544,7 @@ def resolve_native_tokens(
       )
       raise ValueError(msg)
 
-  return aatype.copy()
+  return aatype.copy()  # MPNN -- converted at the top of this function
 
 
 def _prepare_fixed_controls(
@@ -523,6 +552,8 @@ def _prepare_fixed_controls(
   *,
   batched_ensemble: Protein,
 ) -> tuple[jax.Array, jax.Array]:
+  from aminx.utils.aa_convert import MPNN_ALPHABET  # noqa: PLC0415
+
   batch_size, seq_len = batched_ensemble.coordinates.shape[:2]
 
   fixed_mask_np = np.zeros((batch_size, seq_len), dtype=np.float32)
@@ -562,8 +593,10 @@ def _prepare_fixed_controls(
 
   # fixed_mask selects WHICH positions are frozen; fixed_tokens says TO WHAT. They are one
   # decision, not two. Freezing without saying to what silently locks every frozen position to
-  # token 0 -- Alanine (utils/aa_convert.py's MPNN_ALPHABET) -- because decode does
-  # `final_token = where(is_group_fixed, fixed_tokens, sampled)` (decode/autoregressive.py:340).
+  # token 0 -- Alanine (index 0 in BOTH alphabets, so this one is unambiguous) -- because
+  # decode does `final_token = where(is_group_fixed, group_fixed_token, sampled)`
+  # (inference/decode/autoregressive.py:346; an earlier version of this comment cited
+  # decode/autoregressive.py:340, a path that does not exist).
   # A caller "fixing the catalytic triad" would get a dead Ala/Ala/Ala enzyme, with valid-shaped
   # output and no error. Refuse the ambiguity instead of resolving it to the most destructive
   # possible default.
@@ -571,7 +604,8 @@ def _prepare_fixed_controls(
     n_fixed = int(np.count_nonzero(np.asarray(fixed_mask_np)[0]))
     msg = (
       f"fixed_mask/fixed_positions freeze {n_fixed} position(s) but fixed_tokens is None, which "
-      f"would silently lock every frozen position to token 0 = '{_token_name(0)}' (Alanine) -- "
+      f"would silently lock every frozen position to token 0 = "
+      f"'{_token_name(0, MPNN_ALPHABET)}' (Alanine) -- "
       f"e.g. a 'fixed catalytic triad' would come back as Ala/Ala/Ala, a dead enzyme, with no "
       f"error. Freezing a position and choosing its identity are one decision. Either:\n"
       f"  - pass fixed_tokens explicitly (a 1-D array locks the same identity across all "

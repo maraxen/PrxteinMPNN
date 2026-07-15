@@ -1651,8 +1651,10 @@ def campaign_plan(
     _OPT(
       "--fixed-arm",
       help=(
-        "Arm LABEL=PATH, e.g. catalytic_triad=masks/triad.npy. PATH holds a 1-D canonical "
-        "fixed_mask. Repeatable; each arm is its own row-set. Omit to fix nothing."
+        "Arm LABEL=DECLARATION, e.g. catalytic_triad=H38|D73|C143 -- residue letter plus "
+        "0-based canonical index, pipe-separated. The letters set fixed_tokens, so the arm "
+        "states WHAT to hold, not just where. A path to a 1-D .npy mask also works for large "
+        "sets. Repeatable; each arm is its own row-set. Omit to fix nothing."
       ),
     ),
   ] = None,
@@ -1891,8 +1893,10 @@ def campaign_ramp_plan(
     _OPT(
       "--fixed-arm",
       help=(
-        "Arm LABEL=PATH, e.g. catalytic_triad=masks/triad.npy. PATH holds a 1-D canonical "
-        "fixed_mask. Repeatable; each arm is its own row-set. Omit to fix nothing."
+        "Arm LABEL=DECLARATION, e.g. catalytic_triad=H38|D73|C143 -- residue letter plus "
+        "0-based canonical index, pipe-separated. The letters set fixed_tokens, so the arm "
+        "states WHAT to hold, not just where. A path to a 1-D .npy mask also works for large "
+        "sets. Repeatable; each arm is its own row-set. Omit to fix nothing."
       ),
     ),
   ] = None,

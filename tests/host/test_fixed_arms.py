@@ -269,3 +269,75 @@ def test_an_unfixed_row_says_so_rather_than_staying_silent() -> None:
   assert "fixed_mask" in arrays, "an unfixed row must still SAY it fixed nothing"
   assert arrays["fixed_mask"].shape == (_L,)
   assert attrs["n_fixed"] == 0
+
+
+# ---------------------------------------------------------------------------
+# The inline declaration: no .npy required to hold three residues
+# ---------------------------------------------------------------------------
+
+
+def test_inline_declaration_needs_no_file_and_yields_BOTH_mask_and_tokens() -> None:
+  """`catalytic_triad=H38|D73|C143` -- the common case, with no file to materialise.
+
+  The letters are not decoration. Freezing a position and choosing its identity are ONE
+  decision: a mask without tokens locks every frozen position to token 0 (Alanine), which is
+  why `_prepare_fixed_controls` refuses that pair outright. The declaration supplies both, so
+  nothing has to infer the identities -- no structure parsed at plan time, no alphabet to get
+  wrong.
+  """
+  from aminx.utils.aa_convert import MPNN_ALPHABET
+
+  rows = _plan(fixed_arms={"catalytic_triad": "H38|D73|C143"})
+  spec = rows[0]["sampling_spec"]
+
+  assert sorted(np.nonzero(np.asarray(spec["fixed_mask"]))[0].tolist()) == list(_TRIAD)
+
+  tokens = np.asarray(spec["fixed_tokens"])
+  held = [MPNN_ALPHABET[int(tokens[p])] for p in _TRIAD]
+  assert held == ["H", "D", "C"], (
+    f"The declared identities did not survive: got {held}, expected His/Asp/Cys. The letters "
+    f"ARE the fixed_tokens; if they do not arrive, every frozen position falls back to token "
+    f"0 -- Alanine -- and a 'fixed catalytic triad' comes back as a dead enzyme."
+  )
+
+
+def test_the_declaration_makes_a_wrong_triad_VISIBLE() -> None:
+  """The property a bare position list cannot have.
+
+  `CATALYTIC_PDB_IDS = [135, 181, 183]` shipped in a consumer for weeks as "the catalytic
+  triad". Those map to canonical [127, 173, 175], which hold **Ser/Ser/Pro** -- not a
+  catalytic triad, not catalytic anything. A bare position list is unfalsifiable on sight:
+  [127,173,175] looks exactly as plausible as [38,73,143].
+
+  Written as a declaration it announces itself -- S127|S173|P175 is visibly not a triad -- and
+  the identities travel into the row where a worker holding the structure can check the claim
+  against the actual residues. This test pins that the letters survive, which is what makes
+  the check possible at all.
+  """
+  from aminx.utils.aa_convert import MPNN_ALPHABET
+
+  rows = _plan(fixed_arms={"looks_plausible": "S127|S173|P175"})
+  tokens = np.asarray(rows[0]["sampling_spec"]["fixed_tokens"])
+
+  assert [MPNN_ALPHABET[int(tokens[p])] for p in (127, 173, 175)] == ["S", "S", "P"]
+
+
+def test_a_position_without_an_identity_is_refused() -> None:
+  """`38|73|143` states where but not what -- and those are one decision, not two."""
+  with pytest.raises(ValueError, match="RESIDUE"):
+    _plan(fixed_arms={"triad": "38|73|143"})
+
+
+def test_a_nonsense_residue_letter_is_refused() -> None:
+  with pytest.raises(ValueError, match="not an amino acid"):
+    _plan(fixed_arms={"triad": "Z38"})
+
+
+def test_an_out_of_range_position_names_the_numbering_convention() -> None:
+  """Off-by-8 is the live error here: author numbering vs canonical index.
+
+  TEV's triad is His46/Asp81/Cys151 in author numbering and [38,73,143] canonical. A caller
+  reaching for `H46` should be told which frame this is, not just "out of range".
+  """
+  with pytest.raises(ValueError, match=r"(?i)canonical"):
+    _plan(fixed_arms={"triad": "H9999"})

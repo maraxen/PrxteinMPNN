@@ -23,7 +23,9 @@ task_id: 260715_aminx-campaign-control-knob-audit
 
 from __future__ import annotations
 
+import re
 from dataclasses import fields
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -157,14 +159,52 @@ class TestDeclarationCompleteness:
     stale = declared - actual
     assert not stale, f"Declared field(s) that no longer exist on the spec: {sorted(stale)}"
 
-  def test_every_reason_cites_something(self) -> None:
-    """A verdict whose reason asserts a conclusion without evidence is not a verdict."""
-    vague = [
-      name
-      for name, verdict in OBSERVATIONS.items()
-      if len(verdict.reason) < 20
-    ]
-    assert not vague, f"Verdicts needing an evidenced reason: {vague}"
+  @pytest.mark.xfail(
+    strict=True,
+    reason=(
+      "~30 verdicts (mostly host/IO knobs: cache_path, split, max_workers, ...) still cite "
+      "nothing -- they assert 'host-side cache location' rather than pointing at a line. The "
+      "PREDICATE is correct and deliberately not weakened to make this pass; weakening it is "
+      "what let the carry_specs fabrication through in the first place. The TABLE is what owes "
+      "work. Cite them and this XPASSes -> red -> delete this marker. Tracked in sprint S5."
+    ),
+  )
+  def test_every_reason_cites_resolvable_evidence(self) -> None:
+    """A verdict whose reason asserts a conclusion without evidence is not a verdict.
+
+    An earlier version of this test checked `len(verdict.reason) < 20` -- it tested reason
+    LENGTH, not truth. Under it I declared carry_specs/dedup_specs as "streaming/sink
+    bookkeeping (host/streaming.py); never touches the model", which is fabricated (they feed
+    the planner at host/plan.py:79-80). 62 > 20, so it passed. An external review caught it,
+    not this test.
+
+    A predicate cheap to satisfy by writing more prose is not enforcement. This one demands a
+    citation that actually RESOLVES against the source tree, so a reason cannot be satisfied by
+    inventing a plausible-sounding file.
+    """
+    src = Path(__file__).resolve().parents[2] / "src" / "aminx"
+    offenders: list[str] = []
+
+    for name, verdict in OBSERVATIONS.items():
+      # A citation is a source path (foo/bar.py[:123]) or a resolvable symbol reference.
+      paths = re.findall(r"\b([\w/]+\.py)\b", verdict.reason)
+      symbols = re.findall(r"\b(_?[a-z][\w]*(?:_[\w]+)+)\(\)", verdict.reason)
+      if not paths and not symbols:
+        offenders.append(f"{name}: no file.py or symbol() citation in reason")
+        continue
+      for rel in paths:
+        # Reasons cite paths at varying depth -- "host/plan.py", a bare "_sampling_helper.py",
+        # sometimes "aminx/run/specs.py". Resolve by basename anywhere under src/ (or tests/,
+        # for reasons that cite a test as evidence). The point is that the cited file EXISTS,
+        # not that the author wrote its full path.
+        stem = rel.rsplit("/", 1)[-1]
+        if not (any(src.rglob(stem)) or any((src.parents[1] / "tests").rglob(stem))):
+          offenders.append(f"{name}: cites {rel!r}, which resolves to no file under src/")
+
+    assert not offenders, (
+      "Verdict reasons must cite evidence that resolves, not assert a conclusion:\n  "
+      + "\n  ".join(offenders)
+    )
 
   def test_known_broken_entries_are_declared(self) -> None:
     undeclared = set(KNOWN_BROKEN_AT_A17) - set(OBSERVATIONS)

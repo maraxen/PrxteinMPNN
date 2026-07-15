@@ -134,3 +134,78 @@ def test_campaign_plan_without_chain_id_omits_it(tmp_path: Path) -> None:
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     for row in payload["rows"]:
         assert row["sampling_spec"]["chain_id"] is None
+
+
+def test_campaign_plan_ligand_context_path_round_trips(tmp_path: Path) -> None:
+    """--ligand-context-path reaches every row's sampling_spec and survives reload.
+
+    Round-trips through SamplingSpecification(**row["sampling_spec"]) to confirm
+    the string written to the manifest reconstructs into a real ligand_context_path
+    (coerced to Path by RunSpecification's field normalization), not silently
+    dropped or left as some other type -- this mirrors the model_family wiring gap
+    (aminx PR #104) where a field was accepted by the CLI/spec but never reached the
+    manifest row.
+    """
+    from aminx.run.specs import SamplingSpecification  # noqa: PLC0415
+
+    manifest_path = tmp_path / "test.manifest.json"
+    output_root = tmp_path / "outputs"
+    fake_ligand_path = tmp_path / "fake_ligand_context.npz"
+
+    result = runner.invoke(
+        app,
+        [
+            "campaign",
+            "plan",
+            "--inputs", "fake.pdb",
+            "--campaign-id", "test",
+            "--manifest-path", str(manifest_path),
+            "--output-root", str(output_root),
+            "--designs-per-library-type", "1",
+            "--samples-chunk-size", "1",
+            "--checkpoint-id", "test-checkpoint-v1",
+            "--ligand-context-path", str(fake_ligand_path),
+        ],
+    )
+
+    assert result.exit_code == 0, f"Expected exit 0, got {result.exit_code}.\nOutput:\n{result.output}"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    rows = payload.get("rows", [])
+    assert len(rows) >= 1
+    for row in rows:
+        assert row["sampling_spec"]["ligand_context_path"] == str(fake_ligand_path)
+        reconstructed = SamplingSpecification(**row["sampling_spec"])
+        assert reconstructed.ligand_context_path == fake_ligand_path
+        assert isinstance(reconstructed.ligand_context_path, Path)
+
+
+def test_campaign_plan_without_ligand_context_path_omits_it(tmp_path: Path) -> None:
+    """Default (no --ligand-context-path) behavior: field stays None, not dropped/misdefaulted."""
+    from aminx.run.specs import SamplingSpecification  # noqa: PLC0415
+
+    manifest_path = tmp_path / "test.manifest.json"
+    output_root = tmp_path / "outputs"
+
+    result = runner.invoke(
+        app,
+        [
+            "campaign",
+            "plan",
+            "--inputs", "fake.pdb",
+            "--campaign-id", "test",
+            "--manifest-path", str(manifest_path),
+            "--output-root", str(output_root),
+            "--designs-per-library-type", "1",
+            "--samples-chunk-size", "1",
+            "--checkpoint-id", "test-checkpoint-v1",
+        ],
+    )
+
+    assert result.exit_code == 0, f"Expected exit 0, got {result.exit_code}.\nOutput:\n{result.output}"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    rows = payload.get("rows", [])
+    assert len(rows) >= 1
+    for row in rows:
+        assert row["sampling_spec"]["ligand_context_path"] is None
+        reconstructed = SamplingSpecification(**row["sampling_spec"])
+        assert reconstructed.ligand_context_path is None

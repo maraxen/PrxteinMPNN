@@ -184,6 +184,7 @@ def _coerce_field_value(_cls: type[Any], field_name: str, value: Any) -> Any:
       return [tuple(int(a) for a in pair) for pair in value]  # type: ignore[return-value]
   if isinstance(value, list) and field_name in {
     "tie_group_map",
+    "state_position_map",
     "structure_mapping",
     "ar_mask",
     "bias",

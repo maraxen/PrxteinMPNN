@@ -124,3 +124,46 @@ def test_conditional_decode_produces_valid_logits(
     # Verify shape and dtype
     assert logits.shape == (enc.neighbor_indices.shape[1], 21), f"Expected (L, 21), got {logits.shape}"
     assert logits.dtype == jnp.float32
+
+
+def test_conditional_decode_state_position_map_changes_fused_output() -> None:
+    """End-to-end: a non-identity state_position_map actually changes fusion output.
+
+    Confirms the wire-through from build_inference_bundle -> ConditioningBundle ->
+    ConditionalDecode._apply_logit_transform (debt #572's fix) is live, not silently
+    ignored. Complements the exact-math unit tests in
+    tests/inference/decode/test_kernel.py::TestRealignStatesToReference.
+    """
+    num_states, num_residues = 2, 8
+    model, coords, mask, residue_index, chain_index, sequence_oh, bundle, config = (
+        _build_synthetic_fixture(num_states=num_states, num_residues=num_residues, seed=7)
+    )
+
+    k_enc, k_dec = jax.random.split(jax.random.PRNGKey(0))
+    encode_fn = make_encode_fn(model, use_rolling_state=False)
+    enc = encode_fn(bundle, k_enc, config)
+    stage_set = make_stage_set(
+        strategy="arithmetic_mean",
+        state_weights=bundle.conditioning.state_weights,
+    )
+    cond_decode = ConditionalDecode(model=model, state_iterator=VmapIterator())
+
+    baseline_logits = cond_decode(key=k_dec, enc=enc, bundle=bundle, config=config, stage_set=stage_set)
+
+    # Reference state (0) stays identity; state 1's row is a real permutation
+    # (no -1 gaps -- gap handling is covered separately at the kernel unit-test level).
+    permuted_row = jnp.roll(jnp.arange(num_residues), shift=1)
+    custom_map = jnp.stack([jnp.arange(num_residues), permuted_row])
+    permuted_bundle = eqx.tree_at(
+        lambda b: b.conditioning.state_position_map,
+        bundle,
+        custom_map,
+    )
+
+    permuted_logits = cond_decode(
+        key=k_dec, enc=enc, bundle=permuted_bundle, config=config, stage_set=stage_set,
+    )
+
+    assert not jnp.allclose(permuted_logits, baseline_logits), (
+        "state_position_map must actually change ConditionalDecode's fused output"
+    )

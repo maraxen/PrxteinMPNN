@@ -75,6 +75,7 @@ def _build_synthetic_fixture(
         fixed_tokens=jnp.zeros((L,), dtype=jnp.int32),
         bias=bias,
         tie_group_map=jnp.zeros((num_states, L), dtype=jnp.int32),
+        state_position_map=jnp.broadcast_to(jnp.arange(L)[None, :], (num_states, L)),
         state_weights=jnp.ones((num_states,)) / num_states,
         sequence_oh=jnp.zeros((L, 21)),  # zeros for unconditional
         ar_mask=jnp.ones((num_states, L, L)),  # full 1s for non-AR

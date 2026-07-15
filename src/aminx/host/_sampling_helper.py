@@ -449,6 +449,75 @@ def _broadcast_per_structure(
   raise ValueError(msg)
 
 
+def _token_name(token: int) -> str:
+  """Human-readable amino acid for an error message (never used for control flow)."""
+  from aminx.utils.aa_convert import MPNN_ALPHABET
+
+  return MPNN_ALPHABET[token] if 0 <= token < len(MPNN_ALPHABET) else str(token)
+
+
+def resolve_native_tokens(
+  batched_ensemble: Protein,
+  fixed_mask: Any,  # noqa: ANN401 -- ArrayLike; matches _broadcast_per_structure's convention
+  *,
+  allow_heterogeneous: bool = False,
+) -> np.ndarray:
+  """Resolve ``fixed_tokens`` from each structure's own native residues.
+
+  The override for "freeze these positions at whatever is already there", as opposed to passing
+  ``fixed_tokens`` explicitly. Returns an array shaped to ``batched_ensemble.aatype``.
+
+  Deliberately a function, not a ``SamplingSpecification`` field: a new spec field would be
+  silently dropped by ``host/campaign.py``'s hand-written manifest literal and become another
+  declared-but-never-delivered knob -- the exact bug class this guard exists to close.
+
+  **Divergence is refused, not resolved.** With multiple structures, "native" is only well
+  defined if they agree at every frozen position. For a product-of-experts bead the design is ONE
+  sequence, so a position whose native is Cys in one state and Ala in another (a real case: a
+  C151A catalytic mutant crystallised precisely because it was inactive) has no correct answer
+  this function can pick. Picking one silently is how a dead enzyme ships. Pass explicit
+  ``fixed_tokens`` to state the intent, or ``allow_heterogeneous=True`` to accept structure 0's
+  residue knowingly.
+
+  Args:
+    batched_ensemble: Batched structures; ``aatype`` supplies the native residues.
+    fixed_mask: Which positions are frozen. 1 = fixed.
+    allow_heterogeneous: Accept structure 0's residue where natives disagree.
+
+  Returns:
+    ``fixed_tokens``, suitable for ``SamplingSpecification(fixed_tokens=...)``.
+
+  Raises:
+    ValueError: Natives disagree at a frozen position and ``allow_heterogeneous`` is False.
+
+  """
+  aatype = np.asarray(batched_ensemble.aatype, dtype=np.int32)
+  if aatype.ndim == 1:
+    aatype = aatype[None, :]
+  mask = np.asarray(fixed_mask, dtype=np.float32)
+  if mask.ndim == 1:
+    mask = np.broadcast_to(mask[None, :], aatype.shape)
+
+  frozen = np.where(np.any(mask > 0, axis=0))[0]
+  if len(frozen) and aatype.shape[0] > 1 and not allow_heterogeneous:
+    divergent = [int(p) for p in frozen if len(np.unique(aatype[:, p])) > 1]
+    if divergent:
+      detail = "; ".join(
+        f"position {p}: " + ", ".join(f"structure {s}={_token_name(int(aatype[s, p]))}"
+                                      for s in range(aatype.shape[0]))
+        for p in divergent[:4]
+      )
+      msg = (
+        f"Cannot resolve native fixed_tokens: structures disagree at {len(divergent)} frozen "
+        f"position(s) -- {detail}. The design is a single sequence, so there is no native to "
+        f"pick. Either pass fixed_tokens explicitly to declare the intended identity, or set "
+        f"allow_heterogeneous=True to take structure 0's residue deliberately."
+      )
+      raise ValueError(msg)
+
+  return aatype.copy()
+
+
 def _prepare_fixed_controls(
   spec: SamplingSpecification,
   *,
@@ -491,10 +560,35 @@ def _prepare_fixed_controls(
       name="fixed_tokens",
     )
 
-    invalid_tokens = (fixed_tokens_np < 0) | (fixed_tokens_np >= AMINO_ACID_VOCAB_SIZE)
-    if np.any(invalid_tokens & (fixed_mask_np > 0)):
-      msg = f"fixed_tokens must be in [0, {AMINO_ACID_VOCAB_SIZE - 1}] at masked positions."
-      raise ValueError(msg)
+  # fixed_mask selects WHICH positions are frozen; fixed_tokens says TO WHAT. They are one
+  # decision, not two. Freezing without saying to what silently locks every frozen position to
+  # token 0 -- Alanine (utils/aa_convert.py's MPNN_ALPHABET) -- because decode does
+  # `final_token = where(is_group_fixed, fixed_tokens, sampled)` (decode/autoregressive.py:340).
+  # A caller "fixing the catalytic triad" would get a dead Ala/Ala/Ala enzyme, with valid-shaped
+  # output and no error. Refuse the ambiguity instead of resolving it to the most destructive
+  # possible default.
+  if np.any(np.asarray(fixed_mask_np) > 0) and spec.run_spec.sampling.fixed_tokens is None:
+    n_fixed = int(np.count_nonzero(np.asarray(fixed_mask_np)[0]))
+    msg = (
+      f"fixed_mask/fixed_positions freeze {n_fixed} position(s) but fixed_tokens is None, which "
+      f"would silently lock every frozen position to token 0 = '{_token_name(0)}' (Alanine) -- "
+      f"e.g. a 'fixed catalytic triad' would come back as Ala/Ala/Ala, a dead enzyme, with no "
+      f"error. Freezing a position and choosing its identity are one decision. Either:\n"
+      f"  - pass fixed_tokens explicitly (a 1-D array locks the same identity across all "
+      f"states -- the usual intent, e.g. a catalytic triad held at H/D/C everywhere); or\n"
+      f"  - call resolve_native_tokens(batched_ensemble, fixed_mask) to freeze each position at "
+      f"its own native residue."
+    )
+    raise ValueError(msg)
+
+  # Validity is checked AFTER the guard and OUTSIDE the `fixed_tokens is not None` branch it
+  # used to live in -- where it could never fire for the all-zeros default, which is exactly the
+  # case that needed catching. Token 0 is a legal amino acid, not a sentinel, so range-checking
+  # alone never would have caught it either.
+  invalid_tokens = (fixed_tokens_np < 0) | (fixed_tokens_np >= AMINO_ACID_VOCAB_SIZE)
+  if np.any(np.asarray(invalid_tokens) & (np.asarray(fixed_mask_np) > 0)):
+    msg = f"fixed_tokens must be in [0, {AMINO_ACID_VOCAB_SIZE - 1}] at masked positions."
+    raise ValueError(msg)
 
   if spec.run_spec.sampling.fixed_mask is not None:
     fm_broadcast = _broadcast_per_structure(

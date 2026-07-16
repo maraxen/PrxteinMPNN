@@ -256,13 +256,45 @@ per-row (`compile_error`), not silently mislabeled as a working "compiled" numbe
 All six scripts (four extended + two new) pass `--dry-run` (L1) and `--smoke` (L2) gates.
 
 **Cluster confirmatory run**: submitted to Engaging's `pi_so3` partition (Blackwell), SLURM job
-`18059808`, myxcel job `260716-5e5174`, **PENDING** at last check (2026-07-16). Uses the
-already-proven `XLA_FLAGS=--xla_gpu_shard_autotuning=false` workaround and the `jax/jaxlib==0.9.2`
-grad-path pin (decoy/ddg only, per the epic's already-documented jaxlib 0.10.x regression).
-Batch-size sweep capped per-length to avoid the already-confirmed L=512 memory ceiling (256/400 only
-where memory-plausible, shrinking to 4/16 at L=512). Results not yet available — this report will be
-updated once the job completes; check `myxcel job_status --slurm-id 18059808` or
-`outputs/ebm_benchmarks/*_full*.json` on the `worktree-ebm-parity-report` branch for the latest state.
+`18059808`. Uses the already-proven `XLA_FLAGS=--xla_gpu_shard_autotuning=false` workaround and the
+`jax/jaxlib==0.9.2` grad-path pin (decoy/ddg only, per the epic's already-documented jaxlib 0.10.x
+regression). Batch-size sweep capped per-length to avoid the already-confirmed L=512 memory ceiling
+(256/400 only where memory-plausible, shrinking to 4/16 at L=512).
+
+**Result: `decoy_benchmark`, `ddg_benchmark`, `biasing_benchmark` completed cleanly** across every
+length × batch-size combination (52 rows each for decoy/ddg, 8 for biasing) — real 3-way PyTorch
+data pulled from engaging and committed. Two findings worth noting in the data itself: decoy's
+`torch.compile` variant fails 100% of the time (13/13 compiled rows hit the already-documented
+`aminx.training` stub error), while ddg's compiled variant has zero failures — an asymmetry not yet
+explained (both scripts wrap the same eager path in `torch.compile`; worth a follow-up look at what
+decoy's compile graph touches that ddg's doesn't). These three scripts' batching charts are now live
+in the artifact (§01b).
+
+**`langevin_benchmark` hit a real crash, not the known autotuning bug**: at length=128, batch=400 —
+the reference's own `run_dynamics.py` default batch size, never tested by decoy/ddg (max batch 256)
+— JAX's warmup compile call triggered `CUDA_ERROR_ILLEGAL_ADDRESS` on node4008 (Blackwell), with the
+SM120 autotuning-hang workaround flag already active, so this is a distinct failure mode from the
+already-documented one. Because `run_cluster_benchmarks.sh` had no per-step failure isolation
+(`set -euo pipefail`, one linear pipeline), this single crash aborted every step queued after it,
+including the two brand-new scripts (`heterogeneous_batch_benchmark`, `langevin_annealing_benchmark`)
+— neither got to run at all on the first attempt.
+
+Fixed both scripts before resubmitting: `langevin_benchmark.py` now writes its JSON payload
+incrementally after every `(length, batch_size)` cell and wraps each cell in `try/except`, so a crash
+loses only the in-flight cell instead of every already-timed one (an `impl="error"` row records the
+exception and the sweep continues); `run_cluster_benchmarks.sh` gained a `run_step`/`should_run`
+wrapper so one step's failure no longer kills the rest of the job, plus a `BENCHMARK_SKIP_STEPS` env
+var to resume without re-running steps that already produced good data. The two never-run scripts
+were also reordered ahead of `langevin_benchmark` so they get priority if it crashes again.
+
+Resubmitted directly via `ssh`+`sbatch` (myxcel's `submit_job` MCP tool hit its 30s timeout twice
+against a slow login node — a known myxcel-reliability pattern, worked around with direct
+`scp`+`sbatch` rather than retried indefinitely) as SLURM job **`18069513`**, skipping
+decoy/ddg/biasing via `BENCHMARK_SKIP_STEPS=decoy,ddg,biasing`, running heterogeneous-batch and
+outer-annealing first. **Status at last check: queued (`PD`, priority) on `pi_so3`.** This report and
+the artifact's §01b/§01c will be updated once it completes; check `sacct -j 18069513` or
+`outputs/ebm_benchmarks/{heterogeneous_batch,langevin_annealing,langevin}_benchmark_full*.json` on
+the `worktree-ebm-parity-report` branch for the latest state.
 
 ## Reproducibility
 
@@ -279,5 +311,7 @@ updated once the job completes; check `myxcel job_status --slurm-id 18059808` or
 | §6 scripts | `scripts/ebm/real_decoy_ranking_benchmark.py`, `scripts/ebm/real_ddg_stability_benchmark.py` (+ `.bth.toml` each) |
 | §6 real data | Rosetta decoys (`files.ipd.uw.edu/pub/decoyset/decoys.zip`, `~/repos/ProteinEBM/eval_data/decoys/`), ProteinGym v1.3 Tsuboyama subset (`marks.hms.harvard.edu` — broken TLS chain, fetch with `curl -k`) |
 | §7 scripts | `scripts/ebm/benchmarks/{decoy,ddg,biasing,langevin}_benchmark.py` (extended), `scripts/ebm/benchmarks/heterogeneous_batch_benchmark.py`, `scripts/ebm/benchmarks/langevin_annealing_benchmark.py` (both new) |
-| §7 cluster job | SLURM `18059808`, myxcel `260716-5e5174`, Engaging `pi_so3` (Blackwell) |
-| §7 cluster wrapper | `scripts/ebm/benchmarks/run_cluster_benchmarks.sh` — `bash scripts/ebm/benchmarks/run_cluster_benchmarks.sh` from the project root on the remote |
+| §7 cluster jobs | SLURM `18059808` (decoy/ddg/biasing completed; langevin crashed at L=128/batch=400), SLURM `18069513` (resume: heterogeneous/annealing/langevin), Engaging `pi_so3` (Blackwell) |
+| §7 cluster wrapper | `scripts/ebm/benchmarks/run_cluster_benchmarks.sh` — `BENCHMARK_SKIP_STEPS=<comma list> bash scripts/ebm/benchmarks/run_cluster_benchmarks.sh` from the project root on the remote |
+| §7 real data | `outputs/ebm_benchmarks/{decoy,ddg}_benchmark_full_L{64-128,256,512}.json`, `outputs/ebm_benchmarks/biasing_benchmark_full.json` |
+| §7 report data | `scripts/ebm/render_parity_report_data.py --benchmarks-dir outputs/ebm_benchmarks` → `outputs/ebm_benchmarks/ebm_parity_report_data.json` (`throughput_depth` key; `null` per script until its cluster run lands) |

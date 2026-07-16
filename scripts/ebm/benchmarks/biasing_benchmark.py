@@ -260,7 +260,7 @@ def _time_jax_throughput(
   t: jax.Array,
   mask: jax.Array,
   n_repeats: int,
-) -> tuple[float, float]:
+) -> tuple[float, list[float]]:
   """Time the raw 2-state Vmap energy dispatch (no fuse) -- the E4 axis-dispatch primitive.
 
   Uses the same ``aminx.ebm.plan.plan_axis``/``dispatch_axis`` pair
@@ -282,17 +282,16 @@ def _time_jax_throughput(
 
     return dispatch_axis(decision.strategy, _score_one, cs)
 
-  result = _run(model, coords_states, aatype, t, mask)
-  jax.block_until_ready(result)
+  jax.block_until_ready(_run(model, coords_states, aatype, t, mask))  # untimed warmup
 
-  start = time.perf_counter()
+  times: list[float] = []
   for _ in range(n_repeats):
-    result = _run(model, coords_states, aatype, t, mask)
-  jax.block_until_ready(result)
-  elapsed = time.perf_counter() - start
+    start = time.perf_counter()
+    jax.block_until_ready(_run(model, coords_states, aatype, t, mask))
+    times.append(time.perf_counter() - start)
 
-  energy_evals_per_sec = (N_STATES * n_repeats) / elapsed
-  return energy_evals_per_sec, elapsed
+  energy_evals_per_sec = (N_STATES) / float(np.mean(times))
+  return energy_evals_per_sec, times
 
 
 def _time_jax_diff_fuse(
@@ -302,7 +301,7 @@ def _time_jax_diff_fuse(
   t: jax.Array,
   mask: jax.Array,
   n_repeats: int,
-) -> float:
+) -> tuple[float, list[float]]:
   """Time the **full** difference-Fuse pipeline: energy for both states + the fuse reduction.
 
   Times ``aminx.ebm.dispatch.score_state_difference`` itself (E4/E7's real
@@ -315,15 +314,14 @@ def _time_jax_diff_fuse(
   def _run(m: "ProteinEBMModel", cs: jax.Array, a: jax.Array, tt: jax.Array, mk: jax.Array) -> jax.Array:
     return score_state_difference(m, cs, a, tt, mk)
 
-  result = _run(model, coords_states, aatype, t, mask)
-  jax.block_until_ready(result)
+  jax.block_until_ready(_run(model, coords_states, aatype, t, mask))  # untimed warmup
 
-  start = time.perf_counter()
+  times: list[float] = []
   for _ in range(n_repeats):
-    result = _run(model, coords_states, aatype, t, mask)
-  jax.block_until_ready(result)
-  elapsed = time.perf_counter() - start
-  return (elapsed / n_repeats) * 1000.0
+    start = time.perf_counter()
+    jax.block_until_ready(_run(model, coords_states, aatype, t, mask))
+    times.append(time.perf_counter() - start)
+  return float(np.mean(times)) * 1000.0, times
 
 
 def _pytorch_energy_for_state(
@@ -370,7 +368,7 @@ def _time_pytorch_throughput(
   t: float,
   mask_np: np.ndarray,
   n_repeats: int,
-) -> tuple[float, float]:
+) -> tuple[float, list[float]]:
   """Time "a plain 2-call PyTorch forward" -- two sequential, unbatched ``compute_energy`` calls.
 
   Deliberately NOT a single batched (batch_dim=2) call -- the design spec's
@@ -387,13 +385,14 @@ def _time_pytorch_throughput(
 
   _one_round()  # untimed warmup
 
-  start = time.perf_counter()
+  times: list[float] = []
   for _ in range(n_repeats):
+    start = time.perf_counter()
     _one_round()
-  elapsed = time.perf_counter() - start
+    times.append(time.perf_counter() - start)
 
-  energy_evals_per_sec = (N_STATES * n_repeats) / elapsed
-  return energy_evals_per_sec, elapsed
+  energy_evals_per_sec = N_STATES / float(np.mean(times))
+  return energy_evals_per_sec, times
 
 
 def _time_pytorch_diff_fuse(
@@ -403,7 +402,7 @@ def _time_pytorch_diff_fuse(
   t: float,
   mask_np: np.ndarray,
   n_repeats: int,
-) -> float:
+) -> tuple[float, list[float]]:
   """Time the full difference-Fuse pipeline on PyTorch: 2 energy calls + the subtraction.
 
   Mirrors :func:`_time_jax_diff_fuse`'s scope exactly (energy for both
@@ -419,11 +418,17 @@ def _time_pytorch_diff_fuse(
 
   _one_call()  # untimed warmup
 
-  start = time.perf_counter()
+  times: list[float] = []
   for _ in range(n_repeats):
+    start = time.perf_counter()
     _one_call()
-  elapsed = time.perf_counter() - start
-  return (elapsed / n_repeats) * 1000.0
+    times.append(time.perf_counter() - start)
+  return float(np.mean(times)) * 1000.0, times
+
+
+def _wall_clock_ms_stats(times_seconds: list[float]) -> tuple[float, float]:
+  arr_ms = np.asarray(times_seconds) * 1000.0
+  return float(np.mean(arr_ms)), float(np.std(arr_ms))
 
 
 def _run_dry_run(args: argparse.Namespace, lengths: list[int]) -> int:
@@ -528,13 +533,15 @@ def main(argv: list[str] | None = None) -> int:
     t_jax = jnp.asarray(args.diffusion_time)
 
     log.info("JAX: warmup + timing energy_evals_per_sec (raw 2-state Vmap dispatch, %d repeats)...", args.n_repeats)
-    jax_throughput, jax_elapsed = _time_jax_throughput(
+    jax_throughput, jax_energy_times = _time_jax_throughput(
       jax_model, coords_states_jax, aatype_jax, t_jax, mask_jax, args.n_repeats,
     )
+    jax_energy_ms_mean, jax_energy_ms_std = _wall_clock_ms_stats(jax_energy_times)
     log.info("JAX: warmup + timing diff_fuse_wall_clock_ms (full score_state_difference, %d repeats)...", args.n_repeats)
-    jax_diff_fuse_ms = _time_jax_diff_fuse(
+    jax_diff_fuse_ms, jax_fuse_times = _time_jax_diff_fuse(
       jax_model, coords_states_jax, aatype_jax, t_jax, mask_jax, args.n_repeats,
     )
+    jax_fuse_ms_mean, jax_fuse_ms_std = _wall_clock_ms_stats(jax_fuse_times)
 
     rows.append(
       {
@@ -542,28 +549,30 @@ def main(argv: list[str] | None = None) -> int:
         "device": jax_device,
         "impl": "jax",
         "energy_evals_per_sec": jax_throughput,
+        "energy_wall_clock_mean_ms": jax_energy_ms_mean,
+        "energy_wall_clock_std_ms": jax_energy_ms_std,
         "diff_fuse_wall_clock_ms": jax_diff_fuse_ms,
+        "diff_fuse_wall_clock_std_ms": jax_fuse_ms_std,
       },
     )
     log.info(
-      "[jax]     L=%-4d energy_evals_per_sec=%12.2f diff_fuse_wall_clock_ms=%8.3f (throughput wall=%.3fs)",
-      length,
-      jax_throughput,
-      jax_diff_fuse_ms,
-      jax_elapsed,
+      "[jax]     L=%-4d energy_evals_per_sec=%12.2f diff_fuse_wall_clock_ms=%8.3f",
+      length, jax_throughput, jax_diff_fuse_ms,
     )
 
     if torch_model is not None:
       log.info(
         "PyTorch: warmup + timing energy_evals_per_sec (plain 2-call forward, %d repeats)...", args.n_repeats,
       )
-      torch_throughput, torch_elapsed = _time_pytorch_throughput(
+      torch_throughput, torch_energy_times = _time_pytorch_throughput(
         torch_model, coords_states_np, aatype_np, args.diffusion_time, mask_np, args.n_repeats,
       )
+      torch_energy_ms_mean, torch_energy_ms_std = _wall_clock_ms_stats(torch_energy_times)
       log.info("PyTorch: warmup + timing diff_fuse_wall_clock_ms (2 calls + subtract, %d repeats)...", args.n_repeats)
-      torch_diff_fuse_ms = _time_pytorch_diff_fuse(
+      torch_diff_fuse_ms, torch_fuse_times = _time_pytorch_diff_fuse(
         torch_model, coords_states_np, aatype_np, args.diffusion_time, mask_np, args.n_repeats,
       )
+      torch_fuse_ms_mean, torch_fuse_ms_std = _wall_clock_ms_stats(torch_fuse_times)
 
       rows.append(
         {
@@ -571,15 +580,15 @@ def main(argv: list[str] | None = None) -> int:
           "device": torch_device,
           "impl": "pytorch",
           "energy_evals_per_sec": torch_throughput,
+          "energy_wall_clock_mean_ms": torch_energy_ms_mean,
+          "energy_wall_clock_std_ms": torch_energy_ms_std,
           "diff_fuse_wall_clock_ms": torch_diff_fuse_ms,
+          "diff_fuse_wall_clock_std_ms": torch_fuse_ms_std,
         },
       )
       log.info(
-        "[pytorch] L=%-4d energy_evals_per_sec=%12.2f diff_fuse_wall_clock_ms=%8.3f (throughput wall=%.3fs)",
-        length,
-        torch_throughput,
-        torch_diff_fuse_ms,
-        torch_elapsed,
+        "[pytorch] L=%-4d energy_evals_per_sec=%12.2f diff_fuse_wall_clock_ms=%8.3f",
+        length, torch_throughput, torch_diff_fuse_ms,
       )
 
   args.out.parent.mkdir(parents=True, exist_ok=True)

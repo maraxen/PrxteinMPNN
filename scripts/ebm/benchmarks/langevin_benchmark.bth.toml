@@ -19,12 +19,19 @@ target = "JAX >= PyTorch throughput on pi_so3 (SM120) at L in {64,128,256,512} (
 [result_schema]
 langevin_steps_per_sec = "float"
 langevin_step_ms = "float"
+langevin_step_ms_std = "float"
+equilibration_wall_clock_mean_ms = "float"
+equilibration_wall_clock_std_ms = "float"
 protein_length = "int"
+batch_size = "int"
 device = "str"
 impl = "str"  # "jax" | "pytorch"
+# NOTE: no pytorch_variant/compile dimension here -- this path never calls
+# jax.grad/torch.autograd.grad (aux_score only), so there is no create_graph
+# distinction to make (see decoy/ddg sidecars for where that applies).
 
 [result_schema.provenance]
-n_trajectories = { type = "int", doc = "Independent-trajectory batch size used for the langevin_steps_per_sec metric this row was measured at" }
+n_trajectories = { type = "int", doc = "DEPRECATED alias -- see batch_size in result_schema; kept for backward-compat with pre-batch-sweep runs" }
 n_steps = { type = "int", doc = "Euler-Maruyama steps per trajectory in the langevin_steps_per_sec metric's batched equilibration run" }
 n_repeats = { type = "int", doc = "Timed repeats averaged into this row's metrics, after the untimed warmup call" }
 diffusion_time = { type = "float", doc = "Fixed VP-SDE diffusion time t the row was measured at (ProteinEBM-x MVP target, design spec §9)" }

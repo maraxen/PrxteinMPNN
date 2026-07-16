@@ -196,8 +196,17 @@ def _parse_args() -> argparse.Namespace:
     "--n-trajectories",
     type=int,
     default=None,
-    help="Independent-trajectory batch size for the langevin_steps_per_sec "
-    "metric (default 8, or 2 under --smoke).",
+    help="Single independent-trajectory batch size (shorthand for --batch-sizes N). "
+    "Mutually exclusive with --batch-sizes.",
+  )
+  parser.add_argument(
+    "--batch-sizes",
+    type=int,
+    nargs="+",
+    default=None,
+    help="Trajectory batch sizes to sweep, e.g. '--batch-sizes 4 16 64 400'. "
+    "400 is run_dynamics.py's own --batch_size default. Default: (4, 16, 64, 400), "
+    "or (2,) under --smoke.",
   )
   parser.add_argument(
     "--n-steps",
@@ -247,27 +256,36 @@ def _parse_args() -> argparse.Namespace:
     parser.error("--n-repeats must be >= 1")
   if args.n_trajectories is not None and args.n_trajectories < 1:
     parser.error("--n-trajectories must be >= 1")
+  if args.n_trajectories is not None and args.batch_sizes is not None:
+    parser.error("--n-trajectories and --batch-sizes are mutually exclusive")
+  if args.batch_sizes is not None and any(b < 1 for b in args.batch_sizes):
+    parser.error("--batch-sizes entries must all be >= 1")
   if args.n_steps is not None and args.n_steps < 1:
     parser.error("--n-steps must be >= 1")
   return args
 
 
-def _resolve_run_params(args: argparse.Namespace) -> tuple[tuple[int, ...], int, int, int]:
-  """Resolve (lengths, n_trajectories, n_steps, n_repeats), applying --smoke's reduced defaults."""
+DEFAULT_BATCH_SIZES: tuple[int, ...] = (4, 16, 64, 400)
+SMOKE_BATCH_SIZES: tuple[int, ...] = (2,)
+
+
+def _resolve_run_params(args: argparse.Namespace) -> tuple[tuple[int, ...], tuple[int, ...], int, int]:
+  """Resolve (lengths, batch_sizes, n_steps, n_repeats), applying --smoke's reduced defaults."""
   if args.lengths is not None:
     lengths = tuple(int(x) for x in args.lengths.split(","))
   else:
     lengths = SMOKE_LENGTHS if args.smoke else DEFAULT_LENGTHS
 
-  if args.smoke:
-    n_trajectories = args.n_trajectories if args.n_trajectories is not None else 2
-    n_steps = args.n_steps if args.n_steps is not None else 3
-    n_repeats = args.n_repeats if args.n_repeats is not None else 2
+  if args.n_trajectories is not None:
+    batch_sizes = (args.n_trajectories,)
+  elif args.batch_sizes is not None:
+    batch_sizes = tuple(args.batch_sizes)
   else:
-    n_trajectories = args.n_trajectories if args.n_trajectories is not None else 8
-    n_steps = args.n_steps if args.n_steps is not None else 20
-    n_repeats = args.n_repeats if args.n_repeats is not None else 5
-  return lengths, n_trajectories, n_steps, n_repeats
+    batch_sizes = SMOKE_BATCH_SIZES if args.smoke else DEFAULT_BATCH_SIZES
+
+  n_steps = args.n_steps if args.n_steps is not None else (3 if args.smoke else 20)
+  n_repeats = args.n_repeats if args.n_repeats is not None else (2 if args.smoke else 5)
+  return lengths, batch_sizes, n_steps, n_repeats
 
 
 # ---------------------------------------------------------------------------
@@ -432,6 +450,11 @@ def _timed_calls(fn: Any, n_repeats: int) -> list[float]:  # noqa: ANN401 -- Cal
     fn()
     times.append(time.perf_counter() - start)
   return times
+
+
+def _wall_clock_ms_stats(times_seconds: list[float]) -> tuple[float, float]:
+  arr_ms = np.asarray(times_seconds) * 1000.0
+  return float(np.mean(arr_ms)), float(np.std(arr_ms))
 
 
 # ---------------------------------------------------------------------------
@@ -735,10 +758,10 @@ def main() -> int:
   if args.dry_run:
     return _run_dry_run(args)
 
-  lengths, n_trajectories, n_steps, n_repeats = _resolve_run_params(args)
+  lengths, batch_sizes, n_steps, n_repeats = _resolve_run_params(args)
   log.info(
-    "=== langevin_benchmark: lengths=%s n_trajectories=%d n_steps=%d n_repeats=%d smoke=%s ===",
-    lengths, n_trajectories, n_steps, n_repeats, args.smoke,
+    "=== langevin_benchmark: lengths=%s batch_sizes=%s n_steps=%d n_repeats=%d smoke=%s ===",
+    lengths, batch_sizes, n_steps, n_repeats, args.smoke,
   )
 
   jax_model, ref_model, _model_cfg, diffuser_cfg = build_models(args)
@@ -749,57 +772,68 @@ def main() -> int:
   results: list[dict[str, Any]] = []
   wall_start = time.perf_counter()
   for length in lengths:
-    batch = _synthetic_trajectories(n_trajectories, length, args.seed)
+    for n_trajectories in batch_sizes:
+      batch = _synthetic_trajectories(n_trajectories, length, args.seed)
 
-    log.info(
-      "[length=%d] JAX warmup + timed batched equilibration (n_trajectories=%d, n_steps=%d)...",
-      length, n_trajectories, n_steps,
-    )
-    jax_equil_times = _run_jax_equilibration(
-      jax_model, batch, args.diffusion_time, n_steps, args.dt, args.seed, n_repeats,
-    )
-    jax_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(jax_equil_times))
+      log.info(
+        "[length=%d batch=%d] JAX warmup + timed batched equilibration (n_steps=%d)...",
+        length, n_trajectories, n_steps,
+      )
+      jax_equil_times = _run_jax_equilibration(
+        jax_model, batch, args.diffusion_time, n_steps, args.dt, args.seed, n_repeats,
+      )
+      jax_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(jax_equil_times))
+      jax_equil_ms_mean, jax_equil_ms_std = _wall_clock_ms_stats(jax_equil_times)
 
-    log.info("[length=%d] JAX warmup + timed single langevin_step...", length)
-    jax_step_times = _run_jax_single_step(jax_model, batch, args.diffusion_time, args.dt, args.seed, n_repeats)
-    jax_step_ms = float(np.mean(jax_step_times)) * 1000.0
+      jax_step_times = _run_jax_single_step(jax_model, batch, args.diffusion_time, args.dt, args.seed, n_repeats)
+      jax_step_ms = float(np.mean(jax_step_times)) * 1000.0
+      jax_step_ms_std = float(np.std(jax_step_times) * 1000.0)
 
-    log.info("[length=%d] PyTorch warmup + timed batched equilibration...", length)
-    pt_equil_times = _run_pytorch_equilibration(ref_model, batch, args.diffusion_time, n_steps, args.dt, n_repeats)
-    pt_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(pt_equil_times))
+      log.info("[length=%d batch=%d] PyTorch warmup + timed batched equilibration...", length, n_trajectories)
+      pt_equil_times = _run_pytorch_equilibration(ref_model, batch, args.diffusion_time, n_steps, args.dt, n_repeats)
+      pt_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(pt_equil_times))
+      pt_equil_ms_mean, pt_equil_ms_std = _wall_clock_ms_stats(pt_equil_times)
 
-    log.info("[length=%d] PyTorch warmup + timed single step...", length)
-    pt_step_times = _run_pytorch_single_step(ref_model, batch, args.diffusion_time, args.dt, n_repeats)
-    pt_step_ms = float(np.mean(pt_step_times)) * 1000.0
+      pt_step_times = _run_pytorch_single_step(ref_model, batch, args.diffusion_time, args.dt, n_repeats)
+      pt_step_ms = float(np.mean(pt_step_times)) * 1000.0
+      pt_step_ms_std = float(np.std(pt_step_times) * 1000.0)
 
-    results.append({
-      "protein_length": length,
-      "impl": "jax",
-      "device": jax_device,
-      "langevin_steps_per_sec": jax_steps_per_sec,
-      "langevin_step_ms": jax_step_ms,
-    })
-    results.append({
-      "protein_length": length,
-      "impl": "pytorch",
-      "device": torch_device,
-      "langevin_steps_per_sec": pt_steps_per_sec,
-      "langevin_step_ms": pt_step_ms,
-    })
+      results.append({
+        "protein_length": length,
+        "batch_size": n_trajectories,
+        "impl": "jax",
+        "device": jax_device,
+        "langevin_steps_per_sec": jax_steps_per_sec,
+        "langevin_step_ms": jax_step_ms,
+        "langevin_step_ms_std": jax_step_ms_std,
+        "equilibration_wall_clock_mean_ms": jax_equil_ms_mean,
+        "equilibration_wall_clock_std_ms": jax_equil_ms_std,
+      })
+      results.append({
+        "protein_length": length,
+        "batch_size": n_trajectories,
+        "impl": "pytorch",
+        "device": torch_device,
+        "langevin_steps_per_sec": pt_steps_per_sec,
+        "langevin_step_ms": pt_step_ms,
+        "langevin_step_ms_std": pt_step_ms_std,
+        "equilibration_wall_clock_mean_ms": pt_equil_ms_mean,
+        "equilibration_wall_clock_std_ms": pt_equil_ms_std,
+      })
 
-    speedup = jax_steps_per_sec / pt_steps_per_sec if pt_steps_per_sec else float("nan")
-    log.info(
-      "[length=%d] jax: %.1f steps/s, %.3f ms/step | pytorch: %.1f steps/s, %.3f ms/step | "
-      "jax/pytorch steps speedup=%.3fx",
-      length, jax_steps_per_sec, jax_step_ms, pt_steps_per_sec, pt_step_ms, speedup,
-    )
+      speedup = jax_steps_per_sec / pt_steps_per_sec if pt_steps_per_sec else float("nan")
+      log.info(
+        "[length=%d batch=%d] jax: %.1f steps/s, %.3f ms/step | pytorch: %.1f steps/s, %.3f ms/step | "
+        "speedup=%.3fx",
+        length, n_trajectories, jax_steps_per_sec, jax_step_ms, pt_steps_per_sec, pt_step_ms, speedup,
+      )
 
   wall_elapsed = time.perf_counter() - wall_start
 
   payload = {
     "meta": {
       "smoke": args.smoke,
-      "n_trajectories": n_trajectories,
+      "batch_sizes": list(batch_sizes),
       "n_steps": n_steps,
       "n_repeats": n_repeats,
       "diffusion_time": args.diffusion_time,

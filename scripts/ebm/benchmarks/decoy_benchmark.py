@@ -142,8 +142,18 @@ def _parse_args() -> argparse.Namespace:
     "--n-decoys",
     type=int,
     default=None,
-    help="Decoy batch size for the energy_evals_per_sec metric (default 16, "
-    "or 4 under --smoke).",
+    help="Single decoy batch size (shorthand for --batch-sizes N). Mutually "
+    "exclusive with --batch-sizes.",
+  )
+  parser.add_argument(
+    "--batch-sizes",
+    type=int,
+    nargs="+",
+    default=None,
+    help="Decoy batch sizes to sweep, e.g. '--batch-sizes 4 16 64 256'. 256 is "
+    "the reference's own score_decoys.py --bsize default (halved to 128 for "
+    "structures with atom37.shape[1] > 175 -- see that script). Default: "
+    "(4, 16, 64, 256), or (4, 16) under --smoke.",
   )
   parser.add_argument(
     "--n-repeats",
@@ -180,23 +190,36 @@ def _parse_args() -> argparse.Namespace:
     parser.error("--n-repeats must be >= 1")
   if args.n_decoys is not None and args.n_decoys < 1:
     parser.error("--n-decoys must be >= 1")
+  if args.n_decoys is not None and args.batch_sizes is not None:
+    parser.error("--n-decoys and --batch-sizes are mutually exclusive")
+  if args.batch_sizes is not None and any(b < 1 for b in args.batch_sizes):
+    parser.error("--batch-sizes entries must all be >= 1")
   return args
 
 
-def _resolve_run_params(args: argparse.Namespace) -> tuple[tuple[int, ...], int, int]:
-  """Resolve (lengths, n_decoys, n_repeats), applying --smoke's reduced defaults."""
+# Reference's own real usage scale (score_decoys.py --bsize default 256, halved to 128 for longer
+# structures) -- see design spec §8.3 / this module's docstring point 1 and the plan this sweep
+# implements. {4, 16} kept as small reference points from the original single-batch-size benchmark.
+DEFAULT_BATCH_SIZES: tuple[int, ...] = (4, 16, 64, 256)
+SMOKE_BATCH_SIZES: tuple[int, ...] = (4, 16)
+
+
+def _resolve_run_params(args: argparse.Namespace) -> tuple[tuple[int, ...], tuple[int, ...], int]:
+  """Resolve (lengths, batch_sizes, n_repeats), applying --smoke's reduced defaults."""
   if args.lengths is not None:
     lengths = tuple(int(x) for x in args.lengths.split(","))
   else:
     lengths = SMOKE_LENGTHS if args.smoke else DEFAULT_LENGTHS
 
-  if args.smoke:
-    n_decoys = args.n_decoys if args.n_decoys is not None else 4
-    n_repeats = args.n_repeats if args.n_repeats is not None else 2
+  if args.n_decoys is not None:
+    batch_sizes = (args.n_decoys,)
+  elif args.batch_sizes is not None:
+    batch_sizes = tuple(args.batch_sizes)
   else:
-    n_decoys = args.n_decoys if args.n_decoys is not None else 16
-    n_repeats = args.n_repeats if args.n_repeats is not None else 5
-  return lengths, n_decoys, n_repeats
+    batch_sizes = SMOKE_BATCH_SIZES if args.smoke else DEFAULT_BATCH_SIZES
+
+  n_repeats = args.n_repeats if args.n_repeats is not None else (2 if args.smoke else 5)
+  return lengths, batch_sizes, n_repeats
 
 
 # ---------------------------------------------------------------------------
@@ -374,6 +397,13 @@ def _timed_calls(fn: Any, n_repeats: int) -> list[float]:  # noqa: ANN401 -- Cal
   return times
 
 
+def _wall_clock_ms_stats(times_seconds: list[float]) -> tuple[float, float]:
+  """(mean_ms, std_ms) from raw per-call wall-clock seconds -- the data ``_timed_calls`` already
+  produces but that was previously discarded once the derived throughput/latency mean was taken."""
+  arr_ms = np.asarray(times_seconds) * 1000.0
+  return float(np.mean(arr_ms)), float(np.std(arr_ms))
+
+
 # ---------------------------------------------------------------------------
 # JAX timing (energy_evals_per_sec via score_decoy_batch; score_grad_ms via
 # ProteinEBMModel.score). Both wrapped in eqx.filter_jit -- the untimed
@@ -517,6 +547,89 @@ def _run_pytorch_score(
   return _timed_calls(call, n_repeats)
 
 
+def _build_score_input_feats(ref_model: "ProteinEBM", decoys: dict[str, np.ndarray], t: float) -> "tuple[dict, torch.Tensor]":  # noqa: ARG001
+  """Shared input_feats builder for the shipped/compiled score variants (single-structure, batch=1)."""
+  import torch  # noqa: PLC0415
+
+  coords0 = decoys["coords"][0]
+  r_noisy = torch.tensor(coords0, dtype=torch.float32).unsqueeze(0).requires_grad_(True)
+  input_feats = {
+    "r_noisy": r_noisy,
+    "aatype": torch.tensor(decoys["aatype"], dtype=torch.long).unsqueeze(0),
+    "residue_idx": torch.tensor(decoys["residue_index"], dtype=torch.long).unsqueeze(0),
+    "mask": torch.tensor(decoys["mask"], dtype=torch.bool).unsqueeze(0),
+    "t": torch.tensor([t], dtype=torch.float32),
+    "chain_encoding": torch.tensor(decoys["chain_id"], dtype=torch.long).unsqueeze(0),
+    "external_contacts": torch.tensor(decoys["contacts"], dtype=torch.long).unsqueeze(0),
+  }
+  return input_feats, r_noisy
+
+
+def _run_pytorch_score_shipped(
+  ref_model: "ProteinEBM", decoys: dict[str, np.ndarray], t: float, n_repeats: int,
+) -> list[float]:
+  """PyTorch score latency via the reference's own public ``compute_score`` wrapper, verbatim.
+
+  This is "the public code" as literally shipped -- ``compute_score`` internally calls
+  ``torch.autograd.grad(..., create_graph=True)`` unconditionally (see module docstring point 2) and
+  applies its own default ``rescale_input_coords=True`` (a second ``coordinate_scaling`` multiply on
+  top of this script's already-scaled synthetic coords -- numerically irrelevant for a pure *timing*
+  comparison, since the op count is what's being measured, not the resulting score value; see
+  ``scripts/ebm/checkpoint_parity_check.py``'s module docstring for why that double-scaling would
+  matter for a *correctness* comparison, which this script is not).
+  """
+  input_feats, _ = _build_score_input_feats(ref_model, decoys, t)
+
+  def call() -> None:
+    ref_model.compute_score(input_feats)
+
+  call()  # untimed cache-warming call.
+  return _timed_calls(call, n_repeats)
+
+
+def _run_pytorch_score_compiled(
+  ref_model: "ProteinEBM", decoys: dict[str, np.ndarray], t: float, n_repeats: int,
+) -> tuple[list[float] | None, str | None]:
+  """PyTorch score latency via ``torch.compile`` wrapping the optimized-eager (create_graph=False)
+  call path. Returns ``(times, None)`` on success or ``(None, error_message)`` if ``torch.compile``
+  raises -- a real discovery step (per the plan: "document the break honestly", not silently
+  fall back to eager and mislabel the result as compiled).
+
+  **Finding, precisely characterized (not just "compile failed"):** in this process, compiling
+  ``ref_model.compute_energy``/``compute_score`` with either the default ``inductor`` backend or the
+  lighter ``aot_eager`` backend raises ``BackendCompilerFailed: NotImplementedError: aminx.training
+  is not yet updated for the Sprint 2 composable architecture`` (``src/aminx/ebm/../training/
+  __init__.py``'s deliberate ``__getattr__`` stub for an unrelated, not-yet-ready aminx module).
+  Isolated repro (same reference model, same compile call, in a process that never imports anything
+  from ``aminx``) succeeds cleanly on both backends -- so this is **not** an incompatibility between
+  ``torch.compile`` and the reference architecture itself; it is a process-level interaction where
+  Dynamo/Inductor's own module introspection touches ``aminx.training`` (already present in
+  ``sys.modules`` because this script also imports ``aminx.ebm`` for the JAX side) and trips that
+  stub's intentional guard. Not worked around here (would require patching aminx's stub-module
+  pattern or Dynamo's module-scanning behavior, out of scope for a benchmark script) -- recorded
+  honestly per-row via ``compile_error`` instead.
+  """
+  import torch  # noqa: PLC0415
+
+  input_feats, r_noisy = _build_score_input_feats(ref_model, decoys, t)
+
+  def _score_fn(feats: dict) -> "torch.Tensor":
+    model_out = ref_model.compute_energy(feats, rescale_input_coords=False)
+    return torch.autograd.grad(model_out["energy"].sum(), r_noisy, create_graph=False)[0]
+
+  try:
+    compiled_fn = torch.compile(_score_fn)
+
+    def call() -> None:
+      compiled_fn(input_feats)
+
+    call()  # untimed: forces torch.compile's lazy first-call compilation for this shape.
+  except Exception as exc:  # noqa: BLE001 -- graph-break/compile failure is a real, reportable outcome
+    return None, f"{type(exc).__name__}: {exc}"
+
+  return _timed_calls(call, n_repeats), None
+
+
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
@@ -568,7 +681,14 @@ def _run_dry_run(args: argparse.Namespace) -> int:
   _run_jax_score(jax_model, decoys, args.diffusion_time, n_repeats=1)
   _run_pytorch_energy(ref_model, decoys, args.diffusion_time, n_repeats=1)
   _run_pytorch_score(ref_model, decoys, args.diffusion_time, n_repeats=1)
-  log.info("[PASS] JAX energy/score + PyTorch energy/score all executed once without error.")
+  _run_pytorch_score_shipped(ref_model, decoys, args.diffusion_time, n_repeats=1)
+  compiled_times, compiled_err = _run_pytorch_score_compiled(ref_model, decoys, args.diffusion_time, n_repeats=1)
+  if compiled_err:
+    log.warning("[INFO] torch.compile failed on this trivial shape (not fatal to L1): %s", compiled_err)
+  log.info(
+    "[PASS] JAX energy/score + PyTorch energy/score/shipped%s executed once without error.",
+    "/compiled" if compiled_times else " (compiled: see warning above)",
+  )
 
   payload = {
     "dry_run": True,
@@ -593,10 +713,10 @@ def main() -> int:
   if args.dry_run:
     return _run_dry_run(args)
 
-  lengths, n_decoys, n_repeats = _resolve_run_params(args)
+  lengths, batch_sizes, n_repeats = _resolve_run_params(args)
   log.info(
-    "=== decoy_benchmark: lengths=%s n_decoys=%d n_repeats=%d smoke=%s ===",
-    lengths, n_decoys, n_repeats, args.smoke,
+    "=== decoy_benchmark: lengths=%s batch_sizes=%s n_repeats=%d smoke=%s ===",
+    lengths, batch_sizes, n_repeats, args.smoke,
   )
 
   jax_model, ref_model, model_cfg = build_models(args)
@@ -607,52 +727,89 @@ def main() -> int:
   results: list[dict[str, Any]] = []
   wall_start = time.perf_counter()
   for length in lengths:
-    decoys = _synthetic_decoys(n_decoys, length, args.seed)
+    for n_decoys in batch_sizes:
+      decoys = _synthetic_decoys(n_decoys, length, args.seed)
 
-    log.info("[length=%d] JAX warmup + timed energy batch (n_decoys=%d)...", length, n_decoys)
-    jax_energy_times = _run_jax_energy(jax_model, decoys, args.diffusion_time, n_repeats)
-    jax_energy_eps = n_decoys / float(np.mean(jax_energy_times))
+      log.info("[length=%d batch=%d] JAX warmup + timed energy batch...", length, n_decoys)
+      jax_energy_times = _run_jax_energy(jax_model, decoys, args.diffusion_time, n_repeats)
+      jax_energy_eps = n_decoys / float(np.mean(jax_energy_times))
+      jax_energy_ms_mean, jax_energy_ms_std = _wall_clock_ms_stats(jax_energy_times)
 
-    log.info("[length=%d] JAX warmup + timed score/grad...", length)
-    jax_score_times = _run_jax_score(jax_model, decoys, args.diffusion_time, n_repeats)
-    jax_score_ms = float(np.mean(jax_score_times)) * 1000.0
+      log.info("[length=%d batch=%d] JAX warmup + timed score/grad...", length, n_decoys)
+      jax_score_times = _run_jax_score(jax_model, decoys, args.diffusion_time, n_repeats)
+      jax_score_ms = float(np.mean(jax_score_times)) * 1000.0
+      jax_score_ms_mean, jax_score_ms_std = _wall_clock_ms_stats(jax_score_times)
 
-    log.info("[length=%d] PyTorch warmup + timed energy batch...", length)
-    pt_energy_times = _run_pytorch_energy(ref_model, decoys, args.diffusion_time, n_repeats)
-    pt_energy_eps = n_decoys / float(np.mean(pt_energy_times))
+      log.info("[length=%d batch=%d] PyTorch warmup + timed energy batch...", length, n_decoys)
+      pt_energy_times = _run_pytorch_energy(ref_model, decoys, args.diffusion_time, n_repeats)
+      pt_energy_eps = n_decoys / float(np.mean(pt_energy_times))
+      pt_energy_ms_mean, pt_energy_ms_std = _wall_clock_ms_stats(pt_energy_times)
 
-    log.info("[length=%d] PyTorch warmup + timed score/grad (create_graph=False)...", length)
-    pt_score_times = _run_pytorch_score(ref_model, decoys, args.diffusion_time, n_repeats)
-    pt_score_ms = float(np.mean(pt_score_times)) * 1000.0
+      log.info("[length=%d batch=%d] PyTorch score/grad: eager (create_graph=False)...", length, n_decoys)
+      pt_score_eager_times = _run_pytorch_score(ref_model, decoys, args.diffusion_time, n_repeats)
+      pt_score_eager_ms, pt_score_eager_ms_std = _wall_clock_ms_stats(pt_score_eager_times)
 
-    results.append({
-      "protein_length": length,
-      "impl": "jax",
-      "device": jax_device,
-      "energy_evals_per_sec": jax_energy_eps,
-      "score_grad_ms": jax_score_ms,
-    })
-    results.append({
-      "protein_length": length,
-      "impl": "pytorch",
-      "device": torch_device,
-      "energy_evals_per_sec": pt_energy_eps,
-      "score_grad_ms": pt_score_ms,
-    })
+      log.info("[length=%d batch=%d] PyTorch score/grad: shipped (compute_score(), create_graph=True)...", length, n_decoys)
+      pt_score_shipped_times = _run_pytorch_score_shipped(ref_model, decoys, args.diffusion_time, n_repeats)
+      pt_score_shipped_ms, pt_score_shipped_ms_std = _wall_clock_ms_stats(pt_score_shipped_times)
 
-    speedup = jax_energy_eps / pt_energy_eps if pt_energy_eps else float("nan")
-    log.info(
-      "[length=%d] jax: %.1f evals/s, %.3f ms/grad | pytorch: %.1f evals/s, %.3f ms/grad | "
-      "jax/pytorch evals speedup=%.3fx",
-      length, jax_energy_eps, jax_score_ms, pt_energy_eps, pt_score_ms, speedup,
-    )
+      log.info("[length=%d batch=%d] PyTorch score/grad: torch.compile...", length, n_decoys)
+      pt_score_compiled_times, pt_compile_err = _run_pytorch_score_compiled(ref_model, decoys, args.diffusion_time, n_repeats)
+      if pt_compile_err:
+        log.warning("[length=%d batch=%d] torch.compile FAILED, honestly recorded, not silently skipped: %s", length, n_decoys, pt_compile_err)
+        pt_score_compiled_ms = pt_score_compiled_ms_std = None
+      else:
+        pt_score_compiled_ms, pt_score_compiled_ms_std = _wall_clock_ms_stats(pt_score_compiled_times)
+
+      results.append({
+        "protein_length": length,
+        "batch_size": n_decoys,
+        "impl": "jax",
+        "device": jax_device,
+        "pytorch_variant": None,
+        "energy_evals_per_sec": jax_energy_eps,
+        "energy_wall_clock_mean_ms": jax_energy_ms_mean,
+        "energy_wall_clock_std_ms": jax_energy_ms_std,
+        "score_grad_ms": jax_score_ms,
+        "score_wall_clock_mean_ms": jax_score_ms_mean,
+        "score_wall_clock_std_ms": jax_score_ms_std,
+        "compile_error": None,
+      })
+      for variant, score_ms, score_ms_std in (
+        ("eager", pt_score_eager_ms, pt_score_eager_ms_std),
+        ("shipped", pt_score_shipped_ms, pt_score_shipped_ms_std),
+        ("compiled", pt_score_compiled_ms, pt_score_compiled_ms_std),
+      ):
+        results.append({
+          "protein_length": length,
+          "batch_size": n_decoys,
+          "impl": "pytorch",
+          "device": torch_device,
+          "pytorch_variant": variant,
+          "energy_evals_per_sec": pt_energy_eps,
+          "energy_wall_clock_mean_ms": pt_energy_ms_mean,
+          "energy_wall_clock_std_ms": pt_energy_ms_std,
+          "score_grad_ms": score_ms,
+          "score_wall_clock_mean_ms": score_ms,
+          "score_wall_clock_std_ms": score_ms_std,
+          "compile_error": pt_compile_err if variant == "compiled" else None,
+        })
+
+      speedup = jax_energy_eps / pt_energy_eps if pt_energy_eps else float("nan")
+      grad_speedup_eager = pt_score_eager_ms / jax_score_ms if jax_score_ms else float("nan")
+      log.info(
+        "[length=%d batch=%d] jax: %.1f evals/s, %.3f ms/grad | pytorch eager: %.1f evals/s, "
+        "%.3f ms/grad | evals speedup=%.3fx | grad speedup (vs eager)=%.3fx",
+        length, n_decoys, jax_energy_eps, jax_score_ms, pt_energy_eps, pt_score_eager_ms,
+        speedup, grad_speedup_eager,
+      )
 
   wall_elapsed = time.perf_counter() - wall_start
 
   payload = {
     "meta": {
       "smoke": args.smoke,
-      "n_decoys": n_decoys,
+      "batch_sizes": list(batch_sizes),
       "n_repeats": n_repeats,
       "diffusion_time": args.diffusion_time,
       "seed": args.seed,
@@ -667,11 +824,22 @@ def main() -> int:
       },
       "wall_clock_seconds": wall_elapsed,
       "methodology_notes": [
-        "PyTorch score_grad_ms uses torch.autograd.grad(..., create_graph=False) "
-        "explicitly -- the reference's own compute_score always uses "
-        "create_graph=True even at inference (design spec §8.3 / EPIC MINOR-2).",
-        "Both impls get one untimed warmup call per (length, metric) before "
-        "timing (JAX: forces jit compilation; PyTorch: cache/allocator warm-up).",
+        "PyTorch score_grad_ms has THREE variants per row (pytorch_variant): "
+        "'eager' (torch.autograd.grad(..., create_graph=False) directly, the "
+        "original optimized bypass), 'shipped' (the reference's own public "
+        "compute_score() wrapper verbatim -- create_graph=True unconditionally, "
+        "'the public code' as literally distributed), and 'compiled' (the "
+        "eager path wrapped in torch.compile -- compile_error is non-null and "
+        "the timing null if torch.compile itself failed on this shape, honestly "
+        "recorded rather than silently falling back to eager).",
+        "batch_sizes sweeps the reference's own real usage scale: "
+        "score_decoys.py's --bsize default is 256 (halved to 128 for longer "
+        "structures); run_dynamics.py's --batch_size default is 400. Prior "
+        "runs of this script used a single fixed n_decoys (4 or 16) -- far "
+        "below the reference's actual production scale.",
+        "Both impls get one untimed warmup call per (length, batch_size, metric, "
+        "variant) before timing (JAX: forces jit compilation; PyTorch: cache/"
+        "allocator warm-up, or torch.compile's lazy first-call compilation).",
         "No SM120 XLA autotuning workaround applied here -- CPU-only local "
         "run. A cluster (GPU) run of this script MUST set "
         "XLA_FLAGS=--xla_gpu_shard_autotuning=false per ~/.claude/rules/CLUSTER.md "

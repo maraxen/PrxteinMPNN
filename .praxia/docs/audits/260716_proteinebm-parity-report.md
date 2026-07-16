@@ -1,7 +1,7 @@
 # ProteinEBM Parity: State of the Port
 
 - **task_id**: `260716_ebm_parity_report`
-- **status**: COMPLETE
+- **status**: UPDATED 2026-07-16 (same day) — real accuracy-vs-paper data acquired + preliminary (small-sample) real correlations measured; see §6
 - **author**: orchestrator session (background job)
 - **date**: 2026-07-16
 - **branch**: `worktree-ebm-parity-report`
@@ -13,10 +13,13 @@ ProteinEBM (Roney, Ou & Ovchinnikov, bioRxiv 2025.12.09.693073) was ported into 
 forward energy/score composition path (EPIC #3294, 14 backlog nodes + a follow-on epic, completed
 and merged to `main` 2026-07-09 through 2026-07-12; see
 [`plans/260709_proteinebm-epic-backlog-dag.md`](../plans/260709_proteinebm-epic-backlog-dag.md)).
-This report reviews what "parity" actually means for that port today, and — per explicit user
-direction — does **not** attempt to reproduce the paper's own headline benchmarks (Rosetta decoy
-set, ProteinGym/Tsuboyama stability data); it instead strengthens and re-confirms the evidence that
-*is* tractable without multi-gigabyte downloads, and states plainly what remains unmeasured.
+This report reviews what "parity" actually means for that port today. Sections 1–5 were written
+under an explicit decision to *not* attempt the paper's own headline benchmarks (Rosetta decoy set,
+ProteinGym/Tsuboyama stability data) — that decision was **reversed later the same day** per direct
+follow-up request ("let's also set up the proteingym and rosetta analysis"); §6 documents what was
+actually acquired and measured as a result. Sections 1–5 below are otherwise unchanged from the
+original review and still describe the state of the *epic itself* (throughput, numerical port
+parity, the LplA real-world check) accurately.
 
 Three distinct kinds of "parity" are in play, and they are in very different states:
 
@@ -145,7 +148,75 @@ numbers — were **not attempted** in this report, per explicit direction. Repro
 This is a real, scoped engineering task (data acquisition + a new per-protein scoring script
 matching the reference `ddg_prediction.ipynb`/`rank_decoys.ipynb` notebooks), not attempted here.
 
-## Reproducibility
+## 6. Real accuracy-vs-paper data + preliminary measurements (added later 2026-07-16)
+
+Per direct follow-up request, the real datasets §5 said were out of scope were acquired and real
+(if small-sample, preliminary) correlations were measured — genuinely new evidence, not a
+restatement of anything above.
+
+### Data acquired
+
+| Dataset | Source | Size | Verified |
+| :-- | :-- | :-- | :-- |
+| Rosetta decoy set | `files.ipd.uw.edu/pub/decoyset/decoys.zip` | 5.18 GB compressed, 23 GB unzipped | 133 native structures (matches the design spec's own count), ~957 decoys each |
+| Real TM-score/RMSD/Rosetta-score labels | `huggingface.co/jproney/ProteinEBM` | ~26 MB | Joins cleanly to decoy filenames |
+| ProteinGym v1.3 Tsuboyama-2023 stability subset | `marks.hms.harvard.edu/proteingym/ProteinGym_v1.3/` | ~62 MB compressed | 64 real Tsuboyama assay CSVs + matching AF2 structures confirmed present |
+
+**A real, fixable server issue was found and worked around, not silently bypassed**:
+`marks.hms.harvard.edu` presents an incomplete TLS certificate chain (`unable to get local issuer
+certificate` — a legitimate `*.hms.harvard.edu` InCommon-issued leaf certificate, valid through
+Nov 2026, but a broken intermediate chain, confirmed via `openssl s_client`). This is a common
+academic-server misconfiguration, not a suspicious substitution. The data was fetched with
+`curl -k` (skip verification) — a deliberate, considered choice for a public-dataset download, not
+an oversight; flagged here for anyone auditing this later.
+
+### New scripts + a new real-data generator
+
+- `scripts/ebm/real_decoy_ranking_benchmark.py` (+ `.bth.toml`) — real decoy-ranking Spearman, on
+  top of the already-built (never-before-exercised) `aminx.ebm.decoy_ranking.rank_decoys_over_noise_time`.
+- `scripts/ebm/real_ddg_stability_benchmark.py` (+ `.bth.toml`) — real ΔΔG Spearman, on top of
+  `aminx.ebm.dispatch.score_mutant_ensemble` + `aminx.ebm.ddg_stability.unfolded_state_correction`.
+- `aminx.ebm.ddg_stability.generate_real_unfolded_ensemble` — a new, faithful NumPy port of the
+  reference's real NeRF-based backbone generator (`generate_random_backbone_coords`'s no-file,
+  `uniform_sampling=True` fallback path — the only branch the reference's own
+  `ddg_prediction.ipynb` actually exercises), added **alongside** (not replacing) the existing
+  documented synthetic random-walk substitute, which stays as the CI-safe test fixture.
+  Sanity-checked before trusting any downstream number (BATHOS discipline): no NaNs, plausible
+  CA-CA spacing (2.96–3.67 Å), distinct ensemble members, deterministic given a seed, different
+  given different seeds. `compute_ddg_stability` gained one new optional parameter
+  (`unfolded_coords_ensemble`, default `None` = unchanged prior behavior) so the real generator's
+  output can be substituted in without forking the ddG formula.
+
+### Preliminary results — small samples, NOT a confirmatory measurement
+
+Both scripts run end-to-end on real data and were tracked through bathos (`bth run`, sidecars,
+outcomes recorded). At small sample sizes (3 natives × 20 decoys; 3 assays × 20 mutants — a fraction
+of the ~957 decoys/native and full per-protein mutant sets available), both are **well below** the
+paper's targets:
+
+| Check | Sample | Result (\|Spearman\|) | Paper target |
+| :-- | :-- | :-- | :-- |
+| Decoy ranking, t=0.05 (pre-registered) | 3 natives × 20 decoys | 0.142 | 0.838 |
+| Decoy ranking, best-of-sweep | 3 natives × 20 decoys | 0.376 | 0.838 |
+| ΔΔG stability | 3 assays × 20 mutants | 0.434 | 0.686 |
+
+**A real sign-convention finding, in both checks**: the raw (signed) Spearman correlations came out
+*negative* for decoy-ranking (e.g. −0.696 on one native at n=20) — physically expected, since lower
+energy = more native-like but higher TM-score also = more native-like, so the "correct" raw sign is
+negative; the paper's own 0.838 figure is reported positive, consistent with an implicit
+absolute-value convention. Both scripts now report signed *and* absolute means explicitly, and
+document this in their own output JSON, so this is never silently conflated later.
+
+**Read this table for what it is — a pipeline validation, not a verdict.** n=20 decoys out of ~957,
+or n=20 mutants out of up to ~1300 per protein, non-randomly selected (first N by file/row order),
+is far too small a sample to draw any conclusion about whether the port reproduces the paper's
+numbers. What *is* established: both scripts run correctly end-to-end on real data, produce
+non-degenerate real correlations (not zero, not NaN, not degenerate), and are ready to scale to the
+full dataset. **Scaling to the full 133 natives / all 64 assays' complete mutant sets is real
+remaining work**, not yet done — likely cluster-scale given the JAX JIT-recompilation cost of 133
+distinct native lengths on CPU (a single 3-native/20-decoy smoke run already took ~85s locally).
+
+
 
 | Item | Value |
 | :-- | :-- |

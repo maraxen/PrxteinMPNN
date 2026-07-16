@@ -393,6 +393,145 @@ def generate_synthetic_unfolded_ensemble(
   return jax.vmap(_one_walk)(member_keys)
 
 
+_N_CA_LENGTH = 1.458
+_CA_C_LENGTH = 1.525
+_C_N_LENGTH = 1.329
+_N_CA_C_ANGLE = np.radians(111.0)
+_CA_C_N_ANGLE = np.radians(116.2)
+_C_N_CA_ANGLE = np.radians(121.7)
+
+# Fallback Ramachandran regions (reference's own hardcoded fallback, used whenever no
+# ramachandran_file is supplied -- which is exactly how the reference's own ddg_prediction.ipynb
+# calls generate_random_backbone_coords: no file, uniform_sampling=True). Only this fallback path
+# is ported; the file-based branch is dead code for this use case and is not ported.
+_RAMACHANDRAN_REGIONS_DEFAULT: tuple[tuple[float, float], ...] = ((-60.0, 30.0), (-120.0, 120.0), (60.0, 30.0))
+_RAMACHANDRAN_REGIONS_GLY: tuple[tuple[float, float], ...] = ((-60.0, 30.0), (60.0, 30.0))
+_RAMACHANDRAN_REGIONS_PRO: tuple[tuple[float, float], ...] = ((-60.0, 30.0),)
+
+
+def _place_atom(
+  p1: np.ndarray, p2: np.ndarray, p3: np.ndarray,
+  bond_length: float, bond_angle: float, dihedral_angle: float,
+) -> np.ndarray:
+  """Place a 4th atom given 3 prior atoms + bond length/angle/dihedral (NeRF-style placement).
+
+  Direct NumPy port of the reference's ``place_atom`` (``~/repos/ProteinEBM/protein_ebm/data/
+  protein_utils.py``), used by :func:`generate_real_unfolded_ensemble` -- same vector algebra,
+  translated from ``torch`` to ``numpy`` (this is static geometry construction, not part of any
+  differentiated path, so plain NumPy is the right level of tooling, matching
+  ``checkpoint_parity_check.py``'s own synthetic-input builders).
+  """
+  v1 = (p2 - p1) / np.linalg.norm(p2 - p1)
+  v2 = (p3 - p2) / np.linalg.norm(p3 - p2)
+  n = np.cross(v1, v2)
+  n = n / np.linalg.norm(n)
+  perp = np.cross(v2, n)
+  perp = perp / np.linalg.norm(perp)
+
+  base_dir = -v2
+  rotated_dir = base_dir * np.cos(bond_angle) + perp * np.sin(bond_angle)
+  final_dir = (
+    rotated_dir * np.cos(dihedral_angle)
+    + np.cross(v2, rotated_dir) * np.sin(dihedral_angle)
+    + v2 * np.dot(v2, rotated_dir) * (1 - np.cos(dihedral_angle))
+  )
+  return p3 + final_dir * bond_length
+
+
+def _sample_backbone_dihedral(aa: str, rng: np.random.Generator) -> tuple[float, float]:
+  """Sample (phi, psi) in radians via the reference's hardcoded-fallback regions, uniform ±15°.
+
+  Port of ``sample_ramachandran_angles``'s no-file fallback branch only (``uniform_sampling=True``
+  path) -- the only branch the reference's own ``ddg_prediction.ipynb`` actually exercises (it never
+  passes a ``ramachandran_file``). Returns angles only; the reference's log-probability bookkeeping
+  is not needed here (this ensemble is a subtracted reference baseline, not a sampled density used
+  in an importance weight -- see :func:`unfolded_state_correction`).
+  """
+  if aa == "G":
+    regions = _RAMACHANDRAN_REGIONS_GLY
+  elif aa == "P":
+    regions = _RAMACHANDRAN_REGIONS_PRO
+  else:
+    regions = _RAMACHANDRAN_REGIONS_DEFAULT
+  phi_mean, psi_mean = regions[rng.integers(len(regions))]
+  phi = np.radians(phi_mean + rng.uniform(-15.0, 15.0))
+  psi = np.radians(psi_mean + rng.uniform(-15.0, 15.0))
+  return phi, psi
+
+
+def generate_real_unfolded_ensemble(
+  sequence: str,
+  n_ensemble: int,
+  seed: int,
+  *,
+  coordinate_scaling: float = 0.1,
+) -> Float[Array, "U N 3"]:
+  """Sample ``U`` unfolded-backbone CA conformations via the reference's real NeRF generator.
+
+  Faithful NumPy port of ``generate_random_backbone_coords`` (``~/repos/ProteinEBM/protein_ebm/
+  data/protein_utils.py``, no ``ramachandran_file``, ``uniform_sampling=True`` -- exactly the
+  reference's own ``ddg_prediction.ipynb`` usage), **not** the documented synthetic random-walk
+  substitute (:func:`generate_synthetic_unfolded_ensemble`, which stays in place unchanged as the
+  CI-safe, no-external-geometry fixture the test suite depends on). This is for confirmatory,
+  real-data runs only (see ``scripts/ebm/real_ddg_stability_benchmark.py``).
+
+  Builds each conformation as a sequential per-residue N/CA/C placement (first residue fixed, each
+  subsequent residue placed from the previous one's frame via :func:`_place_atom`, with Ramachandran
+  dihedral angles from :func:`_sample_backbone_dihedral`) -- a plain Python/NumPy loop, matching the
+  reference's own sequential construction (each residue's placement depends on the previous one;
+  not vectorizable without changing the algorithm).
+
+  Args:
+      sequence: One-letter amino-acid sequence (real residue types feed the per-type Ramachandran
+          region lookup -- glycine/proline get their real, more-flexible/more-restricted regions).
+      n_ensemble: Ensemble size ``U``.
+      seed: Base seed; one independent ``numpy.random.Generator`` per ensemble member (via
+          ``numpy.random.SeedSequence(seed).spawn(n_ensemble)``, so members don't share a stream).
+      coordinate_scaling: Applied once, after construction (matching
+          ``aminx.ebm.diffusion.DEFAULT_COORDINATE_SCALING``'s single-application discipline) --
+          bond lengths above are in real Angstroms; this scales to the model's expected coordinate
+          space.
+
+  Returns:
+      Stacked CA-only coordinates, shape ``(n_ensemble, len(sequence), 3)``, already
+      ``coordinate_scaling``-scaled.
+
+  """
+  n_residues = len(sequence)
+  seeds = np.random.SeedSequence(seed).spawn(n_ensemble)
+  members = np.empty((n_ensemble, n_residues, 3), dtype=np.float32)
+
+  for member_idx, member_seed in enumerate(seeds):
+    rng = np.random.default_rng(member_seed)
+    coords = np.zeros((n_residues, 3, 3), dtype=np.float64)  # [N, (N,CA,C), 3]
+    coords[0, 0] = [0.0, 0.0, 0.0]
+    coords[0, 1] = [_N_CA_LENGTH, 0.0, 0.0]
+    coords[0, 2] = [
+      _N_CA_LENGTH + _CA_C_LENGTH * np.cos(np.pi - _N_CA_C_ANGLE),
+      _CA_C_LENGTH * np.sin(np.pi - _N_CA_C_ANGLE),
+      0.0,
+    ]
+
+    if n_residues > 1:
+      omega0 = 0.0
+      coords[1, 0] = _place_atom(coords[0, 0], coords[0, 1], coords[0, 2], _C_N_LENGTH, _CA_C_N_ANGLE, omega0)
+      phi, psi = _sample_backbone_dihedral(sequence[1], rng)
+      coords[1, 1] = _place_atom(coords[0, 1], coords[0, 2], coords[1, 0], _N_CA_LENGTH, _C_N_CA_ANGLE, phi)
+      coords[1, 2] = _place_atom(coords[0, 2], coords[1, 0], coords[1, 1], _CA_C_LENGTH, _N_CA_C_ANGLE, psi)
+
+    for i in range(2, n_residues):
+      phi, psi = _sample_backbone_dihedral(sequence[i], rng)
+      omega = rng.normal(0.0, 0.1)
+      coords[i, 0] = _place_atom(coords[i - 1, 0], coords[i - 1, 1], coords[i - 1, 2], _C_N_LENGTH, _CA_C_N_ANGLE, omega)
+      coords[i, 1] = _place_atom(coords[i - 1, 1], coords[i - 1, 2], coords[i, 0], _N_CA_LENGTH, _C_N_CA_ANGLE, phi)
+      coords[i, 2] = _place_atom(coords[i - 1, 2], coords[i, 0], coords[i, 1], _CA_C_LENGTH, _N_CA_C_ANGLE, psi)
+
+    ca = coords[:, 1, :]
+    members[member_idx] = ((ca - ca.mean(axis=0, keepdims=True)) * coordinate_scaling).astype(np.float32)
+
+  return jnp.asarray(members)
+
+
 def unfolded_state_correction(
   model: ProteinEBMModel,
   aatype: AAType,
@@ -470,6 +609,7 @@ def compute_ddg_stability(
   key: PRNGKeyArray,
   mean_fuse: EnergyFusionFn = _default_mean_fuse,
   default_batch_size: int | None = None,
+  unfolded_coords_ensemble: Float[Array, "U N 3"] | None = None,
 ) -> DDGResult:
   """Full ddG-stability pipeline: point mutants -> mutant-vs-WT -> MC unfolded correction.
 
@@ -497,6 +637,16 @@ def compute_ddg_stability(
       mean_fuse: The mean-``Fuse`` primitive for the unfolded correction.
       default_batch_size: Override for both the mutant and unfolded-ensemble
           axes' Vmap/SafeMap cutoff.
+      unfolded_coords_ensemble: Optional pre-built unfolded-ensemble
+          coordinates (e.g. from :func:`generate_real_unfolded_ensemble`),
+          shape ``(U, N, 3)``. When given, this bypasses
+          :func:`generate_synthetic_unfolded_ensemble` entirely (``key``/
+          ``n_unfolded_ensemble``/``unfolded_step_length`` are then unused
+          for the ensemble itself) -- for real-data confirmatory runs
+          (``scripts/ebm/real_ddg_stability_benchmark.py``) that need the
+          reference's actual NeRF-generated ensemble, not the synthetic
+          random-walk substitute. Default ``None`` preserves prior behavior
+          exactly.
 
   Returns:
       A :class:`DDGResult` with the final ``ddg`` vector (shape
@@ -515,11 +665,15 @@ def compute_ddg_stability(
   )
   wildtype_energy = model.energy(wildtype.coords, wildtype.aatype, jnp.asarray(t), wildtype.mask)
 
-  unfolded_coords = generate_synthetic_unfolded_ensemble(
-    key,
-    wildtype.coords.shape[0],
-    n_unfolded_ensemble,
-    step_length=unfolded_step_length,
+  unfolded_coords = (
+    unfolded_coords_ensemble
+    if unfolded_coords_ensemble is not None
+    else generate_synthetic_unfolded_ensemble(
+      key,
+      wildtype.coords.shape[0],
+      n_unfolded_ensemble,
+      step_length=unfolded_step_length,
+    )
   )
   correction = unfolded_state_correction(
     model,

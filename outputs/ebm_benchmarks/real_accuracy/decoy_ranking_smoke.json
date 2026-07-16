@@ -1,0 +1,61 @@
+{
+  "n_natives_scored": 3,
+  "n_natives_total": 3,
+  "pinned_t": 0.05,
+  "paper_target": 0.838,
+  "mean_spearman_at_pinned_t_signed": -0.11629072681704257,
+  "mean_spearman_at_pinned_t_abs": 0.14235588972431074,
+  "mean_best_spearman_signed": -0.24461152882205514,
+  "mean_best_spearman_abs": 0.3759398496240601,
+  "sign_convention_note": "Raw Spearman(E, TMscore) is expected NEGATIVE (lower energy = more native-like; higher TMscore = more native-like). Compare mean_spearman_at_pinned_t_abs against paper_target, not the signed value.",
+  "per_native": [
+    {
+      "native_id": "1a32",
+      "n_residues": 65,
+      "n_decoys_scored": 20,
+      "n_decoys_skipped_length_mismatch": 0,
+      "spearman_by_t": {
+        "0.010": -0.4646616541353384,
+        "0.050": -0.16992481203007515,
+        "0.100": -0.021052631578947364,
+        "0.200": -0.02706766917293233,
+        "0.400": 0.04060150375939849
+      },
+      "spearman_at_pinned_t": -0.16992481203007515,
+      "best_t": 0.01,
+      "best_spearman": -0.4646616541353384
+    },
+    {
+      "native_id": "1aaj",
+      "n_residues": 104,
+      "n_decoys_scored": 20,
+      "n_decoys_skipped_length_mismatch": 0,
+      "spearman_by_t": {
+        "0.010": -0.4601503759398496,
+        "0.050": -0.21804511278195485,
+        "0.100": -0.13533834586466165,
+        "0.200": -0.17744360902255638,
+        "0.400": -0.4661654135338345
+      },
+      "spearman_at_pinned_t": -0.21804511278195485,
+      "best_t": 0.4,
+      "best_spearman": -0.4661654135338345
+    },
+    {
+      "native_id": "1acf",
+      "n_residues": 125,
+      "n_decoys_scored": 20,
+      "n_decoys_skipped_length_mismatch": 0,
+      "spearman_by_t": {
+        "0.010": -0.12330827067669171,
+        "0.050": 0.03909774436090225,
+        "0.100": 0.12781954887218044,
+        "0.200": 0.1969924812030075,
+        "0.400": -0.04060150375939849
+      },
+      "spearman_at_pinned_t": 0.03909774436090225,
+      "best_t": 0.2,
+      "best_spearman": 0.1969924812030075
+    }
+  ]
+}

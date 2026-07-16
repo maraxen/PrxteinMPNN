@@ -1,7 +1,7 @@
 # ProteinEBM Parity: State of the Port
 
 - **task_id**: `260716_ebm_parity_report`
-- **status**: UPDATED 2026-07-16 (same day) — real accuracy-vs-paper data acquired + preliminary (small-sample) real correlations measured; see §6
+- **status**: UPDATED 2026-07-16 (same day) — real accuracy-vs-paper data acquired + preliminary (small-sample) real correlations measured (§6); throughput-depth work (wall-clock, batch-size sweep, 3-way PyTorch comparison, heterogeneous-batch + outer-Langevin/E10 benchmarks) implemented and validated locally, cluster confirmatory run submitted to Engaging (pi_so3/Blackwell, SLURM job 18059808, PENDING at last check) — see §7
 - **author**: orchestrator session (background job)
 - **date**: 2026-07-16
 - **branch**: `worktree-ebm-parity-report`
@@ -216,7 +216,55 @@ full dataset. **Scaling to the full 133 natives / all 64 assays' complete mutant
 remaining work**, not yet done — likely cluster-scale given the JAX JIT-recompilation cost of 133
 distinct native lengths on CPU (a single 3-native/20-decoy smoke run already took ~85s locally).
 
+## 7. Throughput depth: wall-clock, batching, heterogeneous systems, outer Langevin/E10 (same day)
 
+Per direct follow-up request, the throughput comparison (§1) was extended well beyond the original
+single-fixed-batch-size measurement. Reading the reference repo's own production scripts
+(`score_decoys.py`, `run_dynamics.py`) showed the *real* usage scale is much larger than what §1's
+numbers tested (batch 256/400 vs. the original 4–16) — this section closes that gap.
+
+**All four E11a-d benchmark scripts extended** (`scripts/ebm/benchmarks/{decoy,ddg,biasing,langevin}_benchmark.py`):
+raw wall-clock mean/std now persisted per row (previously computed then discarded); a `--batch-sizes`
+sweep replaces the single fixed batch value, anchored on the reference's own real defaults; and a
+3-way PyTorch comparison on the gradient-path metrics (decoy/ddg `score_grad_ms` only — the only
+metrics where `create_graph` genuinely varies) — **shipped** (the reference's own `compute_score()`
+wrapper verbatim, `create_graph=True`, "the public code" as literally distributed), **eager**
+(the existing optimized bypass, `create_graph=False`), and **compiled** (`torch.compile` wrapping the
+eager path). A real, precisely-characterized `torch.compile` finding: compiling in the same process
+as aminx's own imports can trip `aminx.training`'s deliberate `NotImplementedError` stub via
+Dynamo/Inductor's module introspection — confirmed via an isolated repro to be a process-level
+interaction, **not** an incompatibility with the reference architecture itself. Recorded honestly
+per-row (`compile_error`), not silently mislabeled as a working "compiled" number.
+
+**Two genuinely new benchmarks**, closing real gaps no prior E11x script covered:
+
+- `heterogeneous_batch_benchmark.py` — no existing benchmark ever tested a batch of *mixed* protein
+  lengths (every one uses one fixed length per call, at exact bucket boundaries — zero padding waste
+  by construction). Compares JAX's real bucket+pad+tile strategy against a naive PyTorch
+  pad-to-batch-max approach and a zero-padding per-structure loop, on an identical realistic mixed-
+  length batch (lengths drawn from E4.5's own `build_proxy_distribution`). **Smoke-scale local
+  result**: JAX bucket+pad+tile beat naive PyTorch pad-to-max by ~4.6× while paying far less padding
+  overhead (1.29× vs 2.39×) — real GPU numbers at production scale pending the cluster run.
+- `langevin_annealing_benchmark.py` — `langevin_benchmark.py` (E11d) explicitly scopes itself to the
+  *inner* fixed-`t` sampler only; the *outer* noise-schedule/model-swap loop
+  (`run_annealing_schedule`) and the full E10 multi-round structure-prediction pipeline were never
+  throughput-benchmarked, only correctness-tested. First measurement for both (model-swap uses the
+  same real checkpoint on both branches as a stand-in, since only one real checkpoint exists in this
+  environment — matches the epic's own already-documented E9 test-stand-in convention, stated
+  honestly, not a new limitation).
+
+All six scripts (four extended + two new) pass `--dry-run` (L1) and `--smoke` (L2) gates.
+
+**Cluster confirmatory run**: submitted to Engaging's `pi_so3` partition (Blackwell), SLURM job
+`18059808`, myxcel job `260716-5e5174`, **PENDING** at last check (2026-07-16). Uses the
+already-proven `XLA_FLAGS=--xla_gpu_shard_autotuning=false` workaround and the `jax/jaxlib==0.9.2`
+grad-path pin (decoy/ddg only, per the epic's already-documented jaxlib 0.10.x regression).
+Batch-size sweep capped per-length to avoid the already-confirmed L=512 memory ceiling (256/400 only
+where memory-plausible, shrinking to 4/16 at L=512). Results not yet available — this report will be
+updated once the job completes; check `myxcel job_status --slurm-id 18059808` or
+`outputs/ebm_benchmarks/*_full*.json` on the `worktree-ebm-parity-report` branch for the latest state.
+
+## Reproducibility
 
 | Item | Value |
 | :-- | :-- |
@@ -228,3 +276,8 @@ distinct native lengths on CPU (a single 3-native/20-decoy smoke run already too
 | New tracked data | `outputs/ebm_benchmarks/synthetic_parity/*`, `outputs/ebm_benchmarks/lpla_biasing_real.json` |
 | Reproduce §2 | `uv run python scripts/ebm/collect_synthetic_parity_evidence.py --checkpoint <ckpt.pt> --reference-repo ~/repos/ProteinEBM --out-dir outputs/ebm_benchmarks/synthetic_parity --sizes 8 16 32 64 --seeds 0 1 2 3 4` |
 | Reproduce §3 | `uv run python scripts/ebm/lpla_biasing_check.py --orbax-model <ported_model_dir> --out outputs/ebm_benchmarks/lpla_biasing_real.json` |
+| §6 scripts | `scripts/ebm/real_decoy_ranking_benchmark.py`, `scripts/ebm/real_ddg_stability_benchmark.py` (+ `.bth.toml` each) |
+| §6 real data | Rosetta decoys (`files.ipd.uw.edu/pub/decoyset/decoys.zip`, `~/repos/ProteinEBM/eval_data/decoys/`), ProteinGym v1.3 Tsuboyama subset (`marks.hms.harvard.edu` — broken TLS chain, fetch with `curl -k`) |
+| §7 scripts | `scripts/ebm/benchmarks/{decoy,ddg,biasing,langevin}_benchmark.py` (extended), `scripts/ebm/benchmarks/heterogeneous_batch_benchmark.py`, `scripts/ebm/benchmarks/langevin_annealing_benchmark.py` (both new) |
+| §7 cluster job | SLURM `18059808`, myxcel `260716-5e5174`, Engaging `pi_so3` (Blackwell) |
+| §7 cluster wrapper | `scripts/ebm/benchmarks/run_cluster_benchmarks.sh` — `bash scripts/ebm/benchmarks/run_cluster_benchmarks.sh` from the project root on the remote |

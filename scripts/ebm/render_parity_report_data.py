@@ -21,8 +21,44 @@ def _parse_args() -> argparse.Namespace:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--evidence-dir", type=Path, default=Path("outputs/ebm_benchmarks/synthetic_parity"))
   parser.add_argument("--lpla-json", type=Path, default=Path("outputs/ebm_benchmarks/lpla_biasing_real.json"))
+  parser.add_argument("--benchmarks-dir", type=Path, default=Path("outputs/ebm_benchmarks"))
   parser.add_argument("--out", type=Path, default=Path("outputs/ebm_benchmarks/ebm_parity_report_data.json"))
   return parser.parse_args()
+
+
+# Track A depth benchmarks (A1-A3b): wall-clock + batch-size sweep + 3-way PyTorch variant,
+# heterogeneous-batch strategy comparison, and outer Langevin-annealing/E10 throughput. Each entry
+# names the file(s) `run_cluster_benchmarks.sh` writes for that script; missing files resolve to
+# `None` in the output rather than erroring, since not every depth script has completed a cluster
+# run yet (see .praxia/docs/audits/260716_proteinebm-parity-report.md sec 7 for current status).
+DEPTH_BENCHMARK_FILES = {
+  "decoy": ["decoy_benchmark_full_L64-128.json", "decoy_benchmark_full_L256.json", "decoy_benchmark_full_L512.json"],
+  "ddg": ["ddg_benchmark_full_L64-128.json", "ddg_benchmark_full_L256.json", "ddg_benchmark_full_L512.json"],
+  "biasing": ["biasing_benchmark_full.json"],
+  "langevin": ["langevin_benchmark_full_L64-128.json", "langevin_benchmark_full_L256.json", "langevin_benchmark_full_L512.json"],
+  "heterogeneous": ["heterogeneous_batch_benchmark_full.json"],
+  "annealing": ["langevin_annealing_benchmark_full.json"],
+}
+
+
+def _load_rows(path: Path) -> list[dict]:
+  data = json.loads(path.read_text())
+  return data if isinstance(data, list) else data.get("results", data.get("rows", []))
+
+
+def _load_depth_benchmarks(benchmarks_dir: Path) -> dict[str, dict | None]:
+  out: dict[str, dict | None] = {}
+  for key, filenames in DEPTH_BENCHMARK_FILES.items():
+    paths = [benchmarks_dir / name for name in filenames]
+    present = [p for p in paths if p.exists()]
+    if not present:
+      out[key] = None
+      continue
+    rows: list[dict] = []
+    for p in present:
+      rows.extend(_load_rows(p))
+    out[key] = {"rows": rows, "n_missing_files": len(paths) - len(present), "source_files": [p.name for p in present]}
+  return out
 
 
 # Throughput numbers already published (real GPU runs) -- see plan doc sections 7 (titanix), 9 +
@@ -164,6 +200,8 @@ def main() -> int:
       ],
     }
 
+  depth = _load_depth_benchmarks(args.benchmarks_dir)
+
   out = {
     "synthetic_e3_5": {
       "summary": summary,
@@ -174,11 +212,19 @@ def main() -> int:
     "lpla_e7": lpla,
     "throughput": THROUGHPUT,
     "jaxlib_bisection": JAXLIB_BISECTION,
+    "throughput_depth": depth,
   }
 
   args.out.parent.mkdir(parents=True, exist_ok=True)
   args.out.write_text(json.dumps(out, indent=2))
-  print(f"Wrote {args.out} ({len(energy_scatter)} energy points, {len(cosine_swarm)} cosine points)")
+  n_depth_ready = sum(1 for v in depth.values() if v is not None)
+  print(
+    f"Wrote {args.out} ({len(energy_scatter)} energy points, {len(cosine_swarm)} cosine points, "
+    f"{n_depth_ready}/{len(depth)} depth benchmarks present)"
+  )
+  for key, val in depth.items():
+    status = "MISSING" if val is None else f"{len(val['rows'])} rows from {val['source_files']}"
+    print(f"  throughput_depth.{key}: {status}")
   return 0
 
 

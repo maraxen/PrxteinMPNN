@@ -819,12 +819,20 @@ def make_inference_plan(
      across tied positions).
   5. ``decode_step`` and ``sample_step`` — for ``sampling_strategy="straight_through"``,
      ``decode_step`` is wired to ``ConditionalDecodeStep`` and ``sample_step`` remains
-     ``None`` (teacher-forced path). All other strategies leave both slots as ``None``;
-     driver selects topology at call time based on stage_set slot occupancy.
+     ``None`` (teacher-forced path). All other strategies leave both slots as ``None``.
+     Note: the pre-260716 note here about "driver selects topology at call time based on
+     stage_set slot occupancy" described the now-deprecated ``inference/driver.py`` dispatch
+     mechanism (``driver.decode()`` raises ``NotImplementedError`` today) -- decode dispatch is
+     resolved once below, at plan-construction time, via ``resolve_decode_mode``, not at call
+     time from stage_set slot occupancy.
   6. ``encoding_fusion`` — wired as ``ArithmeticMeanEncodingFusion`` when
      ``spec.average_node_features=True``; otherwise left ``None``.
-  7. ``decode_fn`` — resolved via make_decode_fn(model, mode, strategy) and wired as
-     a top-level field on the plan.
+  7. ``decode_fn`` — resolved via ``resolve_decode_mode(spec.run_spec, purpose=purpose)`` (see
+     that function's docstring) then ``make_decode_fn(model, mode, strategy, decoding_order_fn)``,
+     and wired as a top-level field on the plan. ``purpose`` is what lets this same factory serve
+     both ``sample()`` (real autoregressive sampling) and ``score()``/``inspect()`` (teacher-forced
+     evaluation) correctly -- see ``resolve_decode_mode`` for why ``sampling_strategy`` alone
+     can't make that distinction (aminx#110).
 
   References
   ----------

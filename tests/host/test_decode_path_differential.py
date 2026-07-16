@@ -35,7 +35,11 @@ import pytest
 from aminx.host.plan import make_inference_plan
 from aminx.run.spec import SamplingConfig
 
-pytestmark = pytest.mark.slow
+# NOTE: no module-level `slow` marker. TestRunSpecCompleteness and the structural half of
+# TestCrossPathAgreement need no checkpoint and must run in DEFAULT CI -- they are the actual
+# regression guards. Only classes/tests that load a real checkpoint carry `slow` individually
+# (an earlier version of this file marked the whole module `slow`, which meant the guards never
+# ran by default at all -- caught by independent review before merge, not by CI).
 
 _MAX_LENGTH = 128
 _STRUCTURE = "tests/data/1ubq.pdb"
@@ -48,12 +52,20 @@ class TestRunSpecCompleteness:
   def test_make_inference_plan_does_not_flat_read_migrated_fields(self) -> None:
     """make_inference_plan must read migrated fields via spec.run_spec.sampling, not flat.
 
-    AST-scans the function source for `getattr(spec, "<field>", ...)` calls naming any field
-    that RunSpec.SamplingConfig now carries (added 260716) -- a flat read of one of these is
-    not a bug in the traditional sense (it would likely still work, since flat and run_spec
-    values agree today), but it is exactly the kind of silent divergence-in-waiting that
-    produced aminx#110: two code paths reading the "same" value through different routes with
-    nothing keeping them honest if one drifts.
+    AST-scans the function source for two flat-read shapes naming any field that
+    RunSpec.SamplingConfig now carries (added 260716): `getattr(spec, "<field>", ...)` calls
+    AND direct `spec.<field>` attribute access. Only a DIRECT `spec.<field>` is flagged --
+    `spec.run_spec.sampling.<field>` parses as nested Attribute nodes whose innermost `.value`
+    is `spec.run_spec.sampling` (an Attribute), not the bare `spec` Name, so the legitimate
+    access pattern this function is supposed to use is never a false positive here.
+
+    A flat read of one of these is not a bug in the traditional sense (it would likely still
+    work, since flat and run_spec values agree today), but it is exactly the kind of silent
+    divergence-in-waiting that produced aminx#110: two code paths reading the "same" value
+    through different routes with nothing keeping them honest if one drifts.
+
+    Known residual gap (documented, not fixed): an aliased access (`s = spec; s.field` or
+    `getattr(s, "field")`) would not be caught. Not exercised anywhere in this function today.
     """
     migrated_fields = {f.name for f in dc_fields(SamplingConfig)}
 
@@ -73,11 +85,19 @@ class TestRunSpecCompleteness:
         and node.args[1].value in migrated_fields
       ):
         flat_reads.append(node.args[1].value)
+      elif (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "spec"
+        and node.attr in migrated_fields
+      ):
+        flat_reads.append(node.attr)
 
     assert not flat_reads, (
-      f"make_inference_plan reads {flat_reads} via flat getattr(spec, ...) despite these "
-      f"fields having a RunSpec.sampling home -- read spec.run_spec.sampling.<field> instead. "
-      f"This is exactly the silent-regression pattern that let aminx#110 go undetected."
+      f"make_inference_plan reads {flat_reads} via a flat spec.<field>/getattr(spec, ...) read "
+      f"despite these fields having a RunSpec.sampling home -- read "
+      f"spec.run_spec.sampling.<field> instead. This is exactly the silent-regression pattern "
+      f"that let aminx#110 go undetected."
     )
 
   def test_sampling_strategy_is_a_real_runspec_field(self) -> None:
@@ -118,7 +138,11 @@ class TestDecodePathDifferential:
   `decode_mode = ConditionalMode()` (unconditional) makes every test in this class fail --
   confirmed manually before landing this file, per this project's standing rule that a test
   which cannot fail is worse than no test.
+
+  Loads a real proteinmpnn_v_48_020 checkpoint -- not cheap enough for default CI.
   """
+
+  pytestmark = pytest.mark.slow
 
   def test_fixed_mask_holds_on_sample(self) -> None:
     from aminx.utils.aa_convert import MPNN_ALPHABET
@@ -190,10 +214,47 @@ class TestDecodePathDifferential:
 
 class TestCrossPathAgreement:
   """The property that was structurally impossible to test before resolve_decode_mode existed:
-  do the two real decode paths agree on which DecodeMode a given sampling_strategy means?
+  the two real decode paths cannot diverge on which DecodeMode a given sampling_strategy means.
+
+  Note on an earlier version of this class (caught by independent review before merge): a test
+  here previously called `resolve_decode_mode` directly with two different RunSpecs and compared
+  the results -- that is TRIVIALLY true (it's the same pure function called twice) and does not
+  exercise either real call site, so it could never have caught a regression where one of the
+  two production call sites stopped calling the shared resolver. The structural test below
+  checks the actual property; the runtime test after it is kept as a narrower, honestly-named
+  check of the resolver's own behavior, not of cross-path agreement.
   """
 
-  def test_default_sampling_strategy_resolves_to_the_same_mode_class_on_both_paths(self) -> None:
+  def test_both_production_call_sites_use_the_shared_resolver(self) -> None:
+    """Structural proof, not a runtime coincidence: both make_inference_plan and
+    sample_multistate_poe_bead must literally call resolve_decode_mode. This is the actual
+    reason the two paths cannot diverge -- a future edit that reintroduces a hardcoded
+    ConditionalMode()/AutoregressiveMode() on either path (aminx#110's exact failure class)
+    fails this test immediately, with no checkpoint needed.
+    """
+    from aminx.host import plan as plan_module
+    from aminx.sampling import multistate_poe as poe_module
+
+    plan_source = inspect.getsource(plan_module.make_inference_plan)
+    assert "resolve_decode_mode(" in plan_source, (
+      "make_inference_plan no longer calls resolve_decode_mode -- it may have reverted to "
+      "hardcoding a DecodeMode directly, reopening aminx#110's exact failure class."
+    )
+
+    poe_source = inspect.getsource(poe_module.sample_multistate_poe_bead)
+    assert "resolve_decode_mode(" in poe_source, (
+      "sample_multistate_poe_bead no longer calls resolve_decode_mode -- it may have reverted "
+      "to hardcoding AutoregressiveMode() directly, the original divergence bug."
+    )
+
+  def test_resolver_is_insensitive_to_run_spec_shape(self) -> None:
+    """Narrower than the name of an earlier version of this test claimed: this checks that
+    resolve_decode_mode itself returns the same DecodeMode class for a single- and a
+    multi-state RunSpec at the same sampling_strategy/purpose -- a real property (the resolver
+    must not accidentally branch on state count), but NOT a test that the two production call
+    sites agree with each other (see test_both_production_call_sites_use_the_shared_resolver
+    for that). No checkpoint needed -- resolve_decode_mode only reads run_spec.sampling.*.
+    """
     from aminx.host.plan import resolve_decode_mode
     from aminx.inference.decode.mode import AutoregressiveMode
     from aminx.run.specs import SamplingSpecification
@@ -212,19 +273,23 @@ class TestCrossPathAgreement:
     multi_mode = resolve_decode_mode(multi_spec.run_spec, purpose="sample")
 
     assert type(single_mode) is type(multi_mode), (
-      f"the same sampling_strategy resolved to different DecodeMode classes depending on "
-      f"whether the spec was single- or multi-state ({type(single_mode).__name__} vs "
-      f"{type(multi_mode).__name__}) -- exactly the divergence resolve_decode_mode exists "
-      f"to prevent."
+      f"resolve_decode_mode returned different DecodeMode classes for a single- vs multi-state "
+      f"RunSpec at the same sampling_strategy/purpose ({type(single_mode).__name__} vs "
+      f"{type(multi_mode).__name__}) -- it must not branch on state count."
     )
     assert isinstance(single_mode, AutoregressiveMode), (
       f"purpose='sample' at the default sampling_strategy should resolve to AutoregressiveMode, "
       f"got {type(single_mode).__name__}"
     )
 
+  @pytest.mark.slow
   def test_straight_through_is_honestly_rejected_by_the_poe_path(self) -> None:
     """sample_multistate_poe_bead has no STE-for-PoE implementation (out of scope, see the
     260716 migration plan) -- it must raise, not silently sample via AutoregressiveMode anyway.
+
+    Loads a real checkpoint + parses a real structure before reaching the check (the guard sits
+    at the end of sample_multistate_poe_bead, after bundle construction) -- not cheap, unlike
+    the rest of this class.
     """
     from aminx.run.specs import SamplingSpecification
     from aminx.sampling.multistate_poe import sample_multistate_poe_bead

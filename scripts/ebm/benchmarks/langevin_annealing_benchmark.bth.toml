@@ -1,0 +1,41 @@
+[metadata]
+title = "ProteinEBM outer Langevin annealing (model-swap) + E10 structure-prediction pipeline throughput"
+created = "260716"
+schema_version = "0.3"
+
+[benchmark]
+baseline_ref = "<pytorch-proteinebm-run-id>"  # fill in once an L3 cluster run is recorded
+metric = "outer_annealing_jax_ms_mean"
+regression_threshold = 0.05
+target = "JAX outer annealing + E10 pipeline throughput measured for the first time -- closes the gap flagged in langevin_benchmark.py's own module docstring (inner sampler only, outer loop + E10 never benchmarked)"
+
+[result_schema]
+protein_length = "int"
+outer_annealing_jax_ms_mean = "float"
+outer_annealing_jax_ms_std = "float"
+outer_annealing_pytorch_ms_mean = "float"
+outer_annealing_pytorch_ms_std = "float"
+outer_annealing_speedup = "float"
+e10_pipeline_ms = "float"
+e10_rounds = "int"
+e10_batch_size = "int"
+
+[result_schema.provenance]
+noise_schedule = { type = "str", doc = "Fixed 4-level noise schedule bracketing the model-swap threshold (0.5, 0.3, 0.15, 0.05)" }
+model_swap_threshold = { type = "float", doc = "t < threshold selects the second swap branch, matching run_dynamics.py's get_dynamics_model(t) convention" }
+n_repeats = { type = "int", doc = "Timed repeats for the per-level outer annealing metric, after one untimed warmup; E10 pipeline is timed once (see script docstring)" }
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true }
+jax_version = { type = "string", required = true }
+torch_version = { type = "string", required = true }
+proteinebm_checkpoint = { type = "string", required = false, doc = "absent under --smoke" }
+
+[notes]
+model_swap_stand_in = """
+Only one real checkpoint is available in this environment -- the SAME ported model is used for both
+swap branches (matching the epic's own already-documented E9 test stand-in: "the multi-checkpoint
+model-swap has never been exercised against two REAL (non-toy) checkpoints simultaneously resident on
+one device"). This measures the lax.cond/lax.switch dispatch overhead + carrying two live model
+pytrees, not a real cross-checkpoint cost difference -- read the numbers accordingly.
+"""

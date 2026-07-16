@@ -1,0 +1,159 @@
+# ProteinEBM Parity: State of the Port
+
+- **task_id**: `260716_ebm_parity_report`
+- **status**: COMPLETE
+- **author**: orchestrator session (background job)
+- **date**: 2026-07-16
+- **branch**: `worktree-ebm-parity-report`
+- **companion artifact**: interactive HTML report with charts (published separately)
+
+## Summary
+
+ProteinEBM (Roney, Ou & Ovchinnikov, bioRxiv 2025.12.09.693073) was ported into aminx as a new
+forward energy/score composition path (EPIC #3294, 14 backlog nodes + a follow-on epic, completed
+and merged to `main` 2026-07-09 through 2026-07-12; see
+[`plans/260709_proteinebm-epic-backlog-dag.md`](../plans/260709_proteinebm-epic-backlog-dag.md)).
+This report reviews what "parity" actually means for that port today, and — per explicit user
+direction — does **not** attempt to reproduce the paper's own headline benchmarks (Rosetta decoy
+set, ProteinGym/Tsuboyama stability data); it instead strengthens and re-confirms the evidence that
+*is* tractable without multi-gigabyte downloads, and states plainly what remains unmeasured.
+
+Three distinct kinds of "parity" are in play, and they are in very different states:
+
+| Kind | Status | Evidence |
+| :-- | :-- | :-- |
+| **Throughput / speed parity** (JAX vs. PyTorch, same computation) | Strong, real, repeated | §1 |
+| **Numerical port parity** (does the JAX model compute what the real PyTorch reference model computes?) | Strong, freshly re-confirmed today | §2 |
+| **Real-world accuracy** (does it correlate with real experimental data?) | One real result (E7 LplA) | §3 |
+| **Accuracy vs. the paper's own headline numbers** (Spearman 0.838 decoy, 0.686 ΔΔG) | **Not measured** | §5 |
+
+## 1. Throughput parity (already established, unchanged by this report)
+
+Four benchmark harnesses (decoy ranking, ΔΔG stability, conformational biasing, Langevin sampling)
+were run on the real 85M-parameter checkpoint across two GPU generations (titanix/Turing,
+engaging/Blackwell), with apples-to-apples methodology: JIT warmup excluded from timing, identical
+checkpoint both sides, PyTorch run with `create_graph=False`, 30 timed repeats per point.
+
+**Result: JAX beats PyTorch by 11–92× across every tested length (64–512 residues) and all four
+applications.** Full tables in
+[`plans/260709_proteinebm-epic-backlog-dag.md`](../plans/260709_proteinebm-epic-backlog-dag.md) §7/§9/§11.
+
+Along the way, a real jaxlib regression was found, root-caused, and worked around: `-jax.grad(energy)`
+(the conservative score, used by decoy ranking + ΔΔG) crashed at XLA compile time on every modern
+GPU (Blackwell, H100, A100, L40S) under jaxlib 0.10.2, but not on older Turing hardware. A version
+bisection pinned the regression precisely:
+
+| jax/jaxlib version | Gradient-path result |
+| :-- | :-- |
+| 0.10.2 (project pin) | FAIL |
+| 0.9.2 | PASS |
+| 0.9.0 | PASS |
+| 0.8.3 | PASS |
+| 0.8.0 | PASS |
+
+Fix: a scoped `uv run --with jax==0.9.2 --with jaxlib==0.9.2` override applied only to the two
+affected benchmark scripts — not a project-wide pin. An upstream bug report is drafted (not yet
+filed) at `.praxia/docs/research/260712_jax-xla-scf-if-gradient-regression-bug-report.md`.
+
+## 2. Numerical port parity (E3.5) — re-confirmed today with fresh evidence
+
+The original E3.5 gate (`scripts/ebm/checkpoint_parity_check.py`) checked one fixed synthetic
+structure (n=12 residues, seed=0) against the real PyTorch reference model, using the real
+checkpoint. For this report, the same real checkpoint and real reference model were re-exercised
+across a **grid of 20 (size × seed) synthetic trials** — sizes 8/16/32/64 residues × 5 seeds each —
+via a new script, `scripts/ebm/collect_synthetic_parity_evidence.py`, tracked through bathos
+(run `b12dace4-bfb1-4474-aad6-db82d6a65d28`, git SHA `69678405`).
+
+**Result, from today's run:**
+
+- Per-residue energy: mean absolute error between 6.1×10⁻⁶ and 2.7×10⁻⁵ across all 20 cases (float32-precision-level agreement, far tighter than the original gate's `atol=1e-3` tolerance).
+- Per-residue conservative-score (`-∇E`) direction: cosine similarity between the reference and JAX score vectors ranged from 0.999999998 to 1.0 across all 560 (residue × case) points — essentially exact directional agreement.
+- Pearson correlation on per-residue energy: ≥ 0.9999999999781 in every case.
+
+This validates that **the port is numerically faithful to the real reference implementation** — it
+is a fresh, independent re-confirmation at much finer sample density than the original single-case
+gate, not a restatement of it. It does **not** validate that the model reproduces the paper's
+published accuracy figures (§5).
+
+**Provenance for this section:** every input is **synthetic** —
+`numpy.random.default_rng(seed).normal(...)` coordinates and `randint(0,21)` amino-acid types (see
+`checkpoint_parity_check.py::_build_fixed_input`) — no real protein sequence or structure is
+involved. This is deliberate: it isolates numerical port fidelity from biological realism.
+
+## 3. Real-world validation (E7) — real experimental data
+
+The one application in this epic validated against real biological data rather than a synthetic
+proxy. Real point mutants of *E. coli* lipoate-protein ligase A (LplA) were scored by the ported
+model's per-state energy gap `ΔE = E(closed, mutant_seq) − E(open, mutant_seq)` between two real
+crystal conformations, and correlated against the real experimentally-measured "Promiscuous
+Activity" readout.
+
+Run via `scripts/ebm/lpla_biasing_check.py`, tracked through bathos (run
+`b3a68dd9-080c-4ce6-a2ae-ea1c2061db06`, outcome **pass**, git SHA `69678405`).
+
+**Result: Spearman r = 0.402 (p = 3.1×10⁻⁵), n = 101 real mutants.** A statistically significant,
+moderate positive correlation — consistent with the design spec's own (qualitative, weaker-than-the
+paper's-headline-numbers) expectation for this application ("sign/rank of ΔE … positive corr. w/
+activity").
+
+**Provenance for this section (real data, not synthetic):**
+
+| Field | Value |
+| :-- | :-- |
+| Protein | LplA (lipoate-protein ligase A), *E. coli* |
+| Closed state | PDB 1X2G (331/337 residues resolved) |
+| Open state | PDB 3A7R (337/337 residues resolved) |
+| Shared/scored residues | 331 (intersection mask; a 6-residue disordered loop in 1X2G excluded) |
+| Mutants scored | 101 (all rows in `eval_data/lpla.csv` with a non-null real `Promiscuous Activity` value) |
+| Activity readout | Real experimental measurement (Cavanaugh et al., via the `ConformationalBiasing` GitHub repo and the ProteinEBM reference repo's own `eval_data/lpla.csv`) |
+| Diffusion time | t = 0.05 (ProteinEBM-x MVP target) |
+
+## 4. Synthetic / invariant test coverage
+
+`tests/ebm/` — 16 test files across backlog nodes E0–E10, all synthetic/fixture-based (no real
+weights, no torch, no real datasets):
+
+| Node | Covers | Validates against |
+| :-- | :-- | :-- |
+| E0 | Foundations & invariants | VP-SDE closed-form score, `E=0` on zero-`r`, autograd vs. analytic Gaussian score |
+| E1/E2 | Trunk + diffuser | `FourierEmbedding` bounds, determinism given key, jit/vmap compatibility |
+| E3 | Energy/Score/Aux readouts | `score = -∇E` on toy + real model, masked residues contribute zero, 2nd-order grad finite |
+| E3.5 | Checkpoint weight-port | Synthetic state-dict remap/skip/shape logic (fast CI-safe complement to §2's real check) |
+| E4 | Dispatch (Vmap/SafeMap) | Tiled dispatch matches a plain Python loop, all three application entry points |
+| E4.5 | Bucket-boundary gate | Padding-waste bound on real + synthetic length distributions |
+| E5/E6/E7 | Decoy/ΔΔG/biasing wiring | Fusion-primitive correctness on toy energies (accuracy vs. the paper: §5) |
+| E8 | Training path | Loss composition, JAX-safe coin-flip, 2nd-order finite-difference gate on the real model |
+| E9/E10 | Langevin + structure prediction | Toy-model convergence, detailed-balance cross-check, resampling statistics |
+
+Suite status as of the epic's 2026-07-10 completion commit: 261 passed, 4 pre-existing skips (the
+skips gate on a locally-present real-weight checkpoint, absent by default). **Freshly re-run for
+this report** (2026-07-16, this exact worktree commit): **261 passed, 4 skipped, 0 failed** — an
+exact match to the original completion count, confirming no regressions since the epic landed. (An
+earlier attempt in this same session hit a sandbox limitation — this background job has no D-Bus
+user session, so the local memory-capping hook's `systemd-run` wrapping failed outright on the
+first try; a retry succeeded once the hook's own bus-probe fail-open path took over.)
+
+## 5. Explicitly out of scope
+
+**Decoy-ranking Spearman 0.838** and **ΔΔG Spearman 0.686** — the paper's own headline accuracy
+numbers — were **not attempted** in this report, per explicit direction. Reproducing them requires:
+
+- The real Rosetta decoy set: `https://files.ipd.uw.edu/pub/decoyset/decoys.zip` (5.18 GB, confirmed reachable) plus `rmsd.txt`/`rosettascore.txt`/`tmscore.txt` from `huggingface.co/jproney/ProteinEBM` (confirmed reachable, small).
+- The ProteinGym/Tsuboyama-cDNA megascale stability subset: `DMS_substitutions.csv` filtered to `coarse_selection_type == 'Stability'` and filename containing `'Tsuboyama'`, plus matching AF2 structures — hosted at `marks.hms.harvard.edu` (unreliable/slow to reach from this environment during recon) and not otherwise mirrored on HuggingFace at the same completeness as the legacy ProteinGym v0.1 dataset (which predates the Tsuboyama stability assays).
+- A from-scratch implementation of the reference's "32-sample unfolded-ensemble" Monte Carlo correction (`generate_random_backbone_coords`), which the existing `ddg_stability.py` module deliberately substitutes with a synthetic random-walk proxy, documented as such.
+
+This is a real, scoped engineering task (data acquisition + a new per-protein scoring script
+matching the reference `ddg_prediction.ipynb`/`rank_decoys.ipynb` notebooks), not attempted here.
+
+## Reproducibility
+
+| Item | Value |
+| :-- | :-- |
+| Checkpoint | `model_6_expert_frozen_1m_md.pt` ("ProteinEBM-x"), `huggingface.co/jproney/ProteinEBM` |
+| Reference repo | `~/repos/ProteinEBM` (Roney/Ou/Ovchinnikov, `jproney/ProteinEBM`) |
+| §2 run | bathos `b12dace4-bfb1-4474-aad6-db82d6a65d28`, git SHA `69678405` |
+| §3 run | bathos `b3a68dd9-080c-4ce6-a2ae-ea1c2061db06` (outcome: pass), git SHA `69678405` |
+| New tracked scripts | `scripts/ebm/collect_synthetic_parity_evidence.py` (+ `.bth.toml`), `scripts/ebm/render_parity_report_data.py` |
+| New tracked data | `outputs/ebm_benchmarks/synthetic_parity/*`, `outputs/ebm_benchmarks/lpla_biasing_real.json` |
+| Reproduce §2 | `uv run python scripts/ebm/collect_synthetic_parity_evidence.py --checkpoint <ckpt.pt> --reference-repo ~/repos/ProteinEBM --out-dir outputs/ebm_benchmarks/synthetic_parity --sizes 8 16 32 64 --seeds 0 1 2 3 4` |
+| Reproduce §3 | `uv run python scripts/ebm/lpla_biasing_check.py --orbax-model <ported_model_dir> --out outputs/ebm_benchmarks/lpla_biasing_real.json` |

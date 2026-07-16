@@ -42,8 +42,22 @@ ASSETS_DIR="${PROTEINEBM_ASSETS_DIR:-$HOME/proteinebm_bench_assets}"
 CHECKPOINT="${ASSETS_DIR}/model_6_expert_frozen_1m_md.pt"
 REFERENCE_REPO="${ASSETS_DIR}/ProteinEBM"
 LENGTHS="${BENCHMARK_LENGTHS:-64,128,256,512}"
-N_REPEATS="${BENCHMARK_N_REPEATS:-30}"
+N_REPEATS="${BENCHMARK_N_REPEATS:-10}"
 OUT_DIR="${BENCHMARK_OUT_DIR:-outputs/ebm_benchmarks}"
+
+# Batch-size sweep, capped PER LENGTH to avoid a guaranteed OOM crash: the epic already found a
+# real memory ceiling (L=512, n_decoys=16 -> ~17GB, RESOURCE_EXHAUSTED above that; see
+# .praxia/docs/plans/260709_proteinebm-epic-backlog-dag.md §7 finding 2). The reference's own
+# score_decoys.py halves its batch size past a length threshold for the identical reason (its own
+# `if decoys['atom37'].shape[1] > 175: bsize = args.bsize // 2`). This is the same discipline: sweep
+# the reference's real usage scale (256/400) only where it's plausible to fit, shrink at the
+# lengths already confirmed to be memory-constrained, rather than let one crash abort the whole run.
+BATCH_SIZES_SMALL_L="${BENCHMARK_BATCH_SIZES_SMALL_L:-4 16 64 256}"    # L in {64, 128}
+BATCH_SIZES_MED_L="${BENCHMARK_BATCH_SIZES_MED_L:-4 16 64}"            # L = 256
+BATCH_SIZES_LARGE_L="${BENCHMARK_BATCH_SIZES_LARGE_L:-4 16}"           # L = 512 (confirmed ceiling)
+LANGEVIN_BATCH_SIZES_SMALL_L="${BENCHMARK_LANGEVIN_BATCH_SMALL_L:-4 16 64 400}"
+LANGEVIN_BATCH_SIZES_MED_L="${BENCHMARK_LANGEVIN_BATCH_MED_L:-4 16 64}"
+LANGEVIN_BATCH_SIZES_LARGE_L="${BENCHMARK_LANGEVIN_BATCH_LARGE_L:-4 16}"
 
 mkdir -p "${OUT_DIR}"
 
@@ -61,24 +75,51 @@ echo "=== Node: ${_NODE} | XLA_FLAGS=${XLA_FLAGS} ==="
 echo "=== Checkpoint: ${CHECKPOINT} | Reference repo: ${REFERENCE_REPO} ==="
 echo "=== Lengths: ${LENGTHS} | n_repeats: ${N_REPEATS} ==="
 
-uv run "${JAX_GRAD_PATH_PIN[@]}" python scripts/ebm/benchmarks/decoy_benchmark.py \
-  --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
-  --lengths "${LENGTHS}" --n-repeats "${N_REPEATS}" \
-  --out "${OUT_DIR}/decoy_benchmark_full.json"
+run_per_length_group() {
+  local script="$1" out_prefix="$2" small_batches="$3" med_batches="$4" large_batches="$5"
+  shift 5
+  uv run "${JAX_GRAD_PATH_PIN[@]}" python "scripts/ebm/benchmarks/${script}" \
+    --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
+    --lengths 64,128 --batch-sizes ${small_batches} --n-repeats "${N_REPEATS}" "$@" \
+    --out "${OUT_DIR}/${out_prefix}_L64-128.json"
+  uv run "${JAX_GRAD_PATH_PIN[@]}" python "scripts/ebm/benchmarks/${script}" \
+    --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
+    --lengths 256 --batch-sizes ${med_batches} --n-repeats "${N_REPEATS}" "$@" \
+    --out "${OUT_DIR}/${out_prefix}_L256.json"
+  uv run "${JAX_GRAD_PATH_PIN[@]}" python "scripts/ebm/benchmarks/${script}" \
+    --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
+    --lengths 512 --batch-sizes ${large_batches} --n-repeats "${N_REPEATS}" "$@" \
+    --out "${OUT_DIR}/${out_prefix}_L512.json"
+}
 
-uv run "${JAX_GRAD_PATH_PIN[@]}" python scripts/ebm/benchmarks/ddg_benchmark.py \
-  --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
-  --lengths "${LENGTHS}" --n-repeats "${N_REPEATS}" \
-  --out "${OUT_DIR}/ddg_benchmark_full.json"
+echo "=== decoy_benchmark (grad-path pinned to jax==0.9.2) ==="
+run_per_length_group decoy_benchmark.py decoy_benchmark_full \
+  "${BATCH_SIZES_SMALL_L}" "${BATCH_SIZES_MED_L}" "${BATCH_SIZES_LARGE_L}"
 
+echo "=== ddg_benchmark (grad-path pinned to jax==0.9.2) ==="
+run_per_length_group ddg_benchmark.py ddg_benchmark_full \
+  "${BATCH_SIZES_SMALL_L}" "${BATCH_SIZES_MED_L}" "${BATCH_SIZES_LARGE_L}"
+
+echo "=== biasing_benchmark (no batch-size axis; fixed N_STATES=2) ==="
 uv run python scripts/ebm/benchmarks/biasing_benchmark.py \
   --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
   --lengths "${LENGTHS}" --n-repeats "${N_REPEATS}" \
   --out "${OUT_DIR}/biasing_benchmark_full.json"
 
-uv run python scripts/ebm/benchmarks/langevin_benchmark.py \
+echo "=== langevin_benchmark (no grad path; unpinned) ==="
+run_per_length_group langevin_benchmark.py langevin_benchmark_full \
+  "${LANGEVIN_BATCH_SIZES_SMALL_L}" "${LANGEVIN_BATCH_SIZES_MED_L}" "${LANGEVIN_BATCH_SIZES_LARGE_L}"
+
+echo "=== heterogeneous_batch_benchmark (new; no grad path; unpinned) ==="
+uv run python scripts/ebm/benchmarks/heterogeneous_batch_benchmark.py \
+  --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
+  --n-structures 256 --n-repeats "${N_REPEATS}" \
+  --out "${OUT_DIR}/heterogeneous_batch_benchmark_full.json"
+
+echo "=== langevin_annealing_benchmark (new; no grad path; unpinned) ==="
+uv run python scripts/ebm/benchmarks/langevin_annealing_benchmark.py \
   --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
   --lengths "${LENGTHS}" --n-repeats "${N_REPEATS}" \
-  --out "${OUT_DIR}/langevin_benchmark_full.json"
+  --out "${OUT_DIR}/langevin_annealing_benchmark_full.json"
 
-echo "=== All four benchmarks complete; results in ${OUT_DIR} ==="
+echo "=== All benchmarks complete; results in ${OUT_DIR} ==="

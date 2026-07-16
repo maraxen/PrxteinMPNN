@@ -12,6 +12,8 @@ from __future__ import annotations
 import inspect
 import pytest
 
+from aminx.run.spec import build_run_spec
+
 
 # ---------------------------------------------------------------------------
 # 1. Import contract
@@ -74,6 +76,7 @@ def test_inference_plan_has_stage_set_attribute():
         state_weights = None
         temperature = [1.0]
 
+    DummySpec.run_spec = build_run_spec(DummySpec)
     plan = make_inference_plan(DummyModel(), DummySpec())
     assert hasattr(plan, "stage_set"), "InferencePlan instance must have a stage_set attribute"
 
@@ -122,6 +125,7 @@ def test_make_inference_plan_returns_inference_plan():
         state_weights = None
         temperature = [1.0]
 
+    DummySpec.run_spec = build_run_spec(DummySpec)
     plan = make_inference_plan(DummyModel(), DummySpec())
     assert isinstance(plan, InferencePlan), (
         f"make_inference_plan must return InferencePlan, got {type(plan)}"
@@ -145,6 +149,7 @@ def test_make_inference_plan_with_geometric_mean():
         state_weights = None
         temperature = [1.0]
 
+    GeoSpec.run_spec = build_run_spec(GeoSpec)
     plan = make_inference_plan(DummyModel(), GeoSpec())
     assert isinstance(plan.stage_set.logit_transform, GeometricMeanLogits)
 
@@ -173,6 +178,7 @@ def test_make_inference_plan_straight_through_uses_ste_decode():
         temperature = [1.0]
         average_node_features = False
 
+    STESpec.run_spec = build_run_spec(STESpec)
     model = DummyModel(decoder=object(), w_s_embed=type('obj', (object,), {'weight': None})())
     plan = make_inference_plan(model, STESpec())
     assert isinstance(plan.decode_fn, STEDecode), (
@@ -199,6 +205,7 @@ def test_make_inference_plan_temperature_uses_conditional_mode():
         temperature = [1.0]
         average_node_features = False
 
+    TempSpec.run_spec = build_run_spec(TempSpec)
     plan = make_inference_plan(DummyModel(), TempSpec())
     assert isinstance(plan.decode_fn, ConditionalDecode), (
         f"temperature sampling_strategy should use ConditionalDecode, "

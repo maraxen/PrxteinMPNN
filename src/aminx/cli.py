@@ -801,7 +801,7 @@ def run_score(
     _OPT(help="Multi-state aggregation strategy"),
   ] = "arithmetic_mean",
 ) -> None:
-  """Score sequences against structure inputs (non-serializable fields: ar_mask, conformational_states, decoding_order_fn)."""
+  """Score sequences against structure inputs (non-serializable fields: conformational_states, decoding_order_fn)."""
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
@@ -980,7 +980,7 @@ def run_inspect(
     _OPT(help="Similarity metric: rmsd, tm-score, gdt_ts, gdt_ha, cosine"),
   ] = "rmsd",
 ) -> None:
-  """Inspect model encodings and features (non-serializable fields: ar_mask, conformational_states)."""
+  """Inspect model encodings and features (non-serializable fields: conformational_states)."""
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)

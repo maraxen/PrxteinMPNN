@@ -196,7 +196,6 @@ class RunSpecification:
       backbone_noise: The backbone noise levels to use (default is (0.0,)).
                       Can be a single float or a sequence of floats.
       foldcomp_database: An optional path to a FoldComp database (default is None).
-      ar_mask: An optional array-like mask for autoregressive positions (default is None).
       random_seed: The random seed to use (default is 42).
       chain_id: An optional chain ID to use (default is None).
       model: An optional model ID to use (default is None).
@@ -254,7 +253,6 @@ class RunSpecification:
   use_electrostatics: bool | None = None
   use_vdw: bool | None = None
   foldcomp_database: FoldCompDatabase | None = None
-  ar_mask: None | ArrayLike = None
   random_seed: int = 42
   chain_id: Sequence[str] | str | None = None
   model: int | None = None

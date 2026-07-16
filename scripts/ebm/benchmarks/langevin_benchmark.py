@@ -773,30 +773,41 @@ def main() -> int:
   wall_start = time.perf_counter()
   for length in lengths:
     for n_trajectories in batch_sizes:
-      batch = _synthetic_trajectories(n_trajectories, length, args.seed)
+      try:
+        batch = _synthetic_trajectories(n_trajectories, length, args.seed)
 
-      log.info(
-        "[length=%d batch=%d] JAX warmup + timed batched equilibration (n_steps=%d)...",
-        length, n_trajectories, n_steps,
-      )
-      jax_equil_times = _run_jax_equilibration(
-        jax_model, batch, args.diffusion_time, n_steps, args.dt, args.seed, n_repeats,
-      )
-      jax_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(jax_equil_times))
-      jax_equil_ms_mean, jax_equil_ms_std = _wall_clock_ms_stats(jax_equil_times)
+        log.info(
+          "[length=%d batch=%d] JAX warmup + timed batched equilibration (n_steps=%d)...",
+          length, n_trajectories, n_steps,
+        )
+        jax_equil_times = _run_jax_equilibration(
+          jax_model, batch, args.diffusion_time, n_steps, args.dt, args.seed, n_repeats,
+        )
+        jax_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(jax_equil_times))
+        jax_equil_ms_mean, jax_equil_ms_std = _wall_clock_ms_stats(jax_equil_times)
 
-      jax_step_times = _run_jax_single_step(jax_model, batch, args.diffusion_time, args.dt, args.seed, n_repeats)
-      jax_step_ms = float(np.mean(jax_step_times)) * 1000.0
-      jax_step_ms_std = float(np.std(jax_step_times) * 1000.0)
+        jax_step_times = _run_jax_single_step(jax_model, batch, args.diffusion_time, args.dt, args.seed, n_repeats)
+        jax_step_ms = float(np.mean(jax_step_times)) * 1000.0
+        jax_step_ms_std = float(np.std(jax_step_times) * 1000.0)
 
-      log.info("[length=%d batch=%d] PyTorch warmup + timed batched equilibration...", length, n_trajectories)
-      pt_equil_times = _run_pytorch_equilibration(ref_model, batch, args.diffusion_time, n_steps, args.dt, n_repeats)
-      pt_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(pt_equil_times))
-      pt_equil_ms_mean, pt_equil_ms_std = _wall_clock_ms_stats(pt_equil_times)
+        log.info("[length=%d batch=%d] PyTorch warmup + timed batched equilibration...", length, n_trajectories)
+        pt_equil_times = _run_pytorch_equilibration(ref_model, batch, args.diffusion_time, n_steps, args.dt, n_repeats)
+        pt_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(pt_equil_times))
+        pt_equil_ms_mean, pt_equil_ms_std = _wall_clock_ms_stats(pt_equil_times)
 
-      pt_step_times = _run_pytorch_single_step(ref_model, batch, args.diffusion_time, args.dt, n_repeats)
-      pt_step_ms = float(np.mean(pt_step_times)) * 1000.0
-      pt_step_ms_std = float(np.std(pt_step_times) * 1000.0)
+        pt_step_times = _run_pytorch_single_step(ref_model, batch, args.diffusion_time, args.dt, n_repeats)
+        pt_step_ms = float(np.mean(pt_step_times)) * 1000.0
+        pt_step_ms_std = float(np.std(pt_step_times) * 1000.0)
+      except Exception as e:  # noqa: BLE001 -- a single (length, batch) cell must not lose already-collected rows
+        log.error("[length=%d batch=%d] FAILED: %s: %s", length, n_trajectories, type(e).__name__, e)
+        results.append({
+          "protein_length": length,
+          "batch_size": n_trajectories,
+          "impl": "error",
+          "error": f"{type(e).__name__}: {e}",
+        })
+        _write_payload(args, batch_sizes, n_steps, n_repeats, diffuser_cfg, results, time.perf_counter() - wall_start)
+        continue
 
       results.append({
         "protein_length": length,
@@ -827,9 +838,24 @@ def main() -> int:
         "speedup=%.3fx",
         length, n_trajectories, jax_steps_per_sec, jax_step_ms, pt_steps_per_sec, pt_step_ms, speedup,
       )
+      _write_payload(args, batch_sizes, n_steps, n_repeats, diffuser_cfg, results, time.perf_counter() - wall_start)
 
   wall_elapsed = time.perf_counter() - wall_start
+  _write_payload(args, batch_sizes, n_steps, n_repeats, diffuser_cfg, results, wall_elapsed)
+  log.info("Wrote %d result rows to %s (wall clock %.1fs)", len(results), args.out, wall_elapsed)
+  return 0
 
+
+def _write_payload(
+  args: argparse.Namespace,
+  batch_sizes: tuple[int, ...],
+  n_steps: int,
+  n_repeats: int,
+  diffuser_cfg: Any,
+  results: list[dict[str, Any]],
+  wall_elapsed: float,
+) -> None:
+  """Write accumulated results so far -- called after every (length, batch) cell so a crash mid-sweep loses only the in-flight cell, not everything already timed."""
   payload = {
     "meta": {
       "smoke": args.smoke,
@@ -863,15 +889,15 @@ def main() -> int:
         "or JAX throughput numbers will be wrong by orders of magnitude.",
         "Only the plain Euler-Maruyama langevin_step path is benchmarked "
         "(use_metropolis=False) -- metropolis_hastings_step is not exercised here.",
+        "A row with impl='error' means that (protein_length, batch_size) cell "
+        "raised during timing (see its 'error' field) -- all other cells in "
+        "this file completed normally and are unaffected.",
       ],
     },
     "results": results,
   }
-
   args.out.parent.mkdir(parents=True, exist_ok=True)
   args.out.write_text(json.dumps(payload, indent=2))
-  log.info("Wrote %d result rows to %s (wall clock %.1fs)", len(results), args.out, wall_elapsed)
-  return 0
 
 
 if __name__ == "__main__":

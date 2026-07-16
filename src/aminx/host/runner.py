@@ -356,7 +356,7 @@ def _make_averaged_score_fn(
     residue_index: jax.Array,
     chain_index: jax.Array,
     backbone_noise: float | None = None,
-    ar_mask: jax.Array | None = None,
+    ar_mask_override: jax.Array | None = None,
     structure_mapping: jax.Array | None = None,
     tie_group_map: jax.Array | None = None,
     multi_state_strategy: str = "arithmetic_mean",
@@ -379,9 +379,12 @@ def _make_averaged_score_fn(
 
     L = int(sequence.shape[0])
 
-    # Build decoding AR mask: use provided ar_mask or default full-context mask
-    if ar_mask is not None:
-      ar_mask_single = ar_mask[0] if ar_mask.ndim == 3 else ar_mask
+    # Build decoding AR mask: use provided override or default full-context mask. This is a
+    # direct caller-supplied override, not sourced from any RunSpecification field -- aminx#113
+    # confirmed the spec-level `ar_mask` field (now deleted) never fed anything; this parameter
+    # is unrelated and always was.
+    if ar_mask_override is not None:
+      ar_mask_single = ar_mask_override[0] if ar_mask_override.ndim == 3 else ar_mask_override
     else:
       ar_mask_single = None  # bundle_builder will create the default
 

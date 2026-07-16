@@ -219,7 +219,6 @@ OBSERVATIONS: dict[str, Verdict] = {
   "use_concrete": NotApplicable(reason="STE-loop knob (optimize_ste.py); unreachable under grid_mode's temperature strategy"),
   "concrete_tau_start": NotApplicable(reason="STE-loop knob; see use_concrete"),
   "concrete_tau_end": NotApplicable(reason="STE-loop knob; see use_concrete"),
-  "ar_mask": NotApplicable(reason="never forwarded to _sample_batch by ANY caller; build_inference_bundle self-derives it from mode/schedule (bundle_builder.py:199-219). Dead spec field."),
   "allow_logits_in_campaign": NotApplicable(reason="return_logits is hardcoded False, so this never fires in a planned row"),
   "logits_memory_budget_mb": NotApplicable(reason="only meaningful with return_logits=True, which campaign hardcodes off"),
   "average_node_features": NotApplicable(reason="validated incompatible with grid_mode, specs.py:549-551"),

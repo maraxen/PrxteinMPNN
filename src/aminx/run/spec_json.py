@@ -203,7 +203,6 @@ def _coerce_field_value(_cls: type[Any], field_name: str, value: Any) -> Any:
     "tie_group_map",
     "state_position_map",
     "structure_mapping",
-    "ar_mask",
     "bias",
     "fixed_positions",
     "fixed_mask",

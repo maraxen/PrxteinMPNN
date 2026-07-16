@@ -1,0 +1,36 @@
+{
+  "n_assays_scored": 3,
+  "n_assays_total": 3,
+  "pinned_t": 0.05,
+  "n_unfolded_ensemble": 32,
+  "paper_target": 0.686,
+  "mean_spearman_signed": -0.33734335839598995,
+  "mean_spearman_abs": 0.43358395989974935,
+  "sign_convention_note": "ddG-vs-DMS_score sign depends on DMS_score's own stability-direction convention crossed with ddG's E(mutant)-E(wildtype)-correction convention. Compare mean_spearman_abs against paper_target, not the signed value.",
+  "per_assay": [
+    {
+      "assay": "AMFR_HUMAN_Tsuboyama_2023_4G3O",
+      "protein": "AMFR_HUMAN",
+      "n_residues": 47,
+      "n_mutants_scored": 20,
+      "spearman_r": -0.6962406015037594,
+      "spearman_p": 0.00064992440549734
+    },
+    {
+      "assay": "ARGR_ECOLI_Tsuboyama_2023_1AOY",
+      "protein": "ARGR_ECOLI",
+      "n_residues": 69,
+      "n_mutants_scored": 20,
+      "spearman_r": 0.14436090225563908,
+      "spearman_p": 0.543700799199015
+    },
+    {
+      "assay": "BBC1_YEAST_Tsuboyama_2023_1TG0",
+      "protein": "BBC1_YEAST",
+      "n_residues": 64,
+      "n_mutants_scored": 20,
+      "spearman_r": -0.4601503759398496,
+      "spearman_p": 0.04120071780195445
+    }
+  ]
+}

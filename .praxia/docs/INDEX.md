@@ -28,6 +28,9 @@
 - [260604_release-preparedness-epic](specs/260604_release-preparedness-epic-for-prxteinmpn.md) — Release Preparedness epic: two-phase backlog DAG (CI+cleanup → docs+release), Definition of Done, ADR index
 - [260611_aminx-xtrax-refactor](specs/260611_aminx-xtrax-refactor.md) — **Challenger/Defender PASS**: refactor aminx onto xtrax (move tiling/sinks/inference-plan, rebuild training); vertical-slice spine + xtrax-tiling-upgrade precondition gate + branch-by-abstraction flag + dual perf-guard + off-ramp. Backlog EPIC #1541, sprint `260611_xtrax-foundations`. **Status (2026-07-06, appended to spec): P0-P3 + T2.GATE DONE; P4 (inference-runner/host-sinks) NOT STARTED; P5 partially satisfied (xtrax 0.4.0a1 published+repinned, clean-resolve verified; full G5 blocked on G4/P4).**
 
+## Audits
+- [260716_proteinebm-parity-report](audits/260716_proteinebm-parity-report.md) — Reviews what "parity" means for the merged ProteinEBM epic: throughput parity is real+strong (11–92× vs PyTorch); numerical port parity (E3.5) freshly re-confirmed today across 20 synthetic trials (cosine similarity ≥0.999999998); real-world validation (E7 LplA, 101 real mutants) gives Spearman 0.402 (p=3.1e-5); the paper's own headline Spearman targets (0.838 decoy, 0.686 ΔΔG) remain **not measured** by deliberate scope decision. `tests/ebm/` freshly re-run: 261 passed, 4 skipped, 0 failed.
+
 ## Research
 - [260611_aminx-xtrax-refactor-codebase-model](research/260611_aminx-xtrax-refactor-codebase-model.md) — Wave-1+2 recon synthesis + validated resolutions (A1–A8) underpinning the xtrax refactor spec
 - [260616_axisspec-field-map](research/260616_axisspec-field-map.md) — R7-1 gate: canonical AxisSpec field names for RS-6 (default_batch_size, tile_granularity)

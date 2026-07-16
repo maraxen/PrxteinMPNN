@@ -1,0 +1,8 @@
+{
+  "cosine_similarity_mean": 0.9999999999914747,
+  "cosine_similarity_min": 0.999999997948395,
+  "mean_abs_error_energy_max": 2.6702880859375e-05,
+  "n_cases": 20,
+  "n_metric_records": 1240,
+  "n_point_records": 2240
+}

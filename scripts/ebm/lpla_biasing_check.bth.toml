@@ -1,0 +1,44 @@
+[metadata]
+title = "ProteinEBM E7 real LplA conformational-biasing validation (real experimental activity data)"
+created = "260716"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = "The JAX-ported ProteinEBMModel's per-state energy gap Delta_E = E(closed, mutant_seq) - E(open, mutant_seq), scored on real LplA point mutants (PDB 1x2g closed / 3a7r open, Cavanaugh et al. eval_data/lpla.csv), correlates with the real experimentally-measured Promiscuous Activity readout. Design spec's own pinned expectation for this application is qualitative only (\"sign/rank of Delta_E ... positive corr. w/ activity\"), weaker than the paper's headline decoy/ddG Spearman targets -- this run reports whatever correlation comes out, not a targeted pass/fail on a specific bound."
+stage_name = "confirmation"
+novel = false
+
+[outcomes.pass]
+condition = "n_mutants >= 50 AND spearman_p < 0.05"
+decision = "Report the real Spearman(Delta_E, Promiscuous Activity) result as genuine (if modest) real-world evidence in the parity report."
+reasoning = "A statistically significant correlation on a real, held-out experimental readout is the strongest form of accuracy evidence this epic has, even though the spec only pins a qualitative expectation here."
+is_residual = false
+adversarial_check = "spearman_p >= 0.05"
+
+[outcomes.marginal]
+condition = "n_mutants >= 50 AND spearman_p >= 0.05"
+decision = "Report the correlation honestly as not statistically significant at this sample size -- do not oversell it."
+reasoning = "n=101 real mutants is modest; a non-significant result here does not falsify the model, matching the spec's own weaker qualitative expectation for this application."
+is_residual = false
+
+[outcomes.fail]
+condition = "n_mutants < 50"
+decision = "Investigate the sequence/structure alignment pipeline before trusting any correlation from this run."
+reasoning = "A large drop in usable rows below the known 101-row real-label count signals an alignment or filtering regression, not sampling noise."
+is_residual = true
+
+[result_schema]
+n_mutants = "int"
+diffusion_time = "float"
+spearman_r = "float"
+spearman_p = "float"
+n_canonical_residues = "int"
+n_shared_residues = "int"
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true }
+jax_version = { type = "string", required = true }
+proteinebm_checkpoint = { type = "string", required = true, doc = "model_6_expert_frozen_1m_md.pt (ProteinEBM-x), orbax-ported by scripts/ebm/checkpoint_parity_check.py" }
+
+[provenance]
+note = "REAL biological data: LplA (lipoate-protein ligase A) PDB 1x2g (closed) / 3a7r (open), Cavanaugh et al. (ConformationalBiasing GitHub repo); 101 real point-mutant sequences + real experimental Promiscuous Activity measurements from ~/repos/ProteinEBM/eval_data/lpla.csv (the reference repo's own eval dataset, not fabricated or aminx-authored)."

@@ -159,8 +159,11 @@ def sample(
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
-  # Construct inference plan once before routing to streaming or non-streaming path
-  plan: InferencePlan = make_inference_plan(model, spec)
+  # Construct inference plan once before routing to streaming or non-streaming path.
+  # purpose="sample": this is the one caller that wants new sequences, not a score of a given
+  # one -- aminx#110 was this exact resolution defaulting to ConditionalMode (score-shaped)
+  # here with no way to ask for real autoregressive sampling.
+  plan: InferencePlan = make_inference_plan(model, spec, purpose="sample")
 
   if spec.run_spec.io.output_h5_path:
     return _sample_streaming(spec, protein_iterator, plan, _sample_batch)
@@ -496,7 +499,8 @@ def score(  # noqa: PLR0915
   if spec.average_node_features:
     from aminx.host.plan import make_inference_plan  # noqa: PLC0415
 
-    plan = make_inference_plan(model, spec)
+    # purpose="score" (the default): this call evaluates a given sequence, it never samples one.
+    plan = make_inference_plan(model, spec, purpose="score")
     score_fn = _make_averaged_score_fn(plan, spec)  # type: ignore[arg-type]
   else:
     score_fn = make_score_fn(model)  # type: ignore[arg-type]
@@ -704,7 +708,9 @@ def inspect(  # noqa: PLR0915
 
   # Stage set flows from the inference plan (single construction) rather than a
   # direct make_stage_set import — keeps runner.py free of make_stage_set (COMP-534).
-  unconditional_stage_set = make_inference_plan(model, spec).stage_set
+  # purpose="score": only .stage_set is used below, decode_fn is never invoked from this
+  # plan, but "score" is still the semantically correct purpose for an inspection call.
+  unconditional_stage_set = make_inference_plan(model, spec, purpose="score").stage_set
 
   results_per_feature = {feat: [] for feat in spec.inspection_features}
   distance_matrices: list[jax.Array] = []

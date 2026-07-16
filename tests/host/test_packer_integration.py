@@ -14,6 +14,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from aminx.host.plan import InferencePlan, InferenceComponents, make_inference_plan
+from aminx.run.spec import build_run_spec
 from aminx.types.bundles import (
     InferenceBundle,
     GeometryBundle,
@@ -95,6 +96,7 @@ def test_inference_plan_decode_with_packer_active():
         state_weights = None
         temperature = [1.0]
 
+    DummySpec.run_spec = build_run_spec(DummySpec)
     # Create plan
     plan = make_inference_plan(DummyModel(), DummySpec(), packer=packer_model)
     assert plan.packer is packer_model
@@ -203,8 +205,9 @@ def test_inference_plan_decode_safety_validation():
         state_weights = None
         temperature = [1.0]
 
+    DummySpec.run_spec = build_run_spec(DummySpec)
     plan = make_inference_plan(DummyModel(), DummySpec(), packer=packer_model)
-    
+
     # Create bundle without packer
     geom = GeometryBundle(
         coords=jnp.zeros((1, 5, 4, 3)),

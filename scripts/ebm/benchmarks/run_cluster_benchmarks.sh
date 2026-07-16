@@ -59,6 +59,13 @@ LANGEVIN_BATCH_SIZES_SMALL_L="${BENCHMARK_LANGEVIN_BATCH_SMALL_L:-4 16 64 400}"
 LANGEVIN_BATCH_SIZES_MED_L="${BENCHMARK_LANGEVIN_BATCH_MED_L:-4 16 64}"
 LANGEVIN_BATCH_SIZES_LARGE_L="${BENCHMARK_LANGEVIN_BATCH_LARGE_L:-4 16}"
 
+# Comma-separated step names to skip (decoy,ddg,biasing,langevin,heterogeneous,annealing) --
+# for resuming a job that already produced good output for some steps (e.g. after job
+# 18059808 completed decoy/ddg/biasing but crashed inside langevin on a real CUDA
+# ILLEGAL_ADDRESS at length=128/batch=400 on Blackwell, aborting everything after it
+# because this script previously had no per-step failure isolation).
+SKIP_STEPS="${BENCHMARK_SKIP_STEPS:-}"
+
 mkdir -p "${OUT_DIR}"
 
 echo "=== uv sync --extra cuda12 --extra benchmark ==="
@@ -74,6 +81,36 @@ export XLA_FLAGS="${XLA_FLAGS:---xla_gpu_shard_autotuning=false}"
 echo "=== Node: ${_NODE} | XLA_FLAGS=${XLA_FLAGS} ==="
 echo "=== Checkpoint: ${CHECKPOINT} | Reference repo: ${REFERENCE_REPO} ==="
 echo "=== Lengths: ${LENGTHS} | n_repeats: ${N_REPEATS} ==="
+
+# Step-name gate: `bash -c "false"` behavior would abort the whole job under
+# set -e, so every step body below runs through this wrapper -- a single
+# step's failure is logged and the job moves on to the remaining steps
+# instead of aborting them (see 18059808 postmortem in the comment above
+# SKIP_STEPS: langevin's real Blackwell CUDA crash previously killed
+# heterogeneous/annealing before they got a single run).
+should_run() {
+  local step="$1"
+  [[ ",${SKIP_STEPS}," != *",${step},"* ]]
+}
+
+run_step() {
+  local step="$1"
+  shift
+  if ! should_run "${step}"; then
+    echo "=== SKIP (${step}): requested via BENCHMARK_SKIP_STEPS ==="
+    return 0
+  fi
+  echo "=== RUN (${step}) ==="
+  set +e
+  ( set -e; "$@" )
+  local rc=$?
+  set -e
+  if [[ "${rc}" -ne 0 ]]; then
+    echo "=== FAILED (${step}): exit ${rc} -- continuing with remaining steps ==="
+  else
+    echo "=== OK (${step}) ==="
+  fi
+}
 
 run_per_length_group() {
   local script="$1" out_prefix="$2" small_batches="$3" med_batches="$4" large_batches="$5"
@@ -92,34 +129,32 @@ run_per_length_group() {
     --out "${OUT_DIR}/${out_prefix}_L512.json"
 }
 
-echo "=== decoy_benchmark (grad-path pinned to jax==0.9.2) ==="
-run_per_length_group decoy_benchmark.py decoy_benchmark_full \
+run_step decoy run_per_length_group decoy_benchmark.py decoy_benchmark_full \
   "${BATCH_SIZES_SMALL_L}" "${BATCH_SIZES_MED_L}" "${BATCH_SIZES_LARGE_L}"
 
-echo "=== ddg_benchmark (grad-path pinned to jax==0.9.2) ==="
-run_per_length_group ddg_benchmark.py ddg_benchmark_full \
+run_step ddg run_per_length_group ddg_benchmark.py ddg_benchmark_full \
   "${BATCH_SIZES_SMALL_L}" "${BATCH_SIZES_MED_L}" "${BATCH_SIZES_LARGE_L}"
 
-echo "=== biasing_benchmark (no batch-size axis; fixed N_STATES=2) ==="
-uv run python scripts/ebm/benchmarks/biasing_benchmark.py \
+run_step biasing uv run python scripts/ebm/benchmarks/biasing_benchmark.py \
   --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
   --lengths "${LENGTHS}" --n-repeats "${N_REPEATS}" \
   --out "${OUT_DIR}/biasing_benchmark_full.json"
 
-echo "=== langevin_benchmark (no grad path; unpinned) ==="
-run_per_length_group langevin_benchmark.py langevin_benchmark_full \
-  "${LANGEVIN_BATCH_SIZES_SMALL_L}" "${LANGEVIN_BATCH_SIZES_MED_L}" "${LANGEVIN_BATCH_SIZES_LARGE_L}"
-
-echo "=== heterogeneous_batch_benchmark (new; no grad path; unpinned) ==="
-uv run python scripts/ebm/benchmarks/heterogeneous_batch_benchmark.py \
+# heterogeneous + annealing run BEFORE langevin: both are brand-new scripts with zero
+# prior data, while langevin already has partial coverage from 18059808 and (as of the
+# incremental-write fix above) now salvages every completed cell even if a later one
+# crashes -- so if something crashes again, these two get priority for first data.
+run_step heterogeneous uv run python scripts/ebm/benchmarks/heterogeneous_batch_benchmark.py \
   --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
   --n-structures 256 --n-repeats "${N_REPEATS}" \
   --out "${OUT_DIR}/heterogeneous_batch_benchmark_full.json"
 
-echo "=== langevin_annealing_benchmark (new; no grad path; unpinned) ==="
-uv run python scripts/ebm/benchmarks/langevin_annealing_benchmark.py \
+run_step annealing uv run python scripts/ebm/benchmarks/langevin_annealing_benchmark.py \
   --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
   --lengths "${LENGTHS}" --n-repeats "${N_REPEATS}" \
   --out "${OUT_DIR}/langevin_annealing_benchmark_full.json"
 
-echo "=== All benchmarks complete; results in ${OUT_DIR} ==="
+run_step langevin run_per_length_group langevin_benchmark.py langevin_benchmark_full \
+  "${LANGEVIN_BATCH_SIZES_SMALL_L}" "${LANGEVIN_BATCH_SIZES_MED_L}" "${LANGEVIN_BATCH_SIZES_LARGE_L}"
+
+echo "=== All benchmark steps attempted; results in ${OUT_DIR} (check FAILED markers above) ==="

@@ -107,6 +107,19 @@ _NON_JSON_ROOT_FIELDS = frozenset(
   },
 )
 
+# Fields __post_init__ DERIVES from other, serialized fields. Skipped on encode and rebuilt on
+# decode, so omitting them is lossless -- verified both directions:
+#   - set backbone_noise=0.25            -> noise == [FeatureNoiseBundle(feature_type='backbone', ...)]
+#   - set noise=[FeatureNoiseBundle(...)] -> backbone_noise == (0.3,)   (back-populated)
+# `noise` is `list[FeatureNoiseBundle]`, a nested dataclass `_to_json_value` has no branch for,
+# so without this every real spec would fail to encode: __post_init__ populates `noise` from
+# `backbone_noise`, and every campaign sets `backbone_noise`.
+#
+# Distinct from _NON_JSON_ROOT_FIELDS, which must be None and raises otherwise. These are
+# expected to be non-None and are dropped precisely because they carry no information the
+# serialized fields do not already carry.
+_DERIVED_FIELDS = frozenset({"noise"})
+
 
 def run_specification_to_json_dict(spec: RunSpecification) -> dict[str, Any]:
   """Return a JSON-serializable dict for ``spec`` (includes ``_spec_class``)."""
@@ -130,6 +143,10 @@ def run_specification_to_json_dict(spec: RunSpecification) -> dict[str, Any]:
       if val is not None:
         msg = f"Field {f.name!r} must be None for JSON encoding (got {type(val).__name__})"
         raise SpecJSONEncodeError(msg)
+      continue
+    if f.name in _DERIVED_FIELDS:
+      # __post_init__ rebuilds it from serialized fields; carrying it would be redundant, and
+      # it is a nested dataclass _to_json_value cannot encode anyway.
       continue
     raw = getattr(spec, f.name)
     if f.name == "inputs":
@@ -186,7 +203,6 @@ def _coerce_field_value(_cls: type[Any], field_name: str, value: Any) -> Any:
     "tie_group_map",
     "state_position_map",
     "structure_mapping",
-    "ar_mask",
     "bias",
     "fixed_positions",
     "fixed_mask",

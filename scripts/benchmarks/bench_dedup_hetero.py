@@ -331,6 +331,10 @@ def benchmark_aminx_dedup(
             'temperature': [1.0],
             'average_node_features': False,
         })()
+        # make_inference_plan reads decode-relevant fields from spec.run_spec.sampling
+        # (260716, EPIC #1541 P4); build_run_spec() handles any duck spec.
+        from aminx.run.spec import build_run_spec
+        spec.run_spec = build_run_spec(spec)
         plan = make_inference_plan(model, spec)
 
     # Get batch parameters
@@ -781,6 +785,10 @@ def main() -> int:
             'temperature': [1.0],
             'average_node_features': False,
         })()
+        # make_inference_plan reads decode-relevant fields from spec.run_spec.sampling
+        # (260716, EPIC #1541 P4); build_run_spec() handles any duck spec.
+        from aminx.run.spec import build_run_spec
+        spec.run_spec = build_run_spec(spec)
         plan = make_inference_plan(model, spec)
         logger.info("Model and plan loaded successfully")
     except Exception as e:

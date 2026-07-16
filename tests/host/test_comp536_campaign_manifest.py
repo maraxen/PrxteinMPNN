@@ -71,11 +71,18 @@ class DummySpec:
 
 
 def _make_row(**kwargs):
-    """Helper: build a minimal valid manifest row dict."""
+    """Helper: build a minimal valid manifest row dict.
+
+    `fixed_policy` defaults to "none" -- fixing nothing -- because a row that NAMES an arm must
+    also CARRY that arm's mask in its sampling_spec, and a minimal row has no spec. The old
+    default was "catalytic_triad", i.e. the fixture claimed to fix the catalytic triad while
+    carrying nothing that could -- the production bug in miniature, baked into the helper that
+    every test in this file builds on.
+    """
     defaults = {
         "manifest_row_hash": "hash_abc123",
         "checkpoint_id": "ckpt_001",
-        "fixed_policy": "catalytic_triad",
+        "fixed_policy": "none",
         "state_weight_profile": "equal",
     }
     defaults.update(kwargs)
@@ -303,13 +310,9 @@ class TestValidateManifestRows:
     def test_passes_valid(self):
         rows = [
             _make_row(manifest_row_hash="h1"),
-            _make_row(
-                manifest_row_hash="h2", fixed_policy="active_site"
-            ),
+            _make_row(manifest_row_hash="h2", fixed_policy="none"),
         ]
-        validate_manifest_rows(
-            rows, required_fixed_policies=("catalytic_triad", "active_site")
-        )
+        validate_manifest_rows(rows)
 
     def test_missing_hash_raises(self):
         with pytest.raises(ValueError, match="manifest_row_hash"):
@@ -345,23 +348,40 @@ class TestValidateManifestRows:
         with pytest.raises(ValueError, match="state_weight_profile"):
             validate_manifest_rows([_make_row(state_weight_profile="")])
 
-    def test_missing_required_policy_raises(self):
-        rows = [_make_row(manifest_row_hash="h1")]  # only catalytic_triad
-        with pytest.raises(ValueError):
-            validate_manifest_rows(
-                rows, required_fixed_policies=("catalytic_triad", "active_site")
-            )
+    def test_a_row_naming_an_arm_must_carry_that_arm_s_mask(self):
+        """Replaces the deleted `required_fixed_policies` check, which could never fail.
 
-    def test_all_required_policies_present(self):
+        The old check did `set(required) - {row["fixed_policy"] for row in rows}` while the
+        planner passed it the very tuple its own loop had just consumed -- it compared the
+        planner's output against the planner's input. It was green for the entire life of the
+        decorative-policy bug. This checks a row against ITSELF instead: claim an arm, carry a
+        mask. That is a claim the planner can actually get wrong, and did, for 882/882 beads.
+        """
+        rows = [_make_row(manifest_row_hash="h1", fixed_policy="catalytic_triad")]
+        with pytest.raises(ValueError, match="no fixed_mask"):
+            validate_manifest_rows(rows)
+
+    def test_a_row_carrying_a_real_mask_passes(self):
         rows = [
-            _make_row(manifest_row_hash="h1"),
             _make_row(
-                manifest_row_hash="h2", fixed_policy="active_site"
+                manifest_row_hash="h1",
+                fixed_policy="catalytic_triad",
+                sampling_spec={"fixed_mask": [0, 1, 0, 1]},
             ),
         ]
-        validate_manifest_rows(
-            rows, required_fixed_policies=("catalytic_triad", "active_site")
-        )
+        validate_manifest_rows(rows)
+
+    def test_an_all_zero_mask_is_not_a_mask(self):
+        """An all-zero mask freezes nothing, so claiming an arm with one is still a lie."""
+        rows = [
+            _make_row(
+                manifest_row_hash="h1",
+                fixed_policy="catalytic_triad",
+                sampling_spec={"fixed_mask": [0, 0, 0, 0]},
+            ),
+        ]
+        with pytest.raises(ValueError, match="no fixed_mask"):
+            validate_manifest_rows(rows)
 
     def test_empty_rows_valid(self):
         validate_manifest_rows([])
@@ -479,11 +499,17 @@ class TestIntegration:
                 designs_per_library_type=100,
                 samples_chunk_size=50,
                 output_root=tmpdir,
-                fixed_policies=("catalytic_triad", "active_site"),
+                fixed_arms=None,
                 state_weight_profiles=("equal",),
             )
-            # 2 policies × 1 profile × 2 ligand × 2 sidechain × ceil(100/50) chunks = 16
-            assert len(rows) == 16
+            # 1 arm ("none") × 1 profile × 2 ligand × 2 sidechain × ceil(100/50) chunks = 8.
+            #
+            # Was 16, because the default was ("catalytic_triad", "active_site") -- TWO policy
+            # arms whose sampling_specs were BYTE-IDENTICAL, since the policy never reached the
+            # spec. Half of every planned campaign was exact-duplicate work wearing a different
+            # label. The drop from 16 to 8 is that duplication being removed, not coverage
+            # being lost.
+            assert len(rows) == 8
             for row in rows:
                 assert "manifest_row_hash" in row
                 assert len(row["manifest_row_hash"]) == 64
@@ -506,7 +532,7 @@ class TestIntegration:
                 designs_per_library_type=50,
                 samples_chunk_size=25,
                 output_root=tmpdir,
-                fixed_policies=("catalytic_triad",),
+                fixed_arms=None,
                 state_weight_profiles=("equal",),
             )
             assert result == manifest_path.resolve()
@@ -531,7 +557,7 @@ class TestIntegration:
                     designs_per_library_type=10,
                     samples_chunk_size=10,
                     output_root=tmpdir,
-                    fixed_policies=("catalytic_triad",),
+                    fixed_arms=None,
                     state_weight_profiles=("equal",),
                 )
 

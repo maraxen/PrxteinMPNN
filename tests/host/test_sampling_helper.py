@@ -55,7 +55,10 @@ class TestPrepareFixedControlsFixedMask:
 
     # 1D float mask: positions 3, 5, 7 are fixed
     fixed_mask_1d = np.array([0., 0., 0., 1., 0., 1., 0., 1., 0., 0.], dtype=np.float32)
-    spec = SamplingSpecification(inputs=[], fixed_mask=fixed_mask_1d)
+    spec = SamplingSpecification(
+      inputs=[], fixed_mask=fixed_mask_1d,
+      fixed_tokens=np.zeros(seq_len, dtype=np.int32),
+    )
 
     # Call _prepare_fixed_controls
     fixed_mask_out, _ = _prepare_fixed_controls(spec, batched_ensemble=protein)
@@ -84,7 +87,10 @@ class TestPrepareFixedControlsFixedMask:
         ],
         dtype=np.float32,
     )
-    spec = SamplingSpecification(inputs=[], fixed_mask=fixed_mask_2d)
+    spec = SamplingSpecification(
+      inputs=[], fixed_mask=fixed_mask_2d,
+      fixed_tokens=np.zeros(seq_len, dtype=np.int32),
+    )
 
     fixed_mask_out, _ = _prepare_fixed_controls(spec, batched_ensemble=protein)
 
@@ -105,7 +111,7 @@ class TestPrepareFixedControlsFixedMask:
     # fixed_positions: positions 4, 6, 8 are fixed (1D array means broadcast to all batches)
     fixed_positions = np.array([0., 0., 0., 0., 1., 0., 1., 0., 1., 0.], dtype=np.float32)
 
-    spec = SamplingSpecification(inputs=[], fixed_mask=fixed_mask, fixed_positions=fixed_positions)
+    spec = SamplingSpecification(inputs=[], fixed_mask=fixed_mask, fixed_positions=fixed_positions, fixed_tokens=np.zeros(seq_len, dtype=np.int32))
 
     fixed_mask_out, _ = _prepare_fixed_controls(spec, batched_ensemble=protein)
 
@@ -123,7 +129,10 @@ class TestPrepareFixedControlsFixedMask:
     protein = _make_fake_protein(batch_size=batch_size, seq_len=seq_len)
 
     fixed_mask = np.array([0., 0., 1., 0., 1., 0., 0., 0., 0., 0.], dtype=np.float32)
-    spec = SamplingSpecification(inputs=[], fixed_mask=fixed_mask)
+    spec = SamplingSpecification(
+      inputs=[], fixed_mask=fixed_mask,
+      fixed_tokens=np.zeros(seq_len, dtype=np.int32),
+    )
 
     # Apply once
     fixed_mask_out1, _ = _prepare_fixed_controls(spec, batched_ensemble=protein)
@@ -168,7 +177,10 @@ class TestPrepareFixedControlsFixedMask:
 
     # A mask that should be applied exactly once
     fixed_mask = np.array([0., 0., 1., 0., 1., 0., 0., 0., 0., 0.], dtype=np.float32)
-    spec = SamplingSpecification(inputs=[], fixed_mask=fixed_mask)
+    spec = SamplingSpecification(
+      inputs=[], fixed_mask=fixed_mask,
+      fixed_tokens=np.zeros(seq_len, dtype=np.int32),
+    )
 
     fixed_mask_out, _ = _prepare_fixed_controls(spec, batched_ensemble=protein)
 

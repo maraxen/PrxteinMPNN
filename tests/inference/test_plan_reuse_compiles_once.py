@@ -27,6 +27,7 @@ import jax.numpy as jnp
 from aminx.model.mpnn import Aminx
 from aminx.inference.bundle_builder import build_inference_bundle
 from aminx.host.plan import make_inference_plan
+from aminx.run.spec import build_run_spec
 from aminx.types.configs import InferenceConfig
 
 
@@ -52,6 +53,11 @@ class _DummySpec:
     state_weights = None
     temperature = [1.0]
     average_node_features = False
+
+
+# make_inference_plan reads decode-relevant fields from spec.run_spec.sampling (260716, EPIC
+# #1541 P4); build_run_spec() handles any duck spec via getattr(spec, "field", default).
+_DummySpec.run_spec = build_run_spec(_DummySpec)
 
 
 def _make_bundle_and_config(model, L=10, S=1):

@@ -75,6 +75,7 @@ def create_bundle_and_plan_from_real_structure(seq_len: int | None = None) -> tu
     from aminx.types.configs import InferenceConfig
     from aminx.host.plan import make_inference_plan
     from aminx.inference.bundle_builder import build_inference_bundle
+    from aminx.run.spec import build_run_spec
 
     # Load real structure from test fixture
     fixture_path = (
@@ -147,6 +148,9 @@ def create_bundle_and_plan_from_real_structure(seq_len: int | None = None) -> tu
         state_weights = None
         temperature = [1.0]
 
+    # make_inference_plan reads decode-relevant fields from spec.run_spec.sampling (260716,
+    # EPIC #1541 P4); build_run_spec() handles any duck spec via getattr(spec, "field", default).
+    DummySpec.run_spec = build_run_spec(DummySpec)
     spec = DummySpec()
     plan = make_inference_plan(model, spec)
 

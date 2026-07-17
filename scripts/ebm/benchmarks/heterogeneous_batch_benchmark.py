@@ -342,14 +342,21 @@ def main() -> int:
   lengths = [s["length"] for s in structures]
   log.info("Heterogeneous batch: n=%d lengths=%s", n_structures, sorted(lengths))
 
-  strategies = {
-    "jax_bucket_pad_tile": _jax_bucket_pad_tile(jax_model, structures, args.diffusion_time, n_repeats),
-    "pytorch_pad_to_batch_max": _pytorch_pad_to_batch_max(ref_model, structures, args.diffusion_time, n_repeats),
-    "pytorch_per_structure_loop": _pytorch_per_structure_loop(ref_model, structures, args.diffusion_time, n_repeats),
-  }
+  strategy_calls: list[tuple[str, Any]] = [
+    ("jax_bucket_pad_tile", lambda: _jax_bucket_pad_tile(jax_model, structures, args.diffusion_time, n_repeats)),
+    ("pytorch_pad_to_batch_max", lambda: _pytorch_pad_to_batch_max(ref_model, structures, args.diffusion_time, n_repeats)),
+    ("pytorch_per_structure_loop", lambda: _pytorch_per_structure_loop(ref_model, structures, args.diffusion_time, n_repeats)),
+  ]
 
-  results = []
-  for name, (times, padded_elements, real_elements) in strategies.items():
+  results: list[dict[str, Any]] = []
+  for name, call in strategy_calls:
+    try:
+      times, padded_elements, real_elements = call()
+    except Exception as e:  # noqa: BLE001 -- one strategy crashing must not lose the others' already-timed results
+      log.error("[%s] FAILED: %s: %s", name, type(e).__name__, e)
+      results.append({"strategy": name, "error": f"{type(e).__name__}: {e}"})
+      _write_payload(args, n_structures, n_repeats, lengths, results)
+      continue
     mean_ms = float(np.mean(times)) * 1000.0
     std_ms = float(np.std(times)) * 1000.0
     padding_overhead = padded_elements / real_elements if real_elements else float("nan")
@@ -365,7 +372,23 @@ def main() -> int:
       "[%s] wall_clock=%.2fms (+/-%.2fms) padding_overhead=%.3fx (%d padded / %d real elements)",
       name, mean_ms, std_ms, padding_overhead, padded_elements, real_elements,
     )
+    _write_payload(args, n_structures, n_repeats, lengths, results)
 
+  log.info("Wrote %d strategy results to %s", len(results), args.out)
+  return 0
+
+
+def _write_payload(
+  args: argparse.Namespace,
+  n_structures: int,
+  n_repeats: int,
+  lengths: list[int],
+  results: list[dict[str, Any]],
+) -> None:
+  """Write accumulated results so far -- called after every strategy attempt so a crash mid-run
+
+  loses only the in-flight strategy, not every already-timed one.
+  """
   payload = {
     "meta": {
       "smoke": args.smoke,
@@ -393,14 +416,15 @@ def main() -> int:
         "No SM120 XLA autotuning workaround applied here -- CPU-only local "
         "run. A cluster (GPU) run MUST set "
         "XLA_FLAGS=--xla_gpu_shard_autotuning=false per ~/.claude/rules/CLUSTER.md.",
+        "A row with 'error' instead of 'wall_clock_mean_ms' means that strategy "
+        "raised during timing -- the other strategies in this file completed "
+        "normally and are unaffected.",
       ],
     },
     "results": results,
   }
   args.out.parent.mkdir(parents=True, exist_ok=True)
   args.out.write_text(json.dumps(payload, indent=2))
-  log.info("Wrote %d strategy results to %s", len(results), args.out)
-  return 0
 
 
 if __name__ == "__main__":

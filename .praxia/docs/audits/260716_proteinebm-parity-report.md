@@ -393,21 +393,34 @@ StepId=18161115.batch") a few seconds after the final script's completion echo. 
 `uv run` invocations sharing one job's 128G allocation, not a sizing problem with any individual
 script call. No data was lost — every result file was already complete on disk before the kill.
 
-**Mitigation added for future runs: `langevin_benchmark.py` now halves the batch size and retries on
-a crash instead of recording a dead loss.** Since the crash boundary is empirically batch-size-
-dependent *for this script* (every cell below the threshold has succeeded cleanly across three jobs
-and three jax/jaxlib versions — unlike `heterogeneous_batch_benchmark.py`, where a 4× structure-count
-cut made no difference, see the `18149833` finding above), `_run_cell_with_retry` now halves
-`n_trajectories` and retries down to a floor of 1 on any exception, tagging the recovered row with
-`requested_batch_size`/`retried_after_crash` so it's never mistaken for data at the batch size
-actually requested. This is only applied to `langevin_benchmark.py` — wiring the same halving into
-`heterogeneous_batch_benchmark.py` would be pointless, since total structure count is already known
-not to be the trigger there. Verified locally (L1/L2 gates unchanged, plus an injected-failure
-harness confirming the halving sequence and the give-up-at-floor path); not yet re-run on the cluster,
-so it has not yet actually narrowed the L=128/L=256/L=512 crash thresholds beyond what's reported
-above — a future cluster run would get real numbers at those three cells instead of `impl="error"`
-rows, and incidentally pin down the exact threshold more precisely than the coarse
-`(4, 16, 64, 400)` sweep can.
+**Mitigation added for future runs: `langevin_benchmark.py` now proactively dispatches the
+`n_trajectories` axis through an xtrax `AxisSpec`/`BatchPlanner` decision instead of crashing and
+retrying.** An initial version of this fix (commit `e437535`) caught the crash and retried at half the
+batch size — it worked, but retrying at a smaller size means the reported `batch_size` no longer
+matches what was requested, and repeated in-process crash/retry cycles risk confounding the timing
+with residual state from the failed attempts. Commit `3841a66` replaces it with the same pattern
+aminx's own production EBM dispatch already uses (`aminx.ebm.dispatch`/`aminx.ebm.plan`): a per-length
+safe batch size (`SAFE_TRAJECTORY_BATCH_BY_LENGTH`, derived directly from the crash thresholds
+established above — 64→400, 128→64, 256→16, 512→4) feeds an `AxisSpec`/`BatchPlanner` decision;
+at or below the threshold the axis runs as a single `Vmap`, above it as `SafeMap` (`jax.lax.map` in
+chunks of the safe size) — proactively, before any crash occurs, so there is nothing to retry. The
+*requested* batch size is always what gets measured; each `jax` row now records `dispatch_strategy`
+(`vmap`/`safe_map`) and, when chunked, `safe_map_chunk_size`. This is only applied to
+`langevin_benchmark.py` — wiring the same mechanism into `heterogeneous_batch_benchmark.py` would be
+pointless as a *fix* since total structure count is already known not to be that crash's trigger
+(the `18149833` finding above), though it remains an open, untested idea whether a fully
+non-vmapped (`SafeMap(batch_size=1)`) dispatch of the L≥256 buckets specifically — never tried, since
+every heterogeneous attempt so far has still vmapped multiple structures per bucket — might avoid it
+for a different reason (vmap changing the fused kernel's shape/rank, not total element count).
+Verified locally: `ty`/`ruff` clean, L1/L2 gates unchanged for the below-threshold path, an injected
+correctness check confirming `SafeMap`-chunked and `Vmap` dispatch produce bit-identical per-trajectory
+results (trajectories are independent, so chunking cannot change values, only execution order), and an
+end-to-end smoke run forcing a batch size above the L=128 threshold confirming the full pipeline
+selects `safe_map`, records the chunk size, and produces a plausible number. Not yet re-run on the
+cluster, so it has not yet actually confirmed the crash is avoided at L=128/256/512's real scale (only
+that the dispatch mechanics are correct on CPU) — that confirmation, and the exact per-length
+threshold this could pin down more precisely than the coarse `(4, 16, 64, 400)` sweep, is still a
+future cluster run away.
 
 ## Reproducibility
 

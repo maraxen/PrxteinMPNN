@@ -135,6 +135,7 @@ import json
 import logging
 import sys
 import time
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
@@ -144,10 +145,12 @@ import numpy as np
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from xtrax.tiling import AxisSpec, BatchPlanner, SafeMap
 
 from aminx.ebm.checkpoint import load_pytorch_checkpoint
 from aminx.ebm.langevin import DEFAULT_EFFECTIVE_TEMP_SCALING, langevin_step, run_langevin_equilibration
 from aminx.ebm.model import ProteinEBMModel
+from aminx.utils.safe_map import safe_map
 
 if TYPE_CHECKING:
   from collections.abc import Mapping
@@ -268,10 +271,29 @@ def _parse_args() -> argparse.Namespace:
 DEFAULT_BATCH_SIZES: tuple[int, ...] = (4, 16, 64, 400)
 SMOKE_BATCH_SIZES: tuple[int, ...] = (2,)
 
-# Floor for the halve-and-retry loop (see _run_cell_with_retry) -- below this
-# there is no smaller batch to fall back to, so a crash here is recorded as a
-# permanent failure for that length.
-MIN_RETRY_TRAJECTORIES = 1
+# Per-length safe batch size for the n_trajectories axis, derived from the
+# empirically confirmed Blackwell/SM120 XLA-autotuning crash thresholds
+# (.praxia/docs/audits/260716_proteinebm-parity-report.md §7): every batch
+# size at or below these values has succeeded cleanly across three separate
+# cluster jobs (18059808, 18069513, 18161115) and three jax/jaxlib versions
+# (0.9.2, 0.10.2, 0.11.0); above them, XLA's kernel-autotuning search hits
+# CUDA_ERROR_ILLEGAL_ADDRESS. This feeds an xtrax AxisSpec/BatchPlanner
+# decision (see _dispatch_trajectories) rather than a crash-and-retry loop:
+# the n_trajectories axis is proactively dispatched via Vmap at or below the
+# threshold, or via SafeMap (jax.lax.map in chunks of this size) above it --
+# the REQUESTED batch size is always what gets measured and reported; only
+# the internal execution strategy changes, so a recovered cell can never be
+# confused with data at some other, smaller batch size, and there is no
+# wasted/crashed attempt to worry about confounding the timing.
+SAFE_TRAJECTORY_BATCH_BY_LENGTH: dict[int, int] = {
+  64: 400,  # no crash observed at any tested batch size up to 400
+  128: 64,  # crashes at 400; 64 is the largest confirmed-safe size
+  256: 16,  # crashes at 64; 16 is the largest confirmed-safe size
+  512: 4,  # crashes at 16; 4 is the largest confirmed-safe size
+}
+# Conservative fallback for a length outside the table above (e.g. a custom
+# --lengths value) -- the smallest safe size confirmed at any length so far.
+DEFAULT_SAFE_TRAJECTORY_BATCH = 4
 
 
 def _resolve_run_params(args: argparse.Namespace) -> tuple[tuple[int, ...], tuple[int, ...], int, int]:
@@ -480,19 +502,52 @@ def _jax_equilibration_batch(
   n_steps: int,
   dt: float,
   keys: jax.Array,
+  safe_batch_size: int,
 ) -> jax.Array:
-  """Vmap ``run_langevin_equilibration`` over an ``n_trajectories`` axis of ``(coords, key)`` pairs.
+  """Dispatch ``run_langevin_equilibration`` over the ``n_trajectories`` axis via an xtrax BatchPlanner decision.
+
+  Vmap in one shot when ``n_trajectories <= safe_batch_size``; ``SafeMap``
+  (``jax.lax.map`` in chunks of ``safe_batch_size``) above it -- see
+  :data:`SAFE_TRAJECTORY_BATCH_BY_LENGTH` for why. Either way this computes
+  the full ``n_trajectories`` batch -- the strategy only changes how XLA
+  schedules the work, never what gets measured, so the reported batch size
+  always matches what was requested.
 
   ``n_steps`` is the *same* fixed value for every trajectory (a Python
   ``int``, not batched) -- so this only exercises JAX's "identical trip
   count, different data" batched-``while_loop`` case, not its per-lane-
   varying-trip-count/masking semantics (module docstring point 5).
+
+  Dispatched inline (isinstance check against ``Vmap``/``SafeMap``) rather
+  than through ``aminx.ebm.plan.dispatch_axis``: that helper's generic
+  signature assumes ``body`` returns the same pytree type it's fed one slice
+  of at a time, which fits E4's Coords-in/Energy-out style calls (both are
+  bare ``Array``\\ s under jaxtyping's annotations) but not this ``(coords,
+  key)`` pair-in/``Array``-out shape. The planning half -- ``AxisSpec`` +
+  ``BatchPlanner`` deciding ``Vmap`` vs. ``SafeMap`` -- is identical to that
+  module's pattern; only the final dispatch call is written locally.
   """
 
-  def _single(coords: jax.Array, key: jax.Array) -> jax.Array:
+  def _single(pair: tuple[jax.Array, jax.Array]) -> jax.Array:
+    coords, key = pair
     return run_langevin_equilibration(model, coords, aatype, t, mask, n_steps, dt, key)
 
-  return jax.vmap(_single)(coords_batch, keys)
+  n_trajectories = coords_batch.shape[0]
+  spec = AxisSpec(name="n_trajectories", cardinality=n_trajectories, default_batch_size=safe_batch_size)
+  with warnings.catch_warnings():
+    # BatchPlanner warns "will raise ValueError at make_axis_dispatch time" for a
+    # non-divisible (cardinality, batch_size) pair (e.g. 400 trajectories chunked
+    # at 64) -- that failure mode belongs to xtrax's make_axis_dispatch iterators,
+    # which this function never calls. aminx.utils.safe_map.safe_map's jax.lax.map
+    # handles a non-divisible remainder chunk correctly (verified: bit-identical
+    # to a plain jax.vmap for the same inputs), so the warning is a false alarm
+    # for this dispatch path specifically and is suppressed rather than left as
+    # confusing log noise on every non-divisible cell.
+    warnings.filterwarnings("ignore", message=r".*is not divisible by batch_size.*", category=RuntimeWarning)
+    decision = BatchPlanner().plan([spec]).decisions[0]
+  if isinstance(decision.strategy, SafeMap):
+    return safe_map(_single, (coords_batch, keys), batch_size=decision.strategy.batch_size)
+  return jax.vmap(_single)((coords_batch, keys))
 
 
 @eqx.filter_jit
@@ -516,6 +571,7 @@ def _run_jax_equilibration(
   dt: float,
   seed: int,
   n_repeats: int,
+  safe_batch_size: int,
 ) -> list[float]:
   coords_batch = jnp.asarray(batch["coords"])
   aatype = jnp.asarray(batch["aatype"], dtype=jnp.int32)
@@ -525,7 +581,9 @@ def _run_jax_equilibration(
   keys = jax.random.split(jax.random.PRNGKey(seed), n_trajectories)
 
   def call() -> None:
-    jax.block_until_ready(_jax_equilibration_batch(model, coords_batch, aatype, t_arr, mask, n_steps, dt, keys))
+    jax.block_until_ready(
+      _jax_equilibration_batch(model, coords_batch, aatype, t_arr, mask, n_steps, dt, keys, safe_batch_size),
+    )
 
   call()  # untimed: forces XLA compilation for this (n_trajectories, length, n_steps) shape.
   return _timed_calls(call, n_repeats)
@@ -734,7 +792,10 @@ def _run_dry_run(args: argparse.Namespace) -> int:
   ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None)
 
   batch = _synthetic_trajectories(n_trajectories=2, length=8, seed=args.seed)
-  _run_jax_equilibration(jax_model, batch, args.diffusion_time, n_steps=2, dt=args.dt, seed=args.seed, n_repeats=1)
+  _run_jax_equilibration(
+    jax_model, batch, args.diffusion_time, n_steps=2, dt=args.dt, seed=args.seed, n_repeats=1,
+    safe_batch_size=DEFAULT_SAFE_TRAJECTORY_BATCH,
+  )
   _run_jax_single_step(jax_model, batch, args.diffusion_time, args.dt, args.seed, n_repeats=1)
   _run_pytorch_equilibration(ref_model, batch, args.diffusion_time, n_steps=2, dt=args.dt, n_repeats=1)
   _run_pytorch_single_step(ref_model, batch, args.diffusion_time, args.dt, n_repeats=1)
@@ -767,15 +828,24 @@ def _run_cell(
   jax_device: str,
   torch_device: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-  """Run one (length, n_trajectories) cell. Returns (jax_row, pytorch_row). Raises on failure."""
+  """Run one (length, n_trajectories) cell. Returns (jax_row, pytorch_row). Raises on failure.
+
+  The JAX side's ``n_trajectories`` axis is dispatched via an xtrax
+  ``AxisSpec``/``BatchPlanner`` decision (:func:`_jax_equilibration_batch`),
+  not a plain ``jax.vmap`` -- see :data:`SAFE_TRAJECTORY_BATCH_BY_LENGTH` for
+  why. ``jax_row`` records which strategy actually ran (``dispatch_strategy``,
+  plus ``safe_map_chunk_size`` when chunked) so a reader can see when a number
+  came from chunked ``SafeMap`` execution instead of a single ``Vmap`` call.
+  """
   batch = _synthetic_trajectories(n_trajectories, length, args.seed)
+  safe_batch_size = SAFE_TRAJECTORY_BATCH_BY_LENGTH.get(length, DEFAULT_SAFE_TRAJECTORY_BATCH)
 
   log.info(
     "[length=%d batch=%d] JAX warmup + timed batched equilibration (n_steps=%d)...",
     length, n_trajectories, n_steps,
   )
   jax_equil_times = _run_jax_equilibration(
-    jax_model, batch, args.diffusion_time, n_steps, args.dt, args.seed, n_repeats,
+    jax_model, batch, args.diffusion_time, n_steps, args.dt, args.seed, n_repeats, safe_batch_size,
   )
   jax_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(jax_equil_times))
   jax_equil_ms_mean, jax_equil_ms_std = _wall_clock_ms_stats(jax_equil_times)
@@ -803,7 +873,10 @@ def _run_cell(
     "langevin_step_ms_std": jax_step_ms_std,
     "equilibration_wall_clock_mean_ms": jax_equil_ms_mean,
     "equilibration_wall_clock_std_ms": jax_equil_ms_std,
+    "dispatch_strategy": "vmap" if n_trajectories <= safe_batch_size else "safe_map",
   }
+  if n_trajectories > safe_batch_size:
+    jax_row["safe_map_chunk_size"] = safe_batch_size
   pt_row = {
     "protein_length": length,
     "batch_size": n_trajectories,
@@ -816,70 +889,6 @@ def _run_cell(
     "equilibration_wall_clock_std_ms": pt_equil_ms_std,
   }
   return jax_row, pt_row
-
-
-def _run_cell_with_retry(
-  jax_model: ProteinEBMModel,
-  ref_model: "ProteinEBM",
-  length: int,
-  n_trajectories: int,
-  args: argparse.Namespace,
-  n_steps: int,
-  n_repeats: int,
-  jax_device: str,
-  torch_device: str,
-) -> tuple[dict[str, Any], dict[str, Any], None] | tuple[None, None, str]:
-  """Run a cell, halving ``n_trajectories`` and retrying if it crashes, down to a floor.
-
-  Per ``.praxia/docs/audits/260716_proteinebm-parity-report.md`` §7, the
-  Blackwell/SM120 XLA-autotuning crash (``CUDA_ERROR_ILLEGAL_ADDRESS``) has an
-  empirically confirmed batch-size-dependent threshold *for this script*:
-  every cell below the crash's batch size has always succeeded cleanly across
-  three separate cluster jobs and three jax/jaxlib versions. That is NOT true
-  of ``heterogeneous_batch_benchmark.py``'s crash, where a 4x structure-count
-  cut made no difference (same section) -- so this halving retry is only
-  applied here, not copied there.
-
-  Retrying in-process carries a real, undocumented-elsewhere risk: the crash
-  leaves CUDA driver state behind (the "failed to unload module ...; leaking"
-  messages logged after every occurrence of this fault), so a retry in the
-  same process is not guaranteed to get a clean device context. It is tried
-  anyway because the alternative -- losing the cell entirely -- is strictly
-  worse, and every observed crash in this script has still allowed the process
-  to reach a normal exit afterward. If retries start producing implausible
-  numbers (not just repeat crashes), that would be evidence the in-process
-  retry is unsafe and should be replaced with a fresh-subprocess retry instead.
-
-  Returns ``(jax_row, pytorch_row, None)`` on success -- with
-  ``requested_batch_size`` and ``retried_after_crash`` set on both rows if a
-  retry was needed to get there -- or ``(None, None, error_message)`` if every
-  attempt down to :data:`MIN_RETRY_TRAJECTORIES` failed.
-  """
-  attempt = n_trajectories
-  last_error = ""
-  while True:
-    try:
-      jax_row, pt_row = _run_cell(
-        jax_model, ref_model, length, attempt, args, n_steps, n_repeats, jax_device, torch_device,
-      )
-    except Exception as e:  # noqa: BLE001 -- classify by retrying, not by exception type
-      last_error = f"{type(e).__name__}: {e}"
-      log.error("[length=%d batch=%d] FAILED: %s", length, attempt, last_error)
-      if attempt <= MIN_RETRY_TRAJECTORIES:
-        return None, None, last_error
-      attempt = max(MIN_RETRY_TRAJECTORIES, attempt // 2)
-      log.warning(
-        "[length=%d requested_batch=%d] retrying at half batch size (%d)...",
-        length, n_trajectories, attempt,
-      )
-      continue
-    else:
-      if attempt != n_trajectories:
-        jax_row["requested_batch_size"] = n_trajectories
-        jax_row["retried_after_crash"] = True
-        pt_row["requested_batch_size"] = n_trajectories
-        pt_row["retried_after_crash"] = True
-      return jax_row, pt_row, None
 
 
 def main() -> int:
@@ -904,31 +913,31 @@ def main() -> int:
   wall_start = time.perf_counter()
   for length in lengths:
     for n_trajectories in batch_sizes:
-      jax_row, pt_row, error = _run_cell_with_retry(
-        jax_model, ref_model, length, n_trajectories, args, n_steps, n_repeats, jax_device, torch_device,
-      )
-      if error is not None:
+      try:
+        jax_row, pt_row = _run_cell(
+          jax_model, ref_model, length, n_trajectories, args, n_steps, n_repeats, jax_device, torch_device,
+        )
+      except Exception as e:  # noqa: BLE001 -- a single (length, batch) cell must not lose already-collected rows
+        log.error("[length=%d batch=%d] FAILED: %s: %s", length, n_trajectories, type(e).__name__, e)
         results.append({
           "protein_length": length,
           "batch_size": n_trajectories,
           "impl": "error",
-          "error": error,
+          "error": f"{type(e).__name__}: {e}",
         })
         _write_payload(args, batch_sizes, n_steps, n_repeats, diffuser_cfg, results, time.perf_counter() - wall_start)
         continue
 
-      assert jax_row is not None and pt_row is not None  # noqa: S101 -- error is None iff both rows are set
       results.append(jax_row)
       results.append(pt_row)
 
-      actual_batch = jax_row["batch_size"]
       speedup = (
         jax_row["langevin_steps_per_sec"] / pt_row["langevin_steps_per_sec"] if pt_row["langevin_steps_per_sec"] else float("nan")
       )
       log.info(
-        "[length=%d batch=%d%s] jax: %.1f steps/s, %.3f ms/step | pytorch: %.1f steps/s, %.3f ms/step | "
+        "[length=%d batch=%d strategy=%s] jax: %.1f steps/s, %.3f ms/step | pytorch: %.1f steps/s, %.3f ms/step | "
         "speedup=%.3fx",
-        length, actual_batch, "" if actual_batch == n_trajectories else f" (requested {n_trajectories})",
+        length, n_trajectories, jax_row["dispatch_strategy"],
         jax_row["langevin_steps_per_sec"], jax_row["langevin_step_ms"],
         pt_row["langevin_steps_per_sec"], pt_row["langevin_step_ms"], speedup,
       )
@@ -970,8 +979,9 @@ def _write_payload(
         "loop and model-swap dispatcher (aminx.ebm.langevin_schedule) are out "
         "of scope for this script; see module docstring.",
         "langevin_steps_per_sec batches n_trajectories independent chains via "
-        "jax.vmap (JAX) / a plain batch dimension (PyTorch), each run for a "
-        "fixed n_steps -- not a per-trajectory-varying trip count.",
+        "an xtrax AxisSpec/BatchPlanner-dispatched Vmap or SafeMap (JAX; see "
+        "dispatch_strategy) / a plain batch dimension (PyTorch), each run for "
+        "a fixed n_steps -- not a per-trajectory-varying trip count.",
         "langevin_step_ms is a single-trajectory, single-step latency (one "
         "langevin_step call), not a batched-throughput number -- E11d's "
         "analog of E11a/E11b's score_grad_ms.",
@@ -984,13 +994,16 @@ def _write_payload(
         "Only the plain Euler-Maruyama langevin_step path is benchmarked "
         "(use_metropolis=False) -- metropolis_hastings_step is not exercised here.",
         "A row with impl='error' means that (protein_length, batch_size) cell "
-        "raised during timing (see its 'error' field) even after halving the "
-        "batch size down to MIN_RETRY_TRAJECTORIES -- all other cells in this "
-        "file completed normally and are unaffected.",
-        "A row with requested_batch_size present and != batch_size means the "
-        "originally requested batch size crashed (retried_after_crash=True) "
-        "and the cell succeeded only after halving; batch_size is the size "
-        "actually measured, not the one requested on the command line.",
+        "raised during timing (see its 'error' field) -- all other cells in "
+        "this file completed normally and are unaffected.",
+        "jax rows' dispatch_strategy is 'vmap' (one shot) or 'safe_map' "
+        "(jax.lax.map in chunks of safe_map_chunk_size, an xtrax BatchPlanner "
+        "decision keyed on protein_length -- see SAFE_TRAJECTORY_BATCH_BY_LENGTH "
+        "in the script) -- either way the full requested batch_size is what "
+        "gets measured and reported; only the internal execution strategy "
+        "changes, proactively avoiding the Blackwell/SM120 XLA-autotuning "
+        "crash (.praxia/docs/audits/260716_proteinebm-parity-report.md §7) "
+        "rather than catching and retrying it after the fact.",
       ],
     },
     "results": results,

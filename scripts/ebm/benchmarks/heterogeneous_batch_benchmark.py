@@ -382,7 +382,7 @@ def _write_payload(
   args: argparse.Namespace,
   n_structures: int,
   n_repeats: int,
-  lengths: list[int],
+  lengths: list[Any],
   results: list[dict[str, Any]],
 ) -> None:
   """Write accumulated results so far -- called after every strategy attempt so a crash mid-run

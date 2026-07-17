@@ -268,6 +268,11 @@ def _parse_args() -> argparse.Namespace:
 DEFAULT_BATCH_SIZES: tuple[int, ...] = (4, 16, 64, 400)
 SMOKE_BATCH_SIZES: tuple[int, ...] = (2,)
 
+# Floor for the halve-and-retry loop (see _run_cell_with_retry) -- below this
+# there is no smaller batch to fall back to, so a crash here is recorded as a
+# permanent failure for that length.
+MIN_RETRY_TRAJECTORIES = 1
+
 
 def _resolve_run_params(args: argparse.Namespace) -> tuple[tuple[int, ...], tuple[int, ...], int, int]:
   """Resolve (lengths, batch_sizes, n_steps, n_repeats), applying --smoke's reduced defaults."""
@@ -751,6 +756,132 @@ def _run_dry_run(args: argparse.Namespace) -> int:
   return 0
 
 
+def _run_cell(
+  jax_model: ProteinEBMModel,
+  ref_model: "ProteinEBM",
+  length: int,
+  n_trajectories: int,
+  args: argparse.Namespace,
+  n_steps: int,
+  n_repeats: int,
+  jax_device: str,
+  torch_device: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+  """Run one (length, n_trajectories) cell. Returns (jax_row, pytorch_row). Raises on failure."""
+  batch = _synthetic_trajectories(n_trajectories, length, args.seed)
+
+  log.info(
+    "[length=%d batch=%d] JAX warmup + timed batched equilibration (n_steps=%d)...",
+    length, n_trajectories, n_steps,
+  )
+  jax_equil_times = _run_jax_equilibration(
+    jax_model, batch, args.diffusion_time, n_steps, args.dt, args.seed, n_repeats,
+  )
+  jax_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(jax_equil_times))
+  jax_equil_ms_mean, jax_equil_ms_std = _wall_clock_ms_stats(jax_equil_times)
+
+  jax_step_times = _run_jax_single_step(jax_model, batch, args.diffusion_time, args.dt, args.seed, n_repeats)
+  jax_step_ms = float(np.mean(jax_step_times)) * 1000.0
+  jax_step_ms_std = float(np.std(jax_step_times) * 1000.0)
+
+  log.info("[length=%d batch=%d] PyTorch warmup + timed batched equilibration...", length, n_trajectories)
+  pt_equil_times = _run_pytorch_equilibration(ref_model, batch, args.diffusion_time, n_steps, args.dt, n_repeats)
+  pt_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(pt_equil_times))
+  pt_equil_ms_mean, pt_equil_ms_std = _wall_clock_ms_stats(pt_equil_times)
+
+  pt_step_times = _run_pytorch_single_step(ref_model, batch, args.diffusion_time, args.dt, n_repeats)
+  pt_step_ms = float(np.mean(pt_step_times)) * 1000.0
+  pt_step_ms_std = float(np.std(pt_step_times) * 1000.0)
+
+  jax_row = {
+    "protein_length": length,
+    "batch_size": n_trajectories,
+    "impl": "jax",
+    "device": jax_device,
+    "langevin_steps_per_sec": jax_steps_per_sec,
+    "langevin_step_ms": jax_step_ms,
+    "langevin_step_ms_std": jax_step_ms_std,
+    "equilibration_wall_clock_mean_ms": jax_equil_ms_mean,
+    "equilibration_wall_clock_std_ms": jax_equil_ms_std,
+  }
+  pt_row = {
+    "protein_length": length,
+    "batch_size": n_trajectories,
+    "impl": "pytorch",
+    "device": torch_device,
+    "langevin_steps_per_sec": pt_steps_per_sec,
+    "langevin_step_ms": pt_step_ms,
+    "langevin_step_ms_std": pt_step_ms_std,
+    "equilibration_wall_clock_mean_ms": pt_equil_ms_mean,
+    "equilibration_wall_clock_std_ms": pt_equil_ms_std,
+  }
+  return jax_row, pt_row
+
+
+def _run_cell_with_retry(
+  jax_model: ProteinEBMModel,
+  ref_model: "ProteinEBM",
+  length: int,
+  n_trajectories: int,
+  args: argparse.Namespace,
+  n_steps: int,
+  n_repeats: int,
+  jax_device: str,
+  torch_device: str,
+) -> tuple[dict[str, Any], dict[str, Any], None] | tuple[None, None, str]:
+  """Run a cell, halving ``n_trajectories`` and retrying if it crashes, down to a floor.
+
+  Per ``.praxia/docs/audits/260716_proteinebm-parity-report.md`` §7, the
+  Blackwell/SM120 XLA-autotuning crash (``CUDA_ERROR_ILLEGAL_ADDRESS``) has an
+  empirically confirmed batch-size-dependent threshold *for this script*:
+  every cell below the crash's batch size has always succeeded cleanly across
+  three separate cluster jobs and three jax/jaxlib versions. That is NOT true
+  of ``heterogeneous_batch_benchmark.py``'s crash, where a 4x structure-count
+  cut made no difference (same section) -- so this halving retry is only
+  applied here, not copied there.
+
+  Retrying in-process carries a real, undocumented-elsewhere risk: the crash
+  leaves CUDA driver state behind (the "failed to unload module ...; leaking"
+  messages logged after every occurrence of this fault), so a retry in the
+  same process is not guaranteed to get a clean device context. It is tried
+  anyway because the alternative -- losing the cell entirely -- is strictly
+  worse, and every observed crash in this script has still allowed the process
+  to reach a normal exit afterward. If retries start producing implausible
+  numbers (not just repeat crashes), that would be evidence the in-process
+  retry is unsafe and should be replaced with a fresh-subprocess retry instead.
+
+  Returns ``(jax_row, pytorch_row, None)`` on success -- with
+  ``requested_batch_size`` and ``retried_after_crash`` set on both rows if a
+  retry was needed to get there -- or ``(None, None, error_message)`` if every
+  attempt down to :data:`MIN_RETRY_TRAJECTORIES` failed.
+  """
+  attempt = n_trajectories
+  last_error = ""
+  while True:
+    try:
+      jax_row, pt_row = _run_cell(
+        jax_model, ref_model, length, attempt, args, n_steps, n_repeats, jax_device, torch_device,
+      )
+    except Exception as e:  # noqa: BLE001 -- classify by retrying, not by exception type
+      last_error = f"{type(e).__name__}: {e}"
+      log.error("[length=%d batch=%d] FAILED: %s", length, attempt, last_error)
+      if attempt <= MIN_RETRY_TRAJECTORIES:
+        return None, None, last_error
+      attempt = max(MIN_RETRY_TRAJECTORIES, attempt // 2)
+      log.warning(
+        "[length=%d requested_batch=%d] retrying at half batch size (%d)...",
+        length, n_trajectories, attempt,
+      )
+      continue
+    else:
+      if attempt != n_trajectories:
+        jax_row["requested_batch_size"] = n_trajectories
+        jax_row["retried_after_crash"] = True
+        pt_row["requested_batch_size"] = n_trajectories
+        pt_row["retried_after_crash"] = True
+      return jax_row, pt_row, None
+
+
 def main() -> int:
   logging.basicConfig(level=logging.INFO, format="%(message)s")
   args = _parse_args()
@@ -773,70 +904,33 @@ def main() -> int:
   wall_start = time.perf_counter()
   for length in lengths:
     for n_trajectories in batch_sizes:
-      try:
-        batch = _synthetic_trajectories(n_trajectories, length, args.seed)
-
-        log.info(
-          "[length=%d batch=%d] JAX warmup + timed batched equilibration (n_steps=%d)...",
-          length, n_trajectories, n_steps,
-        )
-        jax_equil_times = _run_jax_equilibration(
-          jax_model, batch, args.diffusion_time, n_steps, args.dt, args.seed, n_repeats,
-        )
-        jax_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(jax_equil_times))
-        jax_equil_ms_mean, jax_equil_ms_std = _wall_clock_ms_stats(jax_equil_times)
-
-        jax_step_times = _run_jax_single_step(jax_model, batch, args.diffusion_time, args.dt, args.seed, n_repeats)
-        jax_step_ms = float(np.mean(jax_step_times)) * 1000.0
-        jax_step_ms_std = float(np.std(jax_step_times) * 1000.0)
-
-        log.info("[length=%d batch=%d] PyTorch warmup + timed batched equilibration...", length, n_trajectories)
-        pt_equil_times = _run_pytorch_equilibration(ref_model, batch, args.diffusion_time, n_steps, args.dt, n_repeats)
-        pt_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(pt_equil_times))
-        pt_equil_ms_mean, pt_equil_ms_std = _wall_clock_ms_stats(pt_equil_times)
-
-        pt_step_times = _run_pytorch_single_step(ref_model, batch, args.diffusion_time, args.dt, n_repeats)
-        pt_step_ms = float(np.mean(pt_step_times)) * 1000.0
-        pt_step_ms_std = float(np.std(pt_step_times) * 1000.0)
-      except Exception as e:  # noqa: BLE001 -- a single (length, batch) cell must not lose already-collected rows
-        log.error("[length=%d batch=%d] FAILED: %s: %s", length, n_trajectories, type(e).__name__, e)
+      jax_row, pt_row, error = _run_cell_with_retry(
+        jax_model, ref_model, length, n_trajectories, args, n_steps, n_repeats, jax_device, torch_device,
+      )
+      if error is not None:
         results.append({
           "protein_length": length,
           "batch_size": n_trajectories,
           "impl": "error",
-          "error": f"{type(e).__name__}: {e}",
+          "error": error,
         })
         _write_payload(args, batch_sizes, n_steps, n_repeats, diffuser_cfg, results, time.perf_counter() - wall_start)
         continue
 
-      results.append({
-        "protein_length": length,
-        "batch_size": n_trajectories,
-        "impl": "jax",
-        "device": jax_device,
-        "langevin_steps_per_sec": jax_steps_per_sec,
-        "langevin_step_ms": jax_step_ms,
-        "langevin_step_ms_std": jax_step_ms_std,
-        "equilibration_wall_clock_mean_ms": jax_equil_ms_mean,
-        "equilibration_wall_clock_std_ms": jax_equil_ms_std,
-      })
-      results.append({
-        "protein_length": length,
-        "batch_size": n_trajectories,
-        "impl": "pytorch",
-        "device": torch_device,
-        "langevin_steps_per_sec": pt_steps_per_sec,
-        "langevin_step_ms": pt_step_ms,
-        "langevin_step_ms_std": pt_step_ms_std,
-        "equilibration_wall_clock_mean_ms": pt_equil_ms_mean,
-        "equilibration_wall_clock_std_ms": pt_equil_ms_std,
-      })
+      assert jax_row is not None and pt_row is not None  # noqa: S101 -- error is None iff both rows are set
+      results.append(jax_row)
+      results.append(pt_row)
 
-      speedup = jax_steps_per_sec / pt_steps_per_sec if pt_steps_per_sec else float("nan")
+      actual_batch = jax_row["batch_size"]
+      speedup = (
+        jax_row["langevin_steps_per_sec"] / pt_row["langevin_steps_per_sec"] if pt_row["langevin_steps_per_sec"] else float("nan")
+      )
       log.info(
-        "[length=%d batch=%d] jax: %.1f steps/s, %.3f ms/step | pytorch: %.1f steps/s, %.3f ms/step | "
+        "[length=%d batch=%d%s] jax: %.1f steps/s, %.3f ms/step | pytorch: %.1f steps/s, %.3f ms/step | "
         "speedup=%.3fx",
-        length, n_trajectories, jax_steps_per_sec, jax_step_ms, pt_steps_per_sec, pt_step_ms, speedup,
+        length, actual_batch, "" if actual_batch == n_trajectories else f" (requested {n_trajectories})",
+        jax_row["langevin_steps_per_sec"], jax_row["langevin_step_ms"],
+        pt_row["langevin_steps_per_sec"], pt_row["langevin_step_ms"], speedup,
       )
       _write_payload(args, batch_sizes, n_steps, n_repeats, diffuser_cfg, results, time.perf_counter() - wall_start)
 
@@ -890,8 +984,13 @@ def _write_payload(
         "Only the plain Euler-Maruyama langevin_step path is benchmarked "
         "(use_metropolis=False) -- metropolis_hastings_step is not exercised here.",
         "A row with impl='error' means that (protein_length, batch_size) cell "
-        "raised during timing (see its 'error' field) -- all other cells in "
-        "this file completed normally and are unaffected.",
+        "raised during timing (see its 'error' field) even after halving the "
+        "batch size down to MIN_RETRY_TRAJECTORIES -- all other cells in this "
+        "file completed normally and are unaffected.",
+        "A row with requested_batch_size present and != batch_size means the "
+        "originally requested batch size crashed (retried_after_crash=True) "
+        "and the cell succeeded only after halving; batch_size is the size "
+        "actually measured, not the one requested on the command line.",
       ],
     },
     "results": results,

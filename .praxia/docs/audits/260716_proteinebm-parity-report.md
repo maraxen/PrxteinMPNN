@@ -1,7 +1,7 @@
 # ProteinEBM Parity: State of the Port
 
 - **task_id**: `260716_ebm_parity_report`
-- **status**: UPDATED 2026-07-17 — real accuracy-vs-paper data acquired + preliminary (small-sample) real correlations measured (§6); throughput-depth cluster runs (jobs `18059808`, `18069513`, `18149833`, Engaging pi_so3/Blackwell) complete: decoy/ddg/biasing/langevin/annealing all have real production-scale data; `heterogeneous_batch_benchmark` crashed on all 3 attempts (256 and 64 structures both trigger an identical XLA:Triton autotuning fault at L≥256) — closed as an open Blackwell/SM120 compiler limitation, not a script bug — see §7
+- **status**: UPDATED 2026-07-17 — real accuracy-vs-paper data acquired + preliminary (small-sample) real correlations measured (§6); throughput-depth cluster runs (jobs `18059808`, `18069513`, `18149833`, Engaging pi_so3/Blackwell) complete: decoy/ddg/biasing/langevin/annealing all have real production-scale data; `heterogeneous_batch_benchmark` crashed on all 4 attempts (256 and 64 structures both trigger an identical XLA:Triton autotuning fault at L≥256) — closed as an open Blackwell/SM120 compiler limitation, not a script bug, now confirmed version-independent (jax/jaxlib 0.11.0 retest, job `18161115`, reproduced the identical crash cells) — see §7
 - **author**: orchestrator session (background job)
 - **date**: 2026-07-16
 - **branch**: `worktree-ebm-parity-report`
@@ -357,6 +357,42 @@ time: no production-scale heterogeneous-batching number exists, and the smoke-sc
 (JAX bucket+pad+tile ~4.6× over naive PyTorch pad-to-max, §7 above) remains the only evidence for
 that comparison.
 
+**jax/jaxlib 0.11.0 retest (SLURM job `18161115`, 2026-07-17) confirms the crash is version-independent,
+not a regression a newer release fixes.** jax/jaxlib 0.11.0 (released 2026-07-16) had already been
+confirmed to fix an unrelated, previously-pinned decoy/ddg grad-path regression (a `scf.if`
+control-flow gradient compile crash present in 0.10.2 but not 0.8.0/0.8.3/0.9.0/0.9.2/0.11.0), so it
+was retested directly against both the heterogeneous and langevin autotuning-crash cells — same
+`XLA_FLAGS=--xla_gpu_shard_autotuning=false` workaround, no other flags, `UV_CACHE_DIR` pointed at
+scratch storage to route around an unrelated pool-quota issue (see Open Issues below). Result:
+
+- **`heterogeneous_batch_benchmark` (n=256) crashed identically** — same op
+  (`jit(_score_group)/vmap(vmap(eqx.nn.Linear))/dot_general`, `__triton_gemm` backend), same
+  `CUDA_ERROR_ILLEGAL_ADDRESS` inside `Failed to enqueue async memset operation`, same "55 out of X
+  instructions" autotuning-config failure shape as jobs `18069513`/`18149833`.
+- **`langevin_benchmark` crashed at the *exact same three cells* as job `18069513`**: L=128/batch=400,
+  L=256/batch=64, L=512/batch=16 — nothing above or below those thresholds crashed, and every cell
+  below each threshold produced clean, real throughput numbers (the incremental-write fix again did
+  its job). Reproducing the identical crash boundary, cell for cell, under a different jax/jaxlib
+  version is the strongest evidence yet that this is a hardware/compiler-pattern limitation (specific
+  fused-kernel shape on Blackwell SM120) rather than anything version-, batch-size-, or
+  script-dependent.
+
+**This confirms, rather than reverses, the "closed as open infra limitation" conclusion above** — it
+now holds across three separate jax/jaxlib versions (`0.9.2`, `0.10.2`, `0.11.0`). No jax-version
+upgrade is expected to resolve this; a real fix still requires either a targeted XLA flag to disable
+Triton GEMM fusion for this exact op pattern, or non-Blackwell hardware. The `0.9.2` grad-path pin in
+`run_cluster_benchmarks.sh` remains separately justifiable to retire now that 0.11.0's fix for that
+*specific* regression has a real (if still smoke-scale) confirmation — a full-scale confirmatory run
+of that fix specifically is still pending and out of scope for this report.
+
+One secondary observation: after every intended output file had already been fully and successfully
+written to disk, SLURM OOM-killed the whole job (`exit 0:125`, "1 oom_kill event in
+StepId=18161115.batch") a few seconds after the final script's completion echo. Consistent with the
+`18149833` postmortem above, this looks like leaked CUDA driver state ("`failed to unload module
+...; leaking`", logged after every crash) accumulating host-memory footprint across five sequential
+`uv run` invocations sharing one job's 128G allocation, not a sizing problem with any individual
+script call. No data was lost — every result file was already complete on disk before the kill.
+
 ## Reproducibility
 
 | Item | Value |
@@ -372,7 +408,8 @@ that comparison.
 | §6 scripts | `scripts/ebm/real_decoy_ranking_benchmark.py`, `scripts/ebm/real_ddg_stability_benchmark.py` (+ `.bth.toml` each) |
 | §6 real data | Rosetta decoys (`files.ipd.uw.edu/pub/decoyset/decoys.zip`, `~/repos/ProteinEBM/eval_data/decoys/`), ProteinGym v1.3 Tsuboyama subset (`marks.hms.harvard.edu` — broken TLS chain, fetch with `curl -k`) |
 | §7 scripts | `scripts/ebm/benchmarks/{decoy,ddg,biasing,langevin}_benchmark.py` (extended), `scripts/ebm/benchmarks/heterogeneous_batch_benchmark.py`, `scripts/ebm/benchmarks/langevin_annealing_benchmark.py` (both new) |
-| §7 cluster jobs | SLURM `18059808` (decoy/ddg/biasing completed; langevin crashed at L=128/batch=400), SLURM `18069513` (resume: heterogeneous FAILED exit 1, annealing OK, langevin OK w/ 3 caught crashes), SLURM `18149833` (heterogeneous retry @ n=64, hardened script: same crash recurred, then OOM-killed), Engaging `pi_so3` (Blackwell, node4008) |
+| §7 cluster jobs | SLURM `18059808` (decoy/ddg/biasing completed; langevin crashed at L=128/batch=400), SLURM `18069513` (resume: heterogeneous FAILED exit 1, annealing OK, langevin OK w/ 3 caught crashes), SLURM `18149833` (heterogeneous retry @ n=64, hardened script: same crash recurred, then OOM-killed), SLURM `18161115` (jax/jaxlib 0.11.0 retest: heterogeneous + langevin crashed at the identical cells as `18069513`, then OOM-killed after all files were written), Engaging `pi_so3` (Blackwell, node4008) |
 | §7 cluster wrapper | `scripts/ebm/benchmarks/run_cluster_benchmarks.sh` — `BENCHMARK_SKIP_STEPS=<comma list> bash scripts/ebm/benchmarks/run_cluster_benchmarks.sh` from the project root on the remote |
 | §7 real data | `outputs/ebm_benchmarks/{decoy,ddg}_benchmark_full_L{64-128,256,512}.json`, `biasing_benchmark_full.json`, `langevin_benchmark_full_L{64-128,256,512}.json`, `langevin_annealing_benchmark_full.json`, `heterogeneous_batch_benchmark_full.json` (diagnostic only — 1 `error` row, no successful strategy) |
 | §7 report data | `scripts/ebm/render_parity_report_data.py --benchmarks-dir outputs/ebm_benchmarks` → `outputs/ebm_benchmarks/ebm_parity_report_data.json` (`throughput_depth` key; 6/6 scripts have a file, 5/6 have real measurements, `heterogeneous`'s file is diagnostic-only) |
+| §7 jax 0.11.0 retest data | `outputs/ebm_benchmarks/jax011_{heterogeneous_batch_benchmark_full,langevin_benchmark_full_L64\,128,langevin_benchmark_full_L256,langevin_benchmark_full_L512}.json` — version-comparison evidence only, not fed into `render_parity_report_data.py` (the production depth numbers already come from the default-jax `18069513` files above; these confirm the same crash boundary under 0.11.0, they don't add new comparison data) |

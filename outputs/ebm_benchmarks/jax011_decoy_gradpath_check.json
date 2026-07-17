@@ -1,0 +1,85 @@
+{
+  "meta": {
+    "smoke": false,
+    "batch_sizes": [
+      4
+    ],
+    "n_repeats": 3,
+    "diffusion_time": 0.05,
+    "seed": 0,
+    "checkpoint": "/home/maarxaru/proteinebm_bench_assets/model_6_expert_frozen_1m_md.pt",
+    "reference_repo": "/home/maarxaru/proteinebm_bench_assets/ProteinEBM",
+    "model_dims": {
+      "token_s": 256,
+      "token_z": 128,
+      "transformer_depth": 16,
+      "transformer_heads": 8,
+      "num_contact_embeddings": 3
+    },
+    "wall_clock_seconds": 324.9252659226768,
+    "methodology_notes": [
+      "PyTorch score_grad_ms has THREE variants per row (pytorch_variant): 'eager' (torch.autograd.grad(..., create_graph=False) directly, the original optimized bypass), 'shipped' (the reference's own public compute_score() wrapper verbatim -- create_graph=True unconditionally, 'the public code' as literally distributed), and 'compiled' (the eager path wrapped in torch.compile -- compile_error is non-null and the timing null if torch.compile itself failed on this shape, honestly recorded rather than silently falling back to eager).",
+      "batch_sizes sweeps the reference's own real usage scale: score_decoys.py's --bsize default is 256 (halved to 128 for longer structures); run_dynamics.py's --batch_size default is 400. Prior runs of this script used a single fixed n_decoys (4 or 16) -- far below the reference's actual production scale.",
+      "Both impls get one untimed warmup call per (length, batch_size, metric, variant) before timing (JAX: forces jit compilation; PyTorch: cache/allocator warm-up, or torch.compile's lazy first-call compilation).",
+      "No SM120 XLA autotuning workaround applied here -- CPU-only local run. A cluster (GPU) run of this script MUST set XLA_FLAGS=--xla_gpu_shard_autotuning=false per ~/.claude/rules/CLUSTER.md or JAX throughput numbers will be wrong by orders of magnitude."
+    ]
+  },
+  "results": [
+    {
+      "protein_length": 64,
+      "batch_size": 4,
+      "impl": "jax",
+      "device": "gpu",
+      "pytorch_variant": null,
+      "energy_evals_per_sec": 1537.0358849019162,
+      "energy_wall_clock_mean_ms": 2.6024115892748036,
+      "energy_wall_clock_std_ms": 0.33899557307528794,
+      "score_grad_ms": 3.523301954070727,
+      "score_wall_clock_mean_ms": 3.523301954070727,
+      "score_wall_clock_std_ms": 0.38606239338806886,
+      "compile_error": null
+    },
+    {
+      "protein_length": 64,
+      "batch_size": 4,
+      "impl": "pytorch",
+      "device": "cuda",
+      "pytorch_variant": "eager",
+      "energy_evals_per_sec": 39.58085398967648,
+      "energy_wall_clock_mean_ms": 101.0589615131418,
+      "energy_wall_clock_std_ms": 2.0220411038336086,
+      "score_grad_ms": 116.2300289918979,
+      "score_wall_clock_mean_ms": 116.2300289918979,
+      "score_wall_clock_std_ms": 11.57259130266169,
+      "compile_error": null
+    },
+    {
+      "protein_length": 64,
+      "batch_size": 4,
+      "impl": "pytorch",
+      "device": "cuda",
+      "pytorch_variant": "shipped",
+      "energy_evals_per_sec": 39.58085398967648,
+      "energy_wall_clock_mean_ms": 101.0589615131418,
+      "energy_wall_clock_std_ms": 2.0220411038336086,
+      "score_grad_ms": 122.3391933987538,
+      "score_wall_clock_mean_ms": 122.3391933987538,
+      "score_wall_clock_std_ms": 16.86890126661325,
+      "compile_error": null
+    },
+    {
+      "protein_length": 64,
+      "batch_size": 4,
+      "impl": "pytorch",
+      "device": "cuda",
+      "pytorch_variant": "compiled",
+      "energy_evals_per_sec": 39.58085398967648,
+      "energy_wall_clock_mean_ms": 101.0589615131418,
+      "energy_wall_clock_std_ms": 2.0220411038336086,
+      "score_grad_ms": null,
+      "score_wall_clock_mean_ms": null,
+      "score_wall_clock_std_ms": null,
+      "compile_error": "BackendCompilerFailed: backend='inductor' raised:\nNotImplementedError: aminx.training is not yet updated for the Sprint 2 composable architecture. See Sprint 3 backlog item for TrainingPlan / TrainingStageSet design.\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+    }
+  ]
+}

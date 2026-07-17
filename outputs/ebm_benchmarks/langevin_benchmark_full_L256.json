@@ -1,0 +1,82 @@
+{
+  "meta": {
+    "smoke": false,
+    "batch_sizes": [
+      4,
+      16,
+      64
+    ],
+    "n_steps": 20,
+    "n_repeats": 10,
+    "diffusion_time": 0.05,
+    "dt": 0.001,
+    "seed": 0,
+    "checkpoint": "/home/maarxaru/proteinebm_bench_assets/model_6_expert_frozen_1m_md.pt",
+    "reference_repo": "/home/maarxaru/proteinebm_bench_assets/ProteinEBM",
+    "coordinate_scaling": 0.1,
+    "effective_temp_scaling": 1.0,
+    "use_metropolis": false,
+    "wall_clock_seconds": 586.4796093511395,
+    "methodology_notes": [
+      "Fixed single noise level t, single model -- the outer noise-schedule loop and model-swap dispatcher (aminx.ebm.langevin_schedule) are out of scope for this script; see module docstring.",
+      "langevin_steps_per_sec batches n_trajectories independent chains via jax.vmap (JAX) / a plain batch dimension (PyTorch), each run for a fixed n_steps -- not a per-trajectory-varying trip count.",
+      "langevin_step_ms is a single-trajectory, single-step latency (one langevin_step call), not a batched-throughput number -- E11d's analog of E11a/E11b's score_grad_ms.",
+      "Both impls get one untimed warmup call per (length, metric) before timing (JAX: forces jit compilation; PyTorch: cache/allocator warm-up).",
+      "No SM120 XLA autotuning workaround applied here -- CPU-only local run. A cluster (GPU) run of this script MUST set XLA_FLAGS=--xla_gpu_shard_autotuning=false per ~/.claude/rules/CLUSTER.md or JAX throughput numbers will be wrong by orders of magnitude.",
+      "Only the plain Euler-Maruyama langevin_step path is benchmarked (use_metropolis=False) -- metropolis_hastings_step is not exercised here.",
+      "A row with impl='error' means that (protein_length, batch_size) cell raised during timing (see its 'error' field) -- all other cells in this file completed normally and are unaffected."
+    ]
+  },
+  "results": [
+    {
+      "protein_length": 256,
+      "batch_size": 4,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 297.12276499605593,
+      "langevin_step_ms": 3.4833591897040606,
+      "langevin_step_ms_std": 0.1319552170200698,
+      "equilibration_wall_clock_mean_ms": 269.2489752545953,
+      "equilibration_wall_clock_std_ms": 0.18156822606455442
+    },
+    {
+      "protein_length": 256,
+      "batch_size": 4,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 7.575830511480685,
+      "langevin_step_ms": 189.44205772131681,
+      "langevin_step_ms_std": 99.21028489392432,
+      "equilibration_wall_clock_mean_ms": 10559.89833441563,
+      "equilibration_wall_clock_std_ms": 447.4069518055251
+    },
+    {
+      "protein_length": 256,
+      "batch_size": 16,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 310.0798277148127,
+      "langevin_step_ms": 3.533669887110591,
+      "langevin_step_ms_std": 0.12224332940895724,
+      "equilibration_wall_clock_mean_ms": 1031.992317456752,
+      "equilibration_wall_clock_std_ms": 0.23004539465933127
+    },
+    {
+      "protein_length": 256,
+      "batch_size": 16,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 8.452768485367809,
+      "langevin_step_ms": 151.04336831718683,
+      "langevin_step_ms_std": 1.491460321405501,
+      "equilibration_wall_clock_mean_ms": 37857.419205782935,
+      "equilibration_wall_clock_std_ms": 910.9409724286962
+    },
+    {
+      "protein_length": 256,
+      "batch_size": 64,
+      "impl": "error",
+      "error": "JaxRuntimeError: INTERNAL: Failed to autotune: 10 out of 19 instructions. See logs for details.\nCUDA error: Failed to enqueue async memset operation: CUDA_ERROR_ILLEGAL_ADDRESS: an illegal memory access was encountered"
+    }
+  ]
+}

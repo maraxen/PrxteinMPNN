@@ -1,7 +1,7 @@
 # ProteinEBM Parity: State of the Port
 
 - **task_id**: `260716_ebm_parity_report`
-- **status**: UPDATED 2026-07-16 (same day) — real accuracy-vs-paper data acquired + preliminary (small-sample) real correlations measured (§6); throughput-depth work (wall-clock, batch-size sweep, 3-way PyTorch comparison, heterogeneous-batch + outer-Langevin/E10 benchmarks) implemented and validated locally, cluster confirmatory run submitted to Engaging (pi_so3/Blackwell, SLURM job 18059808, PENDING at last check) — see §7
+- **status**: UPDATED 2026-07-17 — real accuracy-vs-paper data acquired + preliminary (small-sample) real correlations measured (§6); throughput-depth cluster runs (jobs `18059808` + `18069513`, Engaging pi_so3/Blackwell) complete: decoy/ddg/biasing/langevin/annealing all have real production-scale data, `heterogeneous_batch_benchmark` crashed on both attempts (open node4008/Blackwell reliability finding, not a script bug) — see §7
 - **author**: orchestrator session (background job)
 - **date**: 2026-07-16
 - **branch**: `worktree-ebm-parity-report`

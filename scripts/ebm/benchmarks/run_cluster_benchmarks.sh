@@ -146,7 +146,7 @@ run_step biasing uv run python scripts/ebm/benchmarks/biasing_benchmark.py \
 # crashes -- so if something crashes again, these two get priority for first data.
 run_step heterogeneous uv run python scripts/ebm/benchmarks/heterogeneous_batch_benchmark.py \
   --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
-  --n-structures 256 --n-repeats "${N_REPEATS}" \
+  --n-structures "${BENCHMARK_HETEROGENEOUS_N:-256}" --n-repeats "${N_REPEATS}" \
   --out "${OUT_DIR}/heterogeneous_batch_benchmark_full.json"
 
 run_step annealing uv run python scripts/ebm/benchmarks/langevin_annealing_benchmark.py \

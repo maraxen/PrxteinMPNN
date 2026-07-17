@@ -150,7 +150,6 @@ from xtrax.tiling import AxisSpec, BatchPlanner, SafeMap
 from aminx.ebm.checkpoint import load_pytorch_checkpoint
 from aminx.ebm.langevin import DEFAULT_EFFECTIVE_TEMP_SCALING, langevin_step, run_langevin_equilibration
 from aminx.ebm.model import ProteinEBMModel
-from aminx.utils.safe_map import safe_map
 
 if TYPE_CHECKING:
   from collections.abc import Mapping
@@ -492,6 +491,48 @@ def _wall_clock_ms_stats(times_seconds: list[float]) -> tuple[float, float]:
 # ---------------------------------------------------------------------------
 
 
+def _chunked_vmap(
+  fn: Any,  # noqa: ANN401 -- Callable[[tuple[jax.Array, jax.Array]], jax.Array]
+  xs: tuple[jax.Array, jax.Array],
+  chunk_size: int,
+) -> jax.Array:
+  """Apply ``fn`` over the leading axis of ``xs`` in Python-level (trace-time-unrolled) chunks.
+
+  Deliberately NOT ``xtrax.tiling.SafeMap``/``aminx.utils.safe_map.safe_map``:
+  those lower to ``jax.lax.map``, which JAX's own docs describe as "like
+  scan, implemented in terms of JAX primitives... compiled once" -- i.e. a
+  ``lax.scan``. ``run_langevin_equilibration`` already contains an internal
+  ``jax.lax.while_loop``, deliberately chosen (see the ``aminx.ebm.langevin``
+  module docstring) because ``while_loop`` compiles ~300-400x faster than the
+  ``lax.scan`` equivalent on SM120/Blackwell for a fixed-but-not-compile-time-
+  constant trip count. Wrapping that in an outer ``lax.scan`` (what ``SafeMap``
+  does) reintroduces exactly the compile-time pathology that choice exists to
+  avoid. Confirmed two ways before writing this: SLURM job `18182309` hung for
+  a full hour without finishing the compile ("warmup") call for the first
+  ``SafeMap``-dispatched cell (L=128/batch=400) on node4008/SM120, and a local
+  ``jax.make_jaxpr`` inspection showed the ``SafeMap`` path's jaxpr contains
+  both ``scan`` and ``while`` primitives (10 eqns) versus ``Vmap``'s single
+  ``while``-only equation (1 eqn) -- see
+  ``.praxia/docs/audits/260716_proteinebm-parity-report.md`` §7.
+
+  A plain Python ``for`` loop over static-size slices, each independently
+  ``jax.vmap``'d, avoids ``lax.scan`` entirely -- every chunk becomes its own
+  traced sub-graph (verified: zero ``scan`` nodes in the resulting jaxpr,
+  output bit-identical to a single ``jax.vmap`` call). The tradeoff is a
+  larger compiled program (one sub-graph per chunk instead of one reused
+  scan body) in exchange for avoiding a documented, order-of-magnitude
+  SM120 compile-time trap -- worth it for the handful of chunks
+  (``SAFE_TRAJECTORY_BATCH_BY_LENGTH``'s ratios are all single digits) this
+  script ever needs.
+  """
+  n = xs[0].shape[0]
+  parts = [
+    jax.vmap(fn)(jax.tree_util.tree_map(lambda x, s=start, e=min(start + chunk_size, n): x[s:e], xs))
+    for start in range(0, n, chunk_size)
+  ]
+  return jax.tree_util.tree_map(lambda *p: jnp.concatenate(p, axis=0), *parts)
+
+
 @eqx.filter_jit
 def _jax_equilibration_batch(
   model: ProteinEBMModel,
@@ -506,26 +547,29 @@ def _jax_equilibration_batch(
 ) -> jax.Array:
   """Dispatch ``run_langevin_equilibration`` over the ``n_trajectories`` axis via an xtrax BatchPlanner decision.
 
-  Vmap in one shot when ``n_trajectories <= safe_batch_size``; ``SafeMap``
-  (``jax.lax.map`` in chunks of ``safe_batch_size``) above it -- see
-  :data:`SAFE_TRAJECTORY_BATCH_BY_LENGTH` for why. Either way this computes
-  the full ``n_trajectories`` batch -- the strategy only changes how XLA
-  schedules the work, never what gets measured, so the reported batch size
-  always matches what was requested.
+  Vmap in one shot when ``n_trajectories <= safe_batch_size``; a Python-level
+  chunked vmap (:func:`_chunked_vmap`, chunks of ``safe_batch_size``) above
+  it -- see :data:`SAFE_TRAJECTORY_BATCH_BY_LENGTH` for why the threshold,
+  and :func:`_chunked_vmap`'s docstring for why chunking is NOT done via
+  ``xtrax.tiling.SafeMap``. Either way this computes the full
+  ``n_trajectories`` batch -- the strategy only changes how XLA schedules
+  the work, never what gets measured, so the reported batch size always
+  matches what was requested.
 
   ``n_steps`` is the *same* fixed value for every trajectory (a Python
   ``int``, not batched) -- so this only exercises JAX's "identical trip
   count, different data" batched-``while_loop`` case, not its per-lane-
   varying-trip-count/masking semantics (module docstring point 5).
 
-  Dispatched inline (isinstance check against ``Vmap``/``SafeMap``) rather
-  than through ``aminx.ebm.plan.dispatch_axis``: that helper's generic
-  signature assumes ``body`` returns the same pytree type it's fed one slice
-  of at a time, which fits E4's Coords-in/Energy-out style calls (both are
-  bare ``Array``\\ s under jaxtyping's annotations) but not this ``(coords,
-  key)`` pair-in/``Array``-out shape. The planning half -- ``AxisSpec`` +
-  ``BatchPlanner`` deciding ``Vmap`` vs. ``SafeMap`` -- is identical to that
-  module's pattern; only the final dispatch call is written locally.
+  The planning half (``AxisSpec`` + ``BatchPlanner`` deciding ``Vmap`` vs.
+  ``SafeMap``) mirrors ``aminx.ebm.plan.plan_axis``'s pattern; only the
+  *execution* of a ``SafeMap`` decision is written locally, via
+  :func:`_chunked_vmap` rather than ``aminx.ebm.plan.dispatch_axis`` -- that
+  helper's generic signature assumes ``body`` returns the same pytree type
+  it's fed one slice of at a time (fits E4's Coords-in/Energy-out calls,
+  both bare ``Array``\\ s under jaxtyping) but not this ``(coords, key)``
+  pair-in/``Array``-out shape, and it would dispatch ``SafeMap`` via
+  ``aminx.utils.safe_map.safe_map`` (``lax.map``/``scan``-based) regardless.
   """
 
   def _single(pair: tuple[jax.Array, jax.Array]) -> jax.Array:
@@ -538,15 +582,15 @@ def _jax_equilibration_batch(
     # BatchPlanner warns "will raise ValueError at make_axis_dispatch time" for a
     # non-divisible (cardinality, batch_size) pair (e.g. 400 trajectories chunked
     # at 64) -- that failure mode belongs to xtrax's make_axis_dispatch iterators,
-    # which this function never calls. aminx.utils.safe_map.safe_map's jax.lax.map
-    # handles a non-divisible remainder chunk correctly (verified: bit-identical
-    # to a plain jax.vmap for the same inputs), so the warning is a false alarm
-    # for this dispatch path specifically and is suppressed rather than left as
-    # confusing log noise on every non-divisible cell.
+    # which this function never calls. _chunked_vmap handles a non-divisible
+    # remainder chunk correctly (verified: bit-identical to a plain jax.vmap for
+    # the same inputs), so the warning is a false alarm for this dispatch path
+    # specifically and is suppressed rather than left as confusing log noise on
+    # every non-divisible cell.
     warnings.filterwarnings("ignore", message=r".*is not divisible by batch_size.*", category=RuntimeWarning)
     decision = BatchPlanner().plan([spec]).decisions[0]
   if isinstance(decision.strategy, SafeMap):
-    return safe_map(_single, (coords_batch, keys), batch_size=decision.strategy.batch_size)
+    return _chunked_vmap(_single, (coords_batch, keys), decision.strategy.batch_size)
   return jax.vmap(_single)((coords_batch, keys))
 
 

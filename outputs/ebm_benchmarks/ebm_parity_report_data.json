@@ -10821,8 +10821,306 @@
         "biasing_benchmark_full.json"
       ]
     },
-    "langevin": null,
+    "langevin": {
+      "rows": [
+        {
+          "protein_length": 64,
+          "batch_size": 4,
+          "impl": "jax",
+          "device": "gpu",
+          "langevin_steps_per_sec": 2083.2789793867264,
+          "langevin_step_ms": 1.7026134300976992,
+          "langevin_step_ms_std": 0.13859988850744112,
+          "equilibration_wall_clock_mean_ms": 38.40100187808275,
+          "equilibration_wall_clock_std_ms": 0.20223589380198626
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 4,
+          "impl": "pytorch",
+          "device": "cuda",
+          "langevin_steps_per_sec": 49.66204519287155,
+          "langevin_step_ms": 37.072987435385585,
+          "langevin_step_ms_std": 0.1047610626266473,
+          "equilibration_wall_clock_mean_ms": 1610.8881478663534,
+          "equilibration_wall_clock_std_ms": 29.004068149221382
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 16,
+          "impl": "jax",
+          "device": "gpu",
+          "langevin_steps_per_sec": 3300.6621315540656,
+          "langevin_step_ms": 1.7822886351495981,
+          "langevin_step_ms_std": 0.11865446889143234,
+          "equilibration_wall_clock_mean_ms": 96.95024429820478,
+          "equilibration_wall_clock_std_ms": 0.2117119640200482
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 16,
+          "impl": "pytorch",
+          "device": "cuda",
+          "langevin_steps_per_sec": 66.56977658591956,
+          "langevin_step_ms": 36.655813455581665,
+          "langevin_step_ms_std": 0.3032002844583738,
+          "equilibration_wall_clock_mean_ms": 4806.986239273101,
+          "equilibration_wall_clock_std_ms": 60.237947068601656
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 64,
+          "impl": "jax",
+          "device": "gpu",
+          "langevin_steps_per_sec": 3566.3742491187572,
+          "langevin_step_ms": 1.7868338152766228,
+          "langevin_step_ms_std": 0.12084526618261261,
+          "equilibration_wall_clock_mean_ms": 358.9079301804304,
+          "equilibration_wall_clock_std_ms": 0.17738943658258893
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 64,
+          "impl": "pytorch",
+          "device": "cuda",
+          "langevin_steps_per_sec": 74.29856519000789,
+          "langevin_step_ms": 37.63530780561268,
+          "langevin_step_ms_std": 0.09696192721295285,
+          "equilibration_wall_clock_mean_ms": 17227.78894486837,
+          "equilibration_wall_clock_std_ms": 533.2949714751899
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 400,
+          "impl": "jax",
+          "device": "gpu",
+          "langevin_steps_per_sec": 3374.21124596422,
+          "langevin_step_ms": 1.7294109798967838,
+          "langevin_step_ms_std": 0.08235036760448826,
+          "equilibration_wall_clock_mean_ms": 2370.924467034638,
+          "equilibration_wall_clock_std_ms": 0.7451537773976932
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 400,
+          "impl": "pytorch",
+          "device": "cuda",
+          "langevin_steps_per_sec": 74.3884869999436,
+          "langevin_step_ms": 37.02156008221209,
+          "langevin_step_ms_std": 0.14520564964860114,
+          "equilibration_wall_clock_mean_ms": 107543.52350258268,
+          "equilibration_wall_clock_std_ms": 931.8884372328207
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 4,
+          "impl": "jax",
+          "device": "gpu",
+          "langevin_steps_per_sec": 973.8087270431325,
+          "langevin_step_ms": 2.0205716602504253,
+          "langevin_step_ms_std": 0.17081477012450771,
+          "equilibration_wall_clock_mean_ms": 82.15165645815432,
+          "equilibration_wall_clock_std_ms": 0.23340296931602267
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 4,
+          "impl": "pytorch",
+          "device": "cuda",
+          "langevin_steps_per_sec": 20.881843034442962,
+          "langevin_step_ms": 67.89432116784155,
+          "langevin_step_ms_std": 0.6114920619273876,
+          "equilibration_wall_clock_mean_ms": 3831.0794630553573,
+          "equilibration_wall_clock_std_ms": 191.84324631459197
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 16,
+          "impl": "jax",
+          "device": "gpu",
+          "langevin_steps_per_sec": 1075.654238915271,
+          "langevin_step_ms": 2.11031474173069,
+          "langevin_step_ms_std": 0.1473037063161453,
+          "equilibration_wall_clock_mean_ms": 297.4933658260852,
+          "equilibration_wall_clock_std_ms": 0.2229791375174411
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 16,
+          "impl": "pytorch",
+          "device": "cuda",
+          "langevin_steps_per_sec": 25.36726980599081,
+          "langevin_step_ms": 65.56861391291022,
+          "langevin_step_ms_std": 0.4258239553844816,
+          "equilibration_wall_clock_mean_ms": 12614.68035178259,
+          "equilibration_wall_clock_std_ms": 396.15923740429747
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 64,
+          "impl": "jax",
+          "device": "gpu",
+          "langevin_steps_per_sec": 1103.2643930387405,
+          "langevin_step_ms": 2.0706161856651306,
+          "langevin_step_ms_std": 0.12211125821234207,
+          "equilibration_wall_clock_mean_ms": 1160.1933390367776,
+          "equilibration_wall_clock_std_ms": 0.2216825260537943
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 64,
+          "impl": "pytorch",
+          "device": "cuda",
+          "langevin_steps_per_sec": 27.280873747909176,
+          "langevin_step_ms": 62.85350793041289,
+          "langevin_step_ms_std": 0.707251826764577,
+          "equilibration_wall_clock_mean_ms": 46919.31834104471,
+          "equilibration_wall_clock_std_ms": 1052.1836950999634
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 400,
+          "impl": "error",
+          "error": "JaxRuntimeError: INTERNAL: Failed to autotune: 10 out of 19 instructions. See logs for details.\nCUDA error: Failed to enqueue async memset operation: CUDA_ERROR_ILLEGAL_ADDRESS: an illegal memory access was encountered"
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 4,
+          "impl": "jax",
+          "device": "gpu",
+          "langevin_steps_per_sec": 297.12276499605593,
+          "langevin_step_ms": 3.4833591897040606,
+          "langevin_step_ms_std": 0.1319552170200698,
+          "equilibration_wall_clock_mean_ms": 269.2489752545953,
+          "equilibration_wall_clock_std_ms": 0.18156822606455442
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 4,
+          "impl": "pytorch",
+          "device": "cuda",
+          "langevin_steps_per_sec": 7.575830511480685,
+          "langevin_step_ms": 189.44205772131681,
+          "langevin_step_ms_std": 99.21028489392432,
+          "equilibration_wall_clock_mean_ms": 10559.89833441563,
+          "equilibration_wall_clock_std_ms": 447.4069518055251
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 16,
+          "impl": "jax",
+          "device": "gpu",
+          "langevin_steps_per_sec": 310.0798277148127,
+          "langevin_step_ms": 3.533669887110591,
+          "langevin_step_ms_std": 0.12224332940895724,
+          "equilibration_wall_clock_mean_ms": 1031.992317456752,
+          "equilibration_wall_clock_std_ms": 0.23004539465933127
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 16,
+          "impl": "pytorch",
+          "device": "cuda",
+          "langevin_steps_per_sec": 8.452768485367809,
+          "langevin_step_ms": 151.04336831718683,
+          "langevin_step_ms_std": 1.491460321405501,
+          "equilibration_wall_clock_mean_ms": 37857.419205782935,
+          "equilibration_wall_clock_std_ms": 910.9409724286962
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 64,
+          "impl": "error",
+          "error": "JaxRuntimeError: INTERNAL: Failed to autotune: 10 out of 19 instructions. See logs for details.\nCUDA error: Failed to enqueue async memset operation: CUDA_ERROR_ILLEGAL_ADDRESS: an illegal memory access was encountered"
+        },
+        {
+          "protein_length": 512,
+          "batch_size": 4,
+          "impl": "jax",
+          "device": "gpu",
+          "langevin_steps_per_sec": 82.55461679654358,
+          "langevin_step_ms": 11.811806727200747,
+          "langevin_step_ms_std": 0.1518704081754536,
+          "equilibration_wall_clock_mean_ms": 969.0554338973016,
+          "equilibration_wall_clock_std_ms": 0.20622268202414087
+        },
+        {
+          "protein_length": 512,
+          "batch_size": 4,
+          "impl": "pytorch",
+          "device": "cuda",
+          "langevin_steps_per_sec": 2.411986750740864,
+          "langevin_step_ms": 445.61336557380855,
+          "langevin_step_ms_std": 1.49969770830242,
+          "equilibration_wall_clock_mean_ms": 33167.6780460868,
+          "equilibration_wall_clock_std_ms": 675.2265317898089
+        },
+        {
+          "protein_length": 512,
+          "batch_size": 16,
+          "impl": "error",
+          "error": "JaxRuntimeError: INTERNAL: Failed to autotune: 3 out of 18 instructions. See logs for details.\nCUDA error: Failed to enqueue async memset operation: CUDA_ERROR_ILLEGAL_ADDRESS: an illegal memory access was encountered"
+        }
+      ],
+      "n_missing_files": 0,
+      "source_files": [
+        "langevin_benchmark_full_L64-128.json",
+        "langevin_benchmark_full_L256.json",
+        "langevin_benchmark_full_L512.json"
+      ]
+    },
     "heterogeneous": null,
-    "annealing": null
+    "annealing": {
+      "rows": [
+        {
+          "protein_length": 64,
+          "outer_annealing_jax_ms_mean": 25.981150707229972,
+          "outer_annealing_jax_ms_std": 0.22587325438962574,
+          "outer_annealing_pytorch_ms_mean": 698.5113522969186,
+          "outer_annealing_pytorch_ms_std": 2.582495204754844,
+          "outer_annealing_speedup": 26.885312362340386,
+          "e10_pipeline_ms": 11139.31923173368,
+          "e10_rounds": 3,
+          "e10_batch_size": 4
+        },
+        {
+          "protein_length": 128,
+          "outer_annealing_jax_ms_mean": 37.507664784789085,
+          "outer_annealing_jax_ms_std": 0.05668065611563384,
+          "outer_annealing_pytorch_ms_mean": 1342.7726299501956,
+          "outer_annealing_pytorch_ms_std": 24.816096241274526,
+          "outer_annealing_speedup": 35.79995282710177,
+          "e10_pipeline_ms": 11388.777651824057,
+          "e10_rounds": 3,
+          "e10_batch_size": 4
+        },
+        {
+          "protein_length": 256,
+          "outer_annealing_jax_ms_mean": 77.39034765399992,
+          "outer_annealing_jax_ms_std": 0.20346522099045247,
+          "outer_annealing_pytorch_ms_mean": 3237.2431783471256,
+          "outer_annealing_pytorch_ms_std": 41.95509406488144,
+          "outer_annealing_speedup": 41.83006378030928,
+          "e10_pipeline_ms": 13021.264704875648,
+          "e10_rounds": 3,
+          "e10_batch_size": 4
+        },
+        {
+          "protein_length": 512,
+          "outer_annealing_jax_ms_mean": 270.5160927493125,
+          "outer_annealing_jax_ms_std": 0.3199712187785195,
+          "outer_annealing_pytorch_ms_mean": 9226.46831125021,
+          "outer_annealing_pytorch_ms_std": 347.61893982967206,
+          "outer_annealing_speedup": 34.106911043552536,
+          "e10_pipeline_ms": 15189.362173900008,
+          "e10_rounds": 3,
+          "e10_batch_size": 4
+        }
+      ],
+      "n_missing_files": 0,
+      "source_files": [
+        "langevin_annealing_benchmark_full.json"
+      ]
+    }
   }
 }

@@ -1,7 +1,7 @@
 # ProteinEBM Parity: State of the Port
 
 - **task_id**: `260716_ebm_parity_report`
-- **status**: UPDATED 2026-07-17 — real accuracy-vs-paper data acquired + preliminary (small-sample) real correlations measured (§6); throughput-depth cluster runs (jobs `18059808` + `18069513`, Engaging pi_so3/Blackwell) complete: decoy/ddg/biasing/langevin/annealing all have real production-scale data, `heterogeneous_batch_benchmark` crashed on both attempts (open node4008/Blackwell reliability finding, not a script bug) — see §7
+- **status**: UPDATED 2026-07-17 — real accuracy-vs-paper data acquired + preliminary (small-sample) real correlations measured (§6); throughput-depth cluster runs (jobs `18059808`, `18069513`, `18149833`, Engaging pi_so3/Blackwell) complete: decoy/ddg/biasing/langevin/annealing all have real production-scale data; `heterogeneous_batch_benchmark` crashed on all 3 attempts (256 and 64 structures both trigger an identical XLA:Triton autotuning fault at L≥256) — closed as an open Blackwell/SM120 compiler limitation, not a script bug — see §7
 - **author**: orchestrator session (background job)
 - **date**: 2026-07-16
 - **branch**: `worktree-ebm-parity-report`
@@ -321,12 +321,41 @@ any measure) — four independent crashes now, across two different scripts, all
 `CUDA_ERROR_ILLEGAL_ADDRESS` during XLA autotuning of a large fused kernel, all on node4008. The
 common thread looks like compile-time memory pressure (the heterogeneous crash's own log shows
 `hlo_rematerialization` failing to get below ~38GiB just before the fault) rather than any one
-script's batch-size choice. Treated here as an **open Blackwell/node4008 reliability finding**, not
-a bug in `langevin_benchmark.py` or `heterogeneous_batch_benchmark.py` — recorded honestly as a gap
-rather than papered over. `heterogeneous_batch_benchmark.py` does not yet have the incremental-write
-guard `langevin_benchmark.py` has; giving it the same treatment (plus possibly a smaller
-`--n-structures`) is the natural next step if a production-scale heterogeneous-batching number is
-wanted.
+script's batch-size choice.
+
+**A follow-up retry (SLURM job `18149833`) tested that hypothesis directly and ruled it out.**
+Two changes went into the retry: (1) `heterogeneous_batch_benchmark.py` got the same
+incremental-write + per-strategy `try/except` hardening as `langevin_benchmark.py` (verified locally
+by injecting a synthetic failure into `_jax_bucket_pad_tile` and confirming the other two strategies'
+results still land in the output file), and (2) `--n-structures` was cut **4× (256 → 64)** via a new
+`BENCHMARK_HETEROGENEOUS_N` override, to test whether a smaller heterogeneous batch avoids the crash.
+It didn't: the **identical** fault recurred — same op
+(`jit(_score_group)/vmap(vmap(eqx.nn.Linear))/dot_general`, `__triton_gemm` backend), same
+`CUDA_ERROR_ILLEGAL_ADDRESS` inside `Failed to enqueue async memset operation`, this time in a
+`gemm_fusion_dot` over an `f32[512,8704]` shape — with the L=512 bucket holding only ~7 structures
+(vs. ~26+ at n=256). **A batch-size reduction of 4× made no difference**, which rules out total
+vmap-batch-size as the trigger; the fault looks tied to the fused-kernel *shape* XLA:Triton generates
+for this LayerNorm+Linear pattern at L=256/L=512 on this Blackwell (SM120) node, not to how many
+structures are packed into that shape.
+
+The incremental-write fix did work exactly as designed — the crash was caught, logged, and the
+error row was persisted to `heterogeneous_batch_benchmark_full.json` — but the corrupted CUDA driver
+state left behind by the illegal-address fault (the same "`failed to unload module ...; leaking`"
+messages seen in every occurrence of this bug) apparently bloated the process's host memory
+footprint enough that SLURM's own accounting killed the whole job as **`OUT_OF_MEMORY`** (`oom_kill`
+event, exit 137) a few seconds later, before the two PyTorch-only strategies could run. So this
+specific run recovered one honest data point (the crash itself, precisely characterized) but not the
+PyTorch comparison numbers.
+
+**Conclusion, treated as closed for this report**: this reads as a genuine XLA:Triton/Blackwell
+(SM120) autotuning compiler limitation specific to this fusion pattern at L≥256, not a bug in either
+benchmark script and not something `--n-structures` tuning fixes. A real resolution would need either
+a targeted XLA flag beyond the already-active `--xla_gpu_shard_autotuning=false` workaround (to
+disable Triton GEMM fusion for this op pattern) or running on non-Blackwell hardware — both out of
+scope here. Recorded as an **open infra/compiler limitation**, not chased further with more cluster
+time: no production-scale heterogeneous-batching number exists, and the smoke-scale local result
+(JAX bucket+pad+tile ~4.6× over naive PyTorch pad-to-max, §7 above) remains the only evidence for
+that comparison.
 
 ## Reproducibility
 
@@ -343,7 +372,7 @@ wanted.
 | §6 scripts | `scripts/ebm/real_decoy_ranking_benchmark.py`, `scripts/ebm/real_ddg_stability_benchmark.py` (+ `.bth.toml` each) |
 | §6 real data | Rosetta decoys (`files.ipd.uw.edu/pub/decoyset/decoys.zip`, `~/repos/ProteinEBM/eval_data/decoys/`), ProteinGym v1.3 Tsuboyama subset (`marks.hms.harvard.edu` — broken TLS chain, fetch with `curl -k`) |
 | §7 scripts | `scripts/ebm/benchmarks/{decoy,ddg,biasing,langevin}_benchmark.py` (extended), `scripts/ebm/benchmarks/heterogeneous_batch_benchmark.py`, `scripts/ebm/benchmarks/langevin_annealing_benchmark.py` (both new) |
-| §7 cluster jobs | SLURM `18059808` (decoy/ddg/biasing completed; langevin crashed at L=128/batch=400), SLURM `18069513` (resume: heterogeneous FAILED exit 1, annealing OK, langevin OK w/ 3 caught crashes), Engaging `pi_so3` (Blackwell, node4008) |
+| §7 cluster jobs | SLURM `18059808` (decoy/ddg/biasing completed; langevin crashed at L=128/batch=400), SLURM `18069513` (resume: heterogeneous FAILED exit 1, annealing OK, langevin OK w/ 3 caught crashes), SLURM `18149833` (heterogeneous retry @ n=64, hardened script: same crash recurred, then OOM-killed), Engaging `pi_so3` (Blackwell, node4008) |
 | §7 cluster wrapper | `scripts/ebm/benchmarks/run_cluster_benchmarks.sh` — `BENCHMARK_SKIP_STEPS=<comma list> bash scripts/ebm/benchmarks/run_cluster_benchmarks.sh` from the project root on the remote |
-| §7 real data | `outputs/ebm_benchmarks/{decoy,ddg}_benchmark_full_L{64-128,256,512}.json`, `biasing_benchmark_full.json`, `langevin_benchmark_full_L{64-128,256,512}.json`, `langevin_annealing_benchmark_full.json` — `heterogeneous_batch_benchmark_full.json` does not exist (crashed before first write) |
-| §7 report data | `scripts/ebm/render_parity_report_data.py --benchmarks-dir outputs/ebm_benchmarks` → `outputs/ebm_benchmarks/ebm_parity_report_data.json` (`throughput_depth` key; 5/6 scripts populated, `heterogeneous` remains `null`) |
+| §7 real data | `outputs/ebm_benchmarks/{decoy,ddg}_benchmark_full_L{64-128,256,512}.json`, `biasing_benchmark_full.json`, `langevin_benchmark_full_L{64-128,256,512}.json`, `langevin_annealing_benchmark_full.json`, `heterogeneous_batch_benchmark_full.json` (diagnostic only — 1 `error` row, no successful strategy) |
+| §7 report data | `scripts/ebm/render_parity_report_data.py --benchmarks-dir outputs/ebm_benchmarks` → `outputs/ebm_benchmarks/ebm_parity_report_data.json` (`throughput_depth` key; 6/6 scripts have a file, 5/6 have real measurements, `heterogeneous`'s file is diagnostic-only) |

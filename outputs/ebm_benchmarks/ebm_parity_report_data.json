@@ -11069,7 +11069,18 @@
         "langevin_benchmark_full_L512.json"
       ]
     },
-    "heterogeneous": null,
+    "heterogeneous": {
+      "rows": [
+        {
+          "strategy": "jax_bucket_pad_tile",
+          "error": "JaxRuntimeError: INTERNAL: Autotuning failed for HLO: %gemm_fusion_dot.1 = f32[512,8704]{0,1} fusion(%dynamic_nodonate__first___6_.1, %dynamic_nodonate__first___4_.1, %bitcast.5565.0, %dynamic_nodonate__first___5_.1, %dynamic_nodonate__first___7_.1), kind=kCustom, calls=%gemm_fusion_dot.1_computation, metadata={op_name=\"jit(_score_group)/vmap(vmap(eqx.nn.Linear))/dot_general\" stack_frame_id=92}, backend_config={\"operation_queue_id\":\"0\",\"fusion_backend_config\":{\"kind\":\"__triton_gemm\"},\"force_earliest_schedule\":false,\"reification_cost\":[],\"device_type\":\"DEVICE_TYPE_INVALID\"}. Failed to profile configs: CUDA error: Failed to enqueue async memset operation: CUDA_ERROR_ILLEGAL_ADDRESS: an illegal memory access was encountered"
+        }
+      ],
+      "n_missing_files": 0,
+      "source_files": [
+        "heterogeneous_batch_benchmark_full.json"
+      ]
+    },
     "annealing": {
       "rows": [
         {

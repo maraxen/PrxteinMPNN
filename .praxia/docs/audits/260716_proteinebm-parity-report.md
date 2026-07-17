@@ -393,6 +393,22 @@ StepId=18161115.batch") a few seconds after the final script's completion echo. 
 `uv run` invocations sharing one job's 128G allocation, not a sizing problem with any individual
 script call. No data was lost — every result file was already complete on disk before the kill.
 
+**Mitigation added for future runs: `langevin_benchmark.py` now halves the batch size and retries on
+a crash instead of recording a dead loss.** Since the crash boundary is empirically batch-size-
+dependent *for this script* (every cell below the threshold has succeeded cleanly across three jobs
+and three jax/jaxlib versions — unlike `heterogeneous_batch_benchmark.py`, where a 4× structure-count
+cut made no difference, see the `18149833` finding above), `_run_cell_with_retry` now halves
+`n_trajectories` and retries down to a floor of 1 on any exception, tagging the recovered row with
+`requested_batch_size`/`retried_after_crash` so it's never mistaken for data at the batch size
+actually requested. This is only applied to `langevin_benchmark.py` — wiring the same halving into
+`heterogeneous_batch_benchmark.py` would be pointless, since total structure count is already known
+not to be the trigger there. Verified locally (L1/L2 gates unchanged, plus an injected-failure
+harness confirming the halving sequence and the give-up-at-floor path); not yet re-run on the cluster,
+so it has not yet actually narrowed the L=128/L=256/L=512 crash thresholds beyond what's reported
+above — a future cluster run would get real numbers at those three cells instead of `impl="error"`
+rows, and incidentally pin down the exact threshold more precisely than the coarse
+`(4, 16, 64, 400)` sweep can.
+
 ## Reproducibility
 
 | Item | Value |

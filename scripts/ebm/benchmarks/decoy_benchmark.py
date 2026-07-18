@@ -269,6 +269,7 @@ def _build_reference_model(
   model_cfg: Any,  # noqa: ANN401 -- duck-typed ml_collections.ConfigDict | SimpleNamespace
   diffuser_cfg: Any,  # noqa: ANN401
   state_dict: "Mapping[str, torch.Tensor] | None",
+  device: "str | torch.device" = "cpu",
 ) -> "ProteinEBM":
   """Construct the real reference ``ProteinEBM``, optionally strict-loading a checkpoint.
 
@@ -278,6 +279,14 @@ def _build_reference_model(
   this benchmark script has no import-time dependency on another script's
   private (``_``-prefixed) functions, and so it can build the *tiny* --smoke
   architecture that script never needed to support.
+
+  ``device`` defaults to ``"cpu"`` (matches the checkpoint's own
+  ``map_location="cpu"`` load) but callers doing real throughput measurement
+  MUST pass the actual compute device -- the model is moved there via
+  ``.to(device)`` before returning. Without this, every PyTorch number this
+  script reports would silently be a CPU number, no matter what the JSON's
+  ``device`` field claims (this was a real, previously-undiscovered bug: see
+  ``.praxia/docs/audits/260716_proteinebm-parity-report.md`` §7).
   """
   sys.path.insert(0, str(reference_repo))
   from protein_ebm.model.ebm import ProteinEBM  # noqa: PLC0415
@@ -292,7 +301,7 @@ def _build_reference_model(
       msg = f"reference model.load_state_dict was not exact: missing={missing}, unexpected={unexpected}"
       raise RuntimeError(msg)
   model.eval()
-  return model
+  return model.to(device)
 
 
 def _build_jax_model(
@@ -320,15 +329,24 @@ def _build_jax_model(
 def build_models(
   args: argparse.Namespace,
 ) -> tuple[ProteinEBMModel, "ProteinEBM", Any]:
-  """Build (jax_model, reference_model, model_cfg) per ``--smoke``/full-run mode."""
+  """Build (jax_model, reference_model, model_cfg) per ``--smoke``/full-run mode.
+
+  The reference PyTorch model is moved to ``_torch_device()``'s actual device
+  (``ref_model.to(device)`` inside ``_build_reference_model``) -- previously
+  it was left on CPU (the checkpoint's own ``map_location="cpu"`` load
+  target) regardless of GPU availability, so every reported PyTorch number
+  was silently a CPU number despite the JSON claiming ``"device": "cuda"``.
+  """
+  import torch  # noqa: PLC0415
+
+  device = _torch_device()
+
   if args.smoke:
     log.info("Building SMOKE models: tiny synthetic dims, randomly initialized, no checkpoint load.")
     model_cfg, diffuser_cfg = _smoke_model_configs()
     jax_model = _build_jax_model(model_cfg, args.seed, state_dict=None)
-    ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None)
+    ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None, device=device)
     return jax_model, ref_model, model_cfg
-
-  import torch  # noqa: PLC0415
 
   if not args.checkpoint.exists():
     msg = f"checkpoint not found: {args.checkpoint} (see E3.5 task brief for the authorized source)"
@@ -343,7 +361,9 @@ def build_models(
   diffuser_cfg = ckpt["hyper_parameters"]["config"].diffuser
 
   log.info("Building + strict-loading reference PyTorch model...")
-  ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, ckpt["state_dict"])
+  ref_model = _build_reference_model(
+    args.reference_repo, model_cfg, diffuser_cfg, ckpt["state_dict"], device=device,
+  )
 
   log.info("Building + porting JAX ProteinEBMModel...")
   jax_model = _build_jax_model(model_cfg, args.seed, ckpt["state_dict"])
@@ -474,18 +494,18 @@ def _run_jax_score(
 
 
 def _run_pytorch_energy(
-  ref_model: "ProteinEBM", decoys: dict[str, np.ndarray], t: float, n_repeats: int,
+  ref_model: "ProteinEBM", decoys: dict[str, np.ndarray], t: float, n_repeats: int, device: "str | torch.device" = "cpu",
 ) -> list[float]:
   import torch  # noqa: PLC0415
 
   n_decoys, length = decoys["coords"].shape[0], decoys["coords"].shape[1]
-  r_noisy = torch.tensor(decoys["coords"], dtype=torch.float32)
-  aatype = torch.tensor(np.tile(decoys["aatype"], (n_decoys, 1)), dtype=torch.long)
-  residue_idx = torch.tensor(np.tile(decoys["residue_index"], (n_decoys, 1)), dtype=torch.long)
-  chain_id = torch.tensor(np.tile(decoys["chain_id"], (n_decoys, 1)), dtype=torch.long)
-  contacts = torch.tensor(np.tile(decoys["contacts"], (n_decoys, 1)), dtype=torch.long)
-  mask = torch.tensor(np.tile(decoys["mask"], (n_decoys, 1)), dtype=torch.bool)
-  times = torch.full((n_decoys,), t, dtype=torch.float32)
+  r_noisy = torch.tensor(decoys["coords"], dtype=torch.float32, device=device)
+  aatype = torch.tensor(np.tile(decoys["aatype"], (n_decoys, 1)), dtype=torch.long, device=device)
+  residue_idx = torch.tensor(np.tile(decoys["residue_index"], (n_decoys, 1)), dtype=torch.long, device=device)
+  chain_id = torch.tensor(np.tile(decoys["chain_id"], (n_decoys, 1)), dtype=torch.long, device=device)
+  contacts = torch.tensor(np.tile(decoys["contacts"], (n_decoys, 1)), dtype=torch.long, device=device)
+  mask = torch.tensor(np.tile(decoys["mask"], (n_decoys, 1)), dtype=torch.bool, device=device)
+  times = torch.full((n_decoys,), t, dtype=torch.float32, device=device)
   input_feats = {
     "r_noisy": r_noisy,
     "aatype": aatype,
@@ -509,18 +529,18 @@ def _run_pytorch_energy(
 
 
 def _run_pytorch_score(
-  ref_model: "ProteinEBM", decoys: dict[str, np.ndarray], t: float, n_repeats: int,
+  ref_model: "ProteinEBM", decoys: dict[str, np.ndarray], t: float, n_repeats: int, device: "str | torch.device" = "cpu",
 ) -> list[float]:
   import torch  # noqa: PLC0415
 
   coords0 = decoys["coords"][0]
-  r_noisy = torch.tensor(coords0, dtype=torch.float32).unsqueeze(0).requires_grad_(True)
-  aatype = torch.tensor(decoys["aatype"], dtype=torch.long).unsqueeze(0)
-  residue_idx = torch.tensor(decoys["residue_index"], dtype=torch.long).unsqueeze(0)
-  chain_id = torch.tensor(decoys["chain_id"], dtype=torch.long).unsqueeze(0)
-  contacts = torch.tensor(decoys["contacts"], dtype=torch.long).unsqueeze(0)
-  mask = torch.tensor(decoys["mask"], dtype=torch.bool).unsqueeze(0)
-  times = torch.tensor([t], dtype=torch.float32)
+  r_noisy = torch.tensor(coords0, dtype=torch.float32, device=device).unsqueeze(0).requires_grad_(True)
+  aatype = torch.tensor(decoys["aatype"], dtype=torch.long, device=device).unsqueeze(0)
+  residue_idx = torch.tensor(decoys["residue_index"], dtype=torch.long, device=device).unsqueeze(0)
+  chain_id = torch.tensor(decoys["chain_id"], dtype=torch.long, device=device).unsqueeze(0)
+  contacts = torch.tensor(decoys["contacts"], dtype=torch.long, device=device).unsqueeze(0)
+  mask = torch.tensor(decoys["mask"], dtype=torch.bool, device=device).unsqueeze(0)
+  times = torch.tensor([t], dtype=torch.float32, device=device)
   input_feats = {
     "r_noisy": r_noisy,
     "aatype": aatype,
@@ -547,26 +567,26 @@ def _run_pytorch_score(
   return _timed_calls(call, n_repeats)
 
 
-def _build_score_input_feats(ref_model: "ProteinEBM", decoys: dict[str, np.ndarray], t: float) -> "tuple[dict, torch.Tensor]":  # noqa: ARG001
+def _build_score_input_feats(ref_model: "ProteinEBM", decoys: dict[str, np.ndarray], t: float, device: "str | torch.device" = "cpu") -> "tuple[dict, torch.Tensor]":  # noqa: ARG001
   """Shared input_feats builder for the shipped/compiled score variants (single-structure, batch=1)."""
   import torch  # noqa: PLC0415
 
   coords0 = decoys["coords"][0]
-  r_noisy = torch.tensor(coords0, dtype=torch.float32).unsqueeze(0).requires_grad_(True)
+  r_noisy = torch.tensor(coords0, dtype=torch.float32, device=device).unsqueeze(0).requires_grad_(True)
   input_feats = {
     "r_noisy": r_noisy,
-    "aatype": torch.tensor(decoys["aatype"], dtype=torch.long).unsqueeze(0),
-    "residue_idx": torch.tensor(decoys["residue_index"], dtype=torch.long).unsqueeze(0),
-    "mask": torch.tensor(decoys["mask"], dtype=torch.bool).unsqueeze(0),
-    "t": torch.tensor([t], dtype=torch.float32),
-    "chain_encoding": torch.tensor(decoys["chain_id"], dtype=torch.long).unsqueeze(0),
-    "external_contacts": torch.tensor(decoys["contacts"], dtype=torch.long).unsqueeze(0),
+    "aatype": torch.tensor(decoys["aatype"], dtype=torch.long, device=device).unsqueeze(0),
+    "residue_idx": torch.tensor(decoys["residue_index"], dtype=torch.long, device=device).unsqueeze(0),
+    "mask": torch.tensor(decoys["mask"], dtype=torch.bool, device=device).unsqueeze(0),
+    "t": torch.tensor([t], dtype=torch.float32, device=device),
+    "chain_encoding": torch.tensor(decoys["chain_id"], dtype=torch.long, device=device).unsqueeze(0),
+    "external_contacts": torch.tensor(decoys["contacts"], dtype=torch.long, device=device).unsqueeze(0),
   }
   return input_feats, r_noisy
 
 
 def _run_pytorch_score_shipped(
-  ref_model: "ProteinEBM", decoys: dict[str, np.ndarray], t: float, n_repeats: int,
+  ref_model: "ProteinEBM", decoys: dict[str, np.ndarray], t: float, n_repeats: int, device: "str | torch.device" = "cpu",
 ) -> list[float]:
   """PyTorch score latency via the reference's own public ``compute_score`` wrapper, verbatim.
 
@@ -578,7 +598,7 @@ def _run_pytorch_score_shipped(
   ``scripts/ebm/checkpoint_parity_check.py``'s module docstring for why that double-scaling would
   matter for a *correctness* comparison, which this script is not).
   """
-  input_feats, _ = _build_score_input_feats(ref_model, decoys, t)
+  input_feats, _ = _build_score_input_feats(ref_model, decoys, t, device=device)
 
   def call() -> None:
     ref_model.compute_score(input_feats)
@@ -588,7 +608,7 @@ def _run_pytorch_score_shipped(
 
 
 def _run_pytorch_score_compiled(
-  ref_model: "ProteinEBM", decoys: dict[str, np.ndarray], t: float, n_repeats: int,
+  ref_model: "ProteinEBM", decoys: dict[str, np.ndarray], t: float, n_repeats: int, device: "str | torch.device" = "cpu",
 ) -> tuple[list[float] | None, str | None]:
   """PyTorch score latency via ``torch.compile`` wrapping the optimized-eager (create_graph=False)
   call path. Returns ``(times, None)`` on success or ``(None, error_message)`` if ``torch.compile``
@@ -611,7 +631,7 @@ def _run_pytorch_score_compiled(
   """
   import torch  # noqa: PLC0415
 
-  input_feats, r_noisy = _build_score_input_feats(ref_model, decoys, t)
+  input_feats, r_noisy = _build_score_input_feats(ref_model, decoys, t, device=device)
 
   def _score_fn(feats: dict) -> "torch.Tensor":
     model_out = ref_model.compute_energy(feats, rescale_input_coords=False)
@@ -741,20 +761,20 @@ def main() -> int:
       jax_score_ms_mean, jax_score_ms_std = _wall_clock_ms_stats(jax_score_times)
 
       log.info("[length=%d batch=%d] PyTorch warmup + timed energy batch...", length, n_decoys)
-      pt_energy_times = _run_pytorch_energy(ref_model, decoys, args.diffusion_time, n_repeats)
+      pt_energy_times = _run_pytorch_energy(ref_model, decoys, args.diffusion_time, n_repeats, device=torch_device)
       pt_energy_eps = n_decoys / float(np.mean(pt_energy_times))
       pt_energy_ms_mean, pt_energy_ms_std = _wall_clock_ms_stats(pt_energy_times)
 
       log.info("[length=%d batch=%d] PyTorch score/grad: eager (create_graph=False)...", length, n_decoys)
-      pt_score_eager_times = _run_pytorch_score(ref_model, decoys, args.diffusion_time, n_repeats)
+      pt_score_eager_times = _run_pytorch_score(ref_model, decoys, args.diffusion_time, n_repeats, device=torch_device)
       pt_score_eager_ms, pt_score_eager_ms_std = _wall_clock_ms_stats(pt_score_eager_times)
 
       log.info("[length=%d batch=%d] PyTorch score/grad: shipped (compute_score(), create_graph=True)...", length, n_decoys)
-      pt_score_shipped_times = _run_pytorch_score_shipped(ref_model, decoys, args.diffusion_time, n_repeats)
+      pt_score_shipped_times = _run_pytorch_score_shipped(ref_model, decoys, args.diffusion_time, n_repeats, device=torch_device)
       pt_score_shipped_ms, pt_score_shipped_ms_std = _wall_clock_ms_stats(pt_score_shipped_times)
 
       log.info("[length=%d batch=%d] PyTorch score/grad: torch.compile...", length, n_decoys)
-      pt_score_compiled_times, pt_compile_err = _run_pytorch_score_compiled(ref_model, decoys, args.diffusion_time, n_repeats)
+      pt_score_compiled_times, pt_compile_err = _run_pytorch_score_compiled(ref_model, decoys, args.diffusion_time, n_repeats, device=torch_device)
       if pt_compile_err:
         log.warning("[length=%d batch=%d] torch.compile FAILED, honestly recorded, not silently skipped: %s", length, n_decoys, pt_compile_err)
         pt_score_compiled_ms = pt_score_compiled_ms_std = None

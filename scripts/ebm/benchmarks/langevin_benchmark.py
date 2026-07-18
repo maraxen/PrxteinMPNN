@@ -355,6 +355,7 @@ def _build_reference_model(
   model_cfg: Any,  # noqa: ANN401 -- duck-typed ml_collections.ConfigDict | SimpleNamespace
   diffuser_cfg: Any,  # noqa: ANN401
   state_dict: "Mapping[str, torch.Tensor] | None",
+  device: "str | torch.device" = "cpu",
 ) -> "ProteinEBM":
   """Construct the real reference ``ProteinEBM``, optionally strict-loading a checkpoint.
 
@@ -362,6 +363,15 @@ def _build_reference_model(
   construction + ``load_state_dict(strict=False)`` + missing/unexpected
   check) -- reimplemented here (not imported), per the E11x standalone-entry-
   point convention.
+
+  ``device`` defaults to ``"cpu"`` (matches the checkpoint's own
+  ``map_location="cpu"`` load) but callers doing real throughput measurement
+  MUST pass the actual compute device -- the model is moved there via
+  ``.to(device)`` before returning. Without this, every PyTorch number this
+  script reports would silently be a CPU number, no matter what the JSON's
+  ``device`` field claims (this was a real, previously-undiscovered bug: see
+  ``.praxia/docs/audits/260716_proteinebm-parity-report.md`` §7 -- confirmed
+  live on cluster hardware via ``next(ref_model.parameters()).device``).
   """
   sys.path.insert(0, str(reference_repo))
   from protein_ebm.model.ebm import ProteinEBM  # noqa: PLC0415
@@ -376,7 +386,7 @@ def _build_reference_model(
       msg = f"reference model.load_state_dict was not exact: missing={missing}, unexpected={unexpected}"
       raise RuntimeError(msg)
   model.eval()
-  return model
+  return model.to(device)
 
 
 def _build_jax_model(
@@ -404,15 +414,24 @@ def _build_jax_model(
 def build_models(
   args: argparse.Namespace,
 ) -> tuple[ProteinEBMModel, "ProteinEBM", Any, Any]:
-  """Build (jax_model, reference_model, model_cfg, diffuser_cfg) per ``--smoke``/full-run mode."""
+  """Build (jax_model, reference_model, model_cfg, diffuser_cfg) per ``--smoke``/full-run mode.
+
+  The reference PyTorch model is moved to ``_torch_device()``'s actual device
+  (``ref_model.to(device)`` inside ``_build_reference_model``) -- previously
+  it was left on CPU (the checkpoint's own ``map_location="cpu"`` load
+  target) regardless of GPU availability, so every reported PyTorch number
+  was silently a CPU number despite the JSON claiming ``"device": "cuda"``.
+  """
+  import torch  # noqa: PLC0415
+
+  device = _torch_device()
+
   if args.smoke:
     log.info("Building SMOKE models: tiny synthetic dims, randomly initialized, no checkpoint load.")
     model_cfg, diffuser_cfg = _smoke_model_configs()
     jax_model = _build_jax_model(model_cfg, args.seed, state_dict=None)
-    ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None)
+    ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None, device=device)
     return jax_model, ref_model, model_cfg, diffuser_cfg
-
-  import torch  # noqa: PLC0415
 
   if not args.checkpoint.exists():
     msg = f"checkpoint not found: {args.checkpoint} (see E3.5 task brief for the authorized source)"
@@ -427,7 +446,9 @@ def build_models(
   diffuser_cfg = ckpt["hyper_parameters"]["config"].diffuser
 
   log.info("Building + strict-loading reference PyTorch model...")
-  ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, ckpt["state_dict"])
+  ref_model = _build_reference_model(
+    args.reference_repo, model_cfg, diffuser_cfg, ckpt["state_dict"], device=device,
+  )
 
   log.info("Building + porting JAX ProteinEBMModel...")
   jax_model = _build_jax_model(model_cfg, args.seed, ckpt["state_dict"])
@@ -691,7 +712,7 @@ def _pytorch_langevin_step(
     "aatype": aatype,
     "residue_idx": residue_idx,
     "mask": mask,
-    "t": torch.full((bsize,), t, dtype=torch.float32),
+    "t": torch.full((bsize,), t, dtype=torch.float32, device=r_noisy.device),
     "chain_encoding": chain_id,
     "external_contacts": contacts,
   }
@@ -746,17 +767,18 @@ def _run_pytorch_equilibration(
   n_steps: int,
   dt: float,
   n_repeats: int,
+  device: "str | torch.device" = "cpu",
 ) -> list[float]:
   import torch  # noqa: PLC0415
 
   n_trajectories, length = batch["coords"].shape[0], batch["coords"].shape[1]
   del length  # unused; kept for readability of the tile shapes below.
-  r_noisy0 = torch.tensor(batch["coords"], dtype=torch.float32)
-  aatype = torch.tensor(np.tile(batch["aatype"], (n_trajectories, 1)), dtype=torch.long)
-  residue_idx = torch.tensor(np.tile(batch["residue_index"], (n_trajectories, 1)), dtype=torch.long)
-  chain_id = torch.tensor(np.tile(batch["chain_id"], (n_trajectories, 1)), dtype=torch.long)
-  contacts = torch.tensor(np.tile(batch["contacts"], (n_trajectories, 1)), dtype=torch.long)
-  mask = torch.tensor(np.tile(batch["mask"], (n_trajectories, 1)), dtype=torch.bool)
+  r_noisy0 = torch.tensor(batch["coords"], dtype=torch.float32, device=device)
+  aatype = torch.tensor(np.tile(batch["aatype"], (n_trajectories, 1)), dtype=torch.long, device=device)
+  residue_idx = torch.tensor(np.tile(batch["residue_index"], (n_trajectories, 1)), dtype=torch.long, device=device)
+  chain_id = torch.tensor(np.tile(batch["chain_id"], (n_trajectories, 1)), dtype=torch.long, device=device)
+  contacts = torch.tensor(np.tile(batch["contacts"], (n_trajectories, 1)), dtype=torch.long, device=device)
+  mask = torch.tensor(np.tile(batch["mask"], (n_trajectories, 1)), dtype=torch.bool, device=device)
 
   def call() -> None:
     r = r_noisy0.clone()
@@ -773,16 +795,17 @@ def _run_pytorch_single_step(
   t: float,
   dt: float,
   n_repeats: int,
+  device: "str | torch.device" = "cpu",
 ) -> list[float]:
   import torch  # noqa: PLC0415
 
   coords0 = batch["coords"][0]
-  r_noisy = torch.tensor(coords0, dtype=torch.float32).unsqueeze(0)
-  aatype = torch.tensor(batch["aatype"], dtype=torch.long).unsqueeze(0)
-  residue_idx = torch.tensor(batch["residue_index"], dtype=torch.long).unsqueeze(0)
-  chain_id = torch.tensor(batch["chain_id"], dtype=torch.long).unsqueeze(0)
-  contacts = torch.tensor(batch["contacts"], dtype=torch.long).unsqueeze(0)
-  mask = torch.tensor(batch["mask"], dtype=torch.bool).unsqueeze(0)
+  r_noisy = torch.tensor(coords0, dtype=torch.float32, device=device).unsqueeze(0)
+  aatype = torch.tensor(batch["aatype"], dtype=torch.long, device=device).unsqueeze(0)
+  residue_idx = torch.tensor(batch["residue_index"], dtype=torch.long, device=device).unsqueeze(0)
+  chain_id = torch.tensor(batch["chain_id"], dtype=torch.long, device=device).unsqueeze(0)
+  contacts = torch.tensor(batch["contacts"], dtype=torch.long, device=device).unsqueeze(0)
+  mask = torch.tensor(batch["mask"], dtype=torch.bool, device=device).unsqueeze(0)
 
   def call() -> None:
     _pytorch_langevin_step(ref_model, r_noisy, aatype, residue_idx, mask, chain_id, contacts, t, dt)
@@ -899,11 +922,13 @@ def _run_cell(
   jax_step_ms_std = float(np.std(jax_step_times) * 1000.0)
 
   log.info("[length=%d batch=%d] PyTorch warmup + timed batched equilibration...", length, n_trajectories)
-  pt_equil_times = _run_pytorch_equilibration(ref_model, batch, args.diffusion_time, n_steps, args.dt, n_repeats)
+  pt_equil_times = _run_pytorch_equilibration(
+    ref_model, batch, args.diffusion_time, n_steps, args.dt, n_repeats, device=torch_device,
+  )
   pt_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(pt_equil_times))
   pt_equil_ms_mean, pt_equil_ms_std = _wall_clock_ms_stats(pt_equil_times)
 
-  pt_step_times = _run_pytorch_single_step(ref_model, batch, args.diffusion_time, args.dt, n_repeats)
+  pt_step_times = _run_pytorch_single_step(ref_model, batch, args.diffusion_time, args.dt, n_repeats, device=torch_device)
   pt_step_ms = float(np.mean(pt_step_times)) * 1000.0
   pt_step_ms_std = float(np.std(pt_step_times) * 1000.0)
 

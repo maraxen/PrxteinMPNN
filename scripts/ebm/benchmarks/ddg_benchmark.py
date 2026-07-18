@@ -89,6 +89,7 @@ import jax.numpy as jnp  # noqa: E402
 import numpy as np  # noqa: E402
 
 if TYPE_CHECKING:
+  import torch
   from protein_ebm.model.ebm import ProteinEBM  # type: ignore[import-not-found]
 
   from aminx.ebm.model import ProteinEBMModel
@@ -157,7 +158,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
   return parser.parse_args(argv)
 
 
-def _build_reference_model(reference_repo: Path, ckpt: dict[str, Any]) -> "ProteinEBM":
+def _build_reference_model(reference_repo: Path, ckpt: dict[str, Any], device: "str | torch.device" = "cpu") -> "ProteinEBM":
   """Construct + strict-load the reference PyTorch ``ProteinEBM`` from ``ckpt``.
 
   Mirrors ``scripts/ebm/checkpoint_parity_check.py::_build_reference_model``
@@ -166,6 +167,14 @@ def _build_reference_model(reference_repo: Path, ckpt: dict[str, Any]) -> "Prote
   standalone entry point (no package ``__init__.py`` under ``scripts/ebm/``),
   not a module E11b should import-couple to, and E3.5's sibling script must
   not be modified by this node.
+
+  ``device`` defaults to ``"cpu"`` (matches the checkpoint's own
+  ``map_location="cpu"`` load) but callers doing real throughput measurement
+  MUST pass the actual compute device -- the model is moved there via
+  ``.to(device)`` before returning. Without this, every PyTorch number this
+  script reports would silently be a CPU number, no matter what the JSON's
+  ``device`` field claims (this was a real, previously-undiscovered bug: see
+  ``.praxia/docs/audits/260716_proteinebm-parity-report.md`` §7).
   """
   sys.path.insert(0, str(reference_repo))
   from protein_ebm.model.ebm import ProteinEBM  # noqa: PLC0415
@@ -181,7 +190,7 @@ def _build_reference_model(reference_repo: Path, ckpt: dict[str, Any]) -> "Prote
     msg = f"reference model.load_state_dict was not exact: missing={missing}, unexpected={unexpected}"
     raise RuntimeError(msg)
   model.eval()
-  return model
+  return model.to(device)
 
 
 def _build_jax_model(ckpt: dict[str, Any], seed: int) -> "ProteinEBMModel":
@@ -336,6 +345,7 @@ def _time_pytorch_throughput(
   t: float,
   mask_np: np.ndarray,
   n_repeats: int,
+  device: "str | torch.device" = "cpu",
 ) -> tuple[float, list[float]]:
   """Time a single plain batched PyTorch forward (batch dim = mutant count, no per-mutant loop).
 
@@ -348,13 +358,13 @@ def _time_pytorch_throughput(
   import torch  # noqa: PLC0415
 
   n_mutants, n = mutant_aatype_np.shape
-  r_noisy = torch.tensor(np.broadcast_to(coords_np, (n_mutants, n, 3)).copy(), dtype=torch.float32)
-  aatype = torch.tensor(mutant_aatype_np, dtype=torch.long)
-  residue_idx = torch.arange(n).unsqueeze(0).expand(n_mutants, n).clone()
-  chain_id = torch.zeros(n_mutants, n, dtype=torch.long)
-  contacts = torch.zeros(n_mutants, n, dtype=torch.long)
-  mask = torch.tensor(np.broadcast_to(mask_np, (n_mutants, n)).copy(), dtype=torch.bool)
-  times_t = torch.full((n_mutants,), t, dtype=torch.float32)
+  r_noisy = torch.tensor(np.broadcast_to(coords_np, (n_mutants, n, 3)).copy(), dtype=torch.float32, device=device)
+  aatype = torch.tensor(mutant_aatype_np, dtype=torch.long, device=device)
+  residue_idx = torch.arange(n, device=device).unsqueeze(0).expand(n_mutants, n).clone()
+  chain_id = torch.zeros(n_mutants, n, dtype=torch.long, device=device)
+  contacts = torch.zeros(n_mutants, n, dtype=torch.long, device=device)
+  mask = torch.tensor(np.broadcast_to(mask_np, (n_mutants, n)).copy(), dtype=torch.bool, device=device)
+  times_t = torch.full((n_mutants,), t, dtype=torch.float32, device=device)
   feats = {
     "r_noisy": r_noisy,
     "aatype": aatype,
@@ -377,19 +387,19 @@ def _time_pytorch_throughput(
   return energy_evals_per_sec, times
 
 
-def _build_score_feats(coords_np: np.ndarray, aatype_single_np: np.ndarray, t: float, mask_np: np.ndarray) -> "tuple[dict, torch.Tensor]":
+def _build_score_feats(coords_np: np.ndarray, aatype_single_np: np.ndarray, t: float, mask_np: np.ndarray, device: "str | torch.device" = "cpu") -> "tuple[dict, torch.Tensor]":
   import torch  # noqa: PLC0415
 
   n = aatype_single_np.shape[0]
-  r_noisy = torch.tensor(coords_np, dtype=torch.float32).unsqueeze(0).requires_grad_(True)
+  r_noisy = torch.tensor(coords_np, dtype=torch.float32, device=device).unsqueeze(0).requires_grad_(True)
   feats = {
     "r_noisy": r_noisy,
-    "aatype": torch.tensor(aatype_single_np, dtype=torch.long).unsqueeze(0),
-    "residue_idx": torch.arange(n).unsqueeze(0),
-    "mask": torch.tensor(mask_np, dtype=torch.bool).unsqueeze(0),
-    "t": torch.tensor([t], dtype=torch.float32),
-    "chain_encoding": torch.zeros(1, n, dtype=torch.long),
-    "external_contacts": torch.zeros(1, n, dtype=torch.long),
+    "aatype": torch.tensor(aatype_single_np, dtype=torch.long, device=device).unsqueeze(0),
+    "residue_idx": torch.arange(n, device=device).unsqueeze(0),
+    "mask": torch.tensor(mask_np, dtype=torch.bool, device=device).unsqueeze(0),
+    "t": torch.tensor([t], dtype=torch.float32, device=device),
+    "chain_encoding": torch.zeros(1, n, dtype=torch.long, device=device),
+    "external_contacts": torch.zeros(1, n, dtype=torch.long, device=device),
   }
   return feats, r_noisy
 
@@ -401,6 +411,7 @@ def _time_pytorch_score_latency(
   t: float,
   mask_np: np.ndarray,
   n_repeats: int,
+  device: "str | torch.device" = "cpu",
 ) -> tuple[float, list[float]]:
   """Time PyTorch's 1st-order conservative-score latency for one mutant (optimized-eager variant).
 
@@ -417,7 +428,7 @@ def _time_pytorch_score_latency(
   import torch  # noqa: PLC0415
 
   def _one_call() -> None:
-    feats, r_noisy = _build_score_feats(coords_np, aatype_single_np, t, mask_np)
+    feats, r_noisy = _build_score_feats(coords_np, aatype_single_np, t, mask_np, device=device)
     energy = torch_model.compute_energy(feats, rescale_input_coords=False)["energy"]
     torch.autograd.grad(energy.sum(), r_noisy, create_graph=False)
 
@@ -432,11 +443,12 @@ def _time_pytorch_score_latency(
 
 def _time_pytorch_score_shipped(
   torch_model: "ProteinEBM", coords_np: np.ndarray, aatype_single_np: np.ndarray, t: float, mask_np: np.ndarray, n_repeats: int,
+  device: "str | torch.device" = "cpu",
 ) -> tuple[float, list[float]]:
   """PyTorch score latency via the reference's own public ``compute_score`` wrapper, verbatim
   (``create_graph=True`` unconditionally -- "the public code" as literally shipped; see
   ``decoy_benchmark.py::_run_pytorch_score_shipped`` for the identical rationale)."""
-  feats, _ = _build_score_feats(coords_np, aatype_single_np, t, mask_np)
+  feats, _ = _build_score_feats(coords_np, aatype_single_np, t, mask_np, device=device)
 
   def _one_call() -> None:
     torch_model.compute_score(feats)
@@ -452,6 +464,7 @@ def _time_pytorch_score_shipped(
 
 def _time_pytorch_score_compiled(
   torch_model: "ProteinEBM", coords_np: np.ndarray, aatype_single_np: np.ndarray, t: float, mask_np: np.ndarray, n_repeats: int,
+  device: "str | torch.device" = "cpu",
 ) -> tuple[float | None, list[float] | None, str | None]:
   """PyTorch score latency via ``torch.compile`` wrapping the optimized-eager path.
 
@@ -462,7 +475,7 @@ def _time_pytorch_score_compiled(
   """
   import torch  # noqa: PLC0415
 
-  feats, r_noisy = _build_score_feats(coords_np, aatype_single_np, t, mask_np)
+  feats, r_noisy = _build_score_feats(coords_np, aatype_single_np, t, mask_np, device=device)
 
   def _score_fn(f: dict) -> "torch.Tensor":
     energy = torch_model.compute_energy(f, rescale_input_coords=False)["energy"]
@@ -577,11 +590,11 @@ def main(argv: list[str] | None = None) -> int:
   torch_model: ProteinEBM | None = None
   torch_device = "skipped"
   if not args.skip_pytorch:
+    torch_device = "cuda" if torch.cuda.is_available() else "cpu"
     log.info("Building + strict-loading reference PyTorch model...")
-    torch_model = _build_reference_model(args.reference_repo, ckpt)
+    torch_model = _build_reference_model(args.reference_repo, ckpt, device=torch_device)
     n_params = sum(p.numel() for p in torch_model.parameters())
     log.info("Reference PyTorch model params: %d", n_params)
-    torch_device = "cuda" if torch.cuda.is_available() else "cpu"
   else:
     log.warning("--skip-pytorch: JAX-only rows. NOT apples-to-apples -- harness-debugging only.")
 
@@ -633,22 +646,22 @@ def main(argv: list[str] | None = None) -> int:
 
       if torch_model is not None:
         torch_throughput, torch_energy_times = _time_pytorch_throughput(
-          torch_model, coords_np, mutant_aatype_np, args.diffusion_time, mask_np, args.n_repeats,
+          torch_model, coords_np, mutant_aatype_np, args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
         )
         torch_energy_ms_mean, torch_energy_ms_std = _wall_clock_ms_stats(torch_energy_times)
 
         torch_score_eager_ms, torch_score_eager_times = _time_pytorch_score_latency(
-          torch_model, coords_np, mutant_aatype_np[0], args.diffusion_time, mask_np, args.n_repeats,
+          torch_model, coords_np, mutant_aatype_np[0], args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
         )
         _, torch_score_eager_ms_std = _wall_clock_ms_stats(torch_score_eager_times)
 
         torch_score_shipped_ms, torch_score_shipped_times = _time_pytorch_score_shipped(
-          torch_model, coords_np, mutant_aatype_np[0], args.diffusion_time, mask_np, args.n_repeats,
+          torch_model, coords_np, mutant_aatype_np[0], args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
         )
         _, torch_score_shipped_ms_std = _wall_clock_ms_stats(torch_score_shipped_times)
 
         torch_score_compiled_ms, torch_score_compiled_times, compile_err = _time_pytorch_score_compiled(
-          torch_model, coords_np, mutant_aatype_np[0], args.diffusion_time, mask_np, args.n_repeats,
+          torch_model, coords_np, mutant_aatype_np[0], args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
         )
         if compile_err:
           log.warning("[length=%d batch=%d] torch.compile FAILED, honestly recorded: %s", length, n_mutants, compile_err)

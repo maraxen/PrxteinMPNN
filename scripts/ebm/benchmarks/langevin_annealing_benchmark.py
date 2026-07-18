@@ -97,7 +97,17 @@ def _smoke_model_configs() -> tuple[Any, Any]:
   return model_cfg, diffuser_cfg
 
 
-def _build_reference_model(reference_repo: Path, model_cfg: Any, diffuser_cfg: Any, state_dict: Any) -> "ProteinEBM":  # noqa: ANN401
+def _build_reference_model(reference_repo: Path, model_cfg: Any, diffuser_cfg: Any, state_dict: Any, device: "str | torch.device" = "cpu") -> "ProteinEBM":  # noqa: ANN401
+  """Construct + (optionally) strict-load the reference ``ProteinEBM``.
+
+  ``device`` defaults to ``"cpu"`` (matches the checkpoint's own
+  ``map_location="cpu"`` load) but callers doing real throughput measurement
+  MUST pass the actual compute device -- the model is moved there via
+  ``.to(device)`` before returning. Without this, every PyTorch number this
+  script reports would silently be a CPU number, no matter what the JSON's
+  ``device`` field claims (this was a real, previously-undiscovered bug: see
+  ``.praxia/docs/audits/260716_proteinebm-parity-report.md`` §7).
+  """
   sys.path.insert(0, str(reference_repo))
   from protein_ebm.model.ebm import ProteinEBM  # noqa: PLC0415
   from protein_ebm.model.r3_diffuser import R3Diffuser  # noqa: PLC0415
@@ -111,7 +121,7 @@ def _build_reference_model(reference_repo: Path, model_cfg: Any, diffuser_cfg: A
       msg = f"reference model.load_state_dict was not exact: missing={missing}, unexpected={unexpected}"
       raise RuntimeError(msg)
   model.eval()
-  return model
+  return model.to(device)
 
 
 def _build_jax_model(model_cfg: Any, seed: int, state_dict: Any) -> ProteinEBMModel:  # noqa: ANN401
@@ -127,12 +137,26 @@ def _build_jax_model(model_cfg: Any, seed: int, state_dict: Any) -> ProteinEBMMo
   return model
 
 
+def _torch_device() -> str:
+  import torch  # noqa: PLC0415
+
+  return "cuda" if torch.cuda.is_available() else "cpu"
+
+
 def build_models(args: argparse.Namespace) -> tuple[ProteinEBMModel, "ProteinEBM"]:
+  """Build (jax_model, reference_model) per ``--smoke``/full-run mode.
+
+  The reference PyTorch model is moved to ``_torch_device()``'s actual device
+  -- previously it was left on CPU (the checkpoint's own ``map_location="cpu"``
+  load target) regardless of GPU availability, so every reported PyTorch
+  number was silently a CPU number.
+  """
+  device = _torch_device()
   if args.smoke:
     model_cfg, diffuser_cfg = _smoke_model_configs()
     return (
       _build_jax_model(model_cfg, args.seed, state_dict=None),
-      _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None),
+      _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None, device=device),
     )
   import torch  # noqa: PLC0415
 
@@ -144,7 +168,7 @@ def build_models(args: argparse.Namespace) -> tuple[ProteinEBMModel, "ProteinEBM
   diffuser_cfg = ckpt["hyper_parameters"]["config"].diffuser
   return (
     _build_jax_model(model_cfg, args.seed, ckpt["state_dict"]),
-    _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, ckpt["state_dict"]),
+    _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, ckpt["state_dict"], device=device),
   )
 
 
@@ -177,7 +201,7 @@ def _time_jax_outer_annealing(
 
 
 def _time_pytorch_outer_annealing(
-  ref_model: "ProteinEBM", length: int, seed: int, n_repeats: int,
+  ref_model: "ProteinEBM", length: int, seed: int, n_repeats: int, device: "str | torch.device" = "cpu",
 ) -> list[float]:
   """Reimplementation of the reference's equivalent outer loop shape (eager threshold model-swap +
   per-level Euler-Maruyama steps), using the same real model for both swap branches."""
@@ -188,7 +212,7 @@ def _time_pytorch_outer_annealing(
   aatype_np = rng.integers(0, 21, size=(length,)).astype(np.int64)
 
   def _one_round() -> None:
-    coords = torch.tensor(coords0, dtype=torch.float32).unsqueeze(0)
+    coords = torch.tensor(coords0, dtype=torch.float32, device=device).unsqueeze(0)
     for t in DEFAULT_NOISE_SCHEDULE:
       model_for_t = ref_model  # eager "if t < MODEL_SWAP_THRESHOLD: model = other_model" -- same
       # real model both sides here (stand-in, see module docstring), so no branch needed to reach
@@ -198,12 +222,12 @@ def _time_pytorch_outer_annealing(
         with torch.no_grad():
           feats = {
             "r_noisy": coords,
-            "aatype": torch.tensor(aatype_np, dtype=torch.long).unsqueeze(0),
-            "residue_idx": torch.arange(length).unsqueeze(0),
-            "mask": torch.ones(1, length, dtype=torch.bool),
-            "t": torch.tensor([t], dtype=torch.float32),
-            "chain_encoding": torch.zeros(1, length, dtype=torch.long),
-            "external_contacts": torch.zeros(1, length, dtype=torch.long),
+            "aatype": torch.tensor(aatype_np, dtype=torch.long, device=device).unsqueeze(0),
+            "residue_idx": torch.arange(length, device=device).unsqueeze(0),
+            "mask": torch.ones(1, length, dtype=torch.bool, device=device),
+            "t": torch.tensor([t], dtype=torch.float32, device=device),
+            "chain_encoding": torch.zeros(1, length, dtype=torch.long, device=device),
+            "external_contacts": torch.zeros(1, length, dtype=torch.long, device=device),
           }
           out = model_for_t.compute_energy(feats, rescale_input_coords=False)
           aux_score = out["r_update_aux"]
@@ -281,18 +305,23 @@ def main() -> int:
   e10_batch = min(args.e10_batch_size, 2) if args.smoke else args.e10_batch_size
 
   jax_model, ref_model = build_models(args)
+  torch_device = _torch_device()
+  jax_device = jax.devices()[0].platform
+  log.info("JAX device: %s | PyTorch device: %s", jax_device, torch_device)
   results = []
   for length in lengths:
     log.info("=== length=%d ===", length)
     jax_times = _time_jax_outer_annealing(jax_model, length, args.seed, n_repeats)
     jax_ms_mean, jax_ms_std = _wall_clock_ms_stats(jax_times)
-    pt_times = _time_pytorch_outer_annealing(ref_model, length, args.seed, n_repeats)
+    pt_times = _time_pytorch_outer_annealing(ref_model, length, args.seed, n_repeats, device=torch_device)
     pt_ms_mean, pt_ms_std = _wall_clock_ms_stats(pt_times)
 
     e10_ms = _time_jax_e10(jax_model, length, args.seed, e10_rounds, e10_batch) * 1000.0
 
     results.append({
       "protein_length": length,
+      "jax_device": jax_device,
+      "pytorch_device": torch_device,
       "outer_annealing_jax_ms_mean": jax_ms_mean,
       "outer_annealing_jax_ms_std": jax_ms_std,
       "outer_annealing_pytorch_ms_mean": pt_ms_mean,

@@ -98,7 +98,17 @@ def _smoke_model_configs() -> tuple[Any, Any]:
   return model_cfg, diffuser_cfg
 
 
-def _build_reference_model(reference_repo: Path, model_cfg: Any, diffuser_cfg: Any, state_dict: Any) -> "ProteinEBM":  # noqa: ANN401
+def _build_reference_model(reference_repo: Path, model_cfg: Any, diffuser_cfg: Any, state_dict: Any, device: "str | torch.device" = "cpu") -> "ProteinEBM":  # noqa: ANN401
+  """Construct + (optionally) strict-load the reference ``ProteinEBM``.
+
+  ``device`` defaults to ``"cpu"`` (matches the checkpoint's own
+  ``map_location="cpu"`` load) but callers doing real throughput measurement
+  MUST pass the actual compute device -- the model is moved there via
+  ``.to(device)`` before returning. Without this, every PyTorch number this
+  script reports would silently be a CPU number, no matter what the JSON's
+  ``device`` field claims (this was a real, previously-undiscovered bug: see
+  ``.praxia/docs/audits/260716_proteinebm-parity-report.md`` §7).
+  """
   sys.path.insert(0, str(reference_repo))
   from protein_ebm.model.ebm import ProteinEBM  # noqa: PLC0415
   from protein_ebm.model.r3_diffuser import R3Diffuser  # noqa: PLC0415
@@ -112,7 +122,7 @@ def _build_reference_model(reference_repo: Path, model_cfg: Any, diffuser_cfg: A
       msg = f"reference model.load_state_dict was not exact: missing={missing}, unexpected={unexpected}"
       raise RuntimeError(msg)
   model.eval()
-  return model
+  return model.to(device)
 
 
 def _build_jax_model(model_cfg: Any, seed: int, state_dict: Any) -> ProteinEBMModel:  # noqa: ANN401
@@ -128,12 +138,26 @@ def _build_jax_model(model_cfg: Any, seed: int, state_dict: Any) -> ProteinEBMMo
   return model
 
 
+def _torch_device() -> str:
+  import torch  # noqa: PLC0415
+
+  return "cuda" if torch.cuda.is_available() else "cpu"
+
+
 def build_models(args: argparse.Namespace) -> tuple[ProteinEBMModel, "ProteinEBM"]:
+  """Build (jax_model, reference_model) per ``--smoke``/full-run mode.
+
+  The reference PyTorch model is moved to ``_torch_device()``'s actual device
+  -- previously it was left on CPU (the checkpoint's own ``map_location="cpu"``
+  load target) regardless of GPU availability, so every reported PyTorch
+  number was silently a CPU number.
+  """
+  device = _torch_device()
   if args.smoke:
     model_cfg, diffuser_cfg = _smoke_model_configs()
     return (
       _build_jax_model(model_cfg, args.seed, state_dict=None),
-      _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None),
+      _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None, device=device),
     )
 
   import torch  # noqa: PLC0415
@@ -144,7 +168,7 @@ def build_models(args: argparse.Namespace) -> tuple[ProteinEBMModel, "ProteinEBM
   ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
   model_cfg = ckpt["hyper_parameters"]["config"].model
   diffuser_cfg = ckpt["hyper_parameters"]["config"].diffuser
-  ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, ckpt["state_dict"])
+  ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, ckpt["state_dict"], device=device)
   jax_model = _build_jax_model(model_cfg, args.seed, ckpt["state_dict"])
   return jax_model, ref_model
 
@@ -231,7 +255,7 @@ def _jax_bucket_pad_tile(
 
 
 def _pytorch_pad_to_batch_max(
-  ref_model: "ProteinEBM", structures: list[dict[str, np.ndarray]], t: float, n_repeats: int,
+  ref_model: "ProteinEBM", structures: list[dict[str, np.ndarray]], t: float, n_repeats: int, device: "str | torch.device" = "cpu",
 ) -> tuple[list[float], int, int]:
   """Strategy 2: pad every structure to the single batch-max length, one dense forward."""
   import torch  # noqa: PLC0415
@@ -239,13 +263,13 @@ def _pytorch_pad_to_batch_max(
   max_len = max(s["length"] for s in structures)
   padded = [_pad_to(s, max_len) for s in structures]
   n = len(structures)
-  r_noisy = torch.tensor(np.stack([p["coords"] for p in padded]), dtype=torch.float32)
-  aatype = torch.tensor(np.stack([p["aatype"] for p in padded]), dtype=torch.long)
-  mask = torch.tensor(np.stack([p["mask"] for p in padded]), dtype=torch.bool)
-  residue_idx = torch.arange(max_len).unsqueeze(0).expand(n, max_len).clone()
-  chain_id = torch.zeros(n, max_len, dtype=torch.long)
-  contacts = torch.zeros(n, max_len, dtype=torch.long)
-  times_t = torch.full((n,), t, dtype=torch.float32)
+  r_noisy = torch.tensor(np.stack([p["coords"] for p in padded]), dtype=torch.float32, device=device)
+  aatype = torch.tensor(np.stack([p["aatype"] for p in padded]), dtype=torch.long, device=device)
+  mask = torch.tensor(np.stack([p["mask"] for p in padded]), dtype=torch.bool, device=device)
+  residue_idx = torch.arange(max_len, device=device).unsqueeze(0).expand(n, max_len).clone()
+  chain_id = torch.zeros(n, max_len, dtype=torch.long, device=device)
+  contacts = torch.zeros(n, max_len, dtype=torch.long, device=device)
+  times_t = torch.full((n,), t, dtype=torch.float32, device=device)
   feats = {
     "r_noisy": r_noisy, "aatype": aatype, "residue_idx": residue_idx, "mask": mask,
     "t": times_t, "chain_encoding": chain_id, "external_contacts": contacts,
@@ -268,7 +292,7 @@ def _pytorch_pad_to_batch_max(
 
 
 def _pytorch_per_structure_loop(
-  ref_model: "ProteinEBM", structures: list[dict[str, np.ndarray]], t: float, n_repeats: int,
+  ref_model: "ProteinEBM", structures: list[dict[str, np.ndarray]], t: float, n_repeats: int, device: "str | torch.device" = "cpu",
 ) -> tuple[list[float], int, int]:
   """Strategy 3: no padding, one forward call per structure at its native length."""
   import torch  # noqa: PLC0415
@@ -277,13 +301,13 @@ def _pytorch_per_structure_loop(
   for s in structures:
     n = s["length"]
     built.append({
-      "r_noisy": torch.tensor(s["coords"], dtype=torch.float32).unsqueeze(0),
-      "aatype": torch.tensor(s["aatype"], dtype=torch.long).unsqueeze(0),
-      "residue_idx": torch.arange(n).unsqueeze(0),
-      "mask": torch.tensor(s["mask"], dtype=torch.bool).unsqueeze(0),
-      "t": torch.tensor([t], dtype=torch.float32),
-      "chain_encoding": torch.zeros(1, n, dtype=torch.long),
-      "external_contacts": torch.zeros(1, n, dtype=torch.long),
+      "r_noisy": torch.tensor(s["coords"], dtype=torch.float32, device=device).unsqueeze(0),
+      "aatype": torch.tensor(s["aatype"], dtype=torch.long, device=device).unsqueeze(0),
+      "residue_idx": torch.arange(n, device=device).unsqueeze(0),
+      "mask": torch.tensor(s["mask"], dtype=torch.bool, device=device).unsqueeze(0),
+      "t": torch.tensor([t], dtype=torch.float32, device=device),
+      "chain_encoding": torch.zeros(1, n, dtype=torch.long, device=device),
+      "external_contacts": torch.zeros(1, n, dtype=torch.long, device=device),
     })
 
   def _call() -> None:
@@ -338,14 +362,16 @@ def main() -> int:
   n_repeats = min(args.n_repeats, 2) if args.smoke else args.n_repeats
 
   jax_model, ref_model = build_models(args)
+  torch_device = _torch_device()
+  log.info("PyTorch device: %s", torch_device)
   structures = _build_heterogeneous_batch(n_structures, args.seed, max_length=BUCKET_BOUNDARIES[-1])
   lengths = [s["length"] for s in structures]
   log.info("Heterogeneous batch: n=%d lengths=%s", n_structures, sorted(lengths))
 
   strategy_calls: list[tuple[str, Any]] = [
     ("jax_bucket_pad_tile", lambda: _jax_bucket_pad_tile(jax_model, structures, args.diffusion_time, n_repeats)),
-    ("pytorch_pad_to_batch_max", lambda: _pytorch_pad_to_batch_max(ref_model, structures, args.diffusion_time, n_repeats)),
-    ("pytorch_per_structure_loop", lambda: _pytorch_per_structure_loop(ref_model, structures, args.diffusion_time, n_repeats)),
+    ("pytorch_pad_to_batch_max", lambda: _pytorch_pad_to_batch_max(ref_model, structures, args.diffusion_time, n_repeats, device=torch_device)),
+    ("pytorch_per_structure_loop", lambda: _pytorch_per_structure_loop(ref_model, structures, args.diffusion_time, n_repeats, device=torch_device)),
   ]
 
   results: list[dict[str, Any]] = []
@@ -362,6 +388,7 @@ def main() -> int:
     padding_overhead = padded_elements / real_elements if real_elements else float("nan")
     results.append({
       "strategy": name,
+      "device": torch_device if name.startswith("pytorch") else jax.devices()[0].platform,
       "wall_clock_mean_ms": mean_ms,
       "wall_clock_std_ms": std_ms,
       "padded_elements": padded_elements,

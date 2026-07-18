@@ -113,20 +113,39 @@ run_step() {
 }
 
 run_per_length_group() {
+  # Each of the 3 length groups is isolated (own set +e/-e cycle) -- previously
+  # a crash in the FIRST call (e.g. a real GPU OOM from decoy/ddg now that
+  # PyTorch actually runs on the GPU alongside JAX, see the device-placement
+  # fix in .praxia/docs/audits/260716_proteinebm-parity-report.md §1) tripped
+  # this whole function's implicit set -euo pipefail and skipped the other two
+  # length groups entirely, even though they never crashed themselves. This
+  # bit decoy_benchmark.py/ddg_benchmark.py in job 18284162: zero output files
+  # were written for either script even though only the L64-128 invocation
+  # actually OOM'd.
   local script="$1" out_prefix="$2" small_batches="$3" med_batches="$4" large_batches="$5"
   shift 5
-  uv run "${JAX_GRAD_PATH_PIN[@]}" python "scripts/ebm/benchmarks/${script}" \
-    --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
-    --lengths 64,128 --batch-sizes ${small_batches} --n-repeats "${N_REPEATS}" "$@" \
-    --out "${OUT_DIR}/${out_prefix}_L64-128.json"
-  uv run "${JAX_GRAD_PATH_PIN[@]}" python "scripts/ebm/benchmarks/${script}" \
-    --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
-    --lengths 256 --batch-sizes ${med_batches} --n-repeats "${N_REPEATS}" "$@" \
-    --out "${OUT_DIR}/${out_prefix}_L256.json"
-  uv run "${JAX_GRAD_PATH_PIN[@]}" python "scripts/ebm/benchmarks/${script}" \
-    --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
-    --lengths 512 --batch-sizes ${large_batches} --n-repeats "${N_REPEATS}" "$@" \
-    --out "${OUT_DIR}/${out_prefix}_L512.json"
+  local group group_name rest group_lengths group_batches rc
+  for group in "L64-128:64,128:${small_batches}" "L256:256:${med_batches}" "L512:512:${large_batches}"; do
+    group_name="${group%%:*}"
+    rest="${group#*:}"
+    group_lengths="${rest%%:*}"
+    group_batches="${rest#*:}"
+    echo "=== RUN (${script} ${group_name}) ==="
+    set +e
+    ( set -e
+      uv run "${JAX_GRAD_PATH_PIN[@]}" python "scripts/ebm/benchmarks/${script}" \
+        --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
+        --lengths "${group_lengths}" --batch-sizes ${group_batches} --n-repeats "${N_REPEATS}" "$@" \
+        --out "${OUT_DIR}/${out_prefix}_${group_name}.json"
+    )
+    rc=$?
+    set -e
+    if [[ "${rc}" -ne 0 ]]; then
+      echo "=== FAILED (${script} ${group_name}): exit ${rc} -- continuing with remaining length groups ==="
+    else
+      echo "=== OK (${script} ${group_name}) ==="
+    fi
+  done
 }
 
 run_step decoy run_per_length_group decoy_benchmark.py decoy_benchmark_full \

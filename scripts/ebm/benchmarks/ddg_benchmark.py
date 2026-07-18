@@ -603,27 +603,68 @@ def main(argv: list[str] | None = None) -> int:
 
   rows: list[dict[str, Any]] = []
 
+  def _write() -> None:
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    with args.out.open("w") as f:
+      json.dump(rows, f, indent=2)
+
   for length in lengths:
     for n_mutants in batch_sizes:
       log.info("=== length=%d batch=%d ===", length, n_mutants)
-      coords_np, wildtype_np = _make_synthetic_wildtype(args.seed, length)
-      wildtype_jax = jnp.asarray(wildtype_np, dtype=jnp.int32)
-      mutant_aatype_jax, _mutations = _make_mutants(args.seed, wildtype_jax, n_mutants, length)
-      mutant_aatype_np = np.asarray(mutant_aatype_jax)
+      try:
+        coords_np, wildtype_np = _make_synthetic_wildtype(args.seed, length)
+        wildtype_jax = jnp.asarray(wildtype_np, dtype=jnp.int32)
+        mutant_aatype_jax, _mutations = _make_mutants(args.seed, wildtype_jax, n_mutants, length)
+        mutant_aatype_np = np.asarray(mutant_aatype_jax)
 
-      coords_jax = jnp.asarray(coords_np)
-      mask_jax = jnp.ones((length,), dtype=bool)
-      t_jax = jnp.asarray(args.diffusion_time)
-      mask_np = np.ones((length,), dtype=bool)
+        coords_jax = jnp.asarray(coords_np)
+        mask_jax = jnp.ones((length,), dtype=bool)
+        t_jax = jnp.asarray(args.diffusion_time)
+        mask_np = np.ones((length,), dtype=bool)
 
-      jax_throughput, jax_energy_times = _time_jax_throughput(
-        jax_model, coords_jax, mutant_aatype_jax, t_jax, mask_jax, args.n_repeats,
-      )
-      jax_energy_ms_mean, jax_energy_ms_std = _wall_clock_ms_stats(jax_energy_times)
-      jax_score_ms, jax_score_times = _time_jax_score_latency(
-        jax_model, coords_jax, mutant_aatype_jax[0], t_jax, mask_jax, args.n_repeats,
-      )
-      jax_score_ms_mean, jax_score_ms_std = _wall_clock_ms_stats(jax_score_times)
+        jax_throughput, jax_energy_times = _time_jax_throughput(
+          jax_model, coords_jax, mutant_aatype_jax, t_jax, mask_jax, args.n_repeats,
+        )
+        jax_energy_ms_mean, jax_energy_ms_std = _wall_clock_ms_stats(jax_energy_times)
+        jax_score_ms, jax_score_times = _time_jax_score_latency(
+          jax_model, coords_jax, mutant_aatype_jax[0], t_jax, mask_jax, args.n_repeats,
+        )
+        jax_score_ms_mean, jax_score_ms_std = _wall_clock_ms_stats(jax_score_times)
+
+        if torch_model is not None:
+          torch_throughput, torch_energy_times = _time_pytorch_throughput(
+            torch_model, coords_np, mutant_aatype_np, args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
+          )
+          torch_energy_ms_mean, torch_energy_ms_std = _wall_clock_ms_stats(torch_energy_times)
+
+          torch_score_eager_ms, torch_score_eager_times = _time_pytorch_score_latency(
+            torch_model, coords_np, mutant_aatype_np[0], args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
+          )
+          _, torch_score_eager_ms_std = _wall_clock_ms_stats(torch_score_eager_times)
+
+          torch_score_shipped_ms, torch_score_shipped_times = _time_pytorch_score_shipped(
+            torch_model, coords_np, mutant_aatype_np[0], args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
+          )
+          _, torch_score_shipped_ms_std = _wall_clock_ms_stats(torch_score_shipped_times)
+
+          torch_score_compiled_ms, torch_score_compiled_times, compile_err = _time_pytorch_score_compiled(
+            torch_model, coords_np, mutant_aatype_np[0], args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
+          )
+          if compile_err:
+            log.warning("[length=%d batch=%d] torch.compile FAILED, honestly recorded: %s", length, n_mutants, compile_err)
+            torch_score_compiled_ms_std = None
+          else:
+            _, torch_score_compiled_ms_std = _wall_clock_ms_stats(torch_score_compiled_times)
+      except Exception as e:  # noqa: BLE001 -- a single (length, batch) cell must not lose already-collected rows
+        log.error("[length=%d batch=%d] FAILED: %s: %s", length, n_mutants, type(e).__name__, e)
+        rows.append({
+          "protein_length": length,
+          "batch_size": n_mutants,
+          "impl": "error",
+          "error": f"{type(e).__name__}: {e}",
+        })
+        _write()
+        continue
 
       rows.append({
         "protein_length": length,
@@ -645,30 +686,6 @@ def main(argv: list[str] | None = None) -> int:
       )
 
       if torch_model is not None:
-        torch_throughput, torch_energy_times = _time_pytorch_throughput(
-          torch_model, coords_np, mutant_aatype_np, args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
-        )
-        torch_energy_ms_mean, torch_energy_ms_std = _wall_clock_ms_stats(torch_energy_times)
-
-        torch_score_eager_ms, torch_score_eager_times = _time_pytorch_score_latency(
-          torch_model, coords_np, mutant_aatype_np[0], args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
-        )
-        _, torch_score_eager_ms_std = _wall_clock_ms_stats(torch_score_eager_times)
-
-        torch_score_shipped_ms, torch_score_shipped_times = _time_pytorch_score_shipped(
-          torch_model, coords_np, mutant_aatype_np[0], args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
-        )
-        _, torch_score_shipped_ms_std = _wall_clock_ms_stats(torch_score_shipped_times)
-
-        torch_score_compiled_ms, torch_score_compiled_times, compile_err = _time_pytorch_score_compiled(
-          torch_model, coords_np, mutant_aatype_np[0], args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
-        )
-        if compile_err:
-          log.warning("[length=%d batch=%d] torch.compile FAILED, honestly recorded: %s", length, n_mutants, compile_err)
-          torch_score_compiled_ms_std = None
-        else:
-          _, torch_score_compiled_ms_std = _wall_clock_ms_stats(torch_score_compiled_times)
-
         for variant, score_ms, score_ms_std in (
           ("eager", torch_score_eager_ms, torch_score_eager_ms_std),
           ("shipped", torch_score_shipped_ms, torch_score_shipped_ms_std),
@@ -692,10 +709,8 @@ def main(argv: list[str] | None = None) -> int:
           "[pytorch] L=%-4d B=%-4d energy_evals_per_sec=%12.2f score_grad_ms(eager)=%8.3f",
           length, n_mutants, torch_throughput, torch_score_eager_ms,
         )
+      _write()
 
-  args.out.parent.mkdir(parents=True, exist_ok=True)
-  with args.out.open("w") as f:
-    json.dump(rows, f, indent=2)
   log.info("Wrote %d rows to %s", len(rows), args.out)
   return 0
 

@@ -744,42 +744,107 @@ def main() -> int:
   torch_device = _torch_device()
   log.info("JAX device: %s | PyTorch device: %s", jax_device, torch_device)
 
+  def _write(results: list[dict[str, Any]], wall_elapsed: float) -> None:
+    payload = {
+      "meta": {
+        "smoke": args.smoke,
+        "batch_sizes": list(batch_sizes),
+        "n_repeats": n_repeats,
+        "diffusion_time": args.diffusion_time,
+        "seed": args.seed,
+        "checkpoint": None if args.smoke else str(args.checkpoint),
+        "reference_repo": str(args.reference_repo),
+        "model_dims": {
+          "token_s": model_cfg.token_s,
+          "token_z": model_cfg.token_z,
+          "transformer_depth": model_cfg.token_transformer_depth,
+          "transformer_heads": model_cfg.token_transformer_heads,
+          "num_contact_embeddings": model_cfg.num_contact_embeddings,
+        },
+        "wall_clock_seconds": wall_elapsed,
+        "methodology_notes": [
+          "PyTorch score_grad_ms has THREE variants per row (pytorch_variant): "
+          "'eager' (torch.autograd.grad(..., create_graph=False) directly, the "
+          "original optimized bypass), 'shipped' (the reference's own public "
+          "compute_score() wrapper verbatim -- create_graph=True unconditionally, "
+          "'the public code' as literally distributed), and 'compiled' (the "
+          "eager path wrapped in torch.compile -- compile_error is non-null and "
+          "the timing null if torch.compile itself failed on this shape, honestly "
+          "recorded rather than silently falling back to eager).",
+          "batch_sizes sweeps the reference's own real usage scale: "
+          "score_decoys.py's --bsize default is 256 (halved to 128 for longer "
+          "structures); run_dynamics.py's --batch_size default is 400. Prior "
+          "runs of this script used a single fixed n_decoys (4 or 16) -- far "
+          "below the reference's actual production scale.",
+          "Both impls get one untimed warmup call per (length, batch_size, metric, "
+          "variant) before timing (JAX: forces jit compilation; PyTorch: cache/"
+          "allocator warm-up, or torch.compile's lazy first-call compilation).",
+          "No SM120 XLA autotuning workaround applied here -- CPU-only local "
+          "run. A cluster (GPU) run of this script MUST set "
+          "XLA_FLAGS=--xla_gpu_shard_autotuning=false per ~/.claude/rules/CLUSTER.md "
+          "or JAX throughput numbers will be wrong by orders of magnitude.",
+          "A row with impl='error' means that (protein_length, batch_size) cell "
+          "raised during timing (see its 'error' field) -- all other cells in "
+          "this file completed normally and are unaffected. Now that PyTorch "
+          "actually runs on the same GPU as JAX (see 260716_proteinebm-parity-"
+          "report.md's device-placement bug correction), the two frameworks "
+          "compete for GPU memory, which can trigger a real OutOfMemoryError "
+          "at large (length, batch_size) cells that never occurred when "
+          "PyTorch was silently running on CPU.",
+        ],
+      },
+      "results": results,
+    }
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(payload, indent=2))
+
   results: list[dict[str, Any]] = []
   wall_start = time.perf_counter()
   for length in lengths:
     for n_decoys in batch_sizes:
-      decoys = _synthetic_decoys(n_decoys, length, args.seed)
+      try:
+        decoys = _synthetic_decoys(n_decoys, length, args.seed)
 
-      log.info("[length=%d batch=%d] JAX warmup + timed energy batch...", length, n_decoys)
-      jax_energy_times = _run_jax_energy(jax_model, decoys, args.diffusion_time, n_repeats)
-      jax_energy_eps = n_decoys / float(np.mean(jax_energy_times))
-      jax_energy_ms_mean, jax_energy_ms_std = _wall_clock_ms_stats(jax_energy_times)
+        log.info("[length=%d batch=%d] JAX warmup + timed energy batch...", length, n_decoys)
+        jax_energy_times = _run_jax_energy(jax_model, decoys, args.diffusion_time, n_repeats)
+        jax_energy_eps = n_decoys / float(np.mean(jax_energy_times))
+        jax_energy_ms_mean, jax_energy_ms_std = _wall_clock_ms_stats(jax_energy_times)
 
-      log.info("[length=%d batch=%d] JAX warmup + timed score/grad...", length, n_decoys)
-      jax_score_times = _run_jax_score(jax_model, decoys, args.diffusion_time, n_repeats)
-      jax_score_ms = float(np.mean(jax_score_times)) * 1000.0
-      jax_score_ms_mean, jax_score_ms_std = _wall_clock_ms_stats(jax_score_times)
+        log.info("[length=%d batch=%d] JAX warmup + timed score/grad...", length, n_decoys)
+        jax_score_times = _run_jax_score(jax_model, decoys, args.diffusion_time, n_repeats)
+        jax_score_ms = float(np.mean(jax_score_times)) * 1000.0
+        jax_score_ms_mean, jax_score_ms_std = _wall_clock_ms_stats(jax_score_times)
 
-      log.info("[length=%d batch=%d] PyTorch warmup + timed energy batch...", length, n_decoys)
-      pt_energy_times = _run_pytorch_energy(ref_model, decoys, args.diffusion_time, n_repeats, device=torch_device)
-      pt_energy_eps = n_decoys / float(np.mean(pt_energy_times))
-      pt_energy_ms_mean, pt_energy_ms_std = _wall_clock_ms_stats(pt_energy_times)
+        log.info("[length=%d batch=%d] PyTorch warmup + timed energy batch...", length, n_decoys)
+        pt_energy_times = _run_pytorch_energy(ref_model, decoys, args.diffusion_time, n_repeats, device=torch_device)
+        pt_energy_eps = n_decoys / float(np.mean(pt_energy_times))
+        pt_energy_ms_mean, pt_energy_ms_std = _wall_clock_ms_stats(pt_energy_times)
 
-      log.info("[length=%d batch=%d] PyTorch score/grad: eager (create_graph=False)...", length, n_decoys)
-      pt_score_eager_times = _run_pytorch_score(ref_model, decoys, args.diffusion_time, n_repeats, device=torch_device)
-      pt_score_eager_ms, pt_score_eager_ms_std = _wall_clock_ms_stats(pt_score_eager_times)
+        log.info("[length=%d batch=%d] PyTorch score/grad: eager (create_graph=False)...", length, n_decoys)
+        pt_score_eager_times = _run_pytorch_score(ref_model, decoys, args.diffusion_time, n_repeats, device=torch_device)
+        pt_score_eager_ms, pt_score_eager_ms_std = _wall_clock_ms_stats(pt_score_eager_times)
 
-      log.info("[length=%d batch=%d] PyTorch score/grad: shipped (compute_score(), create_graph=True)...", length, n_decoys)
-      pt_score_shipped_times = _run_pytorch_score_shipped(ref_model, decoys, args.diffusion_time, n_repeats, device=torch_device)
-      pt_score_shipped_ms, pt_score_shipped_ms_std = _wall_clock_ms_stats(pt_score_shipped_times)
+        log.info("[length=%d batch=%d] PyTorch score/grad: shipped (compute_score(), create_graph=True)...", length, n_decoys)
+        pt_score_shipped_times = _run_pytorch_score_shipped(ref_model, decoys, args.diffusion_time, n_repeats, device=torch_device)
+        pt_score_shipped_ms, pt_score_shipped_ms_std = _wall_clock_ms_stats(pt_score_shipped_times)
 
-      log.info("[length=%d batch=%d] PyTorch score/grad: torch.compile...", length, n_decoys)
-      pt_score_compiled_times, pt_compile_err = _run_pytorch_score_compiled(ref_model, decoys, args.diffusion_time, n_repeats, device=torch_device)
-      if pt_compile_err:
-        log.warning("[length=%d batch=%d] torch.compile FAILED, honestly recorded, not silently skipped: %s", length, n_decoys, pt_compile_err)
-        pt_score_compiled_ms = pt_score_compiled_ms_std = None
-      else:
-        pt_score_compiled_ms, pt_score_compiled_ms_std = _wall_clock_ms_stats(pt_score_compiled_times)
+        log.info("[length=%d batch=%d] PyTorch score/grad: torch.compile...", length, n_decoys)
+        pt_score_compiled_times, pt_compile_err = _run_pytorch_score_compiled(ref_model, decoys, args.diffusion_time, n_repeats, device=torch_device)
+        if pt_compile_err:
+          log.warning("[length=%d batch=%d] torch.compile FAILED, honestly recorded, not silently skipped: %s", length, n_decoys, pt_compile_err)
+          pt_score_compiled_ms = pt_score_compiled_ms_std = None
+        else:
+          pt_score_compiled_ms, pt_score_compiled_ms_std = _wall_clock_ms_stats(pt_score_compiled_times)
+      except Exception as e:  # noqa: BLE001 -- a single (length, batch) cell must not lose already-collected rows
+        log.error("[length=%d batch=%d] FAILED: %s: %s", length, n_decoys, type(e).__name__, e)
+        results.append({
+          "protein_length": length,
+          "batch_size": n_decoys,
+          "impl": "error",
+          "error": f"{type(e).__name__}: {e}",
+        })
+        _write(results, time.perf_counter() - wall_start)
+        continue
 
       results.append({
         "protein_length": length,
@@ -823,54 +888,10 @@ def main() -> int:
         length, n_decoys, jax_energy_eps, jax_score_ms, pt_energy_eps, pt_score_eager_ms,
         speedup, grad_speedup_eager,
       )
+      _write(results, time.perf_counter() - wall_start)
 
   wall_elapsed = time.perf_counter() - wall_start
-
-  payload = {
-    "meta": {
-      "smoke": args.smoke,
-      "batch_sizes": list(batch_sizes),
-      "n_repeats": n_repeats,
-      "diffusion_time": args.diffusion_time,
-      "seed": args.seed,
-      "checkpoint": None if args.smoke else str(args.checkpoint),
-      "reference_repo": str(args.reference_repo),
-      "model_dims": {
-        "token_s": model_cfg.token_s,
-        "token_z": model_cfg.token_z,
-        "transformer_depth": model_cfg.token_transformer_depth,
-        "transformer_heads": model_cfg.token_transformer_heads,
-        "num_contact_embeddings": model_cfg.num_contact_embeddings,
-      },
-      "wall_clock_seconds": wall_elapsed,
-      "methodology_notes": [
-        "PyTorch score_grad_ms has THREE variants per row (pytorch_variant): "
-        "'eager' (torch.autograd.grad(..., create_graph=False) directly, the "
-        "original optimized bypass), 'shipped' (the reference's own public "
-        "compute_score() wrapper verbatim -- create_graph=True unconditionally, "
-        "'the public code' as literally distributed), and 'compiled' (the "
-        "eager path wrapped in torch.compile -- compile_error is non-null and "
-        "the timing null if torch.compile itself failed on this shape, honestly "
-        "recorded rather than silently falling back to eager).",
-        "batch_sizes sweeps the reference's own real usage scale: "
-        "score_decoys.py's --bsize default is 256 (halved to 128 for longer "
-        "structures); run_dynamics.py's --batch_size default is 400. Prior "
-        "runs of this script used a single fixed n_decoys (4 or 16) -- far "
-        "below the reference's actual production scale.",
-        "Both impls get one untimed warmup call per (length, batch_size, metric, "
-        "variant) before timing (JAX: forces jit compilation; PyTorch: cache/"
-        "allocator warm-up, or torch.compile's lazy first-call compilation).",
-        "No SM120 XLA autotuning workaround applied here -- CPU-only local "
-        "run. A cluster (GPU) run of this script MUST set "
-        "XLA_FLAGS=--xla_gpu_shard_autotuning=false per ~/.claude/rules/CLUSTER.md "
-        "or JAX throughput numbers will be wrong by orders of magnitude.",
-      ],
-    },
-    "results": results,
-  }
-
-  args.out.parent.mkdir(parents=True, exist_ok=True)
-  args.out.write_text(json.dumps(payload, indent=2))
+  _write(results, wall_elapsed)
   log.info("Wrote %d result rows to %s (wall clock %.1fs)", len(results), args.out, wall_elapsed)
   return 0
 

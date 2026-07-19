@@ -60,9 +60,17 @@ full = "uv run python scripts/ebm/benchmarks/biasing_benchmark.py --lengths 64,1
 [result_schema]
 energy_evals_per_sec = "float"
 diff_fuse_wall_clock_ms = "float"
+diff_fuse_wall_clock_std_ms = "float"
+energy_wall_clock_mean_ms = "float"
+energy_wall_clock_std_ms = "float"
 protein_length = "int"
 device = "str"
 impl = "str"  # "jax" | "pytorch"
+# NOTE: unlike decoy/ddg, this application has a fixed N_STATES=2 axis, not a
+# variable batch cardinality -- no batch_size sweep or pytorch_variant (no
+# create_graph distinction applies to a pure-forward, no-gradient metric)
+# were added here. See decoy_benchmark.bth.toml/ddg_benchmark.bth.toml for
+# those dimensions where they DO apply.
 
 [result_schema.provenance]
 script_commit = "git log --oneline -1"

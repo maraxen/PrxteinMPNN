@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "smoke": false,
+    "noise_schedule": [
+      0.5,
+      0.3,
+      0.15,
+      0.05
+    ],
+    "n_steps_per_level": 5,
+    "model_swap_threshold": 0.1,
+    "n_repeats": 10,
+    "methodology_notes": [
+      "Closes a documented gap: langevin_benchmark.py (E11d) only benchmarks the INNER fixed-t sampler; this script is the first throughput measurement for the OUTER noise-schedule+model-swap loop (run_annealing_schedule) and the full E10 multi-round pipeline (run_structure_prediction).",
+      "Model-swap stand-in: the SAME real checkpoint is used for both swap branches (no second real checkpoint available in this environment) -- measures the lax.cond/lax.switch dispatch overhead + carrying two live model pytrees, not a real cross-checkpoint cost difference. Matches the epic's own already-documented E9 test stand-in convention.",
+      "E10 pipeline timed once per length (not repeated) -- a multi-round pipeline call is not a fast primitive suited to a tight repeat loop; one real timing is the meaningful unit here.",
+      "No SM120 XLA autotuning workaround applied here -- CPU-only local run. A cluster (GPU) run MUST set XLA_FLAGS=--xla_gpu_shard_autotuning=false per ~/.claude/rules/CLUSTER.md."
+    ]
+  },
+  "results": [
+    {
+      "protein_length": 64,
+      "jax_device": "gpu",
+      "pytorch_device": "cuda",
+      "outer_annealing_jax_ms_mean": 26.15531152114272,
+      "outer_annealing_jax_ms_std": 0.2781905530444215,
+      "outer_annealing_pytorch_ms_mean": 135.59808335267007,
+      "outer_annealing_pytorch_ms_std": 0.8471658217993255,
+      "outer_annealing_speedup": 5.184342126571843,
+      "e10_pipeline_ms": 10721.353590954095,
+      "e10_rounds": 3,
+      "e10_batch_size": 4
+    },
+    {
+      "protein_length": 128,
+      "jax_device": "gpu",
+      "pytorch_device": "cuda",
+      "outer_annealing_jax_ms_mean": 37.05406058579683,
+      "outer_annealing_jax_ms_std": 0.4004406475482612,
+      "outer_annealing_pytorch_ms_mean": 136.50529328733683,
+      "outer_annealing_pytorch_ms_std": 0.9236836357397875,
+      "outer_annealing_speedup": 3.6839496435556804,
+      "e10_pipeline_ms": 11232.059992849827,
+      "e10_rounds": 3,
+      "e10_batch_size": 4
+    },
+    {
+      "protein_length": 256,
+      "jax_device": "gpu",
+      "pytorch_device": "cuda",
+      "outer_annealing_jax_ms_mean": 78.25583275407553,
+      "outer_annealing_jax_ms_std": 0.539684477204918,
+      "outer_annealing_pytorch_ms_mean": 203.52159230969846,
+      "outer_annealing_pytorch_ms_std": 0.11376244787322594,
+      "outer_annealing_speedup": 2.600721059978742,
+      "e10_pipeline_ms": 12759.79229900986,
+      "e10_rounds": 3,
+      "e10_batch_size": 4
+    },
+    {
+      "protein_length": 512,
+      "jax_device": "gpu",
+      "pytorch_device": "cuda",
+      "outer_annealing_jax_ms_mean": 273.7534686457366,
+      "outer_annealing_jax_ms_std": 1.323436026218621,
+      "outer_annealing_pytorch_ms_mean": 523.2060423586518,
+      "outer_annealing_pytorch_ms_std": 0.07501753559582806,
+      "outer_annealing_speedup": 1.9112307323335906,
+      "e10_pipeline_ms": 14916.509852278978,
+      "e10_rounds": 3,
+      "e10_batch_size": 4
+    }
+  ]
+}

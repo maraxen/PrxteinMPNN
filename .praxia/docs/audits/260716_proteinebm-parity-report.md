@@ -1,7 +1,7 @@
 # ProteinEBM Parity: State of the Port
 
 - **task_id**: `260716_ebm_parity_report`
-- **status**: CORRECTED 2026-07-18 — a real, previously-undiscovered bug meant the PyTorch reference model/tensors never moved to GPU across all 6 benchmark scripts (decoy/ddg/biasing/langevin/langevin_annealing/heterogeneous_batch), despite every result JSON claiming `"device": "cuda"`. Every JAX-vs-PyTorch throughput number this report (and the epic's own founding claim) had ever cited was actually GPU-vs-**CPU**, not the same-hardware comparison it was presented as. Fixed (commit `3faeee6`) and re-run in full on real GPU-vs-GPU hardware (jobs `18284162` + `18293715`, Engaging pi_so3/Blackwell) — see the rewritten §1 for the corrected numbers. Prior status line (2026-07-17): real accuracy-vs-paper data acquired + preliminary correlations measured (§6, unaffected by this bug); `heterogeneous_batch_benchmark`'s JAX crash closed as an open Blackwell/SM120 compiler limitation, confirmed version-independent (jax/jaxlib 0.11.0 retest, job `18161115`) — see §7, still standing, now with an added side-effect noted (the same crash's corrupted CUDA context also takes down PyTorch's two strategies now that PyTorch shares the GPU).
+- **status**: UPDATED 2026-07-19 — §7's open "decoy vs. ddg torch.compile asymmetry" question is resolved (root cause: `aminx.training`'s stub `__getattr__` raised `NotImplementedError` instead of `AttributeError`, breaking `pickle.whichmodule`'s `sys.modules` scan during Inductor's `FxGraphCache` pickling; see §7 for the full trace). Fix in PR #118 (not yet merged). Prior status (2026-07-18): a real, previously-undiscovered bug meant the PyTorch reference model/tensors never moved to GPU across all 6 benchmark scripts (decoy/ddg/biasing/langevin/langevin_annealing/heterogeneous_batch), despite every result JSON claiming `"device": "cuda"`. Every JAX-vs-PyTorch throughput number this report (and the epic's own founding claim) had ever cited was actually GPU-vs-**CPU**, not the same-hardware comparison it was presented as. Fixed (commit `3faeee6`) and re-run in full on real GPU-vs-GPU hardware (jobs `18284162` + `18293715`, Engaging pi_so3/Blackwell) — see the rewritten §1 for the corrected numbers. Prior status line (2026-07-17): real accuracy-vs-paper data acquired + preliminary correlations measured (§6, unaffected by this bug); `heterogeneous_batch_benchmark`'s JAX crash closed as an open Blackwell/SM120 compiler limitation, confirmed version-independent (jax/jaxlib 0.11.0 retest, job `18161115`) — see §7, still standing, now with an added side-effect noted (the same crash's corrupted CUDA context also takes down PyTorch's two strategies now that PyTorch shares the GPU).
 - **author**: orchestrator session (background job)
 - **date**: 2026-07-16
 - **branch**: `worktree-ebm-parity-report`
@@ -324,6 +324,21 @@ data pulled from engaging and committed. Two findings worth noting in the data i
 explained (both scripts wrap the same eager path in `torch.compile`; worth a follow-up look at what
 decoy's compile graph touches that ddg's doesn't). These three scripts' batching charts are now live
 in the artifact (§01b).
+
+**Resolved 2026-07-19 (PR #118, not yet merged):** root-caused via a Dynamo-verbose repro
+(`TORCHDYNAMO_VERBOSE=1`, then calling `decoy_benchmark.py`'s compiled path directly outside its
+try/except). The traceback bottoms out in `self.dump(obj)` — Inductor's `FxGraphCache` pickling a
+compiled artifact — which calls `pickle.whichmodule`, and that scans every entry in `sys.modules`
+via `getattr(module, name, None)` to resolve where an object is defined. `aminx.training`'s stub
+`__getattr__` (`src/aminx/training/__init__.py`) raised `NotImplementedError` for *any* name, which
+breaks the `getattr(obj, name, default)`/`hasattr()` contract that `whichmodule` relies on to
+silently skip modules it can't resolve against — the stub's exception propagates instead, surfacing
+as `BackendCompilerFailed`, unrelated to anything the compiled function itself does. This was never
+about what decoy's compile graph touches that ddg's doesn't — it's that `aminx.training` merely
+needs to be in `sys.modules` (true for any script that does `import aminx`) *and* the specific
+compiled graph needs to hit pickle's slow `whichmodule` scan path (a trivial `torch.compile(lambda
+x: x + 1)` does not; the real `ProteinEBM.compute_energy` graph does). Fix: raise `AttributeError`
+instead — verified via `decoy_benchmark.py --smoke`, all 4 combos now report `compile_error: None`.
 
 **`langevin_benchmark` hit a real crash, not the known autotuning bug**: at length=128, batch=400 —
 the reference's own `run_dynamics.py` default batch size, never tested by decoy/ddg (max batch 256)

@@ -1,0 +1,69 @@
+---
+workspace: aminx
+session_id: 90d29cd4-d75b-48bd-8c0e-f445039900e0
+status: in_progress
+immediately_relevant:
+- file: scripts/ebm/benchmarks/run_cluster_benchmarks.sh
+  lines:
+  - 1
+  - 161
+  reason: The wrapper job 18284162 is running; defines canonical output filenames and per-step resilience
+- file: scripts/ebm/render_parity_report_data.py
+  lines:
+  - 1
+  - 50
+  reason: Regenerates the report's consolidated data JSON from the benchmark output files
+- file: .praxia/docs/audits/260716_proteinebm-parity-report.md
+  lines:
+  - 1
+  - 33
+  reason: Status line and §1 headline throughput claim need correction once real numbers land
+- file: scripts/ebm/benchmarks/langevin_benchmark.py
+  lines:
+  - 494
+  - 570
+  reason: _chunked_vmap + _jax_equilibration_batch -- the SM120 compile-time fix, if further cluster testing is needed
+active_dispatches: []
+task_id: 260716_ebm_parity_report
+phase: Device-placement fix + full corrected re-run
+goal_statement: 'Correct the ProteinEBM parity report''s headline throughput-parity claim: a real bug meant the PyTorch reference model/tensors never moved to GPU across all 6 benchmark scripts (decoy/ddg/biasing/langevin/langevin_annealing/heterogeneous_batch), despite every result JSON claiming "device": "cuda". Every JAX-vs-PyTorch speedup number this epic has ever reported was actually GPU-vs-CPU, not the intended same-hardware comparison. Fixed device placement in all 6 scripts (commit 3faeee6, pushed + synced to cluster, verified via ssh grep not just trusting the sync). Also separately fixed a Blackwell/SM120 compile-time trap discovered while cluster-testing the batch-planner mitigation from earlier this session (commit 0faa1d0): xtrax''s SafeMap lowers to jax.lax.map/lax.scan, which reintroduced a documented ~300-400x SM120 compile penalty around langevin_benchmark.py''s internal lax.while_loop -- fixed via a Python-level chunked-vmap helper instead (zero scan nodes, verified via jax.make_jaxpr). Logged a lesson (praxia lesson #273) and tech debt in bathos (#794), xtrax (#795), and jaxlint/using-jax (#796) source repos per user request. Submitted a full corrected re-run (SLURM job 18284162, ~17min elapsed of a 3h budget as of this handoff) using the existing hardened run_cluster_benchmarks.sh wrapper, which writes to the same canonical *_full*.json filenames already referenced by the report -- so once it completes, the existing committed benchmark data files are stale/wrong and need replacing.'
+context_refs:
+- phase: jax 0.11.0 investigation
+  task_id: 260716_ebm_parity_report
+  summary: Confirmed jax/jaxlib 0.11.0 does not fix the Blackwell autotuning crash (job 18161115) -- unrelated to, and predates, this session's device-placement and SafeMap-compile-time findings
+failed_attempts:
+- attempt_id: a1
+  description: Dispatch xtrax's SafeMap batch-planner decision via its default execution path (aminx.utils.safe_map.safe_map, i.e. jax.lax.map) for langevin_benchmark.py's n_trajectories axis
+  outcome: SLURM job 18182309 hung for a full hour without completing even the compile (warmup) call for the first SafeMap-dispatched cell (L=128/batch=400) on node4008/SM120
+  reason_failed: jax.lax.map lowers to lax.scan (per JAX's own docs). run_langevin_equilibration already contains an internal jax.lax.while_loop, deliberately chosen because while_loop compiles ~300-400x faster than lax.scan on SM120 for this kind of loop. Wrapping it in SafeMap's outer scan reintroduced exactly that penalty.
+  do_not_retry: true
+  evidence_ref: commit 0faa1d0 replaces this with a Python-level chunked-vmap helper; see .praxia/docs/audits/260716_proteinebm-parity-report.md §7
+- attempt_id: a2
+  description: myxcel push engaging aminx from within this worktree
+  outcome: Resolved 'aminx' to the MAIN checkout path (~/projects/aminx on branch main), not this worktree -- silently regressed 4+ remote files to main's stale content
+  reason_failed: myxcel's project-name resolution ignores cwd/worktree context entirely
+  do_not_retry: true
+  evidence_ref: 'memory: feedback_myxcel-push-resolves-main-checkout-not-worktree.md; repaired via direct rsync from the worktree'
+open_questions:
+- Did job 18284162 complete cleanly within its 3h walltime, or did any individual step (decoy/ddg/biasing/heterogeneous/annealing/langevin) fail or time out?
+- Are the new real GPU-vs-GPU PyTorch numbers plausible, or does anything else need fixing before trusting them?
+- Does heterogeneous_batch_benchmark.py's JAX side still crash on SM120 as expected, confirming the existing 'closed as infra limitation' conclusion stands unchanged?
+deferred:
+- description: Full-scale confirmatory cluster run of jax 0.11.0's fix for the separate decoy/ddg grad-path regression (only tested at minimal L=64/batch=4 scale so far)
+  rationale: Unrelated to this session's device-placement/compile-time fixes
+  recommended_phase: next available cluster window
+- description: ORCD pool-quota report follow-up
+  rationale: Draft already delivered to user; sending and any response is the user's own action item, not code
+  recommended_phase: whenever user hears back from ORCD
+lessons_refs:
+- .praxia/lessons.jsonl
+next_steps:
+- Check job 18284162's terminal state via direct `ssh engaging "sacct -j 18284162 --format=JobID,State,Elapsed,ExitCode -P"` -- NOT a background poll (one died silently earlier this session without notifying)
+- 'If COMPLETED: pull all outputs/ebm_benchmarks/*_full*.json files from the cluster via direct rsync (not myxcel push/pull -- see failed_attempts), inspect each for real rows (not error rows) and sanity-check that PyTorch numbers are now plausible for GPU (much faster than the old CPU numbers, but JAX should still win)'
+- Replace the stale committed data files (outputs/ebm_benchmarks/{decoy,ddg}_benchmark_full_L*.json, biasing_benchmark_full.json, langevin_benchmark_full_L*.json, langevin_annealing_benchmark_full.json) with the corrected versions
+- Regenerate outputs/ebm_benchmarks/ebm_parity_report_data.json via scripts/ebm/render_parity_report_data.py
+- Correct .praxia/docs/audits/260716_proteinebm-parity-report.md's status line and §1 (the 'Throughput/speed parity -- Strong, real, repeated (11-92x)' headline claim) to reflect the corrected GPU-vs-GPU numbers -- frame honestly as a correction of a real prior measurement bug, not just an update
+- Republish the HTML artifact (https://claude.ai/code/artifact/da1253a3-c8ae-4daf-9e29-2c822d5c2e3a) with corrected data
+- Confirm heterogeneous_batch_benchmark.py's JAX bucket_pad_tile strategy still crashes on SM120 as expected (unrelated to this fix -- separate, already-closed 'infra limitation' finding); its two working PyTorch strategies should now report correct GPU numbers
+- 'Ask user whether to mark PR #112 ready for review once report corrections land'
+---

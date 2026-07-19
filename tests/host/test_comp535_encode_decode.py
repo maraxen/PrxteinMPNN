@@ -11,6 +11,7 @@ import pytest
 
 from aminx.host.plan import InferencePlan, InferenceComponents, make_inference_plan
 from aminx.inference.sample_autoregressive import SampleResult
+from aminx.run.spec import build_run_spec
 
 
 class DummyModel(eqx.Module):
@@ -24,6 +25,11 @@ class DummySpec:
     state_weights = None
     sampling_strategy = "temperature"
     temperature = [1.0]
+
+
+# See test_comp534_plan_wiring.py's identical comment: make_inference_plan reads
+# spec.run_spec.sampling.* (260716, EPIC #1541 P4); build_run_spec() handles any duck spec.
+DummySpec.run_spec = build_run_spec(DummySpec)
 
 
 _DUMMY_SAMPLE_RESULT = SampleResult(

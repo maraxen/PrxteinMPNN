@@ -159,8 +159,11 @@ def sample(
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
-  # Construct inference plan once before routing to streaming or non-streaming path
-  plan: InferencePlan = make_inference_plan(model, spec)
+  # Construct inference plan once before routing to streaming or non-streaming path.
+  # purpose="sample": this is the one caller that wants new sequences, not a score of a given
+  # one -- aminx#110 was this exact resolution defaulting to ConditionalMode (score-shaped)
+  # here with no way to ask for real autoregressive sampling.
+  plan: InferencePlan = make_inference_plan(model, spec, purpose="sample")
 
   if spec.run_spec.io.output_h5_path:
     return _sample_streaming(spec, protein_iterator, plan, _sample_batch)
@@ -356,7 +359,7 @@ def _make_averaged_score_fn(
     residue_index: jax.Array,
     chain_index: jax.Array,
     backbone_noise: float | None = None,
-    ar_mask: jax.Array | None = None,
+    ar_mask_override: jax.Array | None = None,
     structure_mapping: jax.Array | None = None,
     tie_group_map: jax.Array | None = None,
     multi_state_strategy: str = "arithmetic_mean",
@@ -379,9 +382,12 @@ def _make_averaged_score_fn(
 
     L = int(sequence.shape[0])
 
-    # Build decoding AR mask: use provided ar_mask or default full-context mask
-    if ar_mask is not None:
-      ar_mask_single = ar_mask[0] if ar_mask.ndim == 3 else ar_mask
+    # Build decoding AR mask: use provided override or default full-context mask. This is a
+    # direct caller-supplied override, not sourced from any RunSpecification field -- aminx#113
+    # confirmed the spec-level `ar_mask` field (now deleted) never fed anything; this parameter
+    # is unrelated and always was.
+    if ar_mask_override is not None:
+      ar_mask_single = ar_mask_override[0] if ar_mask_override.ndim == 3 else ar_mask_override
     else:
       ar_mask_single = None  # bundle_builder will create the default
 
@@ -493,7 +499,8 @@ def score(  # noqa: PLR0915
   if spec.average_node_features:
     from aminx.host.plan import make_inference_plan  # noqa: PLC0415
 
-    plan = make_inference_plan(model, spec)
+    # purpose="score" (the default): this call evaluates a given sequence, it never samples one.
+    plan = make_inference_plan(model, spec, purpose="score")
     score_fn = _make_averaged_score_fn(plan, spec)  # type: ignore[arg-type]
   else:
     score_fn = make_score_fn(model)  # type: ignore[arg-type]
@@ -701,7 +708,9 @@ def inspect(  # noqa: PLR0915
 
   # Stage set flows from the inference plan (single construction) rather than a
   # direct make_stage_set import — keeps runner.py free of make_stage_set (COMP-534).
-  unconditional_stage_set = make_inference_plan(model, spec).stage_set
+  # purpose="score": only .stage_set is used below, decode_fn is never invoked from this
+  # plan, but "score" is still the semantically correct purpose for an inspection call.
+  unconditional_stage_set = make_inference_plan(model, spec, purpose="score").stage_set
 
   results_per_feature = {feat: [] for feat in spec.inspection_features}
   distance_matrices: list[jax.Array] = []
@@ -769,9 +778,14 @@ def inspect(  # noqa: PLR0915
           results_per_feature[feature_name].append(logits)
 
         elif feature_name == "conditional_logits":
-          # Use native sequence from parsed structure
+          # Use native sequence from parsed structure, converted to the model's alphabet.
+          # aatype is AF; the model's token space is MPNN. Note :802 below already converts
+          # candidate *strings* via string_to_protein_sequence -- the two alphabets were
+          # ~30 lines apart in this same loop, compared against each other.
+          from aminx.utils.aa_convert import af_to_mpnn  # noqa: PLC0415
+
           if hasattr(batched_ensemble, "aatype") and batched_ensemble.aatype is not None:
-            native_seq = batched_ensemble.aatype[struct_idx]
+            native_seq = af_to_mpnn(batched_ensemble.aatype[struct_idx])
           else:
             msg = (
               "Structure does not contain sequence information; cannot compute conditional_logits"
@@ -829,8 +843,10 @@ def inspect(  # noqa: PLR0915
           results_per_feature[feature_name].append(batched_logits)
 
         elif feature_name == "decoded_node_features":
+          from aminx.utils.aa_convert import af_to_mpnn  # noqa: PLC0415
+
           if hasattr(batched_ensemble, "aatype") and batched_ensemble.aatype is not None:
-            native_seq = batched_ensemble.aatype[struct_idx]
+            native_seq = af_to_mpnn(batched_ensemble.aatype[struct_idx])  # AF -> model space
           else:
             msg = "Structure does not contain sequence information; cannot compute decoded_node_features"
             raise ValueError(msg)
@@ -1009,8 +1025,10 @@ def jacobian(
         struct_residue_index = batched_ensemble.residue_index[struct_idx]
         struct_chain_index = batched_ensemble.chain_index[struct_idx]
 
+        from aminx.utils.aa_convert import af_to_mpnn  # noqa: PLC0415
+
         if hasattr(batched_ensemble, "aatype") and batched_ensemble.aatype is not None:
-          native_seq = batched_ensemble.aatype[struct_idx]
+          native_seq = af_to_mpnn(batched_ensemble.aatype[struct_idx])  # AF -> model space
         else:
           msg = "Structure does not contain sequence information; cannot compute Jacobian"
           raise ValueError(msg)

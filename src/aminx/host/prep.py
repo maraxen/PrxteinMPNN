@@ -129,18 +129,43 @@ def prep_protein_stream_and_model(
   if spec.run_spec.io.cache_path is not None:
     jax.config.update("jax_compilation_cache_dir", str(spec.run_spec.io.cache_path))
 
+  # These three MUST reach load_model, not just the dataset. They change how the model is
+  # BUILT, not merely what it is fed:
+  #   - use_side_chain_context -> weights.py's ligand skeleton (ligand models only; the
+  #     protein branch ignores it, so forwarding is safe for every checkpoint family)
+  #   - use_electrostatics / use_vdw -> physics_feature_dim (weights.py:206-207)
+  # Until now prep.py forwarded electrostatics/vdw to the DATASET (:111, :114) and nothing to
+  # load_model, so a caller asking for sidechain context got a model built with sidechains
+  # off and no error -- occurrences #6 and #11 of the audit's declared-but-never-delivered
+  # class. training/trainer.py:159-164 already forwards these; the inference path did not.
+  #
+  # bool(...) because the spec fields are `bool | None` (specs.py:241,254,255) while
+  # load_model takes plain bools -- None means "not set", i.e. off.
+  #
+  # If a checkpoint has no physics weights and the caller asks for physics, deserialization
+  # now fails loudly. That is the correct outcome: it is what "I asked for electrostatics"
+  # should do when the checkpoint cannot provide them. Silently ignoring the request is the
+  # bug being fixed.
+  model_conditioning = {
+    "use_side_chain_context": bool(spec.ligand_mpnn_use_side_chain_context),
+    "use_electrostatics": bool(spec.use_electrostatics),
+    "use_vdw": bool(spec.use_vdw),
+  }
+
   if spec.checkpoint_id is not None:
     model = load_model(
       checkpoint_id=spec.checkpoint_id,
       model_weights=spec.model_weights,
       model_version=spec.model_version,
       local_path=local_ckpt,
+      **model_conditioning,
     )
   else:
     model = load_model(
       model_version=spec.model_version,
       model_weights=spec.model_weights,
       local_path=local_ckpt,
+      **model_conditioning,
     )
 
   # Set model to inference mode (disables dropout, etc.)

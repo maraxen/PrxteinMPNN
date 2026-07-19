@@ -35,6 +35,7 @@ from aminx.host.output_sinks import (
 )
 from aminx.host.plan import InferencePlan, InferenceComponents
 from aminx.inference.sample_autoregressive import SampleResult
+from aminx.run.spec import build_run_spec
 from aminx.run.specs import SamplingSpecification
 from aminx.types.bundles import EncoderOutput
 from aminx.types.stages import ConditionalDecodeStep, StageSet
@@ -267,6 +268,7 @@ def test_make_inference_plan_wires_fusion_when_avg():
     spec.multi_state_temperature = 1.0
     spec.state_weights = None
     spec.sampling_strategy = "temperature"
+    spec.run_spec = build_run_spec(spec)
 
     with (
         patch("aminx.inference.encode.make_encode_fn", return_value=MagicMock()),
@@ -300,6 +302,7 @@ def test_make_inference_plan_no_fusion_when_no_avg():
     spec.multi_state_temperature = 1.0
     spec.state_weights = None
     spec.sampling_strategy = "temperature"
+    spec.run_spec = build_run_spec(spec)
 
     with (
         patch("aminx.inference.encode.make_encode_fn", return_value=MagicMock()),
@@ -728,6 +731,7 @@ def test_ste_routes_via_stage_set():
     spec.multi_state_temperature = 1.0
     spec.state_weights = None
     spec.sampling_strategy = "straight_through"
+    spec.run_spec = build_run_spec(spec)
 
     with (
         patch("aminx.inference.encode.make_encode_fn", return_value=MagicMock()),

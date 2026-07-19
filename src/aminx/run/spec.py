@@ -95,7 +95,18 @@ class PlannerTopology(eqx.Module):
 
 
 class SamplingConfig(eqx.Module):
-  """Generic sampling knobs (RS-1 migration map section 4)."""
+  """Generic sampling knobs (RS-1 migration map section 4).
+
+  ``sampling_strategy`` through ``structure_mapping`` below were added 260716 (EPIC #1541 P4,
+  the decode-plan-unification pass) so that decode-class resolution (``ConditionalMode`` vs
+  ``AutoregressiveMode`` vs ``STEMode``) and multistate/tie fusion can be driven from ONE place
+  (``spec.run_spec.sampling``) instead of scattered flat-spec reads across ``host/plan.py`` and
+  ``sampling/multistate_poe.py`` independently. See aminx#110/#113 and
+  ``.praxia/docs/specs/260707_xtrax-migration-gap-audit-runspec-scaffolding.md`` for why the
+  prior attempt at this (``TiedPositionsConfig``/``AveragingConfig``/``BatchingConfig``) went
+  100% dead and was deleted (`dd0e952`) rather than fixed -- fields live directly on
+  ``SamplingConfig`` this time, not a separate sub-config, since that's the one that stuck.
+  """
 
   num_samples: int = eqx.field(static=True)
   random_seed: int = eqx.field(static=True)
@@ -109,6 +120,15 @@ class SamplingConfig(eqx.Module):
   fixed_mask: Any = None
   fixed_positions: Any = None
   fixed_tokens: Any = None
+  sampling_strategy: str = eqx.field(static=True, default="temperature")
+  multi_state_strategy: str = eqx.field(static=True, default="arithmetic_mean")
+  multi_state_temperature: float = eqx.field(static=True, default=1.0)
+  use_rolling_state: bool = eqx.field(static=True, default=False)
+  decoding_order_fn: Any = eqx.field(static=True, default=None)
+  tie_group_map: Any = None
+  state_position_map: Any = None
+  state_weights: Any = None
+  structure_mapping: Any = None
 
 
 class RunSpec(_XtraxRunSpec):
@@ -315,6 +335,17 @@ def build_run_spec(spec: object) -> RunSpec:
     fixed_mask=getattr(spec, "fixed_mask", None),
     fixed_positions=getattr(spec, "fixed_positions", None),
     fixed_tokens=getattr(spec, "fixed_tokens", None),
+    sampling_strategy=str(getattr(spec, "sampling_strategy", "temperature") or "temperature"),
+    multi_state_strategy=str(
+      getattr(spec, "multi_state_strategy", "arithmetic_mean") or "arithmetic_mean",
+    ),
+    multi_state_temperature=float(getattr(spec, "multi_state_temperature", 1.0) or 1.0),
+    use_rolling_state=bool(getattr(spec, "use_rolling_state", False)),
+    decoding_order_fn=getattr(spec, "decoding_order_fn", None),
+    tie_group_map=getattr(spec, "tie_group_map", None),
+    state_position_map=getattr(spec, "state_position_map", None),
+    state_weights=getattr(spec, "state_weights", None),
+    structure_mapping=getattr(spec, "structure_mapping", None),
   )
 
   return RunSpec(

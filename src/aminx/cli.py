@@ -801,7 +801,7 @@ def run_score(
     _OPT(help="Multi-state aggregation strategy"),
   ] = "arithmetic_mean",
 ) -> None:
-  """Score sequences against structure inputs (non-serializable fields: ar_mask, conformational_states, decoding_order_fn)."""
+  """Score sequences against structure inputs (non-serializable fields: conformational_states, decoding_order_fn)."""
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
@@ -980,7 +980,7 @@ def run_inspect(
     _OPT(help="Similarity metric: rmsd, tm-score, gdt_ts, gdt_ha, cosine"),
   ] = "rmsd",
 ) -> None:
-  """Inspect model encodings and features (non-serializable fields: ar_mask, conformational_states)."""
+  """Inspect model encodings and features (non-serializable fields: conformational_states)."""
   if not inputs:
     typer.echo("--inputs is required", err=True)
     raise typer.Exit(code=2)
@@ -1646,10 +1646,18 @@ def campaign_plan(
     int,
     _OPT("--samples-chunk-size", help="Samples chunk size (required)"),
   ] = ...,  # ty: ignore[invalid-parameter-default]
-  fixed_policies: Annotated[
-    str,
-    _OPT("--fixed-policies", help="Comma-separated fixed policy names"),
-  ] = "catalytic_triad,active_site",
+  fixed_arm: Annotated[
+    list[str] | None,
+    _OPT(
+      "--fixed-arm",
+      help=(
+        "Arm LABEL=DECLARATION, e.g. catalytic_triad=H38|D73|C143 -- residue letter plus "
+        "0-based canonical index, pipe-separated. The letters set fixed_tokens, so the arm "
+        "states WHAT to hold, not just where. A path to a 1-D .npy mask also works for large "
+        "sets. Repeatable; each arm is its own row-set. Omit to fix nothing."
+      ),
+    ),
+  ] = None,
   state_weight_profiles: Annotated[
     str,
     _OPT("--state-weight-profiles", help="Comma-separated state weight profile names"),
@@ -1695,6 +1703,7 @@ def campaign_plan(
   from aminx.host.campaign import (  # noqa: PLC0415
     SamplingSpecification,
     _parse_csv,
+    parse_fixed_arms,
     write_campaign_manifest,
   )
 
@@ -1713,7 +1722,7 @@ def campaign_plan(
     designs_per_library_type=designs_per_library_type,
     samples_chunk_size=samples_chunk_size,
     output_root=output_root,
-    fixed_policies=_parse_csv(fixed_policies),
+    fixed_arms=parse_fixed_arms(fixed_arm),
     state_weight_profiles=_parse_csv(state_weight_profiles),
   )
 
@@ -1879,10 +1888,18 @@ def campaign_ramp_plan(
     int,
     _OPT("--samples-chunk-size", help="Samples chunk size (required)"),
   ] = ...,  # ty: ignore[invalid-parameter-default]
-  fixed_policies: Annotated[
-    str,
-    _OPT("--fixed-policies", help="Comma-separated fixed policy names"),
-  ] = "catalytic_triad,active_site",
+  fixed_arm: Annotated[
+    list[str] | None,
+    _OPT(
+      "--fixed-arm",
+      help=(
+        "Arm LABEL=DECLARATION, e.g. catalytic_triad=H38|D73|C143 -- residue letter plus "
+        "0-based canonical index, pipe-separated. The letters set fixed_tokens, so the arm "
+        "states WHAT to hold, not just where. A path to a 1-D .npy mask also works for large "
+        "sets. Repeatable; each arm is its own row-set. Omit to fix nothing."
+      ),
+    ),
+  ] = None,
   state_weight_profiles: Annotated[
     str,
     _OPT("--state-weight-profiles", help="Comma-separated state weight profile names"),
@@ -1901,6 +1918,7 @@ def campaign_ramp_plan(
     SamplingSpecification,
     _emit_json,
     _parse_csv,
+    parse_fixed_arms,
     _parse_int_csv,
     plan_scale_ramp,
   )
@@ -1917,7 +1935,7 @@ def campaign_ramp_plan(
     output_root=output_root,
     stage_designs_per_library_type=_parse_int_csv(stage_designs_per_library_type),
     samples_chunk_size=samples_chunk_size,
-    fixed_policies=_parse_csv(fixed_policies),
+    fixed_arms=parse_fixed_arms(fixed_arm),
     state_weight_profiles=_parse_csv(state_weight_profiles),
   )
   _emit_json(plan_payload, str(plan_path) if plan_path else None)

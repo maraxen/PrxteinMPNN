@@ -1,0 +1,53 @@
+---
+workspace: aminx
+session_id: 5099c34d-27eb-49c6-88b9-b3614f25e8ec
+status: in_progress
+immediately_relevant:
+- file: src/aminx/training/__init__.py
+  lines:
+  - 20
+  - 28
+  reason: 'the fixed __getattr__ stub -- PR #118'
+- file: scripts/ebm/benchmarks/decoy_benchmark.py
+  lines:
+  - 610
+  - 651
+  reason: _run_pytorch_score_compiled -- where the torch.compile crash reproduces; --smoke mode builds synthetic models without needing a real checkpoint
+- file: .praxia/docs/audits/260716_proteinebm-parity-report.md
+  lines:
+  - 1
+  - 4
+  reason: status line + section 7 now document the torch.compile root-cause and fix
+- file: .gitignore
+  lines:
+  - 65
+  - 73
+  reason: 'new .claude/worktrees/ and .claude/jobs/ entries -- PR #119'
+active_dispatches: []
+task_id: 260719_aminx_ebm_jax_vs_pytorch_trace
+phase: worktree-followup
+goal_statement: 'Resume the prior session''s next_steps: continue refactors identified in preserved worktrees, monitor the Blackwell compiler bug, investigate the torch.compile decoy introspection issue.'
+context_refs:
+- phase: trace_segment
+  task_id: 260719_aminx_ebm_jax_vs_pytorch_trace
+  summary: 'Prior session: resolved local/origin main divergence (PR #117), audited ProteinEBM benchmarks (corrected 11-92x to 2-7x GPU-vs-GPU), merged PR #112, pruned 9 stale worktrees while preserving 3 with unmerged/pending work.'
+failed_attempts:
+- attempt_id: rebase_protocol_refactor
+  description: Attempted to rebase the agent-a922a4c5298a5ce8f worktree's Protocol-consolidation commit onto current main, resolving 2 textual conflicts.
+  outcome: Resolved tree was byte-identical to main (git diff main was empty) -- the refactor had already landed independently on main by some other path between 2026-07-07 and now.
+  reason_failed: Not a failure per se -- discovered the work was already done; worktree and branch deleted as redundant.
+  do_not_retry: true
+  evidence_ref: conversation trace, this session
+open_questions:
+- Do aminx-rename / snazzy-squishing-boole (.claude/worktrees/) contain any uncommitted work worth rescuing? Cannot verify via git (dead .git pointer to a repo path -- prxteinmpnn -- that no longer exists; branches of the same name don't exist as refs either).
+deferred:
+- description: History rewrite (filter-repo/BFG) to actually shrink the .git object size from the 1462 accidentally-committed worktree files
+  rationale: 'PR #119 is index-only (forward fix); a history rewrite is destructive (force-push, breaks other clones) and needs explicit user sign-off, out of scope for this session'
+  recommended_phase: null
+lessons_refs: []
+next_steps:
+- 'Review and merge PR #118 (https://github.com/maraxen/aminx/pull/118) -- torch.compile fix, low risk, scoped tests + live repro verified'
+- 'Review and merge PR #119 (https://github.com/maraxen/aminx/pull/119) -- gitignore/untrack fix, index-only change, verify no other files touched before merging'
+- 'Decide on .claude/worktrees/{aminx-rename,snazzy-squishing-boole}: dead git pointers (old prxteinmpnn repo path, now gone), ~540-930 files each on disk but unreachable via git status/diff/log. Either accept as unrecoverable stale checkouts and delete, or do manual forensic diffing against known historical commits before deciding'
+- Continue the proteinebm-decomposition worktree's pending checkpoint-extraction spike (E12 PBCNet2.0 port investigation) if that epic is still a priority -- untouched this session, separate from the EBM benchmark work
+---

@@ -61,3 +61,13 @@ scripts/scratch/
 
 # bathos per-run provenance lock files (a fresh one is written every `bth run`)
 *.bth.lock.toml
+
+# Claude Code worktrees: ephemeral, agent-local checkouts of this same repo.
+# Never track these -- doing so nests a full copy of the tree under
+# .claude/worktrees/<name>/ (1462 files from 3 stale worktrees were found
+# accidentally committed 2026-05-14 onward before this rule existed).
+.claude/worktrees/
+
+# Claude Code background-job scratch space (per-job tmp dirs; should never
+# land under the repo, but a relative path can resolve here by mistake).
+.claude/jobs/

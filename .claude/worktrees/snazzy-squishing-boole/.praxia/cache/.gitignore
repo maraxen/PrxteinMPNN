@@ -1,4 +1,0 @@
-# Praxia cache — binary/generated files, never commit
-*.db
-*.db-shm
-*.db-wal

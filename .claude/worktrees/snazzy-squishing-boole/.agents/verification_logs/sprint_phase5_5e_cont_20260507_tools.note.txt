@@ -1,5 +1,0 @@
-ruff (touched files only):
-  uv run ruff check src/prxteinmpnn/model/mpnn_autoregressive_scan.py src/prxteinmpnn/model/mpnn.py — All checks passed
-
-ty:
-  Project-wide `ty check src` reports many pre-existing diagnostics; touched files introduce no new actionable regressions beyond existing jaxtyping/Equinox noise. Sprint gate: pytest + ruff on edited paths.

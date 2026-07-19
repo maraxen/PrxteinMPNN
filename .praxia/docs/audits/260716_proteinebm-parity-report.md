@@ -1,7 +1,7 @@
 # ProteinEBM Parity: State of the Port
 
 - **task_id**: `260716_ebm_parity_report`
-- **status**: UPDATED 2026-07-17 — real accuracy-vs-paper data acquired + preliminary (small-sample) real correlations measured (§6); throughput-depth cluster runs (jobs `18059808`, `18069513`, `18149833`, Engaging pi_so3/Blackwell) complete: decoy/ddg/biasing/langevin/annealing all have real production-scale data; `heterogeneous_batch_benchmark` crashed on all 4 attempts (256 and 64 structures both trigger an identical XLA:Triton autotuning fault at L≥256) — closed as an open Blackwell/SM120 compiler limitation, not a script bug, now confirmed version-independent (jax/jaxlib 0.11.0 retest, job `18161115`, reproduced the identical crash cells) — see §7
+- **status**: CORRECTED 2026-07-18 — a real, previously-undiscovered bug meant the PyTorch reference model/tensors never moved to GPU across all 6 benchmark scripts (decoy/ddg/biasing/langevin/langevin_annealing/heterogeneous_batch), despite every result JSON claiming `"device": "cuda"`. Every JAX-vs-PyTorch throughput number this report (and the epic's own founding claim) had ever cited was actually GPU-vs-**CPU**, not the same-hardware comparison it was presented as. Fixed (commit `3faeee6`) and re-run in full on real GPU-vs-GPU hardware (jobs `18284162` + `18293715`, Engaging pi_so3/Blackwell) — see the rewritten §1 for the corrected numbers. Prior status line (2026-07-17): real accuracy-vs-paper data acquired + preliminary correlations measured (§6, unaffected by this bug); `heterogeneous_batch_benchmark`'s JAX crash closed as an open Blackwell/SM120 compiler limitation, confirmed version-independent (jax/jaxlib 0.11.0 retest, job `18161115`) — see §7, still standing, now with an added side-effect noted (the same crash's corrupted CUDA context also takes down PyTorch's two strategies now that PyTorch shares the GPU).
 - **author**: orchestrator session (background job)
 - **date**: 2026-07-16
 - **branch**: `worktree-ebm-parity-report`
@@ -25,21 +25,76 @@ Three distinct kinds of "parity" are in play, and they are in very different sta
 
 | Kind | Status | Evidence |
 | :-- | :-- | :-- |
-| **Throughput / speed parity** (JAX vs. PyTorch, same computation) | Strong, real, repeated | §1 |
+| **Throughput / speed parity** (JAX vs. PyTorch, same computation) | Real, positive, but **corrected down from a bugged 11–92× to ~2–7×** (device-placement bug, fixed 2026-07-18) | §1 |
 | **Numerical port parity** (does the JAX model compute what the real PyTorch reference model computes?) | Strong, freshly re-confirmed today | §2 |
 | **Real-world accuracy** (does it correlate with real experimental data?) | One real result (E7 LplA) | §3 |
 | **Accuracy vs. the paper's own headline numbers** (Spearman 0.838 decoy, 0.686 ΔΔG) | **Not measured** | §5 |
 
-## 1. Throughput parity (already established, unchanged by this report)
+## 1. Throughput parity — CORRECTED 2026-07-18 (was a bugged 11–92×, is really ~2–7×)
 
-Four benchmark harnesses (decoy ranking, ΔΔG stability, conformational biasing, Langevin sampling)
-were run on the real 85M-parameter checkpoint across two GPU generations (titanix/Turing,
-engaging/Blackwell), with apples-to-apples methodology: JIT warmup excluded from timing, identical
-checkpoint both sides, PyTorch run with `create_graph=False`, 30 timed repeats per point.
+**A real, previously-undiscovered bug: PyTorch never ran on GPU, in any of the 6 benchmark scripts,
+ever.** Every one of `decoy_benchmark.py`, `ddg_benchmark.py`, `biasing_benchmark.py`,
+`langevin_benchmark.py`, `langevin_annealing_benchmark.py`, and `heterogeneous_batch_benchmark.py`
+loaded its checkpoint with `torch.load(..., map_location="cpu")` and never called `.cuda()`/`.to()`
+on the resulting model or any input tensor. The `"device"` field every one of these scripts wrote to
+its result JSON was derived purely from `torch.cuda.is_available()` — which only checks whether a
+GPU *exists* on the machine, not whether anything was *placed* on it. Confirmed directly on cluster
+hardware (GPU available, `next(ref_model.parameters()).device` reporting `cpu`): every PyTorch number
+this report — and the epic's own founding throughput claim below — had ever cited was silently a CPU
+number, despite every JSON and every table in this document claiming `"cuda"`.
 
-**Result: JAX beats PyTorch by 11–92× across every tested length (64–512 residues) and all four
-applications.** Full tables in
-[`plans/260709_proteinebm-epic-backlog-dag.md`](../plans/260709_proteinebm-epic-backlog-dag.md) §7/§9/§11.
+This means the original claim in this section ("JAX beats PyTorch by 11–92× across every tested
+length and all four applications," sourced from
+[`plans/260709_proteinebm-epic-backlog-dag.md`](../plans/260709_proteinebm-epic-backlog-dag.md)
+§7/§9/§11 — the same four scripts, run earlier on titanix/Turing and engaging/Blackwell) was
+comparing **JAX-on-GPU against PyTorch-on-CPU**, not the same-hardware comparison it was presented
+as. Those titanix/Blackwell numbers predate this fix and have **not** been re-verified against it
+(titanix is a separate workstation remote, out of scope for this correction) — they are left in the
+plan doc as a historical record, not deleted, but should not be cited as evidence of GPU-vs-GPU
+speedup until someone re-runs them with the fix.
+
+**Fixed (commit `3faeee6`)**: each script's model-construction path now takes an explicit `device`
+parameter and calls `.to(device)` before returning; every `torch.tensor`/`zeros`/`full`/`arange` call
+in every PyTorch timing path now passes `device=` explicitly, using the same value reported in the
+JSON's `"device"` field (so the label and the placement can never diverge again). Two follow-on
+scripts (`langevin_annealing_benchmark.py`, `heterogeneous_batch_benchmark.py`) had no device field
+at all before this fix; both now report one.
+
+**Corrected result (fresh re-run on real GPU-vs-GPU hardware, jobs `18284162` + `18293715`, Engaging
+pi_so3/Blackwell, jaxlib 0.9.2-pinned decoy/ddg + project-default jaxlib for biasing/langevin,
+`n_repeats=10`, batch=4 for the apples-to-apples row below — see §7's reproducibility table for the
+full per-batch-size sweep):**
+
+| Script | L=64 | L=128 | L=256 | L=512 |
+| :-- | :-- | :-- | :-- | :-- |
+| decoy (energy evals/s) | 3.17× | 2.59× | 2.21× | 1.96× |
+| ddg (energy evals/s) | 3.29× | 2.57× | 2.20× | 1.96× |
+| biasing (energy evals/s) | 6.83× | 4.92× | 3.29× | 2.20× |
+| langevin (steps/s) | 3.70× | 2.61× | 2.15× | 1.86× |
+
+JAX is still faster than PyTorch at every length and every application — the direction of the claim
+survives — but by **~2–7×**, not 11–92×, and the margin now shrinks with length rather than growing
+(the old numbers had JAX's advantage *increasing* at L=512, which never made physical sense for a
+GPU-bound comparison; that pattern was itself a symptom of PyTorch being memory- and cache-bound on
+CPU at large batch, not a real GPU-vs-GPU trend). Every one of these four scripts also now hits a
+genuine PyTorch-side `CUDA out of memory` at its single largest (length, batch_size) cell — JAX and
+PyTorch now compete for the same GPU memory, which never happened when PyTorch silently ran on CPU
+with effectively unlimited host RAM headroom. This is expected, not a bug: each script's incremental
+per-cell write (added alongside this fix, see below) catches it cleanly and every other cell's data
+is unaffected. Full per-length, per-batch-size tables are in §7 and the companion artifact.
+
+**A second, related bug surfaced by the corrected re-run and also fixed**: `run_cluster_benchmarks.sh`'s
+`run_per_length_group` ran its three length-group invocations (L64-128, L256, L512) as a single unit
+under the wrapper script's own `set -euo pipefail` — a crash in the *first* invocation silently
+aborted the other two as well, even though they never failed themselves. This is why the first
+corrected re-run (job `18284162`) produced *zero* new output files for decoy/ddg despite only the
+L64-128 invocation actually OOM-ing. Fixed by isolating each length group in its own error-tolerant
+subshell (commit `75fd14e3`), verified via a standalone simulation before the second re-run
+(job `18293715`) confirmed it end-to-end.
+
+This was logged as a lesson (praxia lesson `#273`) and as tech debt in the source repos for
+`using-bathos` (`#794` — extend the pipeline-verification guidance to cover device placement),
+`using-xtrax` (`#795` — a related but separate finding, see §7), and `using-jax`/jaxlint (`#796`).
 
 Along the way, a real jaxlib regression was found, root-caused, and worked around: `-jax.grad(energy)`
 (the conservative score, used by decoy ranking + ΔΔG) crashed at XLA compile time on every modern
@@ -357,6 +412,21 @@ time: no production-scale heterogeneous-batching number exists, and the smoke-sc
 (JAX bucket+pad+tile ~4.6× over naive PyTorch pad-to-max, §7 above) remains the only evidence for
 that comparison.
 
+**New side effect, 2026-07-18 (after the device-placement fix, jobs `18284162`/`18293715`)**: now
+that PyTorch actually shares the same GPU as JAX (see the rewritten §1 above), the corrupted CUDA
+driver state left behind by the JAX crash also poisons both PyTorch strategies in the same process —
+`pytorch_pad_to_batch_max` and `pytorch_per_structure_loop` now both fail with `AcceleratorError: CUDA
+error: an illegal memory access was encountered` immediately after the JAX crash, whereas previously
+they were unaffected (silently running on CPU, isolated from JAX's GPU-side corruption). This is not
+a new bug and not a regression in the device-placement fix — it's the same already-diagnosed crash's
+context-corruption reach extending to whatever else shares the process's GPU context. Net effect:
+`heterogeneous_batch_benchmark_full.json` now has **zero** successful rows for either framework
+(previously it had zero successful *comparison* rows too, since PyTorch's old CPU numbers were never
+a valid GPU-vs-GPU comparison anyway — so no real evidence is lost, but the failure is now total
+rather than partial). Process-isolating the PyTorch strategies from JAX's call within this script
+(e.g., running each strategy in its own subprocess) would recover the PyTorch numbers even when JAX
+crashes, but is out of scope for this report.
+
 **jax/jaxlib 0.11.0 retest (SLURM job `18161115`, 2026-07-17) confirms the crash is version-independent,
 not a regression a newer release fixes.** jax/jaxlib 0.11.0 (released 2026-07-16) had already been
 confirmed to fix an unrelated, previously-pinned decoy/ddg grad-path regression (a `scf.if`
@@ -416,11 +486,34 @@ Verified locally: `ty`/`ruff` clean, L1/L2 gates unchanged for the below-thresho
 correctness check confirming `SafeMap`-chunked and `Vmap` dispatch produce bit-identical per-trajectory
 results (trajectories are independent, so chunking cannot change values, only execution order), and an
 end-to-end smoke run forcing a batch size above the L=128 threshold confirming the full pipeline
-selects `safe_map`, records the chunk size, and produces a plausible number. Not yet re-run on the
-cluster, so it has not yet actually confirmed the crash is avoided at L=128/256/512's real scale (only
-that the dispatch mechanics are correct on CPU) — that confirmation, and the exact per-length
-threshold this could pin down more precisely than the coarse `(4, 16, 64, 400)` sweep, is still a
-future cluster run away.
+selects `safe_map`, records the chunk size, and produces a plausible number.
+
+**Cluster-confirmed at real scale, 2026-07-17/18 — and a real bug found in the process.** An isolated
+cluster test of the L=128/batch=400 cell (job `18182309`) initially *hung* rather than crashed —
+concerning, since it was the exact cell that used to fail in under a second. Root-caused via a
+zero-cluster-cost `jax.make_jaxpr` inspection: `xtrax.tiling.SafeMap`'s execution lowers to
+`jax.lax.map`, which JAX's own docs describe as `scan`-based ("like scan... compiled once"). But
+`run_langevin_equilibration` already contains an internal `jax.lax.while_loop`, deliberately chosen
+(this module's own docstring) because `while_loop` compiles ~300-400x faster than `scan` on SM120 for
+this kind of loop — wrapping it in `SafeMap`'s outer `scan` reintroduced exactly that penalty. Fixed
+(commit `0faa1d0`) by dispatching `SafeMap`'s chunking through a plain Python-level `for` loop over
+static-size slices instead (`_chunked_vmap`), each independently `jax.vmap`'d — zero `scan` nodes,
+verified bit-identical to a single `Vmap` call. Re-tested in isolation (job `18192077`): the full
+L=128/batch=400 cell (model load + compile + 5 timed repeats + single-step timing) completed in
+**104 seconds**, on the identical cell and identical GPU that crashed every single time before this
+session's fixes. Logged as tech debt in `xtrax` (`#795`) and `jaxlint`/`using-jax` (`#796`).
+
+While isolating that fix, a second, much larger bug was found (see the rewritten §1 above): the
+PyTorch reference model was never actually moved to GPU, in any of the 6 benchmark scripts, ever.
+The full corrected re-run (jobs `18284162` + `18293715`, after fixing that bug too) confirms the
+`BatchPlanner`/chunked-vmap fix holds at full production scale: `langevin_benchmark_full_L{64-128,256,
+512}.json` show **zero** `CUDA_ERROR_ILLEGAL_ADDRESS` occurrences anywhere, and every cell up to
+each length's known crash threshold (L=128/batch≤64, L=256/batch≤16, L=512/batch≤4) succeeds cleanly
+via plain `Vmap`. The crash cells themselves (L=128/batch=400, L=256/batch=64, L=512/batch=16) now
+fail with a *different*, expected error — a genuine PyTorch-side `CUDA out of memory` — since JAX and
+PyTorch now compete for the same GPU memory instead of PyTorch running invisibly on CPU. This is a
+new, real resource constraint, not evidence the `BatchPlanner` fix regressed: the previously-crashing
+JAX side of these exact cells no longer crashes at all.
 
 ## Reproducibility
 
@@ -437,8 +530,8 @@ future cluster run away.
 | §6 scripts | `scripts/ebm/real_decoy_ranking_benchmark.py`, `scripts/ebm/real_ddg_stability_benchmark.py` (+ `.bth.toml` each) |
 | §6 real data | Rosetta decoys (`files.ipd.uw.edu/pub/decoyset/decoys.zip`, `~/repos/ProteinEBM/eval_data/decoys/`), ProteinGym v1.3 Tsuboyama subset (`marks.hms.harvard.edu` — broken TLS chain, fetch with `curl -k`) |
 | §7 scripts | `scripts/ebm/benchmarks/{decoy,ddg,biasing,langevin}_benchmark.py` (extended), `scripts/ebm/benchmarks/heterogeneous_batch_benchmark.py`, `scripts/ebm/benchmarks/langevin_annealing_benchmark.py` (both new) |
-| §7 cluster jobs | SLURM `18059808` (decoy/ddg/biasing completed; langevin crashed at L=128/batch=400), SLURM `18069513` (resume: heterogeneous FAILED exit 1, annealing OK, langevin OK w/ 3 caught crashes), SLURM `18149833` (heterogeneous retry @ n=64, hardened script: same crash recurred, then OOM-killed), SLURM `18161115` (jax/jaxlib 0.11.0 retest: heterogeneous + langevin crashed at the identical cells as `18069513`, then OOM-killed after all files were written), Engaging `pi_so3` (Blackwell, node4008) |
+| §7 cluster jobs | SLURM `18059808` (decoy/ddg/biasing completed; langevin crashed at L=128/batch=400), SLURM `18069513` (resume: heterogeneous FAILED exit 1, annealing OK, langevin OK w/ 3 caught crashes), SLURM `18149833` (heterogeneous retry @ n=64, hardened script: same crash recurred, then OOM-killed), SLURM `18161115` (jax/jaxlib 0.11.0 retest: heterogeneous + langevin crashed at the identical cells as `18069513`, then OOM-killed after all files were written), SLURM `18182309`/`18190343`/`18192077`/`18192388` (BatchPlanner/SafeMap compile-time investigation and device-placement bug discovery, 2026-07-17/18 — see below), **SLURM `18284162` (2026-07-18, first full re-run with device-placement fix: biasing/heterogeneous/annealing/langevin succeeded, decoy/ddg produced zero files due to the run_per_length_group isolation bug), SLURM `18293715` (2026-07-18, decoy+ddg re-run with both fixes: all 6 length-group invocations OK, one expected PyTorch OOM per script at the largest cell)**, Engaging `pi_so3` (Blackwell, node4008) |
 | §7 cluster wrapper | `scripts/ebm/benchmarks/run_cluster_benchmarks.sh` — `BENCHMARK_SKIP_STEPS=<comma list> bash scripts/ebm/benchmarks/run_cluster_benchmarks.sh` from the project root on the remote |
-| §7 real data | `outputs/ebm_benchmarks/{decoy,ddg}_benchmark_full_L{64-128,256,512}.json`, `biasing_benchmark_full.json`, `langevin_benchmark_full_L{64-128,256,512}.json`, `langevin_annealing_benchmark_full.json`, `heterogeneous_batch_benchmark_full.json` (diagnostic only — 1 `error` row, no successful strategy) |
-| §7 report data | `scripts/ebm/render_parity_report_data.py --benchmarks-dir outputs/ebm_benchmarks` → `outputs/ebm_benchmarks/ebm_parity_report_data.json` (`throughput_depth` key; 6/6 scripts have a file, 5/6 have real measurements, `heterogeneous`'s file is diagnostic-only) |
+| §7 real data | **All corrected 2026-07-18 (device-placement fix, jobs `18284162`+`18293715`)**: `outputs/ebm_benchmarks/{decoy,ddg}_benchmark_full_L{64-128,256,512}.json` (real GPU-vs-GPU rows + 1 expected OOM `error` row each at the largest cell), `biasing_benchmark_full.json`, `langevin_benchmark_full_L{64-128,256,512}.json` (1 expected OOM `error` row per file at the largest cell), `langevin_annealing_benchmark_full.json` — all real production-scale, real-GPU data for both frameworks. `heterogeneous_batch_benchmark_full.json` remains diagnostic-only: the pre-existing JAX autotuning crash (§7 below, unrelated to this fix) now also corrupts the CUDA context for both PyTorch strategies in the same run (they were previously immune, running silently on CPU) — zero successful rows for either framework. |
+| §7 report data | `scripts/ebm/render_parity_report_data.py --benchmarks-dir outputs/ebm_benchmarks` → `outputs/ebm_benchmarks/ebm_parity_report_data.json` (`throughput_depth` key; 6/6 scripts have a file, 5/6 have real GPU-vs-GPU measurements as of 2026-07-18, `heterogeneous`'s file is still diagnostic-only). The separate **hardcoded** `THROUGHPUT` dict in the same script (titanix/Turing + engaging/Blackwell-pinned numbers, §1's original 11–92× source) predates the device-placement fix and has not been re-verified against it — left in place as a historical record, not cited as current evidence. |
 | §7 jax 0.11.0 retest data | `outputs/ebm_benchmarks/jax011_{heterogeneous_batch_benchmark_full,langevin_benchmark_full_L64\,128,langevin_benchmark_full_L256,langevin_benchmark_full_L512}.json` — version-comparison evidence only, not fed into `render_parity_report_data.py` (the production depth numbers already come from the default-jax `18069513` files above; these confirm the same crash boundary under 0.11.0, they don't add new comparison data) |

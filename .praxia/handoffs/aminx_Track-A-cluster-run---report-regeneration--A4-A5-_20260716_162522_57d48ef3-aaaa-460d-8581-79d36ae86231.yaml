@@ -1,0 +1,71 @@
+---
+workspace: aminx
+session_id: 99625274-d92d-4883-a6aa-73efed1aadfa
+status: in_progress
+immediately_relevant:
+- file: .praxia/docs/audits/260716_proteinebm-parity-report.md
+  lines:
+  - 1
+  - 260
+  reason: The full tracked audit report -- §1-5 original review, §6 real accuracy data, §7 throughput-depth work + cluster job status. Read this first for complete context.
+- file: scripts/ebm/render_parity_report_data.py
+  lines:
+  - 1
+  - 200
+  reason: Consolidates raw benchmark JSON into the single ebm_parity_report_data.json the artifact embeds. Needs extending for the new batch_size/pytorch_variant/heterogeneous/outer-annealing data shapes once cluster results land.
+- file: scripts/ebm/benchmarks/run_cluster_benchmarks.sh
+  lines:
+  - 1
+  - 90
+  reason: The cluster wrapper that's currently running as SLURM job 18059808 -- shows exactly which scripts/lengths/batch-sizes are being run and in what order (decoy -> ddg -> biasing -> langevin -> heterogeneous -> outer-annealing).
+- file: /home/marielle/.claude/jobs/88e287ff/tmp/ebm_parity_report.html
+  lines:
+  - 1
+  - 900
+  reason: The artifact's SOURCE TEMPLATE (with __REPORT_DATA__ placeholder) -- this is what gets edited; ebm_parity_report_v2.html is the generated/published output, do not hand-edit it directly.
+active_dispatches:
+- slurm:18059808 (engaging, pi_so3, myxcel job 260716-5e5174) -- full cluster benchmark sweep, RUNNING, not yet complete
+task_id: 260716_ebm_parity_report
+phase: Track A cluster run + report regeneration (A4/A5)
+goal_statement: 'Produce a strong, honest ProteinEBM parity report (interactive artifact + tracked audit doc) for the merged EPIC #3294: re-confirm throughput/numerical-port parity with fresh evidence, close the never-measured accuracy-vs-paper gap where tractable, and extend throughput benchmarking to realistic batch scale + heterogeneous-length batches + the previously-unbenchmarked outer Langevin/E10 pipeline.'
+context_refs:
+- phase: 'EPIC #3294 completion'
+  task_id: 260709_aminxtension
+  summary: 'Original ProteinEBM epic: 14+3 backlog nodes, merged to main 2026-07-09..12. This session''s work builds directly on that epic''s committed code.'
+failed_attempts:
+- attempt_id: a1
+  description: Trusted mcp__myxcel__push_project's reported success to assume new/edited scripts had synced to engaging before submitting the cluster job
+  outcome: Push reported success (223MB transferred) but the new files (heterogeneous_batch_benchmark.py, langevin_annealing_benchmark.py) and edits to the 4 extended scripts were NOT actually present on the remote -- verified via direct ssh+ls
+  reason_failed: Known myxcel flakiness (also recorded in a prior session's memory) -- push/pull can report success without actually updating remote files for specific changes
+  do_not_retry: true
+  evidence_ref: 'session transcript: ssh engaging ls showed old versions after push claimed success; fixed via direct rsync -azP of scripts/ebm/ and src/aminx/ebm/'
+- attempt_id: a2
+  description: Trusted mcp__myxcel__job_status to determine whether the cluster job had started running
+  outcome: Reported state=PENDING with a stale state_at timestamp (same as submitted_at) 30+ minutes after the job had actually transitioned to RUNNING
+  reason_failed: myxcel's job-status DB does not appear to auto-refresh from SLURM without an explicit poll trigger it didn't receive
+  do_not_retry: true
+  evidence_ref: 'session transcript: squeue -j 18059808 / sacct showed RUNNING with 31min elapsed while mcp__myxcel__job_status simultaneously showed PENDING'
+- attempt_id: a3
+  description: 'Searched for the ProteinEBM paper PDF (2025.12.09.693073v3.full.pdf) via rclone gdrive: remote to overlay real paper figures on the report'
+  outcome: rclone remote 'gdrive:' exists and is reachable (listed 00sources/ subdirs including mpnn_multistate/), but the search was explicitly abandoned mid-way per direct user instruction ("don't worry about finding the paper, base the changes to the artifact in real code")
+  reason_failed: Not a technical failure -- deprioritized by the user. Do not resume this search unless the user asks again; if they do, `rclone lsf gdrive:00sources/mpnn_multistate/` is the right starting point (not yet listed).
+  do_not_retry: false
+  evidence_ref: null
+open_questions:
+- Is SLURM job 18059808 complete yet, and did all 6 scripts (decoy/ddg/biasing/langevin/heterogeneous/outer-annealing) finish without a real (non-torch.compile-stub) error?
+- Does the user (or their contact 'James', a paper co-author) have the actual published LplA conformational-biasing Spearman figure? Not found in the reference repo (README/confbiasing.ipynb state no number, just 'reproduces Fig S6') and the paper PDF is not accessible in this environment.
+deferred:
+- description: Full-scale confirmatory run of real_decoy_ranking_benchmark.py (all 133 natives) and real_ddg_stability_benchmark.py (all 64 Tsuboyama assays' complete mutant sets)
+  rationale: Only small-sample (3 natives/assays x 20 decoys/mutants) preliminary validation was run locally -- confirms the pipelines work but the sample is far too small/non-random to be a real measurement. Full scale is likely cluster-compute given CPU JIT-recompilation cost across 133 distinct native lengths.
+  recommended_phase: Follow-on, on user request
+lessons_refs: []
+next_steps:
+- 'Check cluster job 18059808 status: `squeue -j 18059808` / `sacct -j 18059808 --format=JobID,State,Elapsed,NodeList` (NOT mcp__myxcel__job_status alone -- it was observed stale/wrong this session) and tail outputs/logs/slurm/18059808.{out,err} on engaging via ssh'
+- Once complete, pull outputs/ebm_benchmarks/*_full*.json from engaging (rsync -azP, do not trust myxcel pull without verifying file contents changed -- see failed_attempts)
+- Re-run scripts/ebm/render_parity_report_data.py (may need extending to consume the new per-length-group JSON files and the new batch_size/pytorch_variant/heterogeneous/outer-annealing dimensions -- the script currently only knows the old single-batch-size schema)
+- Add real batching-curve, heterogeneous-strategy, and outer-annealing/E10 charts to the artifact (currently only has the 4 original throughput line+band charts, now with explainer dropdowns)
+- 'Redeploy the artifact (file path /home/marielle/.claude/jobs/88e287ff/tmp/ebm_parity_report_v2.html in THIS job''s tmp dir -- republish same path to keep the same URL: https://claude.ai/code/artifact/da1253a3-c8ae-4daf-9e29-2c822d5c2e3a)'
+- Update .praxia/docs/audits/260716_proteinebm-parity-report.md with the real cluster numbers (currently §7 says PENDING)
+- If the user provides the paper's actual LplA Spearman figure (asked, not yet answered), wire it into DATA.lpla_e7.paper_spearman in render_parity_report_data.py -- the artifact already has a display slot ready for it
+- 'Commit + push the final report update, mark PR #112 ready for review if appropriate'
+---

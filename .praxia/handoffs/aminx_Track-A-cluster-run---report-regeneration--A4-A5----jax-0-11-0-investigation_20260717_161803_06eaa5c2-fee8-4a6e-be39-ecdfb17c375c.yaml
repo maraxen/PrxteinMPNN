@@ -1,0 +1,68 @@
+---
+workspace: aminx
+session_id: 006879bf-3539-44ab-90d2-7db7f4b5d8f2
+status: in_progress
+immediately_relevant:
+- file: .praxia/docs/audits/260716_proteinebm-parity-report.md
+  lines:
+  - 219
+  - 320
+  reason: Section 7 (throughput depth) has the full crash postmortem across 3 jobs (18059808, 18069513, 18149833) concluding heterogeneous is an 'open Blackwell/node4008 compiler limitation, not fixable by batch-size tuning' -- this conclusion needs revisiting (correcting, not just appending to) if job 18161115 shows jax 0.11.0 actually fixes it
+- file: scripts/ebm/benchmarks/run_cluster_benchmarks.sh
+  lines:
+  - 26
+  - 38
+  reason: JAX_GRAD_PATH_PIN hardcodes jax/jaxlib==0.9.2 for decoy/ddg to work around a scf.if compile regression on 0.10.2 -- jax 0.11.0 has been empirically confirmed (small-scale) to fix this same regression; if confirmed at full scale this pin can likely be retired
+- file: scripts/ebm/benchmarks/heterogeneous_batch_benchmark.py
+  lines:
+  - 330
+  - 420
+  reason: Already hardened this session with per-strategy try/except + incremental writes (verified via injected-failure test) -- if 0.11.0 fixes the crash outright this hardening becomes a safety net rather than the primary mitigation, still worth keeping
+- file: /home/marielle/.claude/jobs/a38637c7/tmp/ebm_jax011_retest_scratch.sbatch
+  lines:
+  - 1
+  - 34
+  reason: The exact sbatch script for the currently-running job 18161115 -- shows UV_CACHE_DIR=/orcd/scratch/orcd/011/maarxaru/uv_cache and XLA_FLAGS=--xla_gpu_shard_autotuning=false only (no autotune_level override) against jax/jaxlib==0.11.0
+active_dispatches: []
+task_id: 260716_ebm_parity_report
+phase: Track A cluster run + report regeneration (A4/A5) — jax 0.11.0 investigation
+goal_statement: 'Finish the ProteinEBM parity report: all 6 depth-benchmark scripts should have real cluster data if possible. 5/6 (decoy/ddg/biasing/langevin/annealing) already have real data; heterogeneous_batch_benchmark has crashed on every attempt (CUDA_ERROR_ILLEGAL_ADDRESS during XLA autotuning on Blackwell/node4008). Currently testing whether jax/jaxlib 0.11.0 (released 2026-07-16) resolves this without extra flags, since it already fixed a separate, confirmed jax.grad regression.'
+context_refs: []
+failed_attempts:
+- attempt_id: a1
+  description: First jax 0.11.0 test job (18153522) ran decoy grad-path check + heterogeneous + langevin all via uv run --with jax[cuda12]==0.11.0, using the default (home-directory-backed) uv cache
+  outcome: 'Decoy grad-path check succeeded cleanly (score_grad_ms=3.52ms) but heterogeneous and all 3 langevin invocations failed immediately with ''error: Disk quota exceeded (os error 122)'' at ~/.cache/uv/builds-v0/.tmp* -- never actually tested the CUDA crash hypothesis for those two'
+  reason_failed: Ran concurrently with another heavy uv-using job (18152343) on the SAME node4008, both hammering the same shared ~/.cache/uv (symlinked to /orcd/pool/007/maarxaru/cache) -- a real, separately-confirmed pool storage quota wall (later traced to marielle's own subdirectory in the PI shared pool using 2.5TB/2.8TB total, likely exceeding a per-user sub-quota within the shared allocation, NOT reflected in df -h which shows both pool/007 and pool/008 well under nominal capacity)
+  do_not_retry: true
+  evidence_ref: 'session transcript: ''error: Disk quota exceeded (os error 122) at path /home/maarxaru/.cache/uv/builds-v0/.tmp*'', confirmed reproducible via 5 separate direct-path write tests, confirmed not symlink-related, confirmed not an inode quota (df -i shows 1% used on both pool/007 and pool/008)'
+- attempt_id: a2
+  description: Tried `uv cache clean` on engaging to free pool storage space
+  outcome: 'Timed out after 300s: ''Timeout when waiting for lock on /home/maarxaru/.cache/uv/.lock, is another uv process running?'''
+  reason_failed: The user's OTHER long-running SLURM jobs on the same account (naurmala/bios_gro/gemma4-v projects, all running 1+ days on pi_so3) likely hold the lock periodically -- did not force past this since a forced rm -rf could corrupt an in-flight read from one of those unrelated jobs
+  do_not_retry: false
+  evidence_ref: 'session transcript: uv cache clean output + squeue showing other active jobs under maarxaru'
+- attempt_id: a3
+  description: Called mcp__myxcel__job_wait(remote='engaging', slurm_job_id='18161115') to track the currently-running job through myxcel instead of raw SSH polling
+  outcome: '{''error'':''NotFound'',''message'':''Job not found with provided lookup key'',''state'':''UNKNOWN''} -- twice, including after the user reconnected the myxcel MCP server'
+  reason_failed: 'Structural, not a connection issue: myxcel''s job_wait/job_status only track jobs submitted THROUGH mcp__myxcel__submit_job. This job (and the several before it this session) was submitted via direct ssh+sbatch because myxcel''s submit_job MCP tool has a documented history this session of hitting 30s timeouts against a slow engaging login node. Reconnecting myxcel will not fix this for externally-submitted jobs.'
+  do_not_retry: true
+  evidence_ref: 'session transcript: two identical NotFound responses, one before and one after `/mcp reconnect myxcel`'
+open_questions:
+- Does jax/jaxlib 0.11.0 actually fix the heterogeneous_batch_benchmark and langevin_benchmark CUDA_ERROR_ILLEGAL_ADDRESS crashes? (job 18161115 result, pending at handoff time)
+- Has ORCD responded to the pool storage quota report? (draft was written and delivered to the user as a file at /home/marielle/.claude/jobs/a38637c7/tmp/orcd_quota_report_draft.md -- NOT sent by me; user said they would raise it)
+- If 0.11.0 fixes the grad-path regression at full scale (not just the minimal L=64/batch=4 check already done), should the project drop the 0.9.2 pin project-wide or just for these benchmark scripts?
+- 'Does the user want PR #112 marked ready for review once the heterogeneous question resolves, or held for their own final pass?'
+deferred:
+- description: Full-scale (all lengths/batch-sizes) confirmation of jax 0.11.0's decoy/ddg grad-path fix, beyond the minimal L=64/batch=4/n_repeats=3 check already run
+  rationale: The minimal check already gives strong signal (clean score_grad_ms, no crash) but wasn't run at the same scale as the committed 0.9.2-pinned decoy/ddg data, so isn't yet a like-for-like replacement
+  recommended_phase: Follow-on, once job 18161115's result is known and reviewed
+lessons_refs: []
+next_steps:
+- 'Check job 18161115 via DIRECT ssh: `ssh engaging "sacct -j 18161115 --format=JobID,State,Elapsed,ExitCode -P"` -- do NOT trust any background poll left running from the prior session, one died silently without notifying (job kept running past what the poll''s stale log showed)'
+- 'If completed: pull outputs/ebm_benchmarks/jax011_heterogeneous_batch_benchmark_full.json and jax011_langevin_benchmark_full_L{64,128,256,512}.json via rsync from engaging, check for CUDA_ERROR_ILLEGAL_ADDRESS vs clean success in each'
+- 'If heterogeneous/langevin succeed under 0.11.0: this fixes the report''s one remaining gap -- update render_parity_report_data.py''s DEPTH_BENCHMARK_FILES / re-run it, rewire the artifact (republish to https://claude.ai/code/artifact/da1253a3-c8ae-4daf-9e29-2c822d5c2e3a), and rewrite the audit doc''s heterogeneous-crash section (currently says ''closed as infra limitation'' -- that conclusion would be WRONG if 0.11.0 fixes it and needs correcting, not just appending to)'
+- 'If 0.11.0 does NOT fix the crashes: the ''closed as infra limitation'' conclusion in .praxia/docs/audits/260716_proteinebm-parity-report.md §7 stands; just note the negative 0.11.0 result and move on'
+- 'Separately: consider a full-scale (not just L=64/batch=4) confirmation that jax 0.11.0 fixes the decoy/ddg grad-path regression, then decide whether to drop the 0.9.2 pin in run_cluster_benchmarks.sh''s JAX_GRAD_PATH_PIN -- this is a real, valuable simplification if it holds'
+- Check whether the user has heard back from ORCD about the pool storage quota ticket (draft was sent to user as a file, not sent by me) -- if resolved, the UV_CACHE_DIR=scratch workaround may no longer be necessary for future jobs but is harmless to keep
+- 'PR #112 is still in draft -- ask user whether to mark ready once the heterogeneous question is fully resolved one way or the other'
+---

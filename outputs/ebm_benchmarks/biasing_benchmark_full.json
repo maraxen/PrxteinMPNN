@@ -3,80 +3,80 @@
     "protein_length": 64,
     "device": "gpu",
     "impl": "jax",
-    "energy_evals_per_sec": 1030.4955826552766,
-    "energy_wall_clock_mean_ms": 1.9408137537539005,
-    "energy_wall_clock_std_ms": 0.22374872551762995,
-    "diff_fuse_wall_clock_ms": 1.9480838906019926,
-    "diff_fuse_wall_clock_std_ms": 0.2275207118643104
+    "energy_evals_per_sec": 1006.1329826513476,
+    "energy_wall_clock_mean_ms": 1.9878088030964136,
+    "energy_wall_clock_std_ms": 0.2329058153716074,
+    "diff_fuse_wall_clock_ms": 1.9893799908459187,
+    "diff_fuse_wall_clock_std_ms": 0.22148338713792945
   },
   {
     "protein_length": 64,
     "device": "cuda",
     "impl": "pytorch",
-    "energy_evals_per_sec": 25.258814136776785,
-    "energy_wall_clock_mean_ms": 79.180280957371,
-    "energy_wall_clock_std_ms": 1.9280504955742372,
-    "diff_fuse_wall_clock_ms": 79.84567522071302,
-    "diff_fuse_wall_clock_std_ms": 1.7733826666010268
+    "energy_evals_per_sec": 147.41140532821157,
+    "energy_wall_clock_mean_ms": 13.567471224814653,
+    "energy_wall_clock_std_ms": 0.11333137611281695,
+    "diff_fuse_wall_clock_ms": 13.771722558885813,
+    "diff_fuse_wall_clock_std_ms": 0.7264029786024168
   },
   {
     "protein_length": 128,
     "device": "gpu",
     "impl": "jax",
-    "energy_evals_per_sec": 719.2128700263266,
-    "energy_wall_clock_mean_ms": 2.7808178681880236,
-    "energy_wall_clock_std_ms": 0.20788172186009415,
-    "diff_fuse_wall_clock_ms": 2.7833009138703346,
-    "diff_fuse_wall_clock_std_ms": 0.21758458002624145
+    "energy_evals_per_sec": 719.5196299600472,
+    "energy_wall_clock_mean_ms": 2.779632294550538,
+    "energy_wall_clock_std_ms": 0.21242170197791396,
+    "diff_fuse_wall_clock_ms": 2.791881002485752,
+    "diff_fuse_wall_clock_std_ms": 0.21733636251499633
   },
   {
     "protein_length": 128,
     "device": "cuda",
     "impl": "pytorch",
-    "energy_evals_per_sec": 13.728034814832432,
-    "energy_wall_clock_mean_ms": 145.68727621808648,
-    "energy_wall_clock_std_ms": 3.7106837865743025,
-    "diff_fuse_wall_clock_ms": 143.81277072243392,
-    "diff_fuse_wall_clock_std_ms": 4.808085188622619
+    "energy_evals_per_sec": 146.24781056507268,
+    "energy_wall_clock_mean_ms": 13.67541840299964,
+    "energy_wall_clock_std_ms": 0.02369752675615769,
+    "diff_fuse_wall_clock_ms": 13.636922277510166,
+    "diff_fuse_wall_clock_std_ms": 0.04011967822604495
   },
   {
     "protein_length": 256,
     "device": "gpu",
     "impl": "jax",
-    "energy_evals_per_sec": 325.085907613878,
-    "energy_wall_clock_mean_ms": 6.152219930663705,
-    "energy_wall_clock_std_ms": 0.21282094241853874,
-    "diff_fuse_wall_clock_ms": 6.170147750526667,
-    "diff_fuse_wall_clock_std_ms": 0.2376477752589984
+    "energy_evals_per_sec": 323.04201360728007,
+    "energy_wall_clock_mean_ms": 6.191145163029432,
+    "energy_wall_clock_std_ms": 0.210848906515448,
+    "diff_fuse_wall_clock_ms": 6.193595891818404,
+    "diff_fuse_wall_clock_std_ms": 0.19368511382772302
   },
   {
     "protein_length": 256,
     "device": "cuda",
     "impl": "pytorch",
-    "energy_evals_per_sec": 6.047873510540601,
-    "energy_wall_clock_mean_ms": 330.69474692456424,
-    "energy_wall_clock_std_ms": 11.873466042220558,
-    "diff_fuse_wall_clock_ms": 338.821556372568,
-    "diff_fuse_wall_clock_std_ms": 12.295380573217658
+    "energy_evals_per_sec": 98.12938753226777,
+    "energy_wall_clock_mean_ms": 20.381254283711314,
+    "energy_wall_clock_std_ms": 0.04825398596640535,
+    "diff_fuse_wall_clock_ms": 20.426872791722417,
+    "diff_fuse_wall_clock_std_ms": 0.017535108101942073
   },
   {
     "protein_length": 512,
     "device": "gpu",
     "impl": "jax",
-    "energy_evals_per_sec": 84.74024578875456,
-    "energy_wall_clock_mean_ms": 23.601536452770233,
-    "energy_wall_clock_std_ms": 0.22671852395540135,
-    "diff_fuse_wall_clock_ms": 23.617336759343743,
-    "diff_fuse_wall_clock_std_ms": 0.25960580774898345
+    "energy_evals_per_sec": 84.00121531419414,
+    "energy_wall_clock_mean_ms": 23.80917933769524,
+    "energy_wall_clock_std_ms": 0.23667106840832997,
+    "diff_fuse_wall_clock_ms": 23.847269732505083,
+    "diff_fuse_wall_clock_std_ms": 0.2190870372958421
   },
   {
     "protein_length": 512,
     "device": "cuda",
     "impl": "pytorch",
-    "energy_evals_per_sec": 2.044996437518374,
-    "energy_wall_clock_mean_ms": 977.9968137387186,
-    "energy_wall_clock_std_ms": 19.394926337075145,
-    "diff_fuse_wall_clock_ms": 980.5355248972774,
-    "diff_fuse_wall_clock_std_ms": 28.54188304447234
+    "energy_evals_per_sec": 38.18055102235226,
+    "energy_wall_clock_mean_ms": 52.38269083201885,
+    "energy_wall_clock_std_ms": 0.0203491130406061,
+    "diff_fuse_wall_clock_ms": 52.42891632951796,
+    "diff_fuse_wall_clock_std_ms": 0.01579974038229298
   }
 ]

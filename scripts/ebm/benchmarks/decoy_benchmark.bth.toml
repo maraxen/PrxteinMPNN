@@ -20,11 +20,18 @@ target = "JAX >= PyTorch throughput on pi_so3 (SM120) at L in {64,128,256,512} (
 energy_evals_per_sec = "float"
 score_grad_ms = "float"
 protein_length = "int"
+batch_size = "int"
 device = "str"
 impl = "str"  # "jax" | "pytorch"
+pytorch_variant = "str"  # null (jax rows) | "eager" | "shipped" | "compiled"
+energy_wall_clock_mean_ms = "float"
+energy_wall_clock_std_ms = "float"
+score_wall_clock_mean_ms = "float"
+score_wall_clock_std_ms = "float"
+compile_error = "str"  # null unless pytorch_variant="compiled" and torch.compile itself raised
 
 [result_schema.provenance]
-n_decoys = { type = "int", doc = "Decoy batch size used for the energy_evals_per_sec metric this row was measured at" }
+n_decoys = { type = "int", doc = "DEPRECATED alias -- see batch_size in result_schema; kept for backward-compat with pre-batch-sweep runs" }
 n_repeats = { type = "int", doc = "Timed repeats averaged into this row's metrics, after the untimed warmup call" }
 diffusion_time = { type = "float", doc = "Fixed VP-SDE diffusion time t the row was measured at (ProteinEBM-x MVP target, design spec §9)" }
 checkpoint = { type = "str", doc = "Path to the ProteinEBM PyTorch-Lightning checkpoint ported for this run, or null under --smoke" }

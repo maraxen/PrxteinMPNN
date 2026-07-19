@@ -1,0 +1,61 @@
+{
+  "meta": {
+    "smoke": false,
+    "batch_sizes": [
+      4,
+      16
+    ],
+    "n_steps": 20,
+    "n_repeats": 10,
+    "diffusion_time": 0.05,
+    "dt": 0.001,
+    "seed": 0,
+    "checkpoint": "/home/maarxaru/proteinebm_bench_assets/model_6_expert_frozen_1m_md.pt",
+    "reference_repo": "/home/maarxaru/proteinebm_bench_assets/ProteinEBM",
+    "coordinate_scaling": 0.1,
+    "effective_temp_scaling": 1.0,
+    "use_metropolis": false,
+    "wall_clock_seconds": 113.60563257010654,
+    "methodology_notes": [
+      "Fixed single noise level t, single model -- the outer noise-schedule loop and model-swap dispatcher (aminx.ebm.langevin_schedule) are out of scope for this script; see module docstring.",
+      "langevin_steps_per_sec batches n_trajectories independent chains via an xtrax AxisSpec/BatchPlanner-dispatched Vmap or SafeMap (JAX; see dispatch_strategy) / a plain batch dimension (PyTorch), each run for a fixed n_steps -- not a per-trajectory-varying trip count.",
+      "langevin_step_ms is a single-trajectory, single-step latency (one langevin_step call), not a batched-throughput number -- E11d's analog of E11a/E11b's score_grad_ms.",
+      "Both impls get one untimed warmup call per (length, metric) before timing (JAX: forces jit compilation; PyTorch: cache/allocator warm-up).",
+      "No SM120 XLA autotuning workaround applied here -- CPU-only local run. A cluster (GPU) run of this script MUST set XLA_FLAGS=--xla_gpu_shard_autotuning=false per ~/.claude/rules/CLUSTER.md or JAX throughput numbers will be wrong by orders of magnitude.",
+      "Only the plain Euler-Maruyama langevin_step path is benchmarked (use_metropolis=False) -- metropolis_hastings_step is not exercised here.",
+      "A row with impl='error' means that (protein_length, batch_size) cell raised during timing (see its 'error' field) -- all other cells in this file completed normally and are unaffected.",
+      "jax rows' dispatch_strategy is 'vmap' (one shot) or 'safe_map' (jax.lax.map in chunks of safe_map_chunk_size, an xtrax BatchPlanner decision keyed on protein_length -- see SAFE_TRAJECTORY_BATCH_BY_LENGTH in the script) -- either way the full requested batch_size is what gets measured and reported; only the internal execution strategy changes, proactively avoiding the Blackwell/SM120 XLA-autotuning crash (.praxia/docs/audits/260716_proteinebm-parity-report.md \u00a77) rather than catching and retrying it after the fact."
+    ]
+  },
+  "results": [
+    {
+      "protein_length": 512,
+      "batch_size": 4,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 82.56179996391747,
+      "langevin_step_ms": 11.84032536111772,
+      "langevin_step_ms_std": 0.14672834794894438,
+      "equilibration_wall_clock_mean_ms": 968.9711226616055,
+      "equilibration_wall_clock_std_ms": 0.2423690771240442,
+      "dispatch_strategy": "vmap"
+    },
+    {
+      "protein_length": 512,
+      "batch_size": 4,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 44.43460050822124,
+      "langevin_step_ms": 25.898591289296746,
+      "langevin_step_ms_std": 0.34538225313785736,
+      "equilibration_wall_clock_mean_ms": 1800.3987677395344,
+      "equilibration_wall_clock_std_ms": 3.667932873146366
+    },
+    {
+      "protein_length": 512,
+      "batch_size": 16,
+      "impl": "error",
+      "error": "OutOfMemoryError: CUDA out of memory. Tried to allocate 16.00 GiB. GPU 0 has a total capacity of 94.97 GiB of which 4.65 GiB is free. Including non-PyTorch memory, this process has 90.31 GiB memory in use. Of the allocated memory 16.40 GiB is allocated by PyTorch, and 1.98 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)"
+    }
+  ]
+}

@@ -1,0 +1,519 @@
+{
+  "n_mutants": 101,
+  "diffusion_time": 0.05,
+  "spearman_r": 0.4019083070783965,
+  "spearman_p": 3.100923369316555e-05,
+  "n_canonical_residues": 337,
+  "n_shared_residues": 331,
+  "mutation_label_alignment": {
+    "n_checked": 101,
+    "n_consistent": 101
+  },
+  "mutants": [
+    {
+      "label": "T57L",
+      "delta_e": 134.2578125,
+      "promiscuous_activity": 0.098
+    },
+    {
+      "label": "M332L",
+      "delta_e": 134.029296875,
+      "promiscuous_activity": 0.17
+    },
+    {
+      "label": "Y11D",
+      "delta_e": 130.8291015625,
+      "promiscuous_activity": 0.24
+    },
+    {
+      "label": "T57I",
+      "delta_e": 129.787109375,
+      "promiscuous_activity": 0.048
+    },
+    {
+      "label": "E54L",
+      "delta_e": 129.3876953125,
+      "promiscuous_activity": 0.025
+    },
+    {
+      "label": "I219R",
+      "delta_e": 132.189453125,
+      "promiscuous_activity": 0.24
+    },
+    {
+      "label": "C55L",
+      "delta_e": 129.0986328125,
+      "promiscuous_activity": 0.046
+    },
+    {
+      "label": "E54I",
+      "delta_e": 131.462890625,
+      "promiscuous_activity": 0.035
+    },
+    {
+      "label": "E201A",
+      "delta_e": 134.4794921875,
+      "promiscuous_activity": 0.22
+    },
+    {
+      "label": "Y11T",
+      "delta_e": 133.775390625,
+      "promiscuous_activity": 0.2
+    },
+    {
+      "label": "M306A",
+      "delta_e": 129.67578125,
+      "promiscuous_activity": 0.25
+    },
+    {
+      "label": "T185M",
+      "delta_e": 131.7255859375,
+      "promiscuous_activity": 0.14
+    },
+    {
+      "label": "E54V",
+      "delta_e": 134.384765625,
+      "promiscuous_activity": 0.031
+    },
+    {
+      "label": "Y11E",
+      "delta_e": 130.7919921875,
+      "promiscuous_activity": 0.21
+    },
+    {
+      "label": "E54T",
+      "delta_e": 135.9404296875,
+      "promiscuous_activity": 0.021
+    },
+    {
+      "label": "Y11V",
+      "delta_e": 133.4072265625,
+      "promiscuous_activity": 0.28
+    },
+    {
+      "label": "D131P",
+      "delta_e": 134.2001953125,
+      "promiscuous_activity": 0.27
+    },
+    {
+      "label": "N39T",
+      "delta_e": 132.9921875,
+      "promiscuous_activity": 0.093
+    },
+    {
+      "label": "E324L",
+      "delta_e": 117.54296875,
+      "promiscuous_activity": 0.38
+    },
+    {
+      "label": "N39S",
+      "delta_e": 135.8828125,
+      "promiscuous_activity": 0.25
+    },
+    {
+      "label": "L293F",
+      "delta_e": 137.412109375,
+      "promiscuous_activity": 0.07
+    },
+    {
+      "label": "G334K",
+      "delta_e": 134.3349609375,
+      "promiscuous_activity": 0.19
+    },
+    {
+      "label": "V128A",
+      "delta_e": 130.7490234375,
+      "promiscuous_activity": 0.21
+    },
+    {
+      "label": "V128P",
+      "delta_e": 133.6123046875,
+      "promiscuous_activity": 0.22
+    },
+    {
+      "label": "N106A",
+      "delta_e": 135.3017578125,
+      "promiscuous_activity": 0.27
+    },
+    {
+      "label": "S100P",
+      "delta_e": 129.68359375,
+      "promiscuous_activity": 0.12
+    },
+    {
+      "label": "P167V",
+      "delta_e": 123.58984375,
+      "promiscuous_activity": 0.041
+    },
+    {
+      "label": "H79L",
+      "delta_e": 135.6318359375,
+      "promiscuous_activity": 0.055
+    },
+    {
+      "label": "T225L",
+      "delta_e": 134.3564453125,
+      "promiscuous_activity": 0.17
+    },
+    {
+      "label": "M89S",
+      "delta_e": 127.67578125,
+      "promiscuous_activity": 0.021
+    },
+    {
+      "label": "L154V",
+      "delta_e": 133.81640625,
+      "promiscuous_activity": 0.17
+    },
+    {
+      "label": "M89A",
+      "delta_e": 132.2060546875,
+      "promiscuous_activity": 0.031
+    },
+    {
+      "label": "D256S",
+      "delta_e": 132.12890625,
+      "promiscuous_activity": 0.34
+    },
+    {
+      "label": "P167I",
+      "delta_e": 121.4765625,
+      "promiscuous_activity": 0.02
+    },
+    {
+      "label": "P167E",
+      "delta_e": 122.064453125,
+      "promiscuous_activity": 0.021
+    },
+    {
+      "label": "N39A",
+      "delta_e": 134.359375,
+      "promiscuous_activity": 0.065
+    },
+    {
+      "label": "E54M",
+      "delta_e": 129.8037109375,
+      "promiscuous_activity": 0.028
+    },
+    {
+      "label": "P167L",
+      "delta_e": 127.400390625,
+      "promiscuous_activity": 0.036
+    },
+    {
+      "label": "L293Y",
+      "delta_e": 141.142578125,
+      "promiscuous_activity": 0.059
+    },
+    {
+      "label": "C55I",
+      "delta_e": 128.4228515625,
+      "promiscuous_activity": 0.066
+    },
+    {
+      "label": "E54A",
+      "delta_e": 136.7197265625,
+      "promiscuous_activity": 0.069
+    },
+    {
+      "label": "R337P",
+      "delta_e": 122.8095703125,
+      "promiscuous_activity": 0.071
+    },
+    {
+      "label": "E205N",
+      "delta_e": 134.2080078125,
+      "promiscuous_activity": 0.21
+    },
+    {
+      "label": "L172A",
+      "delta_e": 121.74609375,
+      "promiscuous_activity": 0.038
+    },
+    {
+      "label": "T57M",
+      "delta_e": 131.5400390625,
+      "promiscuous_activity": 0.061
+    },
+    {
+      "label": "E54Y",
+      "delta_e": 129.908203125,
+      "promiscuous_activity": 0.019
+    },
+    {
+      "label": "T87A",
+      "delta_e": 131.662109375,
+      "promiscuous_activity": 0.052
+    },
+    {
+      "label": "E54R",
+      "delta_e": 132.9267578125,
+      "promiscuous_activity": 0.026
+    },
+    {
+      "label": "G263R",
+      "delta_e": 144.9599609375,
+      "promiscuous_activity": 0.4
+    },
+    {
+      "label": "T57F",
+      "delta_e": 134.8740234375,
+      "promiscuous_activity": 0.062
+    },
+    {
+      "label": "W14N",
+      "delta_e": 128.0283203125,
+      "promiscuous_activity": 0.089
+    },
+    {
+      "label": "T57Y",
+      "delta_e": 133.3798828125,
+      "promiscuous_activity": 0.024
+    },
+    {
+      "label": "L328V",
+      "delta_e": 132.890625,
+      "promiscuous_activity": 0.28
+    },
+    {
+      "label": "E54W",
+      "delta_e": 129.2939453125,
+      "promiscuous_activity": 0.023
+    },
+    {
+      "label": "C55M",
+      "delta_e": 131.89453125,
+      "promiscuous_activity": 0.032
+    },
+    {
+      "label": "E54H",
+      "delta_e": 133.947265625,
+      "promiscuous_activity": 0.039
+    },
+    {
+      "label": "T57W",
+      "delta_e": 132.7138671875,
+      "promiscuous_activity": 0.072
+    },
+    {
+      "label": "G263H",
+      "delta_e": 141.20703125,
+      "promiscuous_activity": 0.4
+    },
+    {
+      "label": "V43I",
+      "delta_e": 129.2060546875,
+      "promiscuous_activity": 0.11
+    },
+    {
+      "label": "I177T",
+      "delta_e": 133.849609375,
+      "promiscuous_activity": 0.091
+    },
+    {
+      "label": "Q321S",
+      "delta_e": 133.7587890625,
+      "promiscuous_activity": 0.27
+    },
+    {
+      "label": "L285P",
+      "delta_e": 148.7587890625,
+      "promiscuous_activity": 0.045
+    },
+    {
+      "label": "N83V",
+      "delta_e": 133.3837890625,
+      "promiscuous_activity": 0.43
+    },
+    {
+      "label": "Q321A",
+      "delta_e": 138.478515625,
+      "promiscuous_activity": 0.27
+    },
+    {
+      "label": "W37V",
+      "delta_e": 137.6240234375,
+      "promiscuous_activity": 0.18
+    },
+    {
+      "label": "P13A",
+      "delta_e": 135.37890625,
+      "promiscuous_activity": 0.2
+    },
+    {
+      "label": "T151D",
+      "delta_e": 131.5869140625,
+      "promiscuous_activity": 0.022
+    },
+    {
+      "label": "D256R",
+      "delta_e": 135.22265625,
+      "promiscuous_activity": 0.23
+    },
+    {
+      "label": "N83T",
+      "delta_e": 133.140625,
+      "promiscuous_activity": 0.11
+    },
+    {
+      "label": "T151N",
+      "delta_e": 135.2626953125,
+      "promiscuous_activity": 0.052
+    },
+    {
+      "label": "A48N",
+      "delta_e": 142.169921875,
+      "promiscuous_activity": 1.295
+    },
+    {
+      "label": "D9E",
+      "delta_e": 132.58984375,
+      "promiscuous_activity": 0.29
+    },
+    {
+      "label": "P289A",
+      "delta_e": 150.287109375,
+      "promiscuous_activity": 0.39
+    },
+    {
+      "label": "W52L",
+      "delta_e": 140.1298828125,
+      "promiscuous_activity": 0.023
+    },
+    {
+      "label": "E265T",
+      "delta_e": 135.4296875,
+      "promiscuous_activity": 0.57
+    },
+    {
+      "label": "Q26S",
+      "delta_e": 133.4033203125,
+      "promiscuous_activity": 0.21
+    },
+    {
+      "label": "E265L",
+      "delta_e": 126.1259765625,
+      "promiscuous_activity": 0.42
+    },
+    {
+      "label": "Q26T",
+      "delta_e": 129.9462890625,
+      "promiscuous_activity": 0.25
+    },
+    {
+      "label": "E265R",
+      "delta_e": 138.1201171875,
+      "promiscuous_activity": 0.64
+    },
+    {
+      "label": "F147R",
+      "delta_e": 135.001953125,
+      "promiscuous_activity": 0.044
+    },
+    {
+      "label": "C311F",
+      "delta_e": 141.984375,
+      "promiscuous_activity": 0.15
+    },
+    {
+      "label": "F281A",
+      "delta_e": 151.845703125,
+      "promiscuous_activity": 0.48
+    },
+    {
+      "label": "F281L",
+      "delta_e": 143.4248046875,
+      "promiscuous_activity": 0.68
+    },
+    {
+      "label": "P229E",
+      "delta_e": 140.9091796875,
+      "promiscuous_activity": 0.23
+    },
+    {
+      "label": "A48R",
+      "delta_e": 142.689453125,
+      "promiscuous_activity": 0.54
+    },
+    {
+      "label": "L161M",
+      "delta_e": 134.96875,
+      "promiscuous_activity": 0.19
+    },
+    {
+      "label": "P229D",
+      "delta_e": 138.701171875,
+      "promiscuous_activity": 0.2
+    },
+    {
+      "label": "F281R",
+      "delta_e": 156.6552734375,
+      "promiscuous_activity": 0.54
+    },
+    {
+      "label": "A48E",
+      "delta_e": 148.755859375,
+      "promiscuous_activity": 0.35
+    },
+    {
+      "label": "L161Q",
+      "delta_e": 132.576171875,
+      "promiscuous_activity": 0.064
+    },
+    {
+      "label": "E265V",
+      "delta_e": 129.5068359375,
+      "promiscuous_activity": 0.61
+    },
+    {
+      "label": "L161Y",
+      "delta_e": 130.9326171875,
+      "promiscuous_activity": 0.04
+    },
+    {
+      "label": "D9T",
+      "delta_e": 132.3701171875,
+      "promiscuous_activity": 0.25
+    },
+    {
+      "label": "L161R",
+      "delta_e": 131.3779296875,
+      "promiscuous_activity": 0.03
+    },
+    {
+      "label": "E265I",
+      "delta_e": 129.4912109375,
+      "promiscuous_activity": 0.44
+    },
+    {
+      "label": "A48D",
+      "delta_e": 150.669921875,
+      "promiscuous_activity": 0.65
+    },
+    {
+      "label": "F147S",
+      "delta_e": 137.4951171875,
+      "promiscuous_activity": 0.32
+    },
+    {
+      "label": "Y139T",
+      "delta_e": 136.69140625,
+      "promiscuous_activity": 0.14
+    },
+    {
+      "label": "L161H",
+      "delta_e": 130.3681640625,
+      "promiscuous_activity": 0.024
+    },
+    {
+      "label": "Y139S",
+      "delta_e": 137.1455078125,
+      "promiscuous_activity": 0.33
+    },
+    {
+      "label": "Y139V",
+      "delta_e": 135.3232421875,
+      "promiscuous_activity": 0.031
+    }
+  ]
+}

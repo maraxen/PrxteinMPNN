@@ -135,6 +135,7 @@ import json
 import logging
 import sys
 import time
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
@@ -144,6 +145,7 @@ import numpy as np
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from xtrax.tiling import AxisSpec, BatchPlanner, SafeMap
 
 from aminx.ebm.checkpoint import load_pytorch_checkpoint
 from aminx.ebm.langevin import DEFAULT_EFFECTIVE_TEMP_SCALING, langevin_step, run_langevin_equilibration
@@ -196,8 +198,17 @@ def _parse_args() -> argparse.Namespace:
     "--n-trajectories",
     type=int,
     default=None,
-    help="Independent-trajectory batch size for the langevin_steps_per_sec "
-    "metric (default 8, or 2 under --smoke).",
+    help="Single independent-trajectory batch size (shorthand for --batch-sizes N). "
+    "Mutually exclusive with --batch-sizes.",
+  )
+  parser.add_argument(
+    "--batch-sizes",
+    type=int,
+    nargs="+",
+    default=None,
+    help="Trajectory batch sizes to sweep, e.g. '--batch-sizes 4 16 64 400'. "
+    "400 is run_dynamics.py's own --batch_size default. Default: (4, 16, 64, 400), "
+    "or (2,) under --smoke.",
   )
   parser.add_argument(
     "--n-steps",
@@ -247,27 +258,60 @@ def _parse_args() -> argparse.Namespace:
     parser.error("--n-repeats must be >= 1")
   if args.n_trajectories is not None and args.n_trajectories < 1:
     parser.error("--n-trajectories must be >= 1")
+  if args.n_trajectories is not None and args.batch_sizes is not None:
+    parser.error("--n-trajectories and --batch-sizes are mutually exclusive")
+  if args.batch_sizes is not None and any(b < 1 for b in args.batch_sizes):
+    parser.error("--batch-sizes entries must all be >= 1")
   if args.n_steps is not None and args.n_steps < 1:
     parser.error("--n-steps must be >= 1")
   return args
 
 
-def _resolve_run_params(args: argparse.Namespace) -> tuple[tuple[int, ...], int, int, int]:
-  """Resolve (lengths, n_trajectories, n_steps, n_repeats), applying --smoke's reduced defaults."""
+DEFAULT_BATCH_SIZES: tuple[int, ...] = (4, 16, 64, 400)
+SMOKE_BATCH_SIZES: tuple[int, ...] = (2,)
+
+# Per-length safe batch size for the n_trajectories axis, derived from the
+# empirically confirmed Blackwell/SM120 XLA-autotuning crash thresholds
+# (.praxia/docs/audits/260716_proteinebm-parity-report.md §7): every batch
+# size at or below these values has succeeded cleanly across three separate
+# cluster jobs (18059808, 18069513, 18161115) and three jax/jaxlib versions
+# (0.9.2, 0.10.2, 0.11.0); above them, XLA's kernel-autotuning search hits
+# CUDA_ERROR_ILLEGAL_ADDRESS. This feeds an xtrax AxisSpec/BatchPlanner
+# decision (see _dispatch_trajectories) rather than a crash-and-retry loop:
+# the n_trajectories axis is proactively dispatched via Vmap at or below the
+# threshold, or via SafeMap (jax.lax.map in chunks of this size) above it --
+# the REQUESTED batch size is always what gets measured and reported; only
+# the internal execution strategy changes, so a recovered cell can never be
+# confused with data at some other, smaller batch size, and there is no
+# wasted/crashed attempt to worry about confounding the timing.
+SAFE_TRAJECTORY_BATCH_BY_LENGTH: dict[int, int] = {
+  64: 400,  # no crash observed at any tested batch size up to 400
+  128: 64,  # crashes at 400; 64 is the largest confirmed-safe size
+  256: 16,  # crashes at 64; 16 is the largest confirmed-safe size
+  512: 4,  # crashes at 16; 4 is the largest confirmed-safe size
+}
+# Conservative fallback for a length outside the table above (e.g. a custom
+# --lengths value) -- the smallest safe size confirmed at any length so far.
+DEFAULT_SAFE_TRAJECTORY_BATCH = 4
+
+
+def _resolve_run_params(args: argparse.Namespace) -> tuple[tuple[int, ...], tuple[int, ...], int, int]:
+  """Resolve (lengths, batch_sizes, n_steps, n_repeats), applying --smoke's reduced defaults."""
   if args.lengths is not None:
     lengths = tuple(int(x) for x in args.lengths.split(","))
   else:
     lengths = SMOKE_LENGTHS if args.smoke else DEFAULT_LENGTHS
 
-  if args.smoke:
-    n_trajectories = args.n_trajectories if args.n_trajectories is not None else 2
-    n_steps = args.n_steps if args.n_steps is not None else 3
-    n_repeats = args.n_repeats if args.n_repeats is not None else 2
+  if args.n_trajectories is not None:
+    batch_sizes = (args.n_trajectories,)
+  elif args.batch_sizes is not None:
+    batch_sizes = tuple(args.batch_sizes)
   else:
-    n_trajectories = args.n_trajectories if args.n_trajectories is not None else 8
-    n_steps = args.n_steps if args.n_steps is not None else 20
-    n_repeats = args.n_repeats if args.n_repeats is not None else 5
-  return lengths, n_trajectories, n_steps, n_repeats
+    batch_sizes = SMOKE_BATCH_SIZES if args.smoke else DEFAULT_BATCH_SIZES
+
+  n_steps = args.n_steps if args.n_steps is not None else (3 if args.smoke else 20)
+  n_repeats = args.n_repeats if args.n_repeats is not None else (2 if args.smoke else 5)
+  return lengths, batch_sizes, n_steps, n_repeats
 
 
 # ---------------------------------------------------------------------------
@@ -311,6 +355,7 @@ def _build_reference_model(
   model_cfg: Any,  # noqa: ANN401 -- duck-typed ml_collections.ConfigDict | SimpleNamespace
   diffuser_cfg: Any,  # noqa: ANN401
   state_dict: "Mapping[str, torch.Tensor] | None",
+  device: "str | torch.device" = "cpu",
 ) -> "ProteinEBM":
   """Construct the real reference ``ProteinEBM``, optionally strict-loading a checkpoint.
 
@@ -318,6 +363,15 @@ def _build_reference_model(
   construction + ``load_state_dict(strict=False)`` + missing/unexpected
   check) -- reimplemented here (not imported), per the E11x standalone-entry-
   point convention.
+
+  ``device`` defaults to ``"cpu"`` (matches the checkpoint's own
+  ``map_location="cpu"`` load) but callers doing real throughput measurement
+  MUST pass the actual compute device -- the model is moved there via
+  ``.to(device)`` before returning. Without this, every PyTorch number this
+  script reports would silently be a CPU number, no matter what the JSON's
+  ``device`` field claims (this was a real, previously-undiscovered bug: see
+  ``.praxia/docs/audits/260716_proteinebm-parity-report.md`` §7 -- confirmed
+  live on cluster hardware via ``next(ref_model.parameters()).device``).
   """
   sys.path.insert(0, str(reference_repo))
   from protein_ebm.model.ebm import ProteinEBM  # noqa: PLC0415
@@ -332,7 +386,7 @@ def _build_reference_model(
       msg = f"reference model.load_state_dict was not exact: missing={missing}, unexpected={unexpected}"
       raise RuntimeError(msg)
   model.eval()
-  return model
+  return model.to(device)
 
 
 def _build_jax_model(
@@ -360,15 +414,24 @@ def _build_jax_model(
 def build_models(
   args: argparse.Namespace,
 ) -> tuple[ProteinEBMModel, "ProteinEBM", Any, Any]:
-  """Build (jax_model, reference_model, model_cfg, diffuser_cfg) per ``--smoke``/full-run mode."""
+  """Build (jax_model, reference_model, model_cfg, diffuser_cfg) per ``--smoke``/full-run mode.
+
+  The reference PyTorch model is moved to ``_torch_device()``'s actual device
+  (``ref_model.to(device)`` inside ``_build_reference_model``) -- previously
+  it was left on CPU (the checkpoint's own ``map_location="cpu"`` load
+  target) regardless of GPU availability, so every reported PyTorch number
+  was silently a CPU number despite the JSON claiming ``"device": "cuda"``.
+  """
+  import torch  # noqa: PLC0415
+
+  device = _torch_device()
+
   if args.smoke:
     log.info("Building SMOKE models: tiny synthetic dims, randomly initialized, no checkpoint load.")
     model_cfg, diffuser_cfg = _smoke_model_configs()
     jax_model = _build_jax_model(model_cfg, args.seed, state_dict=None)
-    ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None)
+    ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None, device=device)
     return jax_model, ref_model, model_cfg, diffuser_cfg
-
-  import torch  # noqa: PLC0415
 
   if not args.checkpoint.exists():
     msg = f"checkpoint not found: {args.checkpoint} (see E3.5 task brief for the authorized source)"
@@ -383,7 +446,9 @@ def build_models(
   diffuser_cfg = ckpt["hyper_parameters"]["config"].diffuser
 
   log.info("Building + strict-loading reference PyTorch model...")
-  ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, ckpt["state_dict"])
+  ref_model = _build_reference_model(
+    args.reference_repo, model_cfg, diffuser_cfg, ckpt["state_dict"], device=device,
+  )
 
   log.info("Building + porting JAX ProteinEBMModel...")
   jax_model = _build_jax_model(model_cfg, args.seed, ckpt["state_dict"])
@@ -434,12 +499,59 @@ def _timed_calls(fn: Any, n_repeats: int) -> list[float]:  # noqa: ANN401 -- Cal
   return times
 
 
+def _wall_clock_ms_stats(times_seconds: list[float]) -> tuple[float, float]:
+  arr_ms = np.asarray(times_seconds) * 1000.0
+  return float(np.mean(arr_ms)), float(np.std(arr_ms))
+
+
 # ---------------------------------------------------------------------------
 # JAX timing (langevin_steps_per_sec via a vmapped run_langevin_equilibration;
 # langevin_step_ms via a single langevin_step call). Both wrapped in
 # eqx.filter_jit -- the untimed warmup call forces XLA compilation for that
 # shape; timed calls hit the compiled cache (methodology point 4).
 # ---------------------------------------------------------------------------
+
+
+def _chunked_vmap(
+  fn: Any,  # noqa: ANN401 -- Callable[[tuple[jax.Array, jax.Array]], jax.Array]
+  xs: tuple[jax.Array, jax.Array],
+  chunk_size: int,
+) -> jax.Array:
+  """Apply ``fn`` over the leading axis of ``xs`` in Python-level (trace-time-unrolled) chunks.
+
+  Deliberately NOT ``xtrax.tiling.SafeMap``/``aminx.utils.safe_map.safe_map``:
+  those lower to ``jax.lax.map``, which JAX's own docs describe as "like
+  scan, implemented in terms of JAX primitives... compiled once" -- i.e. a
+  ``lax.scan``. ``run_langevin_equilibration`` already contains an internal
+  ``jax.lax.while_loop``, deliberately chosen (see the ``aminx.ebm.langevin``
+  module docstring) because ``while_loop`` compiles ~300-400x faster than the
+  ``lax.scan`` equivalent on SM120/Blackwell for a fixed-but-not-compile-time-
+  constant trip count. Wrapping that in an outer ``lax.scan`` (what ``SafeMap``
+  does) reintroduces exactly the compile-time pathology that choice exists to
+  avoid. Confirmed two ways before writing this: SLURM job `18182309` hung for
+  a full hour without finishing the compile ("warmup") call for the first
+  ``SafeMap``-dispatched cell (L=128/batch=400) on node4008/SM120, and a local
+  ``jax.make_jaxpr`` inspection showed the ``SafeMap`` path's jaxpr contains
+  both ``scan`` and ``while`` primitives (10 eqns) versus ``Vmap``'s single
+  ``while``-only equation (1 eqn) -- see
+  ``.praxia/docs/audits/260716_proteinebm-parity-report.md`` §7.
+
+  A plain Python ``for`` loop over static-size slices, each independently
+  ``jax.vmap``'d, avoids ``lax.scan`` entirely -- every chunk becomes its own
+  traced sub-graph (verified: zero ``scan`` nodes in the resulting jaxpr,
+  output bit-identical to a single ``jax.vmap`` call). The tradeoff is a
+  larger compiled program (one sub-graph per chunk instead of one reused
+  scan body) in exchange for avoiding a documented, order-of-magnitude
+  SM120 compile-time trap -- worth it for the handful of chunks
+  (``SAFE_TRAJECTORY_BATCH_BY_LENGTH``'s ratios are all single digits) this
+  script ever needs.
+  """
+  n = xs[0].shape[0]
+  parts = [
+    jax.vmap(fn)(jax.tree_util.tree_map(lambda x, s=start, e=min(start + chunk_size, n): x[s:e], xs))
+    for start in range(0, n, chunk_size)
+  ]
+  return jax.tree_util.tree_map(lambda *p: jnp.concatenate(p, axis=0), *parts)
 
 
 @eqx.filter_jit
@@ -452,19 +564,55 @@ def _jax_equilibration_batch(
   n_steps: int,
   dt: float,
   keys: jax.Array,
+  safe_batch_size: int,
 ) -> jax.Array:
-  """Vmap ``run_langevin_equilibration`` over an ``n_trajectories`` axis of ``(coords, key)`` pairs.
+  """Dispatch ``run_langevin_equilibration`` over the ``n_trajectories`` axis via an xtrax BatchPlanner decision.
+
+  Vmap in one shot when ``n_trajectories <= safe_batch_size``; a Python-level
+  chunked vmap (:func:`_chunked_vmap`, chunks of ``safe_batch_size``) above
+  it -- see :data:`SAFE_TRAJECTORY_BATCH_BY_LENGTH` for why the threshold,
+  and :func:`_chunked_vmap`'s docstring for why chunking is NOT done via
+  ``xtrax.tiling.SafeMap``. Either way this computes the full
+  ``n_trajectories`` batch -- the strategy only changes how XLA schedules
+  the work, never what gets measured, so the reported batch size always
+  matches what was requested.
 
   ``n_steps`` is the *same* fixed value for every trajectory (a Python
   ``int``, not batched) -- so this only exercises JAX's "identical trip
   count, different data" batched-``while_loop`` case, not its per-lane-
   varying-trip-count/masking semantics (module docstring point 5).
+
+  The planning half (``AxisSpec`` + ``BatchPlanner`` deciding ``Vmap`` vs.
+  ``SafeMap``) mirrors ``aminx.ebm.plan.plan_axis``'s pattern; only the
+  *execution* of a ``SafeMap`` decision is written locally, via
+  :func:`_chunked_vmap` rather than ``aminx.ebm.plan.dispatch_axis`` -- that
+  helper's generic signature assumes ``body`` returns the same pytree type
+  it's fed one slice of at a time (fits E4's Coords-in/Energy-out calls,
+  both bare ``Array``\\ s under jaxtyping) but not this ``(coords, key)``
+  pair-in/``Array``-out shape, and it would dispatch ``SafeMap`` via
+  ``aminx.utils.safe_map.safe_map`` (``lax.map``/``scan``-based) regardless.
   """
 
-  def _single(coords: jax.Array, key: jax.Array) -> jax.Array:
+  def _single(pair: tuple[jax.Array, jax.Array]) -> jax.Array:
+    coords, key = pair
     return run_langevin_equilibration(model, coords, aatype, t, mask, n_steps, dt, key)
 
-  return jax.vmap(_single)(coords_batch, keys)
+  n_trajectories = coords_batch.shape[0]
+  spec = AxisSpec(name="n_trajectories", cardinality=n_trajectories, default_batch_size=safe_batch_size)
+  with warnings.catch_warnings():
+    # BatchPlanner warns "will raise ValueError at make_axis_dispatch time" for a
+    # non-divisible (cardinality, batch_size) pair (e.g. 400 trajectories chunked
+    # at 64) -- that failure mode belongs to xtrax's make_axis_dispatch iterators,
+    # which this function never calls. _chunked_vmap handles a non-divisible
+    # remainder chunk correctly (verified: bit-identical to a plain jax.vmap for
+    # the same inputs), so the warning is a false alarm for this dispatch path
+    # specifically and is suppressed rather than left as confusing log noise on
+    # every non-divisible cell.
+    warnings.filterwarnings("ignore", message=r".*is not divisible by batch_size.*", category=RuntimeWarning)
+    decision = BatchPlanner().plan([spec]).decisions[0]
+  if isinstance(decision.strategy, SafeMap):
+    return _chunked_vmap(_single, (coords_batch, keys), decision.strategy.batch_size)
+  return jax.vmap(_single)((coords_batch, keys))
 
 
 @eqx.filter_jit
@@ -488,6 +636,7 @@ def _run_jax_equilibration(
   dt: float,
   seed: int,
   n_repeats: int,
+  safe_batch_size: int,
 ) -> list[float]:
   coords_batch = jnp.asarray(batch["coords"])
   aatype = jnp.asarray(batch["aatype"], dtype=jnp.int32)
@@ -497,7 +646,9 @@ def _run_jax_equilibration(
   keys = jax.random.split(jax.random.PRNGKey(seed), n_trajectories)
 
   def call() -> None:
-    jax.block_until_ready(_jax_equilibration_batch(model, coords_batch, aatype, t_arr, mask, n_steps, dt, keys))
+    jax.block_until_ready(
+      _jax_equilibration_batch(model, coords_batch, aatype, t_arr, mask, n_steps, dt, keys, safe_batch_size),
+    )
 
   call()  # untimed: forces XLA compilation for this (n_trajectories, length, n_steps) shape.
   return _timed_calls(call, n_repeats)
@@ -561,7 +712,7 @@ def _pytorch_langevin_step(
     "aatype": aatype,
     "residue_idx": residue_idx,
     "mask": mask,
-    "t": torch.full((bsize,), t, dtype=torch.float32),
+    "t": torch.full((bsize,), t, dtype=torch.float32, device=r_noisy.device),
     "chain_encoding": chain_id,
     "external_contacts": contacts,
   }
@@ -616,17 +767,18 @@ def _run_pytorch_equilibration(
   n_steps: int,
   dt: float,
   n_repeats: int,
+  device: "str | torch.device" = "cpu",
 ) -> list[float]:
   import torch  # noqa: PLC0415
 
   n_trajectories, length = batch["coords"].shape[0], batch["coords"].shape[1]
   del length  # unused; kept for readability of the tile shapes below.
-  r_noisy0 = torch.tensor(batch["coords"], dtype=torch.float32)
-  aatype = torch.tensor(np.tile(batch["aatype"], (n_trajectories, 1)), dtype=torch.long)
-  residue_idx = torch.tensor(np.tile(batch["residue_index"], (n_trajectories, 1)), dtype=torch.long)
-  chain_id = torch.tensor(np.tile(batch["chain_id"], (n_trajectories, 1)), dtype=torch.long)
-  contacts = torch.tensor(np.tile(batch["contacts"], (n_trajectories, 1)), dtype=torch.long)
-  mask = torch.tensor(np.tile(batch["mask"], (n_trajectories, 1)), dtype=torch.bool)
+  r_noisy0 = torch.tensor(batch["coords"], dtype=torch.float32, device=device)
+  aatype = torch.tensor(np.tile(batch["aatype"], (n_trajectories, 1)), dtype=torch.long, device=device)
+  residue_idx = torch.tensor(np.tile(batch["residue_index"], (n_trajectories, 1)), dtype=torch.long, device=device)
+  chain_id = torch.tensor(np.tile(batch["chain_id"], (n_trajectories, 1)), dtype=torch.long, device=device)
+  contacts = torch.tensor(np.tile(batch["contacts"], (n_trajectories, 1)), dtype=torch.long, device=device)
+  mask = torch.tensor(np.tile(batch["mask"], (n_trajectories, 1)), dtype=torch.bool, device=device)
 
   def call() -> None:
     r = r_noisy0.clone()
@@ -643,16 +795,17 @@ def _run_pytorch_single_step(
   t: float,
   dt: float,
   n_repeats: int,
+  device: "str | torch.device" = "cpu",
 ) -> list[float]:
   import torch  # noqa: PLC0415
 
   coords0 = batch["coords"][0]
-  r_noisy = torch.tensor(coords0, dtype=torch.float32).unsqueeze(0)
-  aatype = torch.tensor(batch["aatype"], dtype=torch.long).unsqueeze(0)
-  residue_idx = torch.tensor(batch["residue_index"], dtype=torch.long).unsqueeze(0)
-  chain_id = torch.tensor(batch["chain_id"], dtype=torch.long).unsqueeze(0)
-  contacts = torch.tensor(batch["contacts"], dtype=torch.long).unsqueeze(0)
-  mask = torch.tensor(batch["mask"], dtype=torch.bool).unsqueeze(0)
+  r_noisy = torch.tensor(coords0, dtype=torch.float32, device=device).unsqueeze(0)
+  aatype = torch.tensor(batch["aatype"], dtype=torch.long, device=device).unsqueeze(0)
+  residue_idx = torch.tensor(batch["residue_index"], dtype=torch.long, device=device).unsqueeze(0)
+  chain_id = torch.tensor(batch["chain_id"], dtype=torch.long, device=device).unsqueeze(0)
+  contacts = torch.tensor(batch["contacts"], dtype=torch.long, device=device).unsqueeze(0)
+  mask = torch.tensor(batch["mask"], dtype=torch.bool, device=device).unsqueeze(0)
 
   def call() -> None:
     _pytorch_langevin_step(ref_model, r_noisy, aatype, residue_idx, mask, chain_id, contacts, t, dt)
@@ -706,7 +859,10 @@ def _run_dry_run(args: argparse.Namespace) -> int:
   ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None)
 
   batch = _synthetic_trajectories(n_trajectories=2, length=8, seed=args.seed)
-  _run_jax_equilibration(jax_model, batch, args.diffusion_time, n_steps=2, dt=args.dt, seed=args.seed, n_repeats=1)
+  _run_jax_equilibration(
+    jax_model, batch, args.diffusion_time, n_steps=2, dt=args.dt, seed=args.seed, n_repeats=1,
+    safe_batch_size=DEFAULT_SAFE_TRAJECTORY_BATCH,
+  )
   _run_jax_single_step(jax_model, batch, args.diffusion_time, args.dt, args.seed, n_repeats=1)
   _run_pytorch_equilibration(ref_model, batch, args.diffusion_time, n_steps=2, dt=args.dt, n_repeats=1)
   _run_pytorch_single_step(ref_model, batch, args.diffusion_time, args.dt, n_repeats=1)
@@ -728,6 +884,82 @@ def _run_dry_run(args: argparse.Namespace) -> int:
   return 0
 
 
+def _run_cell(
+  jax_model: ProteinEBMModel,
+  ref_model: "ProteinEBM",
+  length: int,
+  n_trajectories: int,
+  args: argparse.Namespace,
+  n_steps: int,
+  n_repeats: int,
+  jax_device: str,
+  torch_device: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+  """Run one (length, n_trajectories) cell. Returns (jax_row, pytorch_row). Raises on failure.
+
+  The JAX side's ``n_trajectories`` axis is dispatched via an xtrax
+  ``AxisSpec``/``BatchPlanner`` decision (:func:`_jax_equilibration_batch`),
+  not a plain ``jax.vmap`` -- see :data:`SAFE_TRAJECTORY_BATCH_BY_LENGTH` for
+  why. ``jax_row`` records which strategy actually ran (``dispatch_strategy``,
+  plus ``safe_map_chunk_size`` when chunked) so a reader can see when a number
+  came from chunked ``SafeMap`` execution instead of a single ``Vmap`` call.
+  """
+  batch = _synthetic_trajectories(n_trajectories, length, args.seed)
+  safe_batch_size = SAFE_TRAJECTORY_BATCH_BY_LENGTH.get(length, DEFAULT_SAFE_TRAJECTORY_BATCH)
+
+  log.info(
+    "[length=%d batch=%d] JAX warmup + timed batched equilibration (n_steps=%d)...",
+    length, n_trajectories, n_steps,
+  )
+  jax_equil_times = _run_jax_equilibration(
+    jax_model, batch, args.diffusion_time, n_steps, args.dt, args.seed, n_repeats, safe_batch_size,
+  )
+  jax_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(jax_equil_times))
+  jax_equil_ms_mean, jax_equil_ms_std = _wall_clock_ms_stats(jax_equil_times)
+
+  jax_step_times = _run_jax_single_step(jax_model, batch, args.diffusion_time, args.dt, args.seed, n_repeats)
+  jax_step_ms = float(np.mean(jax_step_times)) * 1000.0
+  jax_step_ms_std = float(np.std(jax_step_times) * 1000.0)
+
+  log.info("[length=%d batch=%d] PyTorch warmup + timed batched equilibration...", length, n_trajectories)
+  pt_equil_times = _run_pytorch_equilibration(
+    ref_model, batch, args.diffusion_time, n_steps, args.dt, n_repeats, device=torch_device,
+  )
+  pt_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(pt_equil_times))
+  pt_equil_ms_mean, pt_equil_ms_std = _wall_clock_ms_stats(pt_equil_times)
+
+  pt_step_times = _run_pytorch_single_step(ref_model, batch, args.diffusion_time, args.dt, n_repeats, device=torch_device)
+  pt_step_ms = float(np.mean(pt_step_times)) * 1000.0
+  pt_step_ms_std = float(np.std(pt_step_times) * 1000.0)
+
+  jax_row = {
+    "protein_length": length,
+    "batch_size": n_trajectories,
+    "impl": "jax",
+    "device": jax_device,
+    "langevin_steps_per_sec": jax_steps_per_sec,
+    "langevin_step_ms": jax_step_ms,
+    "langevin_step_ms_std": jax_step_ms_std,
+    "equilibration_wall_clock_mean_ms": jax_equil_ms_mean,
+    "equilibration_wall_clock_std_ms": jax_equil_ms_std,
+    "dispatch_strategy": "vmap" if n_trajectories <= safe_batch_size else "safe_map",
+  }
+  if n_trajectories > safe_batch_size:
+    jax_row["safe_map_chunk_size"] = safe_batch_size
+  pt_row = {
+    "protein_length": length,
+    "batch_size": n_trajectories,
+    "impl": "pytorch",
+    "device": torch_device,
+    "langevin_steps_per_sec": pt_steps_per_sec,
+    "langevin_step_ms": pt_step_ms,
+    "langevin_step_ms_std": pt_step_ms_std,
+    "equilibration_wall_clock_mean_ms": pt_equil_ms_mean,
+    "equilibration_wall_clock_std_ms": pt_equil_ms_std,
+  }
+  return jax_row, pt_row
+
+
 def main() -> int:
   logging.basicConfig(level=logging.INFO, format="%(message)s")
   args = _parse_args()
@@ -735,10 +967,10 @@ def main() -> int:
   if args.dry_run:
     return _run_dry_run(args)
 
-  lengths, n_trajectories, n_steps, n_repeats = _resolve_run_params(args)
+  lengths, batch_sizes, n_steps, n_repeats = _resolve_run_params(args)
   log.info(
-    "=== langevin_benchmark: lengths=%s n_trajectories=%d n_steps=%d n_repeats=%d smoke=%s ===",
-    lengths, n_trajectories, n_steps, n_repeats, args.smoke,
+    "=== langevin_benchmark: lengths=%s batch_sizes=%s n_steps=%d n_repeats=%d smoke=%s ===",
+    lengths, batch_sizes, n_steps, n_repeats, args.smoke,
   )
 
   jax_model, ref_model, _model_cfg, diffuser_cfg = build_models(args)
@@ -749,57 +981,57 @@ def main() -> int:
   results: list[dict[str, Any]] = []
   wall_start = time.perf_counter()
   for length in lengths:
-    batch = _synthetic_trajectories(n_trajectories, length, args.seed)
+    for n_trajectories in batch_sizes:
+      try:
+        jax_row, pt_row = _run_cell(
+          jax_model, ref_model, length, n_trajectories, args, n_steps, n_repeats, jax_device, torch_device,
+        )
+      except Exception as e:  # noqa: BLE001 -- a single (length, batch) cell must not lose already-collected rows
+        log.error("[length=%d batch=%d] FAILED: %s: %s", length, n_trajectories, type(e).__name__, e)
+        results.append({
+          "protein_length": length,
+          "batch_size": n_trajectories,
+          "impl": "error",
+          "error": f"{type(e).__name__}: {e}",
+        })
+        _write_payload(args, batch_sizes, n_steps, n_repeats, diffuser_cfg, results, time.perf_counter() - wall_start)
+        continue
 
-    log.info(
-      "[length=%d] JAX warmup + timed batched equilibration (n_trajectories=%d, n_steps=%d)...",
-      length, n_trajectories, n_steps,
-    )
-    jax_equil_times = _run_jax_equilibration(
-      jax_model, batch, args.diffusion_time, n_steps, args.dt, args.seed, n_repeats,
-    )
-    jax_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(jax_equil_times))
+      results.append(jax_row)
+      results.append(pt_row)
 
-    log.info("[length=%d] JAX warmup + timed single langevin_step...", length)
-    jax_step_times = _run_jax_single_step(jax_model, batch, args.diffusion_time, args.dt, args.seed, n_repeats)
-    jax_step_ms = float(np.mean(jax_step_times)) * 1000.0
-
-    log.info("[length=%d] PyTorch warmup + timed batched equilibration...", length)
-    pt_equil_times = _run_pytorch_equilibration(ref_model, batch, args.diffusion_time, n_steps, args.dt, n_repeats)
-    pt_steps_per_sec = (n_trajectories * n_steps) / float(np.mean(pt_equil_times))
-
-    log.info("[length=%d] PyTorch warmup + timed single step...", length)
-    pt_step_times = _run_pytorch_single_step(ref_model, batch, args.diffusion_time, args.dt, n_repeats)
-    pt_step_ms = float(np.mean(pt_step_times)) * 1000.0
-
-    results.append({
-      "protein_length": length,
-      "impl": "jax",
-      "device": jax_device,
-      "langevin_steps_per_sec": jax_steps_per_sec,
-      "langevin_step_ms": jax_step_ms,
-    })
-    results.append({
-      "protein_length": length,
-      "impl": "pytorch",
-      "device": torch_device,
-      "langevin_steps_per_sec": pt_steps_per_sec,
-      "langevin_step_ms": pt_step_ms,
-    })
-
-    speedup = jax_steps_per_sec / pt_steps_per_sec if pt_steps_per_sec else float("nan")
-    log.info(
-      "[length=%d] jax: %.1f steps/s, %.3f ms/step | pytorch: %.1f steps/s, %.3f ms/step | "
-      "jax/pytorch steps speedup=%.3fx",
-      length, jax_steps_per_sec, jax_step_ms, pt_steps_per_sec, pt_step_ms, speedup,
-    )
+      speedup = (
+        jax_row["langevin_steps_per_sec"] / pt_row["langevin_steps_per_sec"] if pt_row["langevin_steps_per_sec"] else float("nan")
+      )
+      log.info(
+        "[length=%d batch=%d strategy=%s] jax: %.1f steps/s, %.3f ms/step | pytorch: %.1f steps/s, %.3f ms/step | "
+        "speedup=%.3fx",
+        length, n_trajectories, jax_row["dispatch_strategy"],
+        jax_row["langevin_steps_per_sec"], jax_row["langevin_step_ms"],
+        pt_row["langevin_steps_per_sec"], pt_row["langevin_step_ms"], speedup,
+      )
+      _write_payload(args, batch_sizes, n_steps, n_repeats, diffuser_cfg, results, time.perf_counter() - wall_start)
 
   wall_elapsed = time.perf_counter() - wall_start
+  _write_payload(args, batch_sizes, n_steps, n_repeats, diffuser_cfg, results, wall_elapsed)
+  log.info("Wrote %d result rows to %s (wall clock %.1fs)", len(results), args.out, wall_elapsed)
+  return 0
 
+
+def _write_payload(
+  args: argparse.Namespace,
+  batch_sizes: tuple[int, ...],
+  n_steps: int,
+  n_repeats: int,
+  diffuser_cfg: Any,
+  results: list[dict[str, Any]],
+  wall_elapsed: float,
+) -> None:
+  """Write accumulated results so far -- called after every (length, batch) cell so a crash mid-sweep loses only the in-flight cell, not everything already timed."""
   payload = {
     "meta": {
       "smoke": args.smoke,
-      "n_trajectories": n_trajectories,
+      "batch_sizes": list(batch_sizes),
       "n_steps": n_steps,
       "n_repeats": n_repeats,
       "diffusion_time": args.diffusion_time,
@@ -816,8 +1048,9 @@ def main() -> int:
         "loop and model-swap dispatcher (aminx.ebm.langevin_schedule) are out "
         "of scope for this script; see module docstring.",
         "langevin_steps_per_sec batches n_trajectories independent chains via "
-        "jax.vmap (JAX) / a plain batch dimension (PyTorch), each run for a "
-        "fixed n_steps -- not a per-trajectory-varying trip count.",
+        "an xtrax AxisSpec/BatchPlanner-dispatched Vmap or SafeMap (JAX; see "
+        "dispatch_strategy) / a plain batch dimension (PyTorch), each run for "
+        "a fixed n_steps -- not a per-trajectory-varying trip count.",
         "langevin_step_ms is a single-trajectory, single-step latency (one "
         "langevin_step call), not a batched-throughput number -- E11d's "
         "analog of E11a/E11b's score_grad_ms.",
@@ -829,15 +1062,23 @@ def main() -> int:
         "or JAX throughput numbers will be wrong by orders of magnitude.",
         "Only the plain Euler-Maruyama langevin_step path is benchmarked "
         "(use_metropolis=False) -- metropolis_hastings_step is not exercised here.",
+        "A row with impl='error' means that (protein_length, batch_size) cell "
+        "raised during timing (see its 'error' field) -- all other cells in "
+        "this file completed normally and are unaffected.",
+        "jax rows' dispatch_strategy is 'vmap' (one shot) or 'safe_map' "
+        "(jax.lax.map in chunks of safe_map_chunk_size, an xtrax BatchPlanner "
+        "decision keyed on protein_length -- see SAFE_TRAJECTORY_BATCH_BY_LENGTH "
+        "in the script) -- either way the full requested batch_size is what "
+        "gets measured and reported; only the internal execution strategy "
+        "changes, proactively avoiding the Blackwell/SM120 XLA-autotuning "
+        "crash (.praxia/docs/audits/260716_proteinebm-parity-report.md §7) "
+        "rather than catching and retrying it after the fact.",
       ],
     },
     "results": results,
   }
-
   args.out.parent.mkdir(parents=True, exist_ok=True)
   args.out.write_text(json.dumps(payload, indent=2))
-  log.info("Wrote %d result rows to %s (wall clock %.1fs)", len(results), args.out, wall_elapsed)
-  return 0
 
 
 if __name__ == "__main__":

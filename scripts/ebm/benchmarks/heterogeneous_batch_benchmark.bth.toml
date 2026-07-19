@@ -1,0 +1,40 @@
+[metadata]
+title = "ProteinEBM heterogeneous-length batch: JAX bucket+pad+tile vs PyTorch dynamic-shape strategies"
+created = "260716"
+schema_version = "0.3"
+
+[benchmark]
+baseline_ref = "<pytorch-proteinebm-run-id>"  # fill in once an L3 cluster run is recorded
+metric = "wall_clock_mean_ms"
+regression_threshold = 0.05
+target = "jax_bucket_pad_tile wall-clock <= pytorch_pad_to_batch_max on a realistic mixed-length batch (new comparison, no prior E11x target)"
+
+[result_schema]
+strategy = "str"  # "jax_bucket_pad_tile" | "pytorch_pad_to_batch_max" | "pytorch_per_structure_loop"
+wall_clock_mean_ms = "float"
+wall_clock_std_ms = "float"
+padded_elements = "int"
+real_elements = "int"
+padding_overhead_ratio = "float"
+
+[result_schema.provenance]
+n_structures = { type = "int", doc = "Number of structures in the heterogeneous batch" }
+n_repeats = { type = "int", doc = "Timed repeats after one untimed warmup" }
+bucket_boundaries = { type = "str", doc = "E4.5-confirmed residue-axis bucket boundaries, (64,128,256,512)" }
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true }
+jax_version = { type = "string", required = true }
+torch_version = { type = "string", required = true }
+proteinebm_checkpoint = { type = "string", required = false, doc = "absent under --smoke" }
+
+[notes]
+finding = """
+Smoke-scale local CPU result (2026-07-16, n=6 structures, lengths [10,76,113,135,415,495], 2 repeats):
+jax_bucket_pad_tile 270ms (1.29x padding overhead) vs pytorch_pad_to_batch_max 1252ms (2.39x padding
+overhead) vs pytorch_per_structure_loop 314ms (1.0x padding overhead, zero batching benefit).
+jax_bucket_pad_tile beat the naive PyTorch dense-pad approach by ~4.6x while paying far less padding
+overhead -- a real, novel finding (no prior E11x benchmark tested mixed-length batches). Real GPU
+numbers at production scale (n_structures matching score_decoys.py's real bsize=256) not yet run --
+see the audit report for cluster-run status.
+"""

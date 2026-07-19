@@ -1,0 +1,45 @@
+[metadata]
+title = "ProteinEBM E3.5 checkpoint-parity evidence sweep (original PyTorch vs. ported JAX)"
+created = "260716"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = "The JAX-ported ProteinEBMModel reproduces the real PyTorch reference model's per-residue energy and conservative-score (-grad E) output, given the same checkpoint weights and the same synthetic input, across multiple structure sizes and seeds -- not just the single fixed-size case scripts/ebm/checkpoint_parity_check.py already gates on."
+stage_name = "confirmation"
+novel = false
+
+[outcomes.pass]
+condition = "cosine_similarity_min >= 0.999 AND mean_abs_error_energy_max <= 1e-2"
+decision = "E3.5 weight-port gate is independently re-confirmed at finer sample density; safe to cite in the parity report."
+reasoning = "Near-1.0 per-residue score-vector cosine similarity plus sub-1e-2 energy error across sizes/seeds means the port is not merely correct at one fixed size by coincidence."
+is_residual = false
+adversarial_check = "cosine_similarity_min < 0.999 OR mean_abs_error_energy_max > 1e-2"
+
+[outcomes.marginal]
+condition = "cosine_similarity_min >= 0.99 AND cosine_similarity_min < 0.999"
+decision = "Investigate which (size, seed) case degrades before citing this as a clean re-confirmation."
+reasoning = "Still directionally correct but drifting further from the reference than the single-case E3.5 gate showed."
+is_residual = false
+
+[outcomes.fail]
+condition = "cosine_similarity_min < 0.99"
+decision = "Do not cite as parity evidence; re-open the E3.5 gate for investigation."
+reasoning = "A real directional or magnitude mismatch between the reference and ported model at some size/seed would falsify the E3.5 gate's original single-case result."
+is_residual = true
+
+[result_schema]
+n_cases = "int"
+n_point_records = "int"
+n_metric_records = "int"
+cosine_similarity_min = "float"
+cosine_similarity_mean = "float"
+mean_abs_error_energy_max = "float"
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true, doc = "aminx commit SHA" }
+jax_version = { type = "string", required = true }
+torch_version = { type = "string", required = true, doc = "PyTorch reference baseline version" }
+proteinebm_checkpoint = { type = "string", required = true, doc = "Checkpoint filename ported for the PyTorch/JAX comparison, e.g. model_6_expert_frozen_1m_md.pt (ProteinEBM-x)" }
+
+[provenance]
+note = "All (coords, aatype, mask) inputs are SYNTHETIC (numpy Generator(seed), no real protein sequence/structure) -- see scripts/ebm/checkpoint_parity_check.py::_build_fixed_input. This validates numerical port fidelity, not biological realism. Real-sequence/real-structure evidence is scripts/ebm/lpla_biasing_check.py (E7), tracked separately."

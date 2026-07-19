@@ -61,8 +61,15 @@ full = "uv run python scripts/ebm/benchmarks/ddg_benchmark.py --lengths 64,128,2
 energy_evals_per_sec = "float"
 score_grad_ms = "float"
 protein_length = "int"
+batch_size = "int"
 device = "str"
 impl = "str"  # "jax" | "pytorch"
+pytorch_variant = "str"  # null (jax rows) | "eager" | "shipped" | "compiled"
+energy_wall_clock_mean_ms = "float"
+energy_wall_clock_std_ms = "float"
+score_wall_clock_mean_ms = "float"
+score_wall_clock_std_ms = "float"
+compile_error = "str"  # null unless pytorch_variant="compiled" and torch.compile itself raised
 
 [result_schema.provenance]
 script_commit = "git log --oneline -1"

@@ -1,0 +1,44 @@
+[metadata]
+title = "ProteinEBM E6 real ProteinGym/Tsuboyama ddG-stability accuracy check (paper target: Spearman 0.686)"
+created = "260716"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = "The JAX-ported ProteinEBM-x's ddG = E(mutant) - E(wildtype) - MC-unfolded-correction reproduces the paper's published stability Spearman correlation on the real Tsuboyama-2023 cDNA-display proteolysis assays (64 proteins), using the real (not synthetic-substitute) unfolded-ensemble generator."
+stage_name = "exploration"
+novel = true
+
+[outcomes.pass]
+condition = "n_assays_scored >= 3 AND mean_spearman_abs >= 0.4"
+decision = "Real accuracy signal present at meaningful strength; scale to all 64 assays' full mutant sets and register as a claim.bth.toml confirmatory campaign."
+reasoning = "A correlation this strong on a small subset (few mutants/protein) is unlikely to be pure sampling noise."
+is_residual = false
+
+[outcomes.marginal]
+condition = "n_assays_scored >= 3 AND mean_spearman_abs < 0.4"
+decision = "Inconclusive at this sample size -- scale to more assays/mutants before drawing any conclusion either way."
+reasoning = "A handful of mutants per protein has high sampling variance; a weak result here does not itself falsify the port or the real unfolded-ensemble port."
+is_residual = false
+
+[outcomes.fail]
+condition = "n_assays_scored < 3"
+decision = "Investigate the AF2-structure-to-assay matching / sequence-length-filter pipeline before trusting any correlation."
+reasoning = "Losing almost all assays to missing structures or length mismatches signals a real pipeline bug, not sampling noise."
+is_residual = true
+
+[result_schema]
+n_assays_scored = "int"
+n_assays_total = "int"
+pinned_t = "float"
+n_unfolded_ensemble = "int"
+paper_target = "float"
+mean_spearman_signed = "float"
+mean_spearman_abs = "float"
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true }
+jax_version = { type = "string", required = true }
+proteinebm_checkpoint = { type = "string", required = true, doc = "model_6_expert_frozen_1m_md.pt (ProteinEBM-x)" }
+
+[provenance]
+note = "Real data: ProteinGym v1.3 Tsuboyama-2023 stability subset (marks.hms.harvard.edu -- server has a broken TLS intermediate-chain, fetched with -k/--insecure; leaf cert is a legitimate *.hms.harvard.edu InCommon cert, not a suspicious substitution) + matched AF2 structures. Real unfolded ensemble via aminx.ebm.ddg_stability.generate_real_unfolded_ensemble (new NeRF port of the reference's generate_random_backbone_coords, not the synthetic random-walk substitute). Sign convention noted in the script's own output JSON -- compare abs value against paper_target."

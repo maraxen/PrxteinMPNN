@@ -1,0 +1,193 @@
+{
+  "meta": {
+    "smoke": false,
+    "batch_sizes": [
+      4,
+      16,
+      64,
+      400
+    ],
+    "n_steps": 20,
+    "n_repeats": 10,
+    "diffusion_time": 0.05,
+    "dt": 0.001,
+    "seed": 0,
+    "checkpoint": "/home/maarxaru/proteinebm_bench_assets/model_6_expert_frozen_1m_md.pt",
+    "reference_repo": "/home/maarxaru/proteinebm_bench_assets/ProteinEBM",
+    "coordinate_scaling": 0.1,
+    "effective_temp_scaling": 1.0,
+    "use_metropolis": false,
+    "wall_clock_seconds": 2846.368459417019,
+    "methodology_notes": [
+      "Fixed single noise level t, single model -- the outer noise-schedule loop and model-swap dispatcher (aminx.ebm.langevin_schedule) are out of scope for this script; see module docstring.",
+      "langevin_steps_per_sec batches n_trajectories independent chains via jax.vmap (JAX) / a plain batch dimension (PyTorch), each run for a fixed n_steps -- not a per-trajectory-varying trip count.",
+      "langevin_step_ms is a single-trajectory, single-step latency (one langevin_step call), not a batched-throughput number -- E11d's analog of E11a/E11b's score_grad_ms.",
+      "Both impls get one untimed warmup call per (length, metric) before timing (JAX: forces jit compilation; PyTorch: cache/allocator warm-up).",
+      "No SM120 XLA autotuning workaround applied here -- CPU-only local run. A cluster (GPU) run of this script MUST set XLA_FLAGS=--xla_gpu_shard_autotuning=false per ~/.claude/rules/CLUSTER.md or JAX throughput numbers will be wrong by orders of magnitude.",
+      "Only the plain Euler-Maruyama langevin_step path is benchmarked (use_metropolis=False) -- metropolis_hastings_step is not exercised here.",
+      "A row with impl='error' means that (protein_length, batch_size) cell raised during timing (see its 'error' field) -- all other cells in this file completed normally and are unaffected."
+    ]
+  },
+  "results": [
+    {
+      "protein_length": 64,
+      "batch_size": 4,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 2063.1724687006936,
+      "langevin_step_ms": 1.7756208311766386,
+      "langevin_step_ms_std": 0.15924814220959624,
+      "equilibration_wall_clock_mean_ms": 38.77523629926145,
+      "equilibration_wall_clock_std_ms": 0.37144078137163944
+    },
+    {
+      "protein_length": 64,
+      "batch_size": 4,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 40.46810353853314,
+      "langevin_step_ms": 37.76209242641926,
+      "langevin_step_ms_std": 1.5758316639706007,
+      "equilibration_wall_clock_mean_ms": 1976.8655559513718,
+      "equilibration_wall_clock_std_ms": 462.28376966091986
+    },
+    {
+      "protein_length": 64,
+      "batch_size": 16,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 3167.1569853225396,
+      "langevin_step_ms": 1.8198675941675901,
+      "langevin_step_ms_std": 0.12196845643901767,
+      "equilibration_wall_clock_mean_ms": 101.0369872674346,
+      "equilibration_wall_clock_std_ms": 0.9647456452203361
+    },
+    {
+      "protein_length": 64,
+      "batch_size": 16,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 56.60494058918199,
+      "langevin_step_ms": 38.18683521822095,
+      "langevin_step_ms_std": 0.16912509177799048,
+      "equilibration_wall_clock_mean_ms": 5653.216780535877,
+      "equilibration_wall_clock_std_ms": 459.5592845648741
+    },
+    {
+      "protein_length": 64,
+      "batch_size": 64,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 3460.3714543502306,
+      "langevin_step_ms": 1.740731205791235,
+      "langevin_step_ms_std": 0.07795786587611019,
+      "equilibration_wall_clock_mean_ms": 369.9024850036949,
+      "equilibration_wall_clock_std_ms": 0.34463255070865184
+    },
+    {
+      "protein_length": 64,
+      "batch_size": 64,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 64.7154180474621,
+      "langevin_step_ms": 36.51567343622446,
+      "langevin_step_ms_std": 0.28825373803522975,
+      "equilibration_wall_clock_mean_ms": 19778.90336830169,
+      "equilibration_wall_clock_std_ms": 1008.3493004370407
+    },
+    {
+      "protein_length": 64,
+      "batch_size": 400,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 3244.6769920162446,
+      "langevin_step_ms": 1.8145995680242777,
+      "langevin_step_ms_std": 0.13151904233373268,
+      "equilibration_wall_clock_mean_ms": 2465.576702915132,
+      "equilibration_wall_clock_std_ms": 0.26923293215966054
+    },
+    {
+      "protein_length": 64,
+      "batch_size": 400,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 58.00423931086615,
+      "langevin_step_ms": 38.104567816480994,
+      "langevin_step_ms_std": 0.7203718311109493,
+      "equilibration_wall_clock_mean_ms": 137920.9536241833,
+      "equilibration_wall_clock_std_ms": 1884.8109017036538
+    },
+    {
+      "protein_length": 128,
+      "batch_size": 4,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 943.5493999593599,
+      "langevin_step_ms": 2.085401862859726,
+      "langevin_step_ms_std": 0.17646868053171544,
+      "equilibration_wall_clock_mean_ms": 84.78623377159238,
+      "equilibration_wall_clock_std_ms": 0.6899146127980985
+    },
+    {
+      "protein_length": 128,
+      "batch_size": 4,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 18.349610644505407,
+      "langevin_step_ms": 71.1938631720841,
+      "langevin_step_ms_std": 5.974650154130833,
+      "equilibration_wall_clock_mean_ms": 4359.765531262383,
+      "equilibration_wall_clock_std_ms": 681.6817048691487
+    },
+    {
+      "protein_length": 128,
+      "batch_size": 16,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 1033.1551378575084,
+      "langevin_step_ms": 2.0735714118927717,
+      "langevin_step_ms_std": 0.12050363304673446,
+      "equilibration_wall_clock_mean_ms": 309.73083158023655,
+      "equilibration_wall_clock_std_ms": 1.5687023182972952
+    },
+    {
+      "protein_length": 128,
+      "batch_size": 16,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 23.914520558455912,
+      "langevin_step_ms": 78.9526600856334,
+      "langevin_step_ms_std": 32.782165843515365,
+      "equilibration_wall_clock_mean_ms": 13380.99165391177,
+      "equilibration_wall_clock_std_ms": 861.8431417179557
+    },
+    {
+      "protein_length": 128,
+      "batch_size": 64,
+      "impl": "jax",
+      "device": "gpu",
+      "langevin_steps_per_sec": 1088.2317890424174,
+      "langevin_step_ms": 2.0982754416763783,
+      "langevin_step_ms_std": 0.1362041653659735,
+      "equilibration_wall_clock_mean_ms": 1176.2200046796352,
+      "equilibration_wall_clock_std_ms": 0.22740184677890163
+    },
+    {
+      "protein_length": 128,
+      "batch_size": 64,
+      "impl": "pytorch",
+      "device": "cuda",
+      "langevin_steps_per_sec": 20.734608426240218,
+      "langevin_step_ms": 61.778700817376375,
+      "langevin_step_ms_std": 0.8117705265029977,
+      "equilibration_wall_clock_mean_ms": 61732.53787518479,
+      "equilibration_wall_clock_std_ms": 3488.7920700390678
+    },
+    {
+      "protein_length": 128,
+      "batch_size": 400,
+      "impl": "error",
+      "error": "JaxRuntimeError: INTERNAL: Failed to get configs for: 24 out of 58 instructions. See logs for all failures. Example failure: \nCUDA error: Failed to enqueue async memset operation: CUDA_ERROR_ILLEGAL_ADDRESS: an illegal memory access was encountered"
+    }
+  ]
+}

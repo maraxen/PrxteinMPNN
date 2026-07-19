@@ -8,7 +8,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 import equinox as eqx
 import jax
@@ -729,7 +729,58 @@ def _run_packer_vmap(packer_model, keys, packer_bundle, config_params):
   return jax.vmap(run_single, in_axes=(0, packer_in_axes))(keys, packer_bundle)
 
 
-def make_inference_plan(model: ModelProtocol, spec: Any, packer: Any = None) -> InferencePlan:
+def resolve_decode_mode(
+  run_spec: Any,
+  *,
+  purpose: Literal["sample", "score"],
+) -> Any:
+  """Resolve which DecodeMode to build from a RunSpec -- the ONE place this decision is made.
+
+  Both `host.plan.make_inference_plan` (the single-structure/scoring path) and
+  `sampling.multistate_poe.sample_multistate_poe_bead` (the genuine multi-state PoE path) call
+  this instead of each independently deciding, which is how aminx#110 happened: the two paths
+  disagreed about which decode class to build (and therefore which conditioning fields --
+  fixed_mask, temperature, num_samples -- had any effect at all) with nothing forcing agreement.
+
+  `purpose` distinguishes "produce new sequences" from "evaluate a given sequence" --
+  `run_spec.sampling.sampling_strategy` alone cannot do this: a sampling call at its default
+  "temperature" strategy and a scoring call share the identical (non-"straight_through") value,
+  and were structurally indistinguishable before this parameter existed. That indistinguishability
+  is the literal root cause of aminx#110 -- `make_inference_plan` always built `ConditionalDecode`
+  (a single teacher-forced pass, correct for scoring, silently wrong for sampling) because nothing
+  told it which of the two callers it was serving.
+
+  Parameters
+  ----------
+  run_spec : RunSpec
+      The resolved `spec.run_spec` (not the flat spec) -- `sampling_strategy` lives at
+      `run_spec.sampling.sampling_strategy` (added 260716, EPIC #1541 P4).
+  purpose : {"sample", "score"}
+      "sample" -- caller wants new sequences (host.runner.sample(), the PoE campaign path).
+      "score" -- caller wants to evaluate/inspect a given sequence (host.runner.score(),
+      inspect()); always resolves to ConditionalMode unless straight_through is requested.
+
+  Returns
+  -------
+  ConditionalMode | AutoregressiveMode | STEMode
+
+  """
+  from aminx.inference.decode.mode import AutoregressiveMode, ConditionalMode, STEMode
+
+  if run_spec.sampling.sampling_strategy == "straight_through":
+    return STEMode()
+  if purpose == "sample":
+    return AutoregressiveMode()
+  return ConditionalMode()
+
+
+def make_inference_plan(
+  model: ModelProtocol,
+  spec: Any,
+  packer: Any = None,
+  *,
+  purpose: Literal["sample", "score"] = "score",
+) -> InferencePlan:
   """Factory: resolve and create an InferencePlan from model and spec.
 
   Assembles the inference pipeline by resolving encode_fn (from use_rolling_state),
@@ -741,8 +792,13 @@ def make_inference_plan(model: ModelProtocol, spec: Any, packer: Any = None) -> 
   model : ModelProtocol
       Parameterized model with decoder, encoder, and embeddings.
   spec : Any
-      Specification with attributes: use_rolling_state, multi_state_strategy,
-      multi_state_temperature, state_weights.
+      Specification; decode-relevant fields are read from ``spec.run_spec.sampling``
+      (use_rolling_state, multi_state_strategy, multi_state_temperature, state_weights,
+      sampling_strategy, decoding_order_fn -- see ``run/spec.py::SamplingConfig``).
+  purpose : {"sample", "score"}, keyword-only, default "score"
+      Passed to :func:`resolve_decode_mode` -- disambiguates "produce new sequences"
+      (``host.runner.sample()``) from "evaluate a given sequence" (``score()``/``inspect()``),
+      since ``sampling_strategy`` alone cannot (see ``resolve_decode_mode``'s docstring).
 
   Returns
   -------
@@ -763,12 +819,20 @@ def make_inference_plan(model: ModelProtocol, spec: Any, packer: Any = None) -> 
      across tied positions).
   5. ``decode_step`` and ``sample_step`` — for ``sampling_strategy="straight_through"``,
      ``decode_step`` is wired to ``ConditionalDecodeStep`` and ``sample_step`` remains
-     ``None`` (teacher-forced path). All other strategies leave both slots as ``None``;
-     driver selects topology at call time based on stage_set slot occupancy.
+     ``None`` (teacher-forced path). All other strategies leave both slots as ``None``.
+     Note: the pre-260716 note here about "driver selects topology at call time based on
+     stage_set slot occupancy" described the now-deprecated ``inference/driver.py`` dispatch
+     mechanism (``driver.decode()`` raises ``NotImplementedError`` today) -- decode dispatch is
+     resolved once below, at plan-construction time, via ``resolve_decode_mode``, not at call
+     time from stage_set slot occupancy.
   6. ``encoding_fusion`` — wired as ``ArithmeticMeanEncodingFusion`` when
      ``spec.average_node_features=True``; otherwise left ``None``.
-  7. ``decode_fn`` — resolved via make_decode_fn(model, mode, strategy) and wired as
-     a top-level field on the plan.
+  7. ``decode_fn`` — resolved via ``resolve_decode_mode(spec.run_spec, purpose=purpose)`` (see
+     that function's docstring) then ``make_decode_fn(model, mode, strategy, decoding_order_fn)``,
+     and wired as a top-level field on the plan. ``purpose`` is what lets this same factory serve
+     both ``sample()`` (real autoregressive sampling) and ``score()``/``inspect()`` (teacher-forced
+     evaluation) correctly -- see ``resolve_decode_mode`` for why ``sampling_strategy`` alone
+     can't make that distinction (aminx#110).
 
   References
   ----------
@@ -782,17 +846,18 @@ def make_inference_plan(model: ModelProtocol, spec: Any, packer: Any = None) -> 
 
   """
   from aminx.inference.decode.factory import make_decode_fn
-  from aminx.inference.decode.mode import ConditionalMode, STEMode
   from aminx.inference.encode import make_encode_fn
   from aminx.inference.logits import make_stage_set
   from aminx.tiling.strategy import Vmap
 
-  use_rolling_state = getattr(spec, "use_rolling_state", False)
+  sampling_config = spec.run_spec.sampling
+
+  use_rolling_state = sampling_config.use_rolling_state
   encode_fn = make_encode_fn(model, use_rolling_state=use_rolling_state)
 
-  strategy_name = getattr(spec, "multi_state_strategy", None) or "arithmetic_mean"
-  strategy_temp = getattr(spec, "multi_state_temperature", 1.0) or 1.0
-  state_weights = getattr(spec, "state_weights", None)
+  strategy_name = sampling_config.multi_state_strategy or "arithmetic_mean"
+  strategy_temp = sampling_config.multi_state_temperature or 1.0
+  state_weights = sampling_config.state_weights
 
   stage_set = make_stage_set(strategy_name, strategy_temp, state_weights)
 
@@ -822,7 +887,7 @@ def make_inference_plan(model: ModelProtocol, spec: Any, packer: Any = None) -> 
     )
 
   # Wire STE (straight-through estimator) decode topology
-  if getattr(spec, "sampling_strategy", None) == "straight_through":
+  if sampling_config.sampling_strategy == "straight_through":
     import equinox as eqx
 
     from aminx.types.stages import ConditionalDecodeStep
@@ -839,15 +904,18 @@ def make_inference_plan(model: ModelProtocol, spec: Any, packer: Any = None) -> 
     )
     # sample_step stays None (already None from make_stage_set) — teacher-forced path
 
-  # Resolve decode_fn via make_decode_fn. Route mode from spec.sampling_strategy.
-  # - sampling_strategy="straight_through" → STEMode (STE refinement)
-  # - All other strategies (temperature, etc.) → ConditionalMode (default)
-  if getattr(spec, "sampling_strategy", None) == "straight_through":
-    decode_mode = STEMode()
-  else:
-    decode_mode = ConditionalMode()
+  # Resolve decode_fn via the shared resolver (aminx#110: this is the ONE place both this
+  # function and sample_multistate_poe_bead decide which DecodeMode to build -- see
+  # resolve_decode_mode's docstring for why sampling_strategy alone can't disambiguate
+  # "sample" from "score" callers).
+  decode_mode = resolve_decode_mode(spec.run_spec, purpose=purpose)
   decode_strategy = Vmap()
-  decode_fn = make_decode_fn(model, mode=decode_mode, strategy=decode_strategy)
+  decode_fn = make_decode_fn(
+    model,
+    mode=decode_mode,
+    strategy=decode_strategy,
+    decoding_order_fn=sampling_config.decoding_order_fn,
+  )
 
   components = InferenceComponents(
     encode_fn=encode_fn,

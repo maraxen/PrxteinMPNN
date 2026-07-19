@@ -427,6 +427,15 @@ class _MinimalScoringSpec:
         backbone_noise=(0.0,),
         random_seed=42,
         return_decoding_orders=False,
+        # Decode-relevant fields make_inference_plan reads via spec.run_spec.sampling.*
+        # (260716, EPIC #1541 P4) -- mirror the class attrs above rather than duplicating
+        # new values, so this fixture can't silently drift from its own declared intent.
+        use_rolling_state=self.use_rolling_state,
+        multi_state_strategy=self.multi_state_strategy,
+        multi_state_temperature=self.multi_state_temperature,
+        state_weights=self.state_weights,
+        sampling_strategy=self.sampling_strategy,
+        decoding_order_fn=None,
       ),
     )
 

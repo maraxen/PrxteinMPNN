@@ -13,6 +13,7 @@ import pytest
 
 from aminx.host.plan import InferencePlan, make_inference_plan
 from aminx.inference.logits import make_stage_set
+from aminx.run.spec import build_run_spec
 
 
 class DummyModel(eqx.Module):
@@ -27,6 +28,13 @@ class DummySpec:
     state_weights = None
     sampling_strategy = "temperature"
     temperature = [1.0]
+
+
+# make_inference_plan reads decode-relevant fields from spec.run_spec.sampling (260716, EPIC
+# #1541 P4) -- build_run_spec() already does getattr(spec, "field", default) for every field,
+# so it produces a correctly-shaped RunSpec from this minimal duck spec with no changes needed
+# to the attribute set above.
+DummySpec.run_spec = build_run_spec(DummySpec)
 
 
 def test_runner_imports_make_inference_plan():

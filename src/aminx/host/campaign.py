@@ -7,18 +7,20 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 import threading
 import time
 import uuid
-from collections.abc import Generator, Sequence
+from collections.abc import Generator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from itertools import pairwise
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 from xtrax.run import (
   canonical_json_bytes,
   fsync_directory,
@@ -29,6 +31,8 @@ from xtrax.run import (
 
 # campaign manifest functions are implemented in this module (see build_manifest_row et al.)
 from aminx.host.runner import sample
+from aminx.host.spec_partition import CAMPAIGN_OWNED_KEYS, campaign_sampling_spec_payload
+from aminx.run.spec_json import _coerce_field_value
 from aminx.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
 from aminx.sampling.multistate_poe import sample_multistate_poe_campaign_row
 from aminx.runtime import configure_multiprocessing
@@ -155,18 +159,35 @@ def load_manifest(manifest_path: str | Path) -> dict[str, Any]:
   return payload
 
 
-def validate_manifest_rows(
-  rows: list[dict[str, Any]],
-  *,
-  required_fixed_policies: tuple[str, ...] | None = None,
-) -> None:
+def validate_manifest_rows(rows: list[dict[str, Any]]) -> None:
   """Validate manifest rows for uniqueness and required fields.
 
   Enforces:
   - All rows have a non-empty manifest_row_hash
   - No duplicate manifest_row_hash (zero_lineage_collisions gate invariant)
   - All rows have non-empty checkpoint_id, fixed_policy, state_weight_profile
-  - All required_fixed_policies are represented in at least one row
+  - A row naming a real arm (fixed_policy != "none") actually CARRIES a mask in its
+    sampling_spec -- see below
+
+  **`required_fixed_policies` is GONE, deliberately.** It did this::
+
+      policies_seen = {row["fixed_policy"] for row in rows}
+      missing = set(required_fixed_policies) - policies_seen
+
+  and `plan_campaign_manifest` called it with the very tuple its own row loop had just
+  consumed. It compared the planner's output against the planner's input: it could not fail.
+  It "validated" that a string label was present -- nothing about whether a residue was
+  fixed. It was green for the entire life of the decorative-policy bug, across 882/882 beads
+  that held nothing fixed. Fixing the comparison would not help; a gate whose two sides come
+  from the same source is theatre wherever you point it.
+
+  What replaces it checks a row against ITSELF: if you say you have an arm, the mask must be
+  in your own sampling_spec. That is a claim the planner can actually get wrong.
+
+  **This is not the real gate.** The final artifact is not this one: consumers patch the
+  planned manifest afterwards and write it with a raw `json.dumps`, so nothing here survives
+  to the worker as a guarantee. The binding check is the two-armed differential at sampling
+  time (masked vs unmasked must DIFFER). Do not mistake this for proof.
 
   Raises ValueError on any violation.
   """
@@ -204,12 +225,21 @@ def validate_manifest_rows(
     if state_weight_profile is None or not str(state_weight_profile).strip():
       msg = f"Row {row_hash} has empty or missing state_weight_profile"
       raise ValueError(msg)
-  if required_fixed_policies:
-    policies_seen = {str(row.get("fixed_policy", "")).strip() for row in rows}
-    missing = set(required_fixed_policies) - policies_seen
-    if missing:
-      msg = f"Required fixed policies not found in rows: {sorted(missing)}"
-      raise ValueError(msg)
+    # A row that names an arm must CARRY that arm's mask. Checks the row against itself --
+    # unlike the deleted `required_fixed_policies` arm, which checked the planner's output
+    # against the planner's own input and therefore could never fail.
+    if str(fixed_policy).strip() != _NO_ARM:
+      spec_payload = row.get("sampling_spec") or {}
+      arm_mask = spec_payload.get("fixed_mask")
+      if arm_mask is None or not np.any(np.asarray(arm_mask)):
+        msg = (
+          f"Row {row_hash} declares fixed_policy={fixed_policy!r} but its sampling_spec "
+          f"carries no fixed_mask with any set position. The worker reconstructs its spec "
+          f"from sampling_spec alone, so this row would design every residue while claiming "
+          f"otherwise -- the exact failure that voided an 882-bead library. Use "
+          f"fixed_policy={_NO_ARM!r} if nothing should be fixed."
+        )
+        raise ValueError(msg)
 
 
 def write_manifest(
@@ -580,6 +610,125 @@ def _write_done_marker(
   fsync_directory(marker_path.parent)
 
 
+# The label for "nothing is fixed". A first-class arm, not an absence -- so the row's
+# fixed_policy field stays non-empty and "design everything" is something you can name, grid
+# on, and see in a manifest diff.
+_NO_ARM = "none"
+
+
+# `H38|D73|C143` -- an IDENTITY letter and a canonical (0-based) index, per position.
+_ARM_RESIDUE_RE = re.compile(r"^([A-Z])(\d+)$")
+
+
+def _parse_arm_declaration(label: str, text: str, *, length: int) -> tuple[np.ndarray, np.ndarray]:
+  """Parse ``H38|D73|C143`` into a (mask, tokens) pair.
+
+  **The letter is the point.** A bare position list would say *where* to freeze but not *what*
+  to, and the two are one decision -- freezing without stating the identity locks every frozen
+  position to token 0 (Alanine), which is why `_prepare_fixed_controls` refuses the pair. The
+  letters supply `fixed_tokens` directly, so nothing has to infer them: no structure parsing
+  at plan time, and no alphabet to get wrong.
+
+  It also makes the deliberate overrides *visible*. TEV's 1LVB is a C151A mutant -- the
+  crystal carries Ala where the catalysis needs Cys -- and `C143` says "hold Cys here" in the
+  declaration itself, where a reader sees it, rather than in a comment somewhere else.
+
+  And it is self-checking in a way a position list can never be. `CATALYTIC_PDB_IDS =
+  [135,181,183]` shipped in a consumer for weeks as "the catalytic triad"; those indices hold
+  **Ser/Ser/Pro**. Nothing about a bare `[127,173,175]` could have flagged that. `S127|S173|P175`
+  would have looked wrong to anyone who knows what a catalytic triad is -- and a worker holding
+  the structure can check the claim outright.
+
+  Pipe-separated, never comma: `_parse_csv` splits on comma and would shatter this into
+  separate bogus arms.
+
+  Args:
+    label: The arm's label, for error messages.
+    text: The declaration, e.g. ``"H38|D73|C143"``.
+    length: Mask length -- ``base_spec.max_length``, since the dataset op pads to it.
+
+  Returns:
+    ``(mask, tokens)``: a 1-D ``float32`` mask and a 1-D ``int32`` MPNN token array.
+
+  Raises:
+    ValueError: malformed entry, unknown residue letter, or an out-of-range index.
+
+  """
+  from aminx.utils.aa_convert import MPNN_ALPHABET  # noqa: PLC0415
+
+  mask = np.zeros(length, dtype=np.float32)
+  tokens = np.zeros(length, dtype=np.int32)
+  for entry in (e.strip() for e in text.split("|") if e.strip()):
+    match = _ARM_RESIDUE_RE.match(entry)
+    if match is None:
+      msg = (
+        f"fixed_arms[{label!r}]: {entry!r} is not a RESIDUE+POSITION like 'H38'. Declare the "
+        f"identity, not just the position -- freezing a position without saying what to hold "
+        f"it at locks it to Alanine. Example: catalytic_triad=H38|D73|C143"
+      )
+      raise ValueError(msg)
+    letter, index = match.group(1), int(match.group(2))
+    if letter not in MPNN_ALPHABET:
+      msg = f"fixed_arms[{label!r}]: {letter!r} in {entry!r} is not an amino acid letter."
+      raise ValueError(msg)
+    if not 0 <= index < length:
+      msg = (
+        f"fixed_arms[{label!r}]: position {index} in {entry!r} is outside [0, {length}). "
+        f"Positions are 0-based CANONICAL indices (the reference state's own numbering), not "
+        f"author/PDB numbering -- for TEV the catalytic triad His46/Asp81/Cys151 is "
+        f"[38, 73, 143], i.e. author number minus 8."
+      )
+      raise ValueError(msg)
+    mask[index] = 1.0
+    tokens[index] = MPNN_ALPHABET.index(letter)
+  if not np.any(mask):
+    msg = f"fixed_arms[{label!r}]: {text!r} declares no positions."
+    raise ValueError(msg)
+  return mask, tokens
+
+
+def _resolve_arm(
+  label: str,
+  source: Any,  # noqa: ANN401 -- str declaration | ArrayLike | PathLike | None
+  *,
+  length: int,
+) -> tuple[Any, Any]:
+  """Resolve an arm SOURCE into ``(mask, tokens)``. Tokens are None unless declared.
+
+  Three shapes, in the order a caller is likely to reach for them:
+    - ``"H38|D73|C143"`` -- the inline declaration. No file needed for the common case, which
+      is the whole point: materialising a `.npy` to say "hold three residues" is friction.
+    - a path to a ``.npy`` -- the escape hatch for large sets (an 84-residue active-site shell
+      is not worth typing). Carries a mask only, so `fixed_tokens` must come from elsewhere.
+    - an array -- library callers who already have one.
+
+  Raises:
+    ValueError: the mask is not 1-D. Per-state `(S, L)` masks are refused HERE, at the
+      declaration, rather than at `multistate_poe.py`'s much later guard -- same verdict, but
+      the error arrives while the caller still has the context to fix it.
+
+  """
+  if source is None:
+    return None, None
+
+  if isinstance(source, str) and not source.endswith(".npy"):
+    return _parse_arm_declaration(label, source, length=length)
+
+  mask = np.load(Path(source)) if isinstance(source, (str, Path)) else source
+  mask = np.asarray(mask)
+  if mask.ndim != 1:
+    msg = (
+      f"fixed_arms[{label!r}] has shape {mask.shape}; a fixed_mask must be 1-D (L,) in the "
+      f"canonical reference frame. Per-state (S, L) masks are not supported: one sequence is "
+      f"sampled, so a position is either designed or it is not (decode broadcasts the mask "
+      f"over the group axis, and sampling/multistate_poe.py refuses a per-state mask "
+      f"outright). Cross-state index shifts are what state_position_map resolves -- set that "
+      f"instead."
+    )
+    raise ValueError(msg)
+  return mask, None
+
+
 def plan_campaign_manifest(
   *,
   base_spec: SamplingSpecification,
@@ -587,7 +736,7 @@ def plan_campaign_manifest(
   designs_per_library_type: int,
   samples_chunk_size: int,
   output_root: str | Path,
-  fixed_policies: tuple[str, ...] = ("catalytic_triad", "active_site"),
+  fixed_arms: Mapping[str, Any] | None = None,
   state_weight_profiles: tuple[str, ...] = ("equal",),
   planner_version: str = "planner_v1",
   dataset_fingerprint: str = "unknown",
@@ -595,7 +744,37 @@ def plan_campaign_manifest(
   git_sha: str = "unknown",
   config_hash: str = "unknown",
 ) -> list[dict[str, Any]]:
-  """Plan campaign rows for all library/fixed-policy/profile combinations."""
+  """Plan campaign rows for all library/fixed-arm/profile combinations.
+
+  Args:
+    fixed_arms: Maps an arm LABEL to the **1-D canonical fixed_mask** it means, or to a path
+      to a ``.npy`` holding one. ``None`` (the default) means fix nothing -- every residue
+      designable -- which is the only default aminx can honestly ship, since it cannot know
+      any particular protein's catalytic triad. Each arm becomes its own row-set.
+
+      **The arm carries its own referent, and that is the whole point.** This replaces
+      ``fixed_policies: tuple[str, ...]``, which took bare NAMES like ``"catalytic_triad"``
+      that aminx had no way to resolve -- positions are protein-specific and live in the
+      caller's own bundle. So the name was written into the manifest row as a label and
+      never into the spec, the worker (which reads only ``row["sampling_spec"]``) never saw
+      it, and **no residue was ever held fixed in any produced design**: 882/882 beads of a
+      real library, silently violating a locked preregistration. A resolver callback is not
+      an alternative -- callables cannot cross the manifest's JSON boundary, and
+      ``spec_partition._assert_no_callable_knobs`` refuses them.
+
+      **Masks are 1-D `(L,)` in the canonical reference frame, never per-state `(S, L)`.**
+      ``types/bundles.py`` types ``fixed_mask`` as ``Float[Array, L]`` while
+      ``state_position_map`` beside it is ``"S L"``; ``sampling/multistate_poe.py`` RAISES on
+      a genuinely per-state mask; decode broadcasts the mask over the *group* axis because
+      one sequence is sampled and a position is either designed or it is not. Cross-state
+      index shifts are exactly what ``state_position_map`` exists to resolve.
+
+  Raises:
+    ValueError: ``fixed_arms`` is an empty mapping (states "here are my arms", then supplies
+      none -- a contradiction, and silently reading it as "design everything" is how the old
+      zero-rows bug read), or a mask is not 1-D.
+
+  """
   if designs_per_library_type <= 0:
     msg = "designs_per_library_type must be positive."
     raise ValueError(msg)
@@ -603,11 +782,37 @@ def plan_campaign_manifest(
     msg = "samples_chunk_size must be positive."
     raise ValueError(msg)
 
+  # `{}` is a contradiction, not a default. Distinct from `None` ("I did not ask for fixing"),
+  # which yields the no-arm row-set below. The predecessor silently returned ZERO rows for an
+  # empty policy set: the policy loop was outermost, so the body never ran, and
+  # validate_manifest_rows then skipped every check because its own guard is
+  # `if required_fixed_policies:`. An empty manifest is not a plan.
+  if fixed_arms is not None and not fixed_arms:
+    msg = (
+      "fixed_arms is an empty mapping, which asks for arms and then supplies none. Pass "
+      "fixed_arms=None to design every residue (the default), or supply at least one "
+      "label -> 1-D canonical fixed_mask."
+    )
+    raise ValueError(msg)
+
+  # The no-arm sentinel. `_NO_ARM` keeps the row's fixed_policy field non-empty so
+  # validate_manifest_rows' existing emptiness check still means something, and keeps
+  # "nothing fixed" a first-class, nameable arm rather than an absence.
+  arms: Mapping[str, Any] = fixed_arms if fixed_arms is not None else {_NO_ARM: None}
+  # Length comes from base_spec.max_length: the dataset op pads to it (prep.py:117), and
+  # _prepare_fixed_controls sizes the mask against the PARSED structure. The planner parses
+  # nothing, so this is the only length it can honestly use -- and the campaign CLIs expose
+  # no --max-length, so it is the one every campaign actually runs.
+  arm_length = base_spec.max_length or 512
+  resolved_arms = {
+    label: _resolve_arm(label, src, length=arm_length) for label, src in arms.items()
+  }
+
   output_root_path = Path(output_root)
   rows: list[dict[str, Any]] = []
   job_index = 0
 
-  for fixed_policy in fixed_policies:
+  for fixed_policy, (arm_mask, arm_tokens) in resolved_arms.items():
     for state_weight_profile in state_weight_profiles:
       for ligand_on in (False, True):
         for sidechain_on in (False, True):
@@ -618,6 +823,24 @@ def plan_campaign_manifest(
             return_logits=False,
             ligand_conditioning=ligand_on,
             sidechain_conditioning=sidechain_on,
+            # THE LINE WHOSE ABSENCE WAS THE ENTIRE BUG.
+            #
+            # The arm's mask has to land on the SPEC, because `sampling_spec` is the only
+            # thing the worker reconstructs from (run_manifest_row). Previously the loop
+            # variable reached `build_manifest_row(..., fixed_policy=...)` -- the row's
+            # LABEL -- and stopped there, so `campaign_sampling_spec_payload(spec_variant)`
+            # below could not see it, and the model was never told to hold anything. Every
+            # downstream check then inspected the label and was satisfied.
+            #
+            # `base_spec.fixed_mask` wins when no arm supplies one, so a caller who sets the
+            # mask directly (the pre-existing route, and the one tev_design uses today via
+            # its manifest patch) keeps working untouched.
+            fixed_mask=arm_mask if arm_mask is not None else base_spec.fixed_mask,
+            # The declaration's letters ARE the tokens -- H38 says "hold His here". Nothing
+            # has to infer them, so there is no alphabet to get wrong and no structure to
+            # parse at plan time. Falls back to the caller's own tokens for the .npy/array
+            # shapes, which carry a mask only.
+            fixed_tokens=arm_tokens if arm_tokens is not None else base_spec.fixed_tokens,
           )
           for chunk_index, sample_start in enumerate(
             range(0, designs_per_library_type, samples_chunk_size),
@@ -644,45 +867,29 @@ def plan_campaign_manifest(
               campaign_id=campaign_id,
               row_hash=row["manifest_row_hash"],
             )
-            row["sampling_spec"] = {
-              "inputs": _normalize_inputs(base_spec.inputs),
-              "model_family": spec_variant.model_family,
-              "model_weights": spec_variant.model_weights,
-              "model_version": spec_variant.model_version,
-              "checkpoint_id": spec_variant.checkpoint_id,
-              "model_local_path": (
-                str(spec_variant.model_local_path) if spec_variant.model_local_path else None
-              ),
-              "checkpoint_registry_path": (
-                str(spec_variant.checkpoint_registry_path)
-                if spec_variant.checkpoint_registry_path
-                else None
-              ),
-              "ligand_conditioning": ligand_on,
-              "sidechain_conditioning": sidechain_on,
-              "chain_id": spec_variant.chain_id,
-              "ligand_context_path": (
-                str(spec_variant.ligand_context_path)
-                if spec_variant.ligand_context_path
-                else None
-              ),
-              "temperature": list(spec_variant.temperature),
-              "backbone_noise": list(spec_variant.backbone_noise),
-              "batch_size": spec_variant.batch_size,
-              "samples_chunk_size": sample_count,
-              "campaign_mode": True,
-              "return_logits": False,
-              "grid_mode": True,
-              "job_id": row["job_id"],
-              "chunk_id": row["chunk_id"],
-              "sample_start": row["sample_start"],
-              "sample_count": row["sample_count"],
-              "output_h5_path": row["output_h5_path"],
-            }
+            # Built from dataclasses.fields(), NOT hand-listed. The hand-written 23-key literal
+            # this replaces drifted from an 88-field dataclass with nothing enforcing the sync,
+            # which is the single root cause of all twelve silently-dropped knobs -- including
+            # fixed_mask, i.e. no residue was ever actually held fixed in any produced design.
+            # spec_partition raises at import if any field is classified nowhere.
+            row["sampling_spec"] = campaign_sampling_spec_payload(
+              spec_variant,
+              campaign_owned={
+                "grid_mode": True,
+                # The planner owns chunking; the caller's samples_chunk_size is replaced, not
+                # dropped -- this row covers exactly sample_count designs.
+                "samples_chunk_size": sample_count,
+                "job_id": row["job_id"],
+                "chunk_id": row["chunk_id"],
+                "sample_start": row["sample_start"],
+                "sample_count": row["sample_count"],
+                "output_h5_path": row["output_h5_path"],
+              },
+            )
             rows.append(row)
           job_index += 1
 
-  validate_manifest_rows(rows, required_fixed_policies=fixed_policies)
+  validate_manifest_rows(rows)
   return rows
 
 
@@ -694,7 +901,7 @@ def write_campaign_manifest(
   designs_per_library_type: int,
   samples_chunk_size: int,
   output_root: str | Path,
-  fixed_policies: tuple[str, ...] = ("catalytic_triad", "active_site"),
+  fixed_arms: Mapping[str, Any] | None = None,
   state_weight_profiles: tuple[str, ...] = ("equal",),
   planner_version: str = "planner_v1",
   dataset_fingerprint: str = "unknown",
@@ -702,14 +909,14 @@ def write_campaign_manifest(
   git_sha: str = "unknown",
   config_hash: str = "unknown",
 ) -> Path:
-  """Plan rows and write campaign manifest JSON."""
+  """Plan rows and write campaign manifest JSON. See `plan_campaign_manifest` for fixed_arms."""
   rows = plan_campaign_manifest(
     base_spec=base_spec,
     campaign_id=campaign_id,
     designs_per_library_type=designs_per_library_type,
     samples_chunk_size=samples_chunk_size,
     output_root=output_root,
-    fixed_policies=fixed_policies,
+    fixed_arms=fixed_arms,
     state_weight_profiles=state_weight_profiles,
     planner_version=planner_version,
     dataset_fingerprint=dataset_fingerprint,
@@ -853,6 +1060,22 @@ def run_manifest_row(  # noqa: PLR0915
     worker_payload = dict(sampling_spec_payload)
     worker_payload["output_h5_path"] = str(partial_path)
     pop_deprecated_spec_kwargs(worker_payload)
+    # Coerce JSON scalars back to their spec types (lists -> ndarray for the array knobs,
+    # list -> tuple for temperature) using spec_json's whitelist, which names exactly these
+    # fields and exists for exactly this. Before the field-driven manifest write, array knobs
+    # were dropped entirely and no worker ever saw them; now they arrive, and they arrive as
+    # plain lists. Most consumers wrap defensively (_sample_batch does
+    # jnp.asarray(spec...bias)), but relying on EVERY consumer to be careful is the posture
+    # this audit exists to end -- restore the type at the boundary instead.
+    #
+    # Coercion is a VALUE transform, so strict unknown-key rejection is unaffected: an unknown
+    # key still reaches the constructor and raises TypeError. That strictness is why this path
+    # uses the plain constructor rather than run_specification_from_json_dict, which would
+    # silently ignore unknown keys.
+    worker_payload = {
+      key: _coerce_field_value(SamplingSpecification, key, value)
+      for key, value in worker_payload.items()
+    }
     sampling_spec = SamplingSpecification(**worker_payload)
     # Genuine multi-state PoE rows (len(inputs) > 1) route to
     # sample_multistate_poe_campaign_row instead of sample() -- sample()'s real dispatcher
@@ -1010,7 +1233,7 @@ def plan_scale_ramp(
   output_root: str | Path,
   stage_designs_per_library_type: Sequence[int],
   samples_chunk_size: int,
-  fixed_policies: tuple[str, ...] = ("catalytic_triad", "active_site"),
+  fixed_arms: Mapping[str, Any] | None = None,
   state_weight_profiles: tuple[str, ...] = ("equal",),
   planner_version: str = "planner_v1",
   dataset_fingerprint: str = "unknown",
@@ -1047,7 +1270,7 @@ def plan_scale_ramp(
       designs_per_library_type=designs_per_library_type,
       samples_chunk_size=samples_chunk_size,
       output_root=stage_output_root,
-      fixed_policies=fixed_policies,
+      fixed_arms=fixed_arms,
       state_weight_profiles=state_weight_profiles,
       planner_version=planner_version,
       dataset_fingerprint=dataset_fingerprint,
@@ -1335,6 +1558,50 @@ def _parse_csv(value: str) -> tuple[str, ...]:
   return tuple(item.strip() for item in value.split(",") if item.strip())
 
 
+def parse_fixed_arms(values: Sequence[str] | None) -> dict[str, str] | None:
+  """Parse repeated ``label=declaration`` into a ``fixed_arms`` mapping.
+
+  The value is passed through untouched -- ``_resolve_arm`` decides whether it is an inline
+  declaration (``H38|D73|C143``) or a ``.npy`` path. This function only splits label from
+  value, so there is exactly one place that knows the arm grammar.
+
+  A REPEATED flag, deliberately not CSV. ``_parse_csv`` splits on comma, so any comma-bearing
+  grammar (``triad=H38,D73,C143``) would be shattered into bogus separate cells -- and
+  ``validate_manifest_rows`` would then compare the wreckage against itself and pass. Same
+  idiom as ``cli._parse_tied_positions``: repeat the flag, split once on a non-comma
+  separator.
+
+  Inline is the common case and needs no file: requiring a caller to materialise a ``.npy``
+  to say "hold three residues" is friction with nothing to show for it. A path stays supported
+  for large sets (an 84-residue active-site shell is not worth typing).
+
+  Returns None for no flags, so the caller gets the honest "fix nothing" default rather than
+  an empty mapping (which `plan_campaign_manifest` rejects as a contradiction).
+
+  Raises:
+    ValueError: an entry has no ``=``, an empty label, or an empty path.
+
+  """
+  if not values:
+    return None
+  arms: dict[str, str] = {}
+  for raw in values:
+    label, sep, path = raw.partition("=")
+    label, path = label.strip(), path.strip()
+    if not sep or not label or not path:
+      msg = (
+        f"--fixed-arm expects LABEL=DECLARATION (e.g. --fixed-arm "
+        f"catalytic_triad=H38|D73|C143), got {raw!r}. Repeat the flag for additional arms; "
+        f"each becomes its own row-set. A .npy mask path also works for large sets."
+      )
+      raise ValueError(msg)
+    if label in arms:
+      msg = f"--fixed-arm {label!r} given twice; arm labels must be unique."
+      raise ValueError(msg)
+    arms[label] = path
+  return arms
+
+
 def _parse_int_csv(value: str) -> tuple[int, ...]:
   parsed: list[int] = []
   for item in value.split(","):
@@ -1362,7 +1629,16 @@ def _add_plan_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentPar
   parser.add_argument("--output-root", required=True)
   parser.add_argument("--designs-per-library-type", type=int, required=True)
   parser.add_argument("--samples-chunk-size", type=int, required=True)
-  parser.add_argument("--fixed-policies", default="catalytic_triad,active_site")
+  # Repeatable LABEL=PATH, not a CSV of bare names. A bare name was unresolvable --
+  # aminx cannot know any protein's catalytic triad -- so it was written to the row as a
+  # label and never reached the model. Absent => fix nothing.
+  parser.add_argument(
+    "--fixed-arm", action="append", default=None, metavar="LABEL=PATH",
+    help=(
+      "Arm LABEL=DECLARATION, e.g. catalytic_triad=H38|D73|C143 (residue letter + 0-based "
+      "canonical index). A .npy mask path also works. Repeatable."
+    ),
+  )
   parser.add_argument("--state-weight-profiles", default="equal")
 
 
@@ -1425,7 +1701,16 @@ def _add_ramp_plan_parser(subparsers: argparse._SubParsersAction[argparse.Argume
   parser.add_argument("--output-root", required=True)
   parser.add_argument("--stage-designs-per-library-type", required=True)
   parser.add_argument("--samples-chunk-size", type=int, required=True)
-  parser.add_argument("--fixed-policies", default="catalytic_triad,active_site")
+  # Repeatable LABEL=PATH, not a CSV of bare names. A bare name was unresolvable --
+  # aminx cannot know any protein's catalytic triad -- so it was written to the row as a
+  # label and never reached the model. Absent => fix nothing.
+  parser.add_argument(
+    "--fixed-arm", action="append", default=None, metavar="LABEL=PATH",
+    help=(
+      "Arm LABEL=DECLARATION, e.g. catalytic_triad=H38|D73|C143 (residue letter + 0-based "
+      "canonical index). A .npy mask path also works. Repeatable."
+    ),
+  )
   parser.add_argument("--state-weight-profiles", default="equal")
   parser.add_argument("--plan-path", default=None)
 
@@ -1453,7 +1738,7 @@ def _handle_plan_command(args: argparse.Namespace) -> int:
     designs_per_library_type=args.designs_per_library_type,
     samples_chunk_size=args.samples_chunk_size,
     output_root=args.output_root,
-    fixed_policies=_parse_csv(args.fixed_policies),
+    fixed_arms=parse_fixed_arms(args.fixed_arm),
     state_weight_profiles=_parse_csv(args.state_weight_profiles),
   )
   return 0
@@ -1506,7 +1791,7 @@ def _handle_ramp_plan_command(args: argparse.Namespace) -> int:
     output_root=args.output_root,
     stage_designs_per_library_type=_parse_int_csv(args.stage_designs_per_library_type),
     samples_chunk_size=args.samples_chunk_size,
-    fixed_policies=_parse_csv(args.fixed_policies),
+    fixed_arms=parse_fixed_arms(args.fixed_arm),
     state_weight_profiles=_parse_csv(args.state_weight_profiles),
   )
   _emit_json(plan_payload, args.plan_path)

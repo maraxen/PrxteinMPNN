@@ -85,6 +85,17 @@ class _BenchmarkSpec:
     average_node_features = False
 
 
+# make_inference_plan reads decode-relevant fields from spec.run_spec.sampling (260716, EPIC
+# #1541 P4); build_run_spec() handles any duck spec via getattr(spec, "field", default).
+def _attach_run_spec() -> None:
+    from aminx.run.spec import build_run_spec
+
+    _BenchmarkSpec.run_spec = build_run_spec(_BenchmarkSpec)
+
+
+_attach_run_spec()
+
+
 def _make_benchmark_spec_with_temperatures(temperature_list: list[float] | None = None) -> _BenchmarkSpec:
     """Create a benchmark spec with custom temperature list."""
     spec = _BenchmarkSpec()

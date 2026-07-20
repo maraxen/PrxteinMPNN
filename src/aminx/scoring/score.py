@@ -93,6 +93,7 @@ def make_score_fn(
     ar_mask: jax.Array | None = None,
     structure_mapping: jax.Array | None = None,
     tie_group_map: jax.Array | None = None,
+    state_position_map: jax.Array | None = None,
     multi_state_strategy: Literal[
       "arithmetic_mean",
       "geometric_mean",
@@ -127,6 +128,7 @@ def make_score_fn(
       ar_mask=ar_mask_single,
       structure_mapping=structure_mapping,
       tie_group_map=tie_group_map,
+      state_position_map=state_position_map,
       state_weights=state_weights,
       bias=bias,
       ligand_coords=ligand_coords,
@@ -166,6 +168,7 @@ def score(
   ar_mask: jax.Array | None = None,
   structure_mapping: jax.Array | None = None,
   tie_group_map: jax.Array | None = None,
+  state_position_map: jax.Array | None = None,
   multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
   multi_state_temperature: float = 1.0,
   state_weights: jax.Array | None = None,
@@ -191,6 +194,9 @@ def score(
       ar_mask: Autoregressive mask for scoring.
       structure_mapping: Mapping between structures.
       tie_group_map: Groups of tied positions.
+      state_position_map: Cross-state residue alignment for multi-state PoE fusion,
+          shape (S, L); -1 marks an indel. Only meaningful when structure_coordinates
+          carries a genuine leading S axis (ndim == 4).
       multi_state_strategy: How to combine multi-state logits.
       multi_state_temperature: Temperature for multi-state combination.
       state_weights: Weights for each state.
@@ -218,6 +224,7 @@ def score(
       ar_mask=ar_mask,
       structure_mapping=structure_mapping,
       tie_group_map=tie_group_map,
+      state_position_map=state_position_map,
       multi_state_strategy=multi_state_strategy,
       multi_state_temperature=multi_state_temperature,
       state_weights=state_weights,

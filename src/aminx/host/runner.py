@@ -511,6 +511,25 @@ def score(  # noqa: PLR0915
     seq_idx = string_to_protein_sequence(seq_str)
     sequence_indices_list.append(seq_idx)
 
+  # spec.state_position_map's ONLY sensible purpose is cross-state residue alignment
+  # for genuine multi-state PoE fusion -- its presence is an unambiguous signal the
+  # caller wants ONE fused score across every spec.inputs structure, not N independent
+  # per-structure scores (the loop below, unchanged, for the state_position_map=None
+  # default -- preserves exact prior behavior for every existing caller that scores a
+  # sequence against several unrelated candidate structures). Previously
+  # state_position_map (and multi_state_strategy, forwarded per-structure into a
+  # call site where S was always 1) were silently inert here -- confirmed via a live
+  # differential (arithmetic_mean vs product produced byte-identical logits) before
+  # this fix, not assumed from a source read alone.
+  if spec.state_position_map is not None:
+    return _score_fused_multistate(
+      spec, protein_iterator, score_fn, sequence_indices_list,
+    )
+
+  from aminx.sampling.conditional_logits import _plan_axis_strategy  # noqa: PLC0415
+  from aminx.tiling.axes import N_CANDIDATES  # noqa: PLC0415
+  from aminx.tiling.dispatch import make_axis_dispatch_via_xtrax  # noqa: PLC0415
+
   all_scores, all_logits, all_decoding_orders = [], None, None
   if spec.return_logits:
     all_logits = []
@@ -524,6 +543,15 @@ def score(  # noqa: PLR0915
   # Prepare random key
   prng_key = jax.random.PRNGKey(spec.run_spec.sampling.random_seed or 42)
 
+  # Structures within one Grain batch are already stacked to a common length by the
+  # loader (batched_ensemble.coordinates is a genuine (batch_size, L, 4, 3) array) --
+  # both the structure axis and the candidate (sequences-to-score) axis are therefore
+  # homogeneous per batch and dispatched via jax.vmap / aminx's own N_CANDIDATES
+  # BatchPlanner composition, never a hand-rolled Python loop over the jitted
+  # score_fn. Only the OUTER loop over Grain batches remains a plain Python loop --
+  # that is host-side streaming-iterator drainage, not JAX computation, the same
+  # exemption generate_multistate_conditional_logits.py's own docstring gives its
+  # result-writing loop.
   for _batch_idx, batched_ensemble in enumerate(protein_iterator):
     batch_size = batched_ensemble.coordinates.shape[0]
     batch_structure_ids = _structure_ids_for_batch(
@@ -531,51 +559,66 @@ def score(  # noqa: PLR0915
       structure_offset=structure_offset,
       batch_size=batch_size,
     )
+    struct_len = batched_ensemble.coordinates.shape[1]
 
-    batch_scores = []
-    batch_logits = [] if spec.run_spec.sampling.return_logits else None
-    batch_decoding_orders = [] if spec.run_spec.sampling.return_decoding_orders else None
+    padded_seqs = []
+    for seq_idx in sequence_indices_list:
+      # The structure may be padded to max_length by the loader; the user
+      # sequence must fit within the (padded) structure length.
+      if seq_idx.shape[0] > struct_len:
+        msg = (
+          f"Sequence too long for batch starting at structure "
+          f"{batch_structure_ids[0]}: structure has {struct_len} residues, but "
+          f"sequence has {seq_idx.shape[0]} residues"
+        )
+        raise ValueError(msg)
+      # Pad the sequence to the structure length with X (index 20). Padded
+      # positions contribute 0 to the NLL because scoring excludes the X column
+      # (``[..., :20]``); the structure mask already excludes them from encoding.
+      if seq_idx.shape[0] < struct_len:
+        pad = jnp.full((struct_len - seq_idx.shape[0],), 20, dtype=seq_idx.dtype)
+        seq_idx = jnp.concatenate([seq_idx, pad])  # noqa: PLW2901
+      padded_seqs.append(seq_idx)
+    stacked_sequences = jnp.stack(padded_seqs, axis=0)  # (C, struct_len)
+    n_candidates = stacked_sequences.shape[0]
 
-    for struct_idx in range(batch_size):
-      struct_coords = batched_ensemble.coordinates[struct_idx]
-      struct_mask = batched_ensemble.mask[struct_idx]
-      struct_residue_index = batched_ensemble.residue_index[struct_idx]
-      struct_chain_index = batched_ensemble.chain_index[struct_idx]
+    # Pre-derive one key per (structure, candidate) pair via the SAME sequential
+    # jax.random.split chain the pre-refactor loop used (struct outer, candidate
+    # inner) -- a single `split(prng_key, n)` in one shot is a different derivation
+    # tree than n chained `prng_key, subkey = split(prng_key)` calls, so reusing one
+    # batch_key across every structure in a batch (the first version of this fix)
+    # silently changed the sampled decoding order -- and hence the NLL -- for any
+    # batch with more than one structure. Splitting here is cheap (host-side PRNG
+    # ops, no model call) so this loop isn't the composability violation the
+    # candidate/structure axes below are dispatched via vmap/xtrax to avoid.
+    n_keys_needed = batch_size * n_candidates
+    flat_keys = []
+    for _ in range(n_keys_needed):
+      prng_key, subkey = jax.random.split(prng_key)
+      flat_keys.append(subkey)
+    batch_keys = jnp.stack(flat_keys, axis=0).reshape(batch_size, n_candidates, -1)
 
-      struct_len = struct_coords.shape[0]
-      struct_scores = []
-      struct_logits_list = [] if spec.run_spec.sampling.return_logits else None
-      struct_decoding_orders_list = [] if spec.run_spec.sampling.return_decoding_orders else None
+    activation_bytes = struct_len * 21 * 4  # (L, 21) float32 logits per candidate
+    strategy = _plan_axis_strategy(
+      N_CANDIDATES, n_candidates, None, activation_bytes_per_element=activation_bytes,
+    )
+    candidate_iterator = make_axis_dispatch_via_xtrax(strategy, axis=N_CANDIDATES.name)
 
-      for seq_idx in sequence_indices_list:
-        # The structure may be padded to max_length by the loader; the user
-        # sequence must fit within the (padded) structure length.
-        if seq_idx.shape[0] > struct_len:
-          msg = (
-            f"Sequence too long for structure {batch_structure_ids[struct_idx]}: "
-            f"structure has {struct_len} residues, but sequence has {seq_idx.shape[0]} residues"
-          )
-          raise ValueError(msg)
-
-        # Pad the sequence to the structure length with X (index 20). Padded
-        # positions contribute 0 to the NLL because scoring excludes the X column
-        # (``[..., :20]``); the structure mask already excludes them from encoding.
-        seq_padded = seq_idx
-        if seq_idx.shape[0] < struct_len:
-          pad = jnp.full((struct_len - seq_idx.shape[0],), 20, dtype=seq_idx.dtype)
-          seq_padded = jnp.concatenate([seq_idx, pad])
-
-        # Generate deterministic key for this structure/sequence pair
-        prng_key, subkey = jax.random.split(prng_key)
-
-        # score_sequence computes NLL as -(one_hot * log_softmax).sum(-1), so it
-        # requires a one-hot (L, 21) sequence — passing integer indices silently
-        # mis-ranks sequences. Encode here before scoring.
-        seq_one_hot = jax.nn.one_hot(seq_padded, 21)
-
-        # Score the sequence
-        nll, logits, decoding_order = score_fn(  # type: ignore[misc]
-          subkey,
+    def _score_structure(
+      struct_coords: jax.Array,
+      struct_mask: jax.Array,
+      struct_residue_index: jax.Array,
+      struct_chain_index: jax.Array,
+      struct_keys: jax.Array,
+      _candidate_iterator: Any = candidate_iterator,  # noqa: ANN401
+      _stacked_sequences: jax.Array = stacked_sequences,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+      def _score_one_candidate(
+        item: dict[str, jax.Array],
+      ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        seq_one_hot = jax.nn.one_hot(item["seq"], 21)
+        return score_fn(  # type: ignore[misc]
+          item["key"],
           seq_one_hot,
           struct_coords,
           struct_mask,
@@ -584,33 +627,23 @@ def score(  # noqa: PLR0915
           multi_state_strategy=spec.multi_state_strategy,
         )
 
-        struct_scores.append(nll)
-        if spec.run_spec.sampling.return_logits and struct_logits_list is not None:
-          struct_logits_list.append(logits)
-        if (
-          spec.run_spec.sampling.return_decoding_orders and struct_decoding_orders_list is not None
-        ):
-          struct_decoding_orders_list.append(decoding_order)
+      return _candidate_iterator(
+        _score_one_candidate, {"key": struct_keys, "seq": _stacked_sequences},
+      )
 
-      batch_scores.append(jnp.stack(struct_scores))
-      if spec.run_spec.sampling.return_logits and batch_logits is not None and struct_logits_list:
-        batch_logits.append(jnp.stack(struct_logits_list))
-      if (
-        spec.run_spec.sampling.return_decoding_orders
-        and batch_decoding_orders is not None
-        and struct_decoding_orders_list
-      ):
-        batch_decoding_orders.append(jnp.stack(struct_decoding_orders_list))
+    batch_scores, batch_logits, batch_decoding_orders = jax.vmap(_score_structure)(
+      batched_ensemble.coordinates,
+      batched_ensemble.mask,
+      batched_ensemble.residue_index,
+      batched_ensemble.chain_index,
+      batch_keys,
+    )
 
-    all_scores.append(jnp.stack(batch_scores))
-    if spec.run_spec.sampling.return_logits and all_logits is not None and batch_logits:
-      all_logits.append(jnp.stack(batch_logits))
-    if (
-      spec.run_spec.sampling.return_decoding_orders
-      and all_decoding_orders is not None
-      and batch_decoding_orders
-    ):
-      all_decoding_orders.append(jnp.stack(batch_decoding_orders))
+    all_scores.append(batch_scores)
+    if spec.run_spec.sampling.return_logits and all_logits is not None:
+      all_logits.append(batch_logits)
+    if spec.run_spec.sampling.return_decoding_orders and all_decoding_orders is not None:
+      all_decoding_orders.append(batch_decoding_orders)
 
     resolved_structure_ids.extend(batch_structure_ids)
     structure_offset += batch_size
@@ -636,6 +669,143 @@ def score(  # noqa: PLR0915
   if spec.run_spec.sampling.return_decoding_orders and all_decoding_orders is not None:
     # Shape: (num_structures, num_sequences, L)
     results["decoding_orders"] = jnp.concatenate(all_decoding_orders, axis=0)
+
+  return results
+
+
+def _score_fused_multistate(
+  spec: ScoringSpecification,
+  protein_iterator: Any,  # noqa: ANN401
+  score_fn: Any,  # noqa: ANN401
+  sequence_indices_list: list[jax.Array],
+) -> dict[str, Any]:
+  """Score sequences against ONE genuinely fused multi-state ensemble.
+
+  Every structure loaded from `spec.inputs` is treated as a single state of one PoE
+  bead (matching the sampling path's `sample_multistate_poe_bead` convention) and
+  stacked into a real leading-S bundle, fused via `spec.multi_state_strategy` and
+  aligned via `spec.state_position_map` -- this is what `score()`'s default
+  independent-per-structure loop cannot do (S is always 1 at that call site, so
+  `multi_state_strategy` has nothing to fuse and `state_position_map` is never even
+  read). Drains the ENTIRE iterator first (not just one batch) so this is correct
+  even if a caller sets a small `--batch-size` that would otherwise split the
+  ensemble's states across multiple iterator batches.
+
+  Returns a `scores`/`logits` shaped with a leading dimension of 1 (one fused
+  "structure"), not `len(spec.inputs)` independent ones -- the semantics are
+  genuinely different from the default branch's per-structure output, by design.
+  """
+  # Draining the Grain protein_iterator into host-side lists is not the "hand-rolled
+  # loop over JAX computation" this project's composability convention forbids -- no
+  # JAX op runs until the single jnp.stack below; this is host-side data collection
+  # before entering JAX, the same exemption generate_multistate_conditional_logits.py's
+  # own docstring gives its result-writing loop.
+  all_coords, all_mask, all_residue_index, all_chain_index = [], [], [], []
+  structure_ids: list[str] = []
+  canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
+  structure_offset = 0
+
+  for batched_ensemble in protein_iterator:
+    batch_size = batched_ensemble.coordinates.shape[0]
+    batch_structure_ids = _structure_ids_for_batch(
+      canonical_structure_ids, structure_offset=structure_offset, batch_size=batch_size,
+    )
+    for struct_idx in range(batch_size):
+      all_coords.append(batched_ensemble.coordinates[struct_idx])
+      all_mask.append(batched_ensemble.mask[struct_idx])
+      all_residue_index.append(batched_ensemble.residue_index[struct_idx])
+      all_chain_index.append(batched_ensemble.chain_index[struct_idx])
+    structure_ids.extend(batch_structure_ids)
+    structure_offset += batch_size
+
+  n_states = len(all_coords)
+  state_position_map = jnp.asarray(spec.state_position_map)
+  if state_position_map.shape[0] != n_states:
+    msg = (
+      f"spec.state_position_map has {state_position_map.shape[0]} states but "
+      f"{n_states} structures were loaded from spec.inputs -- these must match for "
+      "genuine multi-state fusion. If you did not intend fusion, leave "
+      "state_position_map unset (the default per-structure independent-scoring path "
+      "is unaffected by this branch)."
+    )
+    raise ValueError(msg)
+
+  stacked_coords = jnp.stack(all_coords, axis=0)  # (S, L, 4, 3)
+  stacked_mask = jnp.stack(all_mask, axis=0)  # (S, L)
+  stacked_residue_index = jnp.stack(all_residue_index, axis=0)
+  stacked_chain_index = jnp.stack(all_chain_index, axis=0)
+  struct_len = stacked_coords.shape[1]
+
+  # Pad every sequence to struct_len (host-side, static shapes, no JAX computation
+  # yet) so the candidate axis below is genuinely homogeneous -- a precondition for
+  # N_CANDIDATES.heterogeneous=False and for stacking into one array to dispatch over.
+  padded_seqs = []
+  for seq_idx in sequence_indices_list:
+    if seq_idx.shape[0] > struct_len:
+      msg = (
+        f"Sequence too long for the fused ensemble: structures have {struct_len} "
+        f"residues, but sequence has {seq_idx.shape[0]} residues"
+      )
+      raise ValueError(msg)
+    if seq_idx.shape[0] < struct_len:
+      pad = jnp.full((struct_len - seq_idx.shape[0],), 20, dtype=seq_idx.dtype)
+      seq_idx = jnp.concatenate([seq_idx, pad])  # noqa: PLW2901
+    padded_seqs.append(seq_idx)
+  stacked_sequences = jnp.stack(padded_seqs, axis=0)  # (C, struct_len)
+  n_candidates = stacked_sequences.shape[0]
+  candidate_keys = jax.random.split(
+    jax.random.PRNGKey(spec.run_spec.sampling.random_seed or 42), n_candidates,
+  )
+
+  # Candidate (sequences-to-score) axis dispatched via aminx's own BatchPlanner ->
+  # Vmap/SafeMap composition (never a hand-rolled Python loop over a jitted call) --
+  # the same N_CANDIDATES primitive make_batched_conditional_logits_split_fn's
+  # batched_decode_fn already uses for an analogous "many candidates, one structure
+  # ensemble" dispatch.
+  from aminx.sampling.conditional_logits import _plan_axis_strategy  # noqa: PLC0415
+  from aminx.tiling.axes import N_CANDIDATES  # noqa: PLC0415
+  from aminx.tiling.dispatch import make_axis_dispatch_via_xtrax  # noqa: PLC0415
+
+  activation_bytes = struct_len * 21 * 4  # (L, 21) float32 logits per candidate
+  strategy = _plan_axis_strategy(
+    N_CANDIDATES, n_candidates, None, activation_bytes_per_element=activation_bytes,
+  )
+  candidate_iterator = make_axis_dispatch_via_xtrax(strategy, axis=N_CANDIDATES.name)
+
+  def _score_one_candidate(item: dict[str, jax.Array]) -> tuple[jax.Array, jax.Array, jax.Array]:
+    seq_one_hot = jax.nn.one_hot(item["seq"], 21)
+    return score_fn(
+      item["key"],
+      seq_one_hot,
+      stacked_coords,
+      stacked_mask,
+      stacked_residue_index,
+      stacked_chain_index,
+      state_position_map=state_position_map,
+      multi_state_strategy=spec.multi_state_strategy,
+      multi_state_temperature=spec.multi_state_temperature,
+    )
+
+  all_scores, all_logits, all_decoding_orders = candidate_iterator(
+    _score_one_candidate, {"key": candidate_keys, "seq": stacked_sequences},
+  )
+
+  # Leading dim of 1: ONE fused "structure", not len(spec.inputs) independent ones.
+  results: dict[str, Any] = {
+    "scores": all_scores[None, :],
+    "mask": jnp.ones(1, dtype=jnp.int32),
+    "schema_version": SCORING_SCHEMA_VERSION,
+    "metadata": {
+      "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
+      "structure_ids": ["fused_multistate"],
+      "fused_structure_ids": structure_ids,
+    },
+  }
+  if spec.return_logits:
+    results["logits"] = all_logits[None, :]
+  if spec.return_decoding_orders:
+    results["decoding_orders"] = all_decoding_orders[None, :]
 
   return results
 

@@ -101,6 +101,17 @@ def _parse_args() -> argparse.Namespace:
     "the parent process to isolate each strategy in its own subprocess/CUDA context -- not "
     "meant to be passed by a human caller.",
   )
+  parser.add_argument(
+    "--compilation-cache-dir", type=Path, default=None,
+    help="If set, enables JAX's persistent compilation cache at this directory for the "
+    "jax_bucket_pad_tile strategy only (mirrors src/aminx/host/prep.py's production "
+    "jax.config.update('jax_compilation_cache_dir', ...) wiring exactly). Each distinct bucket "
+    "size (64/128/256/512) present in the batch is its own JIT compile -- passing the SAME "
+    "directory across two separate invocations lets the second run load those compiles from "
+    "disk instead of recompiling, demonstrating cold-vs-warm compile cost across the bucket "
+    "boundaries. Cache state (cold/warm, based on whether the directory already had entries "
+    "before this run) is recorded in the output for provenance.",
+  )
   return parser.parse_args()
 
 
@@ -236,8 +247,14 @@ def _pad_to(struct: dict[str, np.ndarray], target_len: int) -> dict[str, np.ndar
 
 def _jax_bucket_pad_tile(
   model: ProteinEBMModel, structures: list[dict[str, np.ndarray]], t: float, n_repeats: int,
-) -> tuple[list[float], int, int]:
-  """Strategy 1: group by bucket, pad per-group, one vmap'd energy call per bucket."""
+) -> tuple[list[float], int, int, float]:
+  """Strategy 1: group by bucket, pad per-group, one vmap'd energy call per bucket.
+
+  Returns ``(times, padded_elements, real_elements, compile_wall_clock_s)`` -- the 4th element
+  is the warmup call's wall-clock time, i.e. one JIT compile per distinct bucket size present in
+  the batch (previously discarded; now surfaced so cold-vs-warm persistent-compilation-cache
+  runs can be compared directly, see ``--compilation-cache-dir``).
+  """
   from xtrax.tiling import select_bucket  # noqa: PLC0415
 
   groups: dict[int, list[dict[str, np.ndarray]]] = {}
@@ -266,13 +283,15 @@ def _jax_bucket_pad_tile(
     for coords, aatype, mask in batched_inputs:
       jax.block_until_ready(_score_group(model, coords, aatype, mask))
 
-  _call()  # untimed warmup (forces jit compilation per distinct bucket shape)
+  compile_start = time.perf_counter()
+  _call()  # warmup -- forces jit compilation per distinct bucket shape; timed separately below
+  compile_wall_clock_s = time.perf_counter() - compile_start
   times = []
   for _ in range(n_repeats):
     start = time.perf_counter()
     _call()
     times.append(time.perf_counter() - start)
-  return times, padded_elements, real_elements
+  return times, padded_elements, real_elements, compile_wall_clock_s
 
 
 def _pytorch_pad_to_batch_max(
@@ -387,15 +406,27 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
   model_cfg, diffuser_cfg, state_dict = _load_model_configs(args)
   device_label = jax.devices()[0].platform if name == "jax_bucket_pad_tile" else _torch_device()
 
+  cache_state: str | None = None
+  cache_dir = getattr(args, "compilation_cache_dir", None)
+  if name == "jax_bucket_pad_tile" and cache_dir is not None:
+    cache_state = "warm" if cache_dir.exists() and any(cache_dir.iterdir()) else "cold"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    jax.config.update("jax_compilation_cache_dir", str(cache_dir))  # mirrors src/aminx/host/prep.py
+    # JAX's default 1.0s min-compile-time threshold means fast compiles (small/smoke-scale
+    # models, or genuinely quick real ones) silently never get persisted -- 0 guarantees this
+    # demo actually reflects cache_state rather than flaking depending on model/scale.
+    jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)
+
   _log_gpu_processes(f"before {name}")
 
-  def _build_and_run() -> tuple[list[float], int, int]:
+  def _build_and_run() -> tuple[list[float], int, int, float | None]:
     if name == "jax_bucket_pad_tile":
       jax_model = _build_jax_model(model_cfg, args.seed, state_dict)
       return _jax_bucket_pad_tile(jax_model, structures, args.diffusion_time, n_repeats)
     ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict, device=device_label)
     strategy_fn = _pytorch_pad_to_batch_max if name == "pytorch_pad_to_batch_max" else _pytorch_per_structure_loop
-    return strategy_fn(ref_model, structures, args.diffusion_time, n_repeats, device=device_label)
+    times, padded_elements, real_elements = strategy_fn(ref_model, structures, args.diffusion_time, n_repeats, device=device_label)
+    return times, padded_elements, real_elements, None  # eager PyTorch has no separate compile phase
 
   # Confirmed via nvidia-smi --query-compute-apps (see _log_gpu_processes calls in the job logs)
   # that this is a genuine Blackwell/SM120 driver quirk, not a bug here or real capacity pressure:
@@ -410,7 +441,7 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
   max_attempts = 6
   for attempt in range(1, max_attempts + 1):
     try:
-      times, padded_elements, real_elements = _build_and_run()
+      times, padded_elements, real_elements, compile_wall_clock_s = _build_and_run()
       break
     except Exception as e:  # noqa: BLE001 -- must still report a result row, not crash the subprocess silently
       is_oom = "out of memory" in str(e).lower() or "RESOURCE_EXHAUSTED" in str(e)
@@ -431,9 +462,11 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
   mean_ms = float(np.mean(times)) * 1000.0
   std_ms = float(np.std(times)) * 1000.0
   padding_overhead = padded_elements / real_elements if real_elements else float("nan")
+  compile_ms = compile_wall_clock_s * 1000.0 if compile_wall_clock_s is not None else None
   log.info(
-    "[%s] wall_clock=%.2fms (+/-%.2fms) padding_overhead=%.3fx (%d padded / %d real elements)",
+    "[%s] wall_clock=%.2fms (+/-%.2fms) padding_overhead=%.3fx (%d padded / %d real elements)%s",
     name, mean_ms, std_ms, padding_overhead, padded_elements, real_elements,
+    f" compile={compile_ms:.2f}ms cache_state={cache_state}" if compile_ms is not None else "",
   )
   return {
     "strategy": name,
@@ -443,6 +476,9 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
     "padded_elements": padded_elements,
     "real_elements": real_elements,
     "padding_overhead_ratio": padding_overhead,
+    "compile_wall_clock_ms": compile_ms,
+    "compilation_cache_dir": str(cache_dir) if cache_dir is not None else None,
+    "compilation_cache_state": cache_state,
   }
 
 
@@ -468,6 +504,8 @@ def _child_argv(args: argparse.Namespace, strategy: str, out_path: Path) -> list
   ]
   if args.smoke:
     argv.append("--smoke")
+  if args.compilation_cache_dir is not None:
+    argv.extend(["--compilation-cache-dir", str(args.compilation_cache_dir)])
   return argv
 
 

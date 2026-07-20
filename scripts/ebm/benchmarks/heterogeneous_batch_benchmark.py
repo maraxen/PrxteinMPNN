@@ -397,12 +397,17 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
     strategy_fn = _pytorch_pad_to_batch_max if name == "pytorch_pad_to_batch_max" else _pytorch_per_structure_loop
     return strategy_fn(ref_model, structures, args.diffusion_time, n_repeats, device=device_label)
 
-  # The previous subprocess's CUDA context can take the driver a few seconds to actually reclaim
-  # after that process exits (observed on cluster: a subprocess launched immediately after a large
-  # JAX allocation released hit a transient OOM against memory that was, moments later, free again
-  # -- not a real capacity problem). Retry OOM-shaped failures a few times with backoff before
-  # recording them as a genuine crash.
-  max_attempts = 4
+  # Confirmed via nvidia-smi --query-compute-apps (see _log_gpu_processes calls in the job logs)
+  # that this is a genuine Blackwell/SM120 driver quirk, not a bug here or real capacity pressure:
+  # after a JAX subprocess with a large preallocation exits, nvidia-smi keeps reporting a "ghost"
+  # compute-app entry for its now-dead PID -- confirmed via `ps` that the PID itself no longer
+  # exists -- for several minutes before the driver actually reclaims it. Same family of issue as
+  # the documented autotuning-crash "leaking" behavior (audit doc sec. 7), just triggered here by
+  # ordinary large-context teardown, not only by the illegal-address fault. Retry OOM-shaped
+  # failures with a generous backoff before recording a genuine crash; at production scale each
+  # strategy's own runtime is much longer than this smoke test's, which should naturally leave more
+  # gap for the ghost entry to clear before the next subprocess starts.
+  max_attempts = 6
   for attempt in range(1, max_attempts + 1):
     try:
       times, padded_elements, real_elements = _build_and_run()
@@ -412,7 +417,7 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
       if is_oom:
         _log_gpu_processes(f"after {name} attempt {attempt} OOM")
       if is_oom and attempt < max_attempts:
-        wait_s = 5 * attempt
+        wait_s = 20 * attempt
         log.warning(
           "[%s] attempt %d/%d hit an OOM-shaped error, retrying in %ds (likely a still-draining "
           "prior subprocess's CUDA context, not real capacity): %s",

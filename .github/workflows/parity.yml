@@ -17,6 +17,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: aminx
+          lfs: true
 
       - name: Checkout Reference LigandMPNN
         uses: actions/checkout@v4

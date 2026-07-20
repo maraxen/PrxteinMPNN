@@ -582,8 +582,21 @@ def score(  # noqa: PLR0915
     stacked_sequences = jnp.stack(padded_seqs, axis=0)  # (C, struct_len)
     n_candidates = stacked_sequences.shape[0]
 
-    prng_key, batch_key = jax.random.split(prng_key)
-    candidate_keys = jax.random.split(batch_key, n_candidates)
+    # Pre-derive one key per (structure, candidate) pair via the SAME sequential
+    # jax.random.split chain the pre-refactor loop used (struct outer, candidate
+    # inner) -- a single `split(prng_key, n)` in one shot is a different derivation
+    # tree than n chained `prng_key, subkey = split(prng_key)` calls, so reusing one
+    # batch_key across every structure in a batch (the first version of this fix)
+    # silently changed the sampled decoding order -- and hence the NLL -- for any
+    # batch with more than one structure. Splitting here is cheap (host-side PRNG
+    # ops, no model call) so this loop isn't the composability violation the
+    # candidate/structure axes below are dispatched via vmap/xtrax to avoid.
+    n_keys_needed = batch_size * n_candidates
+    flat_keys = []
+    for _ in range(n_keys_needed):
+      prng_key, subkey = jax.random.split(prng_key)
+      flat_keys.append(subkey)
+    batch_keys = jnp.stack(flat_keys, axis=0).reshape(batch_size, n_candidates, -1)
 
     activation_bytes = struct_len * 21 * 4  # (L, 21) float32 logits per candidate
     strategy = _plan_axis_strategy(
@@ -596,8 +609,8 @@ def score(  # noqa: PLR0915
       struct_mask: jax.Array,
       struct_residue_index: jax.Array,
       struct_chain_index: jax.Array,
+      struct_keys: jax.Array,
       _candidate_iterator: Any = candidate_iterator,  # noqa: ANN401
-      _candidate_keys: jax.Array = candidate_keys,
       _stacked_sequences: jax.Array = stacked_sequences,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
       def _score_one_candidate(
@@ -615,7 +628,7 @@ def score(  # noqa: PLR0915
         )
 
       return _candidate_iterator(
-        _score_one_candidate, {"key": _candidate_keys, "seq": _stacked_sequences},
+        _score_one_candidate, {"key": struct_keys, "seq": _stacked_sequences},
       )
 
     batch_scores, batch_logits, batch_decoding_orders = jax.vmap(_score_structure)(
@@ -623,6 +636,7 @@ def score(  # noqa: PLR0915
       batched_ensemble.mask,
       batched_ensemble.residue_index,
       batched_ensemble.chain_index,
+      batch_keys,
     )
 
     all_scores.append(batch_scores)

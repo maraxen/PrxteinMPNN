@@ -443,6 +443,18 @@ def _wall_clock_ms_stats(times_seconds: list[float]) -> tuple[float, float]:
   return float(np.mean(arr_ms)), float(np.std(arr_ms))
 
 
+def _write_rows(out: Path, rows: list[dict[str, Any]]) -> None:
+  """Write accumulated rows so far -- called after every length so a crash mid-sweep
+
+  (e.g. the documented Blackwell/SM120 XLA-autotuning CUDA_ERROR_ILLEGAL_ADDRESS fault,
+  `.praxia/docs/audits/260716_proteinebm-parity-report.md` §7) loses only the in-flight
+  length, not every length already timed.
+  """
+  out.parent.mkdir(parents=True, exist_ok=True)
+  with out.open("w") as f:
+    json.dump(rows, f, indent=2)
+
+
 def _run_dry_run(args: argparse.Namespace, lengths: list[int]) -> int:
   """L1 gate: validate args/paths/imports only -- no model construction, no timing, no network fetches."""
   log.info("[L1 dry-run] Validating args + imports + paths (no model construction, no timing)...")
@@ -535,77 +547,80 @@ def main(argv: list[str] | None = None) -> int:
   rows: list[dict[str, Any]] = []
 
   for length in lengths:
-    log.info("=== length=%d (n_states=%d) ===", length, N_STATES)
-    coords_states_np, aatype_np = _make_synthetic_states(args.seed, length)
-    mask_np = np.ones((length,), dtype=bool)
+    try:
+      log.info("=== length=%d (n_states=%d) ===", length, N_STATES)
+      coords_states_np, aatype_np = _make_synthetic_states(args.seed, length)
+      mask_np = np.ones((length,), dtype=bool)
 
-    coords_states_jax = jnp.asarray(coords_states_np)
-    aatype_jax = jnp.asarray(aatype_np, dtype=jnp.int32)
-    mask_jax = jnp.ones((length,), dtype=bool)
-    t_jax = jnp.asarray(args.diffusion_time)
+      coords_states_jax = jnp.asarray(coords_states_np)
+      aatype_jax = jnp.asarray(aatype_np, dtype=jnp.int32)
+      mask_jax = jnp.ones((length,), dtype=bool)
+      t_jax = jnp.asarray(args.diffusion_time)
 
-    log.info("JAX: warmup + timing energy_evals_per_sec (raw 2-state Vmap dispatch, %d repeats)...", args.n_repeats)
-    jax_throughput, jax_energy_times = _time_jax_throughput(
-      jax_model, coords_states_jax, aatype_jax, t_jax, mask_jax, args.n_repeats,
-    )
-    jax_energy_ms_mean, jax_energy_ms_std = _wall_clock_ms_stats(jax_energy_times)
-    log.info("JAX: warmup + timing diff_fuse_wall_clock_ms (full score_state_difference, %d repeats)...", args.n_repeats)
-    jax_diff_fuse_ms, jax_fuse_times = _time_jax_diff_fuse(
-      jax_model, coords_states_jax, aatype_jax, t_jax, mask_jax, args.n_repeats,
-    )
-    jax_fuse_ms_mean, jax_fuse_ms_std = _wall_clock_ms_stats(jax_fuse_times)
-
-    rows.append(
-      {
-        "protein_length": length,
-        "device": jax_device,
-        "impl": "jax",
-        "energy_evals_per_sec": jax_throughput,
-        "energy_wall_clock_mean_ms": jax_energy_ms_mean,
-        "energy_wall_clock_std_ms": jax_energy_ms_std,
-        "diff_fuse_wall_clock_ms": jax_diff_fuse_ms,
-        "diff_fuse_wall_clock_std_ms": jax_fuse_ms_std,
-      },
-    )
-    log.info(
-      "[jax]     L=%-4d energy_evals_per_sec=%12.2f diff_fuse_wall_clock_ms=%8.3f",
-      length, jax_throughput, jax_diff_fuse_ms,
-    )
-
-    if torch_model is not None:
-      log.info(
-        "PyTorch: warmup + timing energy_evals_per_sec (plain 2-call forward, %d repeats)...", args.n_repeats,
+      log.info("JAX: warmup + timing energy_evals_per_sec (raw 2-state Vmap dispatch, %d repeats)...", args.n_repeats)
+      jax_throughput, jax_energy_times = _time_jax_throughput(
+        jax_model, coords_states_jax, aatype_jax, t_jax, mask_jax, args.n_repeats,
       )
-      torch_throughput, torch_energy_times = _time_pytorch_throughput(
-        torch_model, coords_states_np, aatype_np, args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
+      jax_energy_ms_mean, jax_energy_ms_std = _wall_clock_ms_stats(jax_energy_times)
+      log.info("JAX: warmup + timing diff_fuse_wall_clock_ms (full score_state_difference, %d repeats)...", args.n_repeats)
+      jax_diff_fuse_ms, jax_fuse_times = _time_jax_diff_fuse(
+        jax_model, coords_states_jax, aatype_jax, t_jax, mask_jax, args.n_repeats,
       )
-      torch_energy_ms_mean, torch_energy_ms_std = _wall_clock_ms_stats(torch_energy_times)
-      log.info("PyTorch: warmup + timing diff_fuse_wall_clock_ms (2 calls + subtract, %d repeats)...", args.n_repeats)
-      torch_diff_fuse_ms, torch_fuse_times = _time_pytorch_diff_fuse(
-        torch_model, coords_states_np, aatype_np, args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
-      )
-      torch_fuse_ms_mean, torch_fuse_ms_std = _wall_clock_ms_stats(torch_fuse_times)
+      jax_fuse_ms_mean, jax_fuse_ms_std = _wall_clock_ms_stats(jax_fuse_times)
 
       rows.append(
         {
           "protein_length": length,
-          "device": torch_device,
-          "impl": "pytorch",
-          "energy_evals_per_sec": torch_throughput,
-          "energy_wall_clock_mean_ms": torch_energy_ms_mean,
-          "energy_wall_clock_std_ms": torch_energy_ms_std,
-          "diff_fuse_wall_clock_ms": torch_diff_fuse_ms,
-          "diff_fuse_wall_clock_std_ms": torch_fuse_ms_std,
+          "device": jax_device,
+          "impl": "jax",
+          "energy_evals_per_sec": jax_throughput,
+          "energy_wall_clock_mean_ms": jax_energy_ms_mean,
+          "energy_wall_clock_std_ms": jax_energy_ms_std,
+          "diff_fuse_wall_clock_ms": jax_diff_fuse_ms,
+          "diff_fuse_wall_clock_std_ms": jax_fuse_ms_std,
         },
       )
       log.info(
-        "[pytorch] L=%-4d energy_evals_per_sec=%12.2f diff_fuse_wall_clock_ms=%8.3f",
-        length, torch_throughput, torch_diff_fuse_ms,
+        "[jax]     L=%-4d energy_evals_per_sec=%12.2f diff_fuse_wall_clock_ms=%8.3f",
+        length, jax_throughput, jax_diff_fuse_ms,
       )
 
-  args.out.parent.mkdir(parents=True, exist_ok=True)
-  with args.out.open("w") as f:
-    json.dump(rows, f, indent=2)
+      if torch_model is not None:
+        log.info(
+          "PyTorch: warmup + timing energy_evals_per_sec (plain 2-call forward, %d repeats)...", args.n_repeats,
+        )
+        torch_throughput, torch_energy_times = _time_pytorch_throughput(
+          torch_model, coords_states_np, aatype_np, args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
+        )
+        torch_energy_ms_mean, torch_energy_ms_std = _wall_clock_ms_stats(torch_energy_times)
+        log.info("PyTorch: warmup + timing diff_fuse_wall_clock_ms (2 calls + subtract, %d repeats)...", args.n_repeats)
+        torch_diff_fuse_ms, torch_fuse_times = _time_pytorch_diff_fuse(
+          torch_model, coords_states_np, aatype_np, args.diffusion_time, mask_np, args.n_repeats, device=torch_device,
+        )
+        torch_fuse_ms_mean, torch_fuse_ms_std = _wall_clock_ms_stats(torch_fuse_times)
+
+        rows.append(
+          {
+            "protein_length": length,
+            "device": torch_device,
+            "impl": "pytorch",
+            "energy_evals_per_sec": torch_throughput,
+            "energy_wall_clock_mean_ms": torch_energy_ms_mean,
+            "energy_wall_clock_std_ms": torch_energy_ms_std,
+            "diff_fuse_wall_clock_ms": torch_diff_fuse_ms,
+            "diff_fuse_wall_clock_std_ms": torch_fuse_ms_std,
+          },
+        )
+        log.info(
+          "[pytorch] L=%-4d energy_evals_per_sec=%12.2f diff_fuse_wall_clock_ms=%8.3f",
+          length, torch_throughput, torch_diff_fuse_ms,
+        )
+    except Exception as e:  # noqa: BLE001 -- a single length must not lose already-collected rows
+      log.error("[length=%d] FAILED: %s: %s", length, type(e).__name__, e)
+      rows.append({"protein_length": length, "impl": "error", "error": f"{type(e).__name__}: {e}"})
+
+    _write_rows(args.out, rows)
+
   log.info("Wrote %d rows to %s", len(rows), args.out)
   return 0
 

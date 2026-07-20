@@ -310,40 +310,67 @@ def main() -> int:
   log.info("JAX device: %s | PyTorch device: %s", jax_device, torch_device)
   results = []
   for length in lengths:
-    log.info("=== length=%d ===", length)
-    jax_times = _time_jax_outer_annealing(jax_model, length, args.seed, n_repeats)
-    jax_ms_mean, jax_ms_std = _wall_clock_ms_stats(jax_times)
-    pt_times = _time_pytorch_outer_annealing(ref_model, length, args.seed, n_repeats, device=torch_device)
-    pt_ms_mean, pt_ms_std = _wall_clock_ms_stats(pt_times)
+    try:
+      log.info("=== length=%d ===", length)
+      jax_times = _time_jax_outer_annealing(jax_model, length, args.seed, n_repeats)
+      jax_ms_mean, jax_ms_std = _wall_clock_ms_stats(jax_times)
+      pt_times = _time_pytorch_outer_annealing(ref_model, length, args.seed, n_repeats, device=torch_device)
+      pt_ms_mean, pt_ms_std = _wall_clock_ms_stats(pt_times)
 
-    e10_ms = _time_jax_e10(jax_model, length, args.seed, e10_rounds, e10_batch) * 1000.0
+      e10_ms = _time_jax_e10(jax_model, length, args.seed, e10_rounds, e10_batch) * 1000.0
 
-    results.append({
-      "protein_length": length,
-      "jax_device": jax_device,
-      "pytorch_device": torch_device,
-      "outer_annealing_jax_ms_mean": jax_ms_mean,
-      "outer_annealing_jax_ms_std": jax_ms_std,
-      "outer_annealing_pytorch_ms_mean": pt_ms_mean,
-      "outer_annealing_pytorch_ms_std": pt_ms_std,
-      "outer_annealing_speedup": pt_ms_mean / jax_ms_mean if jax_ms_mean else float("nan"),
-      "e10_pipeline_ms": e10_ms,
-      "e10_rounds": e10_rounds,
-      "e10_batch_size": e10_batch,
-    })
-    log.info(
-      "[length=%d] outer annealing: jax=%.2fms pytorch=%.2fms speedup=%.2fx | e10 pipeline (%d rounds, batch=%d): %.2fms",
-      length, jax_ms_mean, pt_ms_mean, pt_ms_mean / jax_ms_mean if jax_ms_mean else float("nan"),
-      e10_rounds, e10_batch, e10_ms,
-    )
+      results.append({
+        "protein_length": length,
+        "jax_device": jax_device,
+        "pytorch_device": torch_device,
+        "outer_annealing_jax_ms_mean": jax_ms_mean,
+        "outer_annealing_jax_ms_std": jax_ms_std,
+        "outer_annealing_pytorch_ms_mean": pt_ms_mean,
+        "outer_annealing_pytorch_ms_std": pt_ms_std,
+        "outer_annealing_speedup": pt_ms_mean / jax_ms_mean if jax_ms_mean else float("nan"),
+        "e10_pipeline_ms": e10_ms,
+        "e10_rounds": e10_rounds,
+        "e10_batch_size": e10_batch,
+      })
+      log.info(
+        "[length=%d] outer annealing: jax=%.2fms pytorch=%.2fms speedup=%.2fx | e10 pipeline (%d rounds, batch=%d): %.2fms",
+        length, jax_ms_mean, pt_ms_mean, pt_ms_mean / jax_ms_mean if jax_ms_mean else float("nan"),
+        e10_rounds, e10_batch, e10_ms,
+      )
+    except Exception as e:  # noqa: BLE001 -- a single length must not lose already-collected results
+      log.error("[length=%d] FAILED: %s: %s", length, type(e).__name__, e)
+      results.append({"protein_length": length, "error": f"{type(e).__name__}: {e}"})
 
+    _write_payload(args, lengths, n_repeats, e10_rounds, e10_batch, results)
+
+  log.info("Wrote %d result rows to %s", len(results), args.out)
+  return 0
+
+
+def _write_payload(
+  args: argparse.Namespace,
+  lengths: tuple[int, ...],
+  n_repeats: int,
+  e10_rounds: int,
+  e10_batch: int,
+  results: list[dict],
+) -> None:
+  """Write accumulated results so far -- called after every length so a crash mid-sweep
+
+  (e.g. the documented Blackwell/SM120 XLA-autotuning CUDA_ERROR_ILLEGAL_ADDRESS fault,
+  `.praxia/docs/audits/260716_proteinebm-parity-report.md` §7) loses only the in-flight
+  length, not every length already timed.
+  """
   payload = {
     "meta": {
       "smoke": args.smoke,
+      "lengths": list(lengths),
       "noise_schedule": list(DEFAULT_NOISE_SCHEDULE),
       "n_steps_per_level": DEFAULT_N_STEPS_PER_LEVEL,
       "model_swap_threshold": MODEL_SWAP_THRESHOLD,
       "n_repeats": n_repeats,
+      "e10_rounds": e10_rounds,
+      "e10_batch_size": e10_batch,
       "methodology_notes": [
         "Closes a documented gap: langevin_benchmark.py (E11d) only benchmarks "
         "the INNER fixed-t sampler; this script is the first throughput "
@@ -361,14 +388,15 @@ def main() -> int:
         "No SM120 XLA autotuning workaround applied here -- CPU-only local "
         "run. A cluster (GPU) run MUST set "
         "XLA_FLAGS=--xla_gpu_shard_autotuning=false per ~/.claude/rules/CLUSTER.md.",
+        "A row with an 'error' key (no timing fields) means that protein_length "
+        "raised during timing -- all other rows in this file completed normally "
+        "and are unaffected.",
       ],
     },
     "results": results,
   }
   args.out.parent.mkdir(parents=True, exist_ok=True)
   args.out.write_text(json.dumps(payload, indent=2))
-  log.info("Wrote %d result rows to %s", len(results), args.out)
-  return 0
 
 
 if __name__ == "__main__":

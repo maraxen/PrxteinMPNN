@@ -41,6 +41,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -163,21 +164,11 @@ def _torch_device() -> str:
   return "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def build_models(args: argparse.Namespace) -> tuple[ProteinEBMModel, "ProteinEBM"]:
-  """Build (jax_model, reference_model) per ``--smoke``/full-run mode.
-
-  The reference PyTorch model is moved to ``_torch_device()``'s actual device
-  -- previously it was left on CPU (the checkpoint's own ``map_location="cpu"``
-  load target) regardless of GPU availability, so every reported PyTorch
-  number was silently a CPU number.
-  """
-  device = _torch_device()
+def _load_model_configs(args: argparse.Namespace) -> tuple[Any, Any, Any]:
+  """Load ``(model_cfg, diffuser_cfg, state_dict)`` from ``--checkpoint``, or smoke configs."""
   if args.smoke:
     model_cfg, diffuser_cfg = _smoke_model_configs()
-    return (
-      _build_jax_model(model_cfg, args.seed, state_dict=None),
-      _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None, device=device),
-    )
+    return model_cfg, diffuser_cfg, None
 
   import torch  # noqa: PLC0415
 
@@ -187,9 +178,7 @@ def build_models(args: argparse.Namespace) -> tuple[ProteinEBMModel, "ProteinEBM
   ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
   model_cfg = ckpt["hyper_parameters"]["config"].model
   diffuser_cfg = ckpt["hyper_parameters"]["config"].diffuser
-  ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, ckpt["state_dict"], device=device)
-  jax_model = _build_jax_model(model_cfg, args.seed, ckpt["state_dict"])
-  return jax_model, ref_model
+  return model_cfg, diffuser_cfg, ckpt["state_dict"]
 
 
 def _build_heterogeneous_batch(n_structures: int, seed: int, max_length: int) -> list[dict[str, np.ndarray]]:
@@ -371,21 +360,32 @@ def _run_dry_run(args: argparse.Namespace) -> int:
 
 
 def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
-  """Build only the model(s) ``name`` needs and time it. Runs inside a single-strategy subprocess."""
+  """Build only the model ``name`` actually needs and time it. Runs inside a single-strategy subprocess.
+
+  Building both frameworks' models regardless of ``name`` (the pre-isolation behavior) meant every
+  subprocess touched JAX's GPU backend even to run a pure-PyTorch strategy -- JAX preallocates
+  ~75% of device memory the moment it first touches the device (e.g. ``jax.random.PRNGKey`` inside
+  ``_build_jax_model``), starving PyTorch's `model.to(device)` in the same process. Only constructing
+  the model the requested strategy uses keeps each subprocess's footprint to what it actually needs.
+  """
   n_structures = min(args.n_structures, 6) if args.smoke else args.n_structures
   n_repeats = min(args.n_repeats, 2) if args.smoke else args.n_repeats
-  jax_model, ref_model = build_models(args)
-  torch_device = _torch_device()
   structures = _build_heterogeneous_batch(n_structures, args.seed, max_length=BUCKET_BOUNDARIES[-1])
+  model_cfg, diffuser_cfg, state_dict = _load_model_configs(args)
 
-  strategy_calls: dict[str, Any] = {
-    "jax_bucket_pad_tile": lambda: _jax_bucket_pad_tile(jax_model, structures, args.diffusion_time, n_repeats),
-    "pytorch_pad_to_batch_max": lambda: _pytorch_pad_to_batch_max(ref_model, structures, args.diffusion_time, n_repeats, device=torch_device),
-    "pytorch_per_structure_loop": lambda: _pytorch_per_structure_loop(ref_model, structures, args.diffusion_time, n_repeats, device=torch_device),
-  }
+  if name == "jax_bucket_pad_tile":
+    jax_model = _build_jax_model(model_cfg, args.seed, state_dict)
+    call = lambda: _jax_bucket_pad_tile(jax_model, structures, args.diffusion_time, n_repeats)  # noqa: E731
+    device_label = jax.devices()[0].platform
+  else:
+    torch_device = _torch_device()
+    ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict, device=torch_device)
+    strategy_fn = _pytorch_pad_to_batch_max if name == "pytorch_pad_to_batch_max" else _pytorch_per_structure_loop
+    call = lambda: strategy_fn(ref_model, structures, args.diffusion_time, n_repeats, device=torch_device)  # noqa: E731
+    device_label = torch_device
 
   try:
-    times, padded_elements, real_elements = strategy_calls[name]()
+    times, padded_elements, real_elements = call()
   except Exception as e:  # noqa: BLE001 -- must still report a result row, not crash the subprocess silently
     log.error("[%s] FAILED: %s: %s", name, type(e).__name__, e)
     return {"strategy": name, "error": f"{type(e).__name__}: {e}"}
@@ -399,7 +399,7 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
   )
   return {
     "strategy": name,
-    "device": torch_device if name.startswith("pytorch") else jax.devices()[0].platform,
+    "device": device_label,
     "wall_clock_mean_ms": mean_ms,
     "wall_clock_std_ms": std_ms,
     "padded_elements": padded_elements,
@@ -433,6 +433,19 @@ def _child_argv(args: argparse.Namespace, strategy: str, out_path: Path) -> list
   return argv
 
 
+def _child_env(strategy: str) -> dict[str, str]:
+  """Env for a strategy's subprocess. Belt-and-suspenders on top of only building the needed
+  model: the pytorch strategies never need JAX to touch the GPU at all, so tell it not to
+  preallocate (JAX's default ~75% upfront grab would otherwise starve PyTorch in that process
+  if anything ever imports/touches JAX there again). The JAX strategy keeps normal preallocation
+  -- disabling it there would slow its own allocator and skew the very throughput being measured.
+  """
+  env = dict(os.environ)
+  if strategy != "jax_bucket_pad_tile":
+    env["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+  return env
+
+
 def main() -> int:
   logging.basicConfig(level=logging.INFO, format="%(message)s")
   args = _parse_args()
@@ -452,7 +465,7 @@ def main() -> int:
   for name in STRATEGY_NAMES:
     partial_path = args.out.with_suffix(f".{name}.partial.json")
     log.info("=== launching isolated subprocess: %s ===", name)
-    proc = subprocess.run(_child_argv(args, name, partial_path), check=False)  # noqa: S603 -- fixed argv, no shell
+    proc = subprocess.run(_child_argv(args, name, partial_path), env=_child_env(name), check=False)  # noqa: S603 -- fixed argv, no shell
     if partial_path.exists():
       result = json.loads(partial_path.read_text())["result"]
       partial_path.unlink()

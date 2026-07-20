@@ -164,6 +164,19 @@ def _torch_device() -> str:
   return "cuda" if torch.cuda.is_available() else "cpu"
 
 
+def _log_gpu_processes(label: str) -> None:
+  """Diagnostic: dump nvidia-smi's own compute-process list. Safe no-op if nvidia-smi is absent
+  (e.g. CPU-only local dev) or the call fails for any reason -- this must never break a run."""
+  try:
+    out = subprocess.run(  # noqa: S603, S607 -- fixed argv, no shell, diagnostic-only
+      ["nvidia-smi", "--query-compute-apps=pid,used_memory,process_name", "--format=csv"],
+      capture_output=True, text=True, timeout=10, check=False,
+    )
+    log.info("[gpu-processes %s]\n%s", label, out.stdout.strip() or "(no output)")
+  except Exception as e:  # noqa: BLE001 -- diagnostic only, never fatal
+    log.info("[gpu-processes %s] nvidia-smi unavailable: %s", label, e)
+
+
 def _load_model_configs(args: argparse.Namespace) -> tuple[Any, Any, Any]:
   """Load ``(model_cfg, diffuser_cfg, state_dict)`` from ``--checkpoint``, or smoke configs."""
   if args.smoke:
@@ -374,6 +387,8 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
   model_cfg, diffuser_cfg, state_dict = _load_model_configs(args)
   device_label = jax.devices()[0].platform if name == "jax_bucket_pad_tile" else _torch_device()
 
+  _log_gpu_processes(f"before {name}")
+
   def _build_and_run() -> tuple[list[float], int, int]:
     if name == "jax_bucket_pad_tile":
       jax_model = _build_jax_model(model_cfg, args.seed, state_dict)
@@ -394,6 +409,8 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
       break
     except Exception as e:  # noqa: BLE001 -- must still report a result row, not crash the subprocess silently
       is_oom = "out of memory" in str(e).lower() or "RESOURCE_EXHAUSTED" in str(e)
+      if is_oom:
+        _log_gpu_processes(f"after {name} attempt {attempt} OOM")
       if is_oom and attempt < max_attempts:
         wait_s = 5 * attempt
         log.warning(

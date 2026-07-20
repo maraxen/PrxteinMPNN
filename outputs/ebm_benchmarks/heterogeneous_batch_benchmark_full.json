@@ -275,21 +275,27 @@
       "pytorch_pad_to_batch_max pads every structure to the single largest length in the WHOLE batch (no bucketing concept) -- the naive dynamic-batching approach a PyTorch user would reach for first.",
       "pytorch_per_structure_loop has zero padding waste by construction (one call per structure at its native length) but zero batching benefit either -- closest to what score_decoys.py itself actually does (one native length at a time, never mixed).",
       "No SM120 XLA autotuning workaround applied here -- CPU-only local run. A cluster (GPU) run MUST set XLA_FLAGS=--xla_gpu_shard_autotuning=false per ~/.claude/rules/CLUSTER.md.",
-      "A row with 'error' instead of 'wall_clock_mean_ms' means that strategy raised during timing -- the other strategies in this file completed normally and are unaffected."
+      "A row with 'error' instead of 'wall_clock_mean_ms' means that strategy raised during timing -- the other strategies in this file completed normally and are unaffected.",
+      "Each strategy runs in its own OS subprocess (this script re-invoked with --strategy), not just sequentially in-process: on Blackwell (SM120), the JAX strategy can hit a confirmed XLA:Triton compiler bug that corrupts the CUDA driver context, which previously also poisoned both PyTorch strategies once they shared the same GPU (see .praxia/docs/audits/260716_proteinebm-parity-report.md sec. 7). Separate processes mean a JAX crash can no longer take the PyTorch numbers with it."
     ]
   },
   "results": [
     {
       "strategy": "jax_bucket_pad_tile",
-      "error": "JaxRuntimeError: INTERNAL: Failed to get configs for: 16 out of 55 instructions. See logs for all failures. Example failure: \nAutotuning failed for HLO: %gemm_fusion_dot.2 = f32[1024,32768]{1,0} fusion(%dynamic_nodonate__first___15_.1, %dynamic_nodonate__first___13_.1, %bitcast.6862.0, %dynamic_nodonate__first___14_.1, %dynamic_nodonate__first___16_.1), kind=kCustom, calls=%gemm_fusion_dot.2_computation, metadata={op_name=\"jit(_score_group)/vmap(vmap(eqx.nn.Linear))/dot_general\" deduplicated_name=\"gemm_fusion_dot.2\" stack_frame_id=103}, backend_config={\"operation_queue_id\":\"0\",\"fusion_backend_config\":{\"kind\":\"__triton_gemm\"},\"force_earliest_schedule\":false,\"reification_cost\":[],\"device_type\":\"DEVICE_TYPE_INVALID\"}. Failed to profile configs: CUDA error: Failed to enqueue async memset operation: CUDA_ERROR_ILLEGAL_ADDRESS: an illegal memory access was encountered"
+      "error": "JaxRuntimeError: INTERNAL: Failed to get configs for: 16 out of 55 instructions. See logs for all failures. Example failure: \nAutotuning failed for HLO: %gemm_fusion_dot.2 = f32[1024,32768]{1,0} fusion(%dynamic_nodonate__first___15_.1, %dynamic_nodonate__first___13_.1, %bitcast.6862.0, %dynamic_nodonate__first___14_.1, %dynamic_nodonate__first___16_.1), kind=kCustom, calls=%gemm_fusion_dot.2_computation, metadata={op_name=\"jit(_score_group)/vmap(vmap(eqx.nn.Linear))/dot_general\" deduplicated_name=\"gemm_fusion_dot.2\" stack_frame_id=105}, backend_config={\"operation_queue_id\":\"0\",\"fusion_backend_config\":{\"kind\":\"__triton_gemm\"},\"force_earliest_schedule\":false,\"reification_cost\":[],\"device_type\":\"DEVICE_TYPE_INVALID\"}. Failed to profile configs: CUDA error: Failed to enqueue async memset operation: CUDA_ERROR_ILLEGAL_ADDRESS: an illegal memory access was encountered"
     },
     {
       "strategy": "pytorch_pad_to_batch_max",
-      "error": "AcceleratorError: CUDA error: an illegal memory access was encountered\nSearch for `cudaErrorIllegalAddress' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.\nCUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.\nFor debugging consider passing CUDA_LAUNCH_BLOCKING=1\nCompile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.\n"
+      "error": "OutOfMemoryError: CUDA out of memory. Tried to allocate 128.00 GiB. GPU 0 has a total capacity of 94.97 GiB of which 20.85 GiB is free. Process 1359294 has 71.80 GiB memory in use. Including non-PyTorch memory, this process has 2.30 GiB memory in use. Of the allocated memory 1.23 GiB is allocated by PyTorch, and 274.69 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)"
     },
     {
       "strategy": "pytorch_per_structure_loop",
-      "error": "AcceleratorError: CUDA error: an illegal memory access was encountered\nSearch for `cudaErrorIllegalAddress' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.\nCUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.\nFor debugging consider passing CUDA_LAUNCH_BLOCKING=1\nCompile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.\n"
+      "device": "cuda",
+      "wall_clock_mean_ms": 2454.207124421373,
+      "wall_clock_std_ms": 0.8294402482128268,
+      "padded_elements": 53733,
+      "real_elements": 53733,
+      "padding_overhead_ratio": 1.0
     }
   ]
 }

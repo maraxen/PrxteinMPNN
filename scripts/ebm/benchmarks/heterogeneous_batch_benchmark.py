@@ -26,6 +26,14 @@ overhead: total padded elements processed / total real (unpadded) elements.
 Reuses `build_proxy_distribution` from `scripts/ebm/bucket_boundary_check.py` (E4.5's own documented
 proxy length distribution: real local PDB/mmCIF lengths + a documented log-normal mixture) for a
 realistic mixed-length composition -- no new length-distribution logic.
+
+Each strategy runs in its own OS subprocess (re-invoking this same script with `--strategy`), not
+just in-process sequentially. On Blackwell (SM120), the JAX strategy hits a confirmed, version-
+independent XLA:Triton compiler bug (CUDA_ERROR_ILLEGAL_ADDRESS -- see
+`.praxia/docs/audits/260716_proteinebm-parity-report.md` sec. 7) that corrupts the CUDA driver
+context; once PyTorch shares the same GPU, that corruption previously poisoned both PyTorch
+strategies too when everything ran in one process. Separate processes give each strategy its own
+CUDA context, so a JAX crash can no longer take the PyTorch numbers down with it.
 """
 
 from __future__ import annotations
@@ -33,6 +41,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -69,6 +79,10 @@ SMOKE_DEPTH = 2
 SMOKE_HEADS = 2
 SMOKE_NUM_CONTACT_EMBEDDINGS = 2
 
+STRATEGY_NAMES: tuple[str, ...] = (
+  "jax_bucket_pad_tile", "pytorch_pad_to_batch_max", "pytorch_per_structure_loop",
+)
+
 
 def _parse_args() -> argparse.Namespace:
   parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -81,6 +95,12 @@ def _parse_args() -> argparse.Namespace:
   parser.add_argument("--out", type=Path, required=True)
   parser.add_argument("--smoke", action="store_true", help="Tiny synthetic-dim models, small batch, <60s on CPU.")
   parser.add_argument("--dry-run", action="store_true", help="L1 gate: imports + one trivial call, no timed loop.")
+  parser.add_argument(
+    "--strategy", choices=STRATEGY_NAMES, default=None,
+    help="Internal: run only this one strategy and write a single-result partial file. Used by "
+    "the parent process to isolate each strategy in its own subprocess/CUDA context -- not "
+    "meant to be passed by a human caller.",
+  )
   return parser.parse_args()
 
 
@@ -144,21 +164,24 @@ def _torch_device() -> str:
   return "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def build_models(args: argparse.Namespace) -> tuple[ProteinEBMModel, "ProteinEBM"]:
-  """Build (jax_model, reference_model) per ``--smoke``/full-run mode.
+def _log_gpu_processes(label: str) -> None:
+  """Diagnostic: dump nvidia-smi's own compute-process list. Safe no-op if nvidia-smi is absent
+  (e.g. CPU-only local dev) or the call fails for any reason -- this must never break a run."""
+  try:
+    out = subprocess.run(  # noqa: S603, S607 -- fixed argv, no shell, diagnostic-only
+      ["nvidia-smi", "--query-compute-apps=pid,used_memory,process_name", "--format=csv"],
+      capture_output=True, text=True, timeout=10, check=False,
+    )
+    log.info("[gpu-processes %s]\n%s", label, out.stdout.strip() or "(no output)")
+  except Exception as e:  # noqa: BLE001 -- diagnostic only, never fatal
+    log.info("[gpu-processes %s] nvidia-smi unavailable: %s", label, e)
 
-  The reference PyTorch model is moved to ``_torch_device()``'s actual device
-  -- previously it was left on CPU (the checkpoint's own ``map_location="cpu"``
-  load target) regardless of GPU availability, so every reported PyTorch
-  number was silently a CPU number.
-  """
-  device = _torch_device()
+
+def _load_model_configs(args: argparse.Namespace) -> tuple[Any, Any, Any]:
+  """Load ``(model_cfg, diffuser_cfg, state_dict)`` from ``--checkpoint``, or smoke configs."""
   if args.smoke:
     model_cfg, diffuser_cfg = _smoke_model_configs()
-    return (
-      _build_jax_model(model_cfg, args.seed, state_dict=None),
-      _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict=None, device=device),
-    )
+    return model_cfg, diffuser_cfg, None
 
   import torch  # noqa: PLC0415
 
@@ -168,9 +191,7 @@ def build_models(args: argparse.Namespace) -> tuple[ProteinEBMModel, "ProteinEBM
   ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
   model_cfg = ckpt["hyper_parameters"]["config"].model
   diffuser_cfg = ckpt["hyper_parameters"]["config"].diffuser
-  ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, ckpt["state_dict"], device=device)
-  jax_model = _build_jax_model(model_cfg, args.seed, ckpt["state_dict"])
-  return jax_model, ref_model
+  return model_cfg, diffuser_cfg, ckpt["state_dict"]
 
 
 def _build_heterogeneous_batch(n_structures: int, seed: int, max_length: int) -> list[dict[str, np.ndarray]]:
@@ -351,54 +372,145 @@ def _run_dry_run(args: argparse.Namespace) -> int:
   return 0
 
 
+def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
+  """Build only the model ``name`` actually needs and time it. Runs inside a single-strategy subprocess.
+
+  Building both frameworks' models regardless of ``name`` (the pre-isolation behavior) meant every
+  subprocess touched JAX's GPU backend even to run a pure-PyTorch strategy -- JAX preallocates
+  ~75% of device memory the moment it first touches the device (e.g. ``jax.random.PRNGKey`` inside
+  ``_build_jax_model``), starving PyTorch's `model.to(device)` in the same process. Only constructing
+  the model the requested strategy uses keeps each subprocess's footprint to what it actually needs.
+  """
+  n_structures = min(args.n_structures, 6) if args.smoke else args.n_structures
+  n_repeats = min(args.n_repeats, 2) if args.smoke else args.n_repeats
+  structures = _build_heterogeneous_batch(n_structures, args.seed, max_length=BUCKET_BOUNDARIES[-1])
+  model_cfg, diffuser_cfg, state_dict = _load_model_configs(args)
+  device_label = jax.devices()[0].platform if name == "jax_bucket_pad_tile" else _torch_device()
+
+  _log_gpu_processes(f"before {name}")
+
+  def _build_and_run() -> tuple[list[float], int, int]:
+    if name == "jax_bucket_pad_tile":
+      jax_model = _build_jax_model(model_cfg, args.seed, state_dict)
+      return _jax_bucket_pad_tile(jax_model, structures, args.diffusion_time, n_repeats)
+    ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict, device=device_label)
+    strategy_fn = _pytorch_pad_to_batch_max if name == "pytorch_pad_to_batch_max" else _pytorch_per_structure_loop
+    return strategy_fn(ref_model, structures, args.diffusion_time, n_repeats, device=device_label)
+
+  # Confirmed via nvidia-smi --query-compute-apps (see _log_gpu_processes calls in the job logs)
+  # that this is a genuine Blackwell/SM120 driver quirk, not a bug here or real capacity pressure:
+  # after a JAX subprocess with a large preallocation exits, nvidia-smi keeps reporting a "ghost"
+  # compute-app entry for its now-dead PID -- confirmed via `ps` that the PID itself no longer
+  # exists -- for several minutes before the driver actually reclaims it. Same family of issue as
+  # the documented autotuning-crash "leaking" behavior (audit doc sec. 7), just triggered here by
+  # ordinary large-context teardown, not only by the illegal-address fault. Retry OOM-shaped
+  # failures with a generous backoff before recording a genuine crash; at production scale each
+  # strategy's own runtime is much longer than this smoke test's, which should naturally leave more
+  # gap for the ghost entry to clear before the next subprocess starts.
+  max_attempts = 6
+  for attempt in range(1, max_attempts + 1):
+    try:
+      times, padded_elements, real_elements = _build_and_run()
+      break
+    except Exception as e:  # noqa: BLE001 -- must still report a result row, not crash the subprocess silently
+      is_oom = "out of memory" in str(e).lower() or "RESOURCE_EXHAUSTED" in str(e)
+      if is_oom:
+        _log_gpu_processes(f"after {name} attempt {attempt} OOM")
+      if is_oom and attempt < max_attempts:
+        wait_s = 20 * attempt
+        log.warning(
+          "[%s] attempt %d/%d hit an OOM-shaped error, retrying in %ds (likely a still-draining "
+          "prior subprocess's CUDA context, not real capacity): %s",
+          name, attempt, max_attempts, wait_s, e,
+        )
+        time.sleep(wait_s)
+        continue
+      log.error("[%s] FAILED (attempt %d/%d): %s: %s", name, attempt, max_attempts, type(e).__name__, e)
+      return {"strategy": name, "error": f"{type(e).__name__}: {e}"}
+
+  mean_ms = float(np.mean(times)) * 1000.0
+  std_ms = float(np.std(times)) * 1000.0
+  padding_overhead = padded_elements / real_elements if real_elements else float("nan")
+  log.info(
+    "[%s] wall_clock=%.2fms (+/-%.2fms) padding_overhead=%.3fx (%d padded / %d real elements)",
+    name, mean_ms, std_ms, padding_overhead, padded_elements, real_elements,
+  )
+  return {
+    "strategy": name,
+    "device": device_label,
+    "wall_clock_mean_ms": mean_ms,
+    "wall_clock_std_ms": std_ms,
+    "padded_elements": padded_elements,
+    "real_elements": real_elements,
+    "padding_overhead_ratio": padding_overhead,
+  }
+
+
+def _run_strategy_subprocess_mode(args: argparse.Namespace) -> int:
+  """Child-process entry point: run exactly one strategy, write its result alone to ``--out``."""
+  result = _run_one_strategy(args.strategy, args)
+  args.out.parent.mkdir(parents=True, exist_ok=True)
+  args.out.write_text(json.dumps({"result": result}, indent=2))
+  return 0 if "error" not in result else 1
+
+
+def _child_argv(args: argparse.Namespace, strategy: str, out_path: Path) -> list[str]:
+  argv = [
+    sys.executable, str(Path(__file__).resolve()),
+    "--strategy", strategy,
+    "--n-structures", str(args.n_structures),
+    "--checkpoint", str(args.checkpoint),
+    "--reference-repo", str(args.reference_repo),
+    "--seed", str(args.seed),
+    "--diffusion-time", str(args.diffusion_time),
+    "--n-repeats", str(args.n_repeats),
+    "--out", str(out_path),
+  ]
+  if args.smoke:
+    argv.append("--smoke")
+  return argv
+
+
+def _child_env(strategy: str) -> dict[str, str]:
+  """Env for a strategy's subprocess. Belt-and-suspenders on top of only building the needed
+  model: the pytorch strategies never need JAX to touch the GPU at all, so tell it not to
+  preallocate (JAX's default ~75% upfront grab would otherwise starve PyTorch in that process
+  if anything ever imports/touches JAX there again). The JAX strategy keeps normal preallocation
+  -- disabling it there would slow its own allocator and skew the very throughput being measured.
+  """
+  env = dict(os.environ)
+  if strategy != "jax_bucket_pad_tile":
+    env["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+  return env
+
+
 def main() -> int:
   logging.basicConfig(level=logging.INFO, format="%(message)s")
   args = _parse_args()
 
   if args.dry_run:
     return _run_dry_run(args)
+  if args.strategy is not None:
+    return _run_strategy_subprocess_mode(args)
 
   n_structures = min(args.n_structures, 6) if args.smoke else args.n_structures
   n_repeats = min(args.n_repeats, 2) if args.smoke else args.n_repeats
-
-  jax_model, ref_model = build_models(args)
-  torch_device = _torch_device()
-  log.info("PyTorch device: %s", torch_device)
   structures = _build_heterogeneous_batch(n_structures, args.seed, max_length=BUCKET_BOUNDARIES[-1])
   lengths = [s["length"] for s in structures]
   log.info("Heterogeneous batch: n=%d lengths=%s", n_structures, sorted(lengths))
 
-  strategy_calls: list[tuple[str, Any]] = [
-    ("jax_bucket_pad_tile", lambda: _jax_bucket_pad_tile(jax_model, structures, args.diffusion_time, n_repeats)),
-    ("pytorch_pad_to_batch_max", lambda: _pytorch_pad_to_batch_max(ref_model, structures, args.diffusion_time, n_repeats, device=torch_device)),
-    ("pytorch_per_structure_loop", lambda: _pytorch_per_structure_loop(ref_model, structures, args.diffusion_time, n_repeats, device=torch_device)),
-  ]
-
   results: list[dict[str, Any]] = []
-  for name, call in strategy_calls:
-    try:
-      times, padded_elements, real_elements = call()
-    except Exception as e:  # noqa: BLE001 -- one strategy crashing must not lose the others' already-timed results
-      log.error("[%s] FAILED: %s: %s", name, type(e).__name__, e)
-      results.append({"strategy": name, "error": f"{type(e).__name__}: {e}"})
-      _write_payload(args, n_structures, n_repeats, lengths, results)
-      continue
-    mean_ms = float(np.mean(times)) * 1000.0
-    std_ms = float(np.std(times)) * 1000.0
-    padding_overhead = padded_elements / real_elements if real_elements else float("nan")
-    results.append({
-      "strategy": name,
-      "device": torch_device if name.startswith("pytorch") else jax.devices()[0].platform,
-      "wall_clock_mean_ms": mean_ms,
-      "wall_clock_std_ms": std_ms,
-      "padded_elements": padded_elements,
-      "real_elements": real_elements,
-      "padding_overhead_ratio": padding_overhead,
-    })
-    log.info(
-      "[%s] wall_clock=%.2fms (+/-%.2fms) padding_overhead=%.3fx (%d padded / %d real elements)",
-      name, mean_ms, std_ms, padding_overhead, padded_elements, real_elements,
-    )
+  for name in STRATEGY_NAMES:
+    partial_path = args.out.with_suffix(f".{name}.partial.json")
+    log.info("=== launching isolated subprocess: %s ===", name)
+    proc = subprocess.run(_child_argv(args, name, partial_path), env=_child_env(name), check=False)  # noqa: S603 -- fixed argv, no shell
+    if partial_path.exists():
+      result = json.loads(partial_path.read_text())["result"]
+      partial_path.unlink()
+    else:
+      log.error("[%s] subprocess exited %d with no output file -- recording as crashed", name, proc.returncode)
+      result = {"strategy": name, "error": f"subprocess exit code {proc.returncode}, no output written"}
+    results.append(result)
     _write_payload(args, n_structures, n_repeats, lengths, results)
 
   log.info("Wrote %d strategy results to %s", len(results), args.out)
@@ -446,6 +558,13 @@ def _write_payload(
         "A row with 'error' instead of 'wall_clock_mean_ms' means that strategy "
         "raised during timing -- the other strategies in this file completed "
         "normally and are unaffected.",
+        "Each strategy runs in its own OS subprocess (this script re-invoked with "
+        "--strategy), not just sequentially in-process: on Blackwell (SM120), the "
+        "JAX strategy can hit a confirmed XLA:Triton compiler bug that corrupts "
+        "the CUDA driver context, which previously also poisoned both PyTorch "
+        "strategies once they shared the same GPU (see "
+        ".praxia/docs/audits/260716_proteinebm-parity-report.md sec. 7). Separate "
+        "processes mean a JAX crash can no longer take the PyTorch numbers with it.",
       ],
     },
     "results": results,

@@ -372,23 +372,39 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
   n_repeats = min(args.n_repeats, 2) if args.smoke else args.n_repeats
   structures = _build_heterogeneous_batch(n_structures, args.seed, max_length=BUCKET_BOUNDARIES[-1])
   model_cfg, diffuser_cfg, state_dict = _load_model_configs(args)
+  device_label = jax.devices()[0].platform if name == "jax_bucket_pad_tile" else _torch_device()
 
-  if name == "jax_bucket_pad_tile":
-    jax_model = _build_jax_model(model_cfg, args.seed, state_dict)
-    call = lambda: _jax_bucket_pad_tile(jax_model, structures, args.diffusion_time, n_repeats)  # noqa: E731
-    device_label = jax.devices()[0].platform
-  else:
-    torch_device = _torch_device()
-    ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict, device=torch_device)
+  def _build_and_run() -> tuple[list[float], int, int]:
+    if name == "jax_bucket_pad_tile":
+      jax_model = _build_jax_model(model_cfg, args.seed, state_dict)
+      return _jax_bucket_pad_tile(jax_model, structures, args.diffusion_time, n_repeats)
+    ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict, device=device_label)
     strategy_fn = _pytorch_pad_to_batch_max if name == "pytorch_pad_to_batch_max" else _pytorch_per_structure_loop
-    call = lambda: strategy_fn(ref_model, structures, args.diffusion_time, n_repeats, device=torch_device)  # noqa: E731
-    device_label = torch_device
+    return strategy_fn(ref_model, structures, args.diffusion_time, n_repeats, device=device_label)
 
-  try:
-    times, padded_elements, real_elements = call()
-  except Exception as e:  # noqa: BLE001 -- must still report a result row, not crash the subprocess silently
-    log.error("[%s] FAILED: %s: %s", name, type(e).__name__, e)
-    return {"strategy": name, "error": f"{type(e).__name__}: {e}"}
+  # The previous subprocess's CUDA context can take the driver a few seconds to actually reclaim
+  # after that process exits (observed on cluster: a subprocess launched immediately after a large
+  # JAX allocation released hit a transient OOM against memory that was, moments later, free again
+  # -- not a real capacity problem). Retry OOM-shaped failures a few times with backoff before
+  # recording them as a genuine crash.
+  max_attempts = 4
+  for attempt in range(1, max_attempts + 1):
+    try:
+      times, padded_elements, real_elements = _build_and_run()
+      break
+    except Exception as e:  # noqa: BLE001 -- must still report a result row, not crash the subprocess silently
+      is_oom = "out of memory" in str(e).lower() or "RESOURCE_EXHAUSTED" in str(e)
+      if is_oom and attempt < max_attempts:
+        wait_s = 5 * attempt
+        log.warning(
+          "[%s] attempt %d/%d hit an OOM-shaped error, retrying in %ds (likely a still-draining "
+          "prior subprocess's CUDA context, not real capacity): %s",
+          name, attempt, max_attempts, wait_s, e,
+        )
+        time.sleep(wait_s)
+        continue
+      log.error("[%s] FAILED (attempt %d/%d): %s: %s", name, attempt, max_attempts, type(e).__name__, e)
+      return {"strategy": name, "error": f"{type(e).__name__}: {e}"}
 
   mean_ms = float(np.mean(times)) * 1000.0
   std_ms = float(np.std(times)) * 1000.0

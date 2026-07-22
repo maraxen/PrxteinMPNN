@@ -83,20 +83,17 @@ STRATEGY_NAMES: tuple[str, ...] = (
   # jax_bucket_pad_tile runs LAST, not first: in production (jobs 18515871 and 18518766,
   # 2026-07-22, H200/node4009) a ~105GB compute-app entry showed up under this project's own
   # venv path before this script's own strategies had allocated anything meaningful, under a
-  # DIFFERENT pid each time. Two explanations remain open (see _log_gpu_processes, which now
-  # logs our own pid to disambiguate on the next run): (a) this script's own JAX preallocation
-  # from an EARLIER subprocess in the same job outliving that subprocess's exit, or (b) node4009
-  # being genuinely double-booked -- confirmed separately that it belongs to both `pi_so3`
-  # (OverSubscribe=NO) and `mit_preemptable`, and a third-party job (aaru0302's
-  # zinc_finetune_s1_h200_resume, running since 2026-07-21T22:41, holding gres/gpu:h200=1) was
-  # concurrently occupying one of the node's two physical H200s throughout both of these runs --
-  # GRES accounting isn't coordinated across that partition boundary, so a pi_so3-submitted job
-  # CAN land on the same physical GPU a mit_preemptable job already holds. (b) is confirmed real
-  # regardless of which explains the specific pid seen here, and isn't fixable from inside this
-  # script -- avoid pinning --nodelist=node4009 (or any node listed under both partitions) for
-  # GPU-memory-sensitive runs. Kept this ordering as cheap defense in depth either way: whatever
-  # the source of pressure, the strategy most likely to fail from it should never be positioned
-  # to starve the others that come after it.
+  # DIFFERENT pid each time. node4009 also happened to be running a third-party job (aaru0302's
+  # zinc_finetune_s1_h200_resume) at the time, but SLURM tracks GRES (GPU) allocation at the node
+  # level across every partition it belongs to, so that alone shouldn't let two jobs land on the
+  # same physical device -- that theory doesn't actually hold up and isn't the explanation. The
+  # pragmatic fix regardless of the exact cause (this script's own earlier subprocess in the same
+  # job not having released memory yet, driver-level teardown lag, or something else) is
+  # `_wait_for_gpu_free` below: gate each strategy's subprocess on the GPU actually reporting
+  # enough free memory before it starts touching anything, instead of assuming the moment a
+  # subprocess launches its device is ready. Kept this ordering as cheap defense in depth on top
+  # of that: whatever residual pressure the free-memory gate doesn't catch, the strategy most
+  # likely to fail from it should never be positioned to starve the others that come after it.
   "pytorch_pad_to_batch_max", "pytorch_per_structure_loop", "jax_bucket_pad_tile",
 )
 
@@ -194,14 +191,15 @@ def _torch_device() -> str:
 
 def _log_gpu_processes(label: str) -> None:
   """Diagnostic: dump nvidia-smi's own compute-process list, plus our own pid, so a large memory
-  figure can be attributed to THIS process vs. some other one sharing the GPU. Added 2026-07-22
-  after jobs 18515871/18518766 left this genuinely ambiguous: nvidia-smi listed a ~105GB
-  compute-app entry under this project's own venv path in both runs, under a DIFFERENT PID each
-  time -- consistent with either (a) this script's own JAX preallocation from an earlier
-  subprocess in the same job not being released, or (b) node4009 being concurrently used by
-  another job (confirmed real and separate: node4009 is double-booked between the `pi_so3` and
-  `mit_preemptable` partitions, see STRATEGY_NAMES comment). Logging our own pid resolves which
-  one it is on the next run: if the elevated entry's pid never matches ours, it's (b).
+  figure can be attributed to THIS process vs. some other one still holding the GPU. Added
+  2026-07-22 after jobs 18515871/18518766 left this genuinely ambiguous: nvidia-smi listed a
+  ~105GB compute-app entry under this project's own venv path in both runs, under a DIFFERENT
+  PID each time -- most likely this script's own JAX preallocation from an earlier subprocess in
+  the same job not having been released by the time the next subprocess started (SLURM tracks
+  GPU allocation at the node level across partitions, so a same-node third-party job isn't
+  expected to explain this). See `_wait_for_gpu_free`, which gates on the GPU actually being
+  free rather than relying on this diagnostic alone. Logging our own pid lets a future run
+  confirm directly: if the elevated entry's pid never matches ours, something else is holding it.
   Safe no-op if nvidia-smi is absent (e.g. CPU-only local dev) or the call fails for any reason
   -- this must never break a run."""
   try:
@@ -212,6 +210,61 @@ def _log_gpu_processes(label: str) -> None:
     log.info("[gpu-processes %s] (our pid=%d)\n%s", label, os.getpid(), out.stdout.strip() or "(no output)")
   except Exception as e:  # noqa: BLE001 -- diagnostic only, never fatal
     log.info("[gpu-processes %s] nvidia-smi unavailable: %s", label, e)
+
+
+# Per-strategy minimum free GPU memory (GiB) required before that strategy's subprocess is
+# allowed to start building its model, derived from the actual worst-case allocation each one
+# has been observed to attempt at production scale (n=256, see BATCH_SIZES_LARGE_L-style ceiling
+# in run_cluster_benchmarks.sh for the analogous per-length convention elsewhere in this repo):
+# pytorch_pad_to_batch_max pads the WHOLE batch to its single largest length and tried to
+# allocate 128GiB doing so (job 18515871's OOM); jax_bucket_pad_tile's own preallocation plus its
+# largest bucket's autotuning scratch needed at least 104.85+36.02=~141GB in the worst observed
+# case, so it gets the highest bar; pytorch_per_structure_loop never pads and has consistently
+# needed only a few GB. These are heuristics tied to the current n_structures=256 production
+# config, not a formula derived from --n-structures -- revisit if that default changes materially.
+_MIN_FREE_GB_BY_STRATEGY: dict[str, float] = {
+  "pytorch_pad_to_batch_max": 130.0,
+  "pytorch_per_structure_loop": 10.0,
+  "jax_bucket_pad_tile": 110.0,
+}
+
+
+def _wait_for_gpu_free(min_free_gb: float, timeout_s: float = 600.0, poll_interval_s: float = 15.0) -> None:
+  """Block until the GPU reports at least ``min_free_gb`` free, or ``timeout_s`` elapses.
+
+  Added 2026-07-22 after jobs 18515871/18518766 both saw a large, unexplained chunk of GPU
+  memory already in use the moment a strategy's subprocess started (see _log_gpu_processes) --
+  most likely this script's own earlier subprocess in the same job not having released its
+  memory yet by the time the next one launched. Rather than trying to fully pin down why the GPU
+  isn't free, just wait until it actually is: this is a strict superset fix that also covers any
+  other transient reason the device might not be ready yet. Safe no-op if nvidia-smi is absent
+  (e.g. CPU-only local dev) -- proceeds immediately rather than blocking forever. If the timeout
+  elapses without enough free memory, logs a warning and proceeds anyway -- the retry-with-backoff
+  loop in ``_run_one_strategy`` is the last line of defense if this optimistic proceed still OOMs.
+  """
+  deadline = time.monotonic() + timeout_s
+  free_gb = None
+  while True:
+    try:
+      out = subprocess.run(  # noqa: S603, S607 -- fixed argv, no shell, diagnostic-only
+        ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+        capture_output=True, text=True, timeout=10, check=False,
+      )
+      free_gb = float(out.stdout.strip().splitlines()[0]) / 1024.0
+    except Exception as e:  # noqa: BLE001 -- diagnostic-only gate, never block a run on this failing
+      log.info("[gpu-wait] nvidia-smi unavailable, proceeding without gating: %s", e)
+      return
+    if free_gb >= min_free_gb:
+      log.info("[gpu-wait] %.1fGiB free (>= %.1fGiB required), proceeding", free_gb, min_free_gb)
+      return
+    if time.monotonic() >= deadline:
+      log.warning(
+        "[gpu-wait] timed out after %.0fs waiting for %.1fGiB free (last saw %.1fGiB) -- "
+        "proceeding anyway", timeout_s, min_free_gb, free_gb,
+      )
+      return
+    log.info("[gpu-wait] only %.1fGiB free (need %.1fGiB), waiting %.0fs...", free_gb, min_free_gb, poll_interval_s)
+    time.sleep(poll_interval_s)
 
 
 def _load_model_configs(args: argparse.Namespace) -> tuple[Any, Any, Any]:
@@ -444,6 +497,7 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
     jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)
 
   _log_gpu_processes(f"before {name}")
+  _wait_for_gpu_free(_MIN_FREE_GB_BY_STRATEGY[name])
 
   def _build_and_run() -> tuple[list[float], int, int, float | None]:
     if name == "jax_bucket_pad_tile":
@@ -455,19 +509,16 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
     return times, padded_elements, real_elements, None  # eager PyTorch has no separate compile phase
 
   # Originally this comment attributed a persistently-elevated nvidia-smi reading (~105GB in use
-  # by a dead PID) to a crashed JAX subprocess's preallocation outliving the process. CORRECTED
-  # 2026-07-22 (jobs 18515871 and 18518766, H200/node4009): that theory doesn't hold -- the PID
-  # holding the memory was DIFFERENT across separate jobs and was already present before this
-  # script's own strategies had touched the GPU, ruling out a leak from OUR crashed subprocess.
-  # Actual cause: node4009 is double-booked between the `pi_so3` and `mit_preemptable`
-  # partitions, and a third-party job (aaru0302, running since 2026-07-21T22:41) held one of the
-  # node's two physical H200s the entire time -- see the STRATEGY_NAMES comment above. This is
-  # genuine multi-tenant GPU contention, not fixable from inside this process. The retry backoff
-  # below still has value for short-lived transients (e.g. the documented Blackwell/SM120
-  # ghost-listing race, or another tenant's job briefly freeing/reallocating), but it cannot wait
-  # out a whole other job's multi-hour GPU hold -- see jax_bucket_pad_tile's reduced
-  # XLA_PYTHON_CLIENT_MEM_FRACTION in _child_env for reducing OUR OWN exposure to that
-  # contention, and avoid pinning to a node shared with a preemptable partition when possible.
+  # by a dead PID) to node4009 being double-booked across the `pi_so3`/`mit_preemptable`
+  # partitions. CORRECTED 2026-07-22: SLURM tracks GPU allocation at the node level across every
+  # partition it belongs to, so that theory doesn't actually hold -- a same-node third-party job
+  # shouldn't be able to land on the same physical GPU. Most likely explanation is this script's
+  # own earlier subprocess in the same job not having released its memory by the time the next
+  # one started. Rather than keep chasing the exact mechanism, `_wait_for_gpu_free` above now
+  # gates each strategy on the GPU actually reporting enough free memory before touching
+  # anything, which helps regardless of cause. The retry backoff below stays as a second layer
+  # for whatever it doesn't catch (e.g. memory freed mid-attempt, or a genuinely transient
+  # driver-level race like the documented Blackwell/SM120 ghost-listing behavior).
   max_attempts = 6
   for attempt in range(1, max_attempts + 1):
     try:

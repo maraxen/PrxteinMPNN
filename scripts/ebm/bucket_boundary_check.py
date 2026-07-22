@@ -68,10 +68,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
-from xtrax.eda import analyze_bucket, explain_plan
-from xtrax.tiling import AxisSpec, BatchPlanner, select_bucket
 
 logger = logging.getLogger(__name__)
+
+# xtrax.eda/xtrax.tiling are DELIBERATELY NOT imported at module level: several of
+# xtrax.tiling's submodules (carry_shape.py, dispatch.py, estimators.py, iterator.py, plan.py,
+# strategy.py) import jax at their own top level, and this module's `build_proxy_distribution` /
+# `build_synthetic_lengths` / `load_real_lengths` are pure numpy/dataclass logic that never needs
+# xtrax at all. Confirmed in production (job 18526258, 2026-07-22): `heterogeneous_batch_
+# benchmark.py`'s orchestrator process only imports `build_proxy_distribution` from this module
+# (never `demonstrate_xtrax_eda`/`analyze_distribution`, the only two functions here that use
+# xtrax), but a bare unconditional `from xtrax.tiling import ...` at this module's top level was
+# enough to transitively trigger JAX's eager CUDA backend init and ~105GB preallocation in that
+# orchestrator process anyway -- reproducing the exact bug an earlier fix (commit 8ea93a9e)
+# thought it had eliminated by removing this script's OWN direct jax/equinox imports. Import
+# xtrax.eda/xtrax.tiling locally, only inside the two functions that actually use them.
 
 DEFAULT_BOUNDARIES: tuple[int, ...] = (64, 128, 256, 512)
 DEFAULT_DATA_DIR = Path(__file__).resolve().parents[2] / "tests" / "data"
@@ -214,6 +225,9 @@ def demonstrate_xtrax_eda(boundaries: tuple[int, ...], representative_length: in
     A dict with the ``explain_plan`` stats and the ``analyze_bucket`` entry
     for the residue axis decision.
   """
+  from xtrax.eda import analyze_bucket, explain_plan  # noqa: PLC0415
+  from xtrax.tiling import AxisSpec, BatchPlanner  # noqa: PLC0415
+
   spec = AxisSpec(
     name="residue",
     cardinality=representative_length,
@@ -264,6 +278,8 @@ def analyze_distribution(
     order) and the sub-list of lengths that exceed the largest boundary
     (would need truncation/rejection under the current contract).
   """
+  from xtrax.tiling import select_bucket  # noqa: PLC0415
+
   assigned: Counter[int] = Counter()
   by_bucket: dict[int, list[int]] = {b: [] for b in boundaries}
   overflow_lengths: list[int] = []

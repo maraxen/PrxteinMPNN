@@ -79,6 +79,22 @@ if TYPE_CHECKING:
 # functions that actually run inside a `--strategy` child subprocess (_build_jax_model,
 # _jax_bucket_pad_tile, and the two jax_bucket_pad_tile-only branches in _run_one_strategy) --
 # never at module scope.
+#
+# THIRD occurrence of this exact bug class (job 18527774, 2026-07-22), after two prior "confirmed"
+# fixes (this file's own top-level import, then bucket_boundary_check.py's top-level xtrax import)
+# both held up under `ast.walk` but still missed a deeper transitive path: main() used to call
+# _build_heterogeneous_batch() directly (to log/report `lengths`), which calls
+# build_proxy_distribution() -> load_real_lengths() -> a FUNCTION-LOCAL (already "lazy") `from
+# aminx.io.parsing import parse_structure`. That import is local to load_real_lengths, but
+# load_real_lengths is unconditionally invoked by the orchestrator, so the "lazy" label didn't
+# help -- and aminx.io.parsing.dispatch itself imports `Protein` from `proxide.core.containers` at
+# THAT module's own top level, which does `import jax.numpy as jnp` unconditionally (a third-party
+# dependency, not our own code). Fix: the orchestrator no longer calls _build_heterogeneous_batch
+# at all -- every --strategy subprocess already reconstructs the identical seeded batch
+# independently (_run_one_strategy) and now returns `lengths` in its result dict; main() reads
+# `lengths` off the first subprocess's result instead. Lesson: a function-scoped import is only as
+# lazy as the least-lazy function that calls it -- trace the full call graph of anything the
+# orchestrator invokes, not just its own module-level imports.
 
 log = logging.getLogger("heterogeneous_batch_benchmark")
 
@@ -497,6 +513,7 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
   n_structures = min(args.n_structures, 6) if args.smoke else args.n_structures
   n_repeats = min(args.n_repeats, 2) if args.smoke else args.n_repeats
   structures = _build_heterogeneous_batch(n_structures, args.seed, max_length=BUCKET_BOUNDARIES[-1])
+  lengths = [s["length"] for s in structures]
   model_cfg, diffuser_cfg, state_dict = _load_model_configs(args)
   if name == "jax_bucket_pad_tile":
     import jax  # noqa: PLC0415 -- see module-level comment: keep JAX out of the orchestrator process
@@ -555,7 +572,7 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
         time.sleep(wait_s)
         continue
       log.error("[%s] FAILED (attempt %d/%d): %s: %s", name, attempt, max_attempts, type(e).__name__, e)
-      return {"strategy": name, "error": f"{type(e).__name__}: {e}"}
+      return {"strategy": name, "error": f"{type(e).__name__}: {e}", "lengths": lengths}
 
   mean_ms = float(np.mean(times)) * 1000.0
   std_ms = float(np.std(times)) * 1000.0
@@ -577,6 +594,7 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
     "compile_wall_clock_ms": compile_ms,
     "compilation_cache_dir": str(cache_dir) if cache_dir is not None else None,
     "compilation_cache_state": cache_state,
+    "lengths": lengths,
   }
 
 
@@ -640,21 +658,31 @@ def main() -> int:
 
   n_structures = min(args.n_structures, 6) if args.smoke else args.n_structures
   n_repeats = min(args.n_repeats, 2) if args.smoke else args.n_repeats
-  structures = _build_heterogeneous_batch(n_structures, args.seed, max_length=BUCKET_BOUNDARIES[-1])
-  lengths = [s["length"] for s in structures]
-  log.info("Heterogeneous batch: n=%d lengths=%s", n_structures, sorted(lengths))
+  # The orchestrator itself does NOT call _build_heterogeneous_batch (deliberately -- see the
+  # module-level comment): every --strategy subprocess already reconstructs the identical, seeded
+  # batch independently (_run_one_strategy) and now reports its `lengths` back in its result dict,
+  # so the orchestrator just reads `lengths` off the first subprocess result instead of building
+  # (and importing aminx.io.parsing -> proxide -> jax.numpy to do so) its own copy.
+  log.info("Heterogeneous batch: n=%d (each strategy subprocess reconstructs an identical, seeded batch)", n_structures)
 
   results: list[dict[str, Any]] = []
+  lengths: list[Any] = []
   for name in STRATEGY_NAMES:
     partial_path = args.out.with_suffix(f".{name}.partial.json")
     log.info("=== launching isolated subprocess: %s ===", name)
     proc = subprocess.run(_child_argv(args, name, partial_path), env=_child_env(name), check=False)  # noqa: S603 -- fixed argv, no shell
+    result: dict[str, Any]
     if partial_path.exists():
       result = json.loads(partial_path.read_text())["result"]
       partial_path.unlink()
     else:
       log.error("[%s] subprocess exited %d with no output file -- recording as crashed", name, proc.returncode)
       result = {"strategy": name, "error": f"subprocess exit code {proc.returncode}, no output written"}
+    if not lengths and "lengths" in result:
+      lengths = result.pop("lengths")
+      log.info("Heterogeneous batch lengths (from %s subprocess): %s", name, sorted(lengths))
+    else:
+      result.pop("lengths", None)
     results.append(result)
     _write_payload(args, n_structures, n_repeats, lengths, results)
 

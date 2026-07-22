@@ -629,20 +629,24 @@ def _child_env(strategy: str) -> dict[str, str]:
   """Env for a strategy's subprocess. Belt-and-suspenders on top of only building the needed
   model: the pytorch strategies never need JAX to touch the GPU at all, so tell it not to
   preallocate (JAX's default ~75% upfront grab would otherwise starve PyTorch in that process
-  if anything ever imports/touches JAX there again). The JAX strategy keeps preallocation ON
-  (disabling it entirely would slow its own allocator and skew the very throughput being
-  measured) but at a REDUCED fraction: confirmed in production (job 18515871, 2026-07-22) that
-  the default 0.75 fraction leaves too little headroom for XLA's autotuner, which profiles
-  candidate GEMM kernels for the largest bucket group (512) by allocating scratch buffers on top
-  of the model's own live activations -- one profiling attempt there needed an extra 36GB, but
-  the default fraction only left ~25% (~35GB of a 139.8GB H200) free, so autotuning OOM'd on
-  every one of its 6 retries (retrying doesn't help: it's the same process reusing the same
-  static arena each time). 0.5 leaves ~70GB of headroom instead, still with preallocation on.
+  if anything ever imports/touches JAX there again).
+
+  jax_bucket_pad_tile gets NO override here (uses JAX's own default: preallocation on, 0.75
+  fraction). A prior version of this function REDUCED its fraction to 0.5, reasoning (job
+  18515871, 2026-07-22) that the default 0.75 fraction's natural ~35GB-free residual
+  (139.8GiB * 0.25) was too little headroom for XLA's autotuner, which needs scratch on top of
+  the model's own live activations to profile the largest bucket group's (512) GEMM fusion.
+  That reduction was backwards: autotuning scratch is allocated *inside* the preallocated arena,
+  so a SMALLER fraction means a smaller arena, not more headroom within it -- confirmed in
+  production (job 18530690, 2026-07-22, after the ~105GB orchestrator-leak fix in this same
+  session): at 0.5 (~70GB arena) the model's own activations for n=256/bucket=512 already used
+  nearly the whole arena, leaving no room for the ~4GB the autotuner still needed, and it OOM'd
+  on all 6 retries. Removing the override (falling back to 0.75, a ~105GB arena on this H200)
+  gives ~29GB of headroom instead of ~0. Safe to do now that the orchestrator no longer holds a
+  competing ~105GB (see the module-level comment) -- this strategy has the whole GPU to itself.
   """
   env = dict(os.environ)
-  if strategy == "jax_bucket_pad_tile":
-    env["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.5"
-  else:
+  if strategy != "jax_bucket_pad_tile":
     env["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
   return env
 

@@ -50,19 +50,35 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-import equinox as eqx
-import jax
-import jax.numpy as jnp
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from bucket_boundary_check import build_proxy_distribution  # noqa: E402
 
-from aminx.ebm.checkpoint import load_pytorch_checkpoint  # noqa: E402
-from aminx.ebm.model import ProteinEBMModel  # noqa: E402
-
 if TYPE_CHECKING:
+  import equinox as eqx
+  import jax
+  import jax.numpy as jnp
   import torch
+  from aminx.ebm.model import ProteinEBMModel
   from protein_ebm.model.ebm import ProteinEBM  # type: ignore[import-not-found]
+
+# jax/equinox/aminx.ebm.model/aminx.ebm.checkpoint are DELIBERATELY NOT imported at module level
+# (only under TYPE_CHECKING above, for annotations -- safe since `from __future__ import
+# annotations` makes all hints lazy strings). This file's own top-level entry point (the parent
+# process launched by the sbatch script, with no --strategy flag) only orchestrates subprocesses
+# via `subprocess.run` -- it never needs JAX itself. Confirmed in production (job 18523524,
+# 2026-07-22) that a bare top-level `import jax` in that ORCHESTRATOR process was enough to
+# trigger JAX's eager CUDA backend init and its default ~75% preallocation (~105GB of a 139.8GB
+# H200) in a process that does nothing with the GPU -- and because that parent process stays
+# alive for the entire job (it sequentially launches and waits on each strategy's own
+# subprocess), it permanently starved every strategy subprocess of that memory for the whole
+# job, regardless of strategy ordering or per-child env vars like XLA_PYTHON_CLIENT_PREALLOCATE
+# (those only apply to the children `subprocess.run` launches, not to this process itself).
+# Confirmed via `ps` on the compute node: the PID holding ~105GB the whole time was this exact
+# parent process (etime matching the job's own elapsed time), not a leaked child or another
+# tenant. Import jax/equinox/ProteinEBMModel/load_pytorch_checkpoint LOCALLY, only inside the
+# functions that actually run inside a `--strategy` child subprocess (_build_jax_model,
+# _jax_bucket_pad_tile, and the two jax_bucket_pad_tile-only branches in _run_one_strategy) --
+# never at module scope.
 
 log = logging.getLogger("heterogeneous_batch_benchmark")
 
@@ -80,20 +96,16 @@ SMOKE_HEADS = 2
 SMOKE_NUM_CONTACT_EMBEDDINGS = 2
 
 STRATEGY_NAMES: tuple[str, ...] = (
-  # jax_bucket_pad_tile runs LAST, not first: in production (jobs 18515871 and 18518766,
-  # 2026-07-22, H200/node4009) a ~105GB compute-app entry showed up under this project's own
-  # venv path before this script's own strategies had allocated anything meaningful, under a
-  # DIFFERENT pid each time. node4009 also happened to be running a third-party job (aaru0302's
-  # zinc_finetune_s1_h200_resume) at the time, but SLURM tracks GRES (GPU) allocation at the node
-  # level across every partition it belongs to, so that alone shouldn't let two jobs land on the
-  # same physical device -- that theory doesn't actually hold up and isn't the explanation. The
-  # pragmatic fix regardless of the exact cause (this script's own earlier subprocess in the same
-  # job not having released memory yet, driver-level teardown lag, or something else) is
-  # `_wait_for_gpu_free` below: gate each strategy's subprocess on the GPU actually reporting
-  # enough free memory before it starts touching anything, instead of assuming the moment a
-  # subprocess launches its device is ready. Kept this ordering as cheap defense in depth on top
-  # of that: whatever residual pressure the free-memory gate doesn't catch, the strategy most
-  # likely to fail from it should never be positioned to starve the others that come after it.
+  # jax_bucket_pad_tile runs LAST, not first. ROOT CAUSE CONFIRMED 2026-07-22 (job 18523524):
+  # this was originally a mystery -- a ~105GB compute-app entry under this project's own venv
+  # path, present before this script's own strategies had allocated anything, ruled out both a
+  # crashed-child leak theory and a node-double-booking theory (see module-level comment for the
+  # actual answer: the ORCHESTRATOR process itself, via a module-level `import jax`, was
+  # preallocating ~105GB it never used and holding it for the entire job). That's fixed now at
+  # the import level, which is the real fix. This ordering (and _wait_for_gpu_free below) remain
+  # as cheap defense in depth on top of that fix: whatever residual pressure they don't catch,
+  # the strategy most likely to fail from memory pressure should never be positioned to starve
+  # the others that come after it.
   "pytorch_pad_to_batch_max", "pytorch_per_structure_loop", "jax_bucket_pad_tile",
 )
 
@@ -171,6 +183,10 @@ def _build_reference_model(reference_repo: Path, model_cfg: Any, diffuser_cfg: A
 
 
 def _build_jax_model(model_cfg: Any, seed: int, state_dict: Any) -> ProteinEBMModel:  # noqa: ANN401
+  import jax  # noqa: PLC0415 -- see module-level comment: keep JAX out of the orchestrator process
+  from aminx.ebm.checkpoint import load_pytorch_checkpoint  # noqa: PLC0415
+  from aminx.ebm.model import ProteinEBMModel  # noqa: PLC0415
+
   key = jax.random.PRNGKey(seed)
   model = ProteinEBMModel(
     token_s=model_cfg.token_s, token_z=model_cfg.token_z, dim_fourier=model_cfg.dim_fourier,
@@ -190,16 +206,12 @@ def _torch_device() -> str:
 
 
 def _log_gpu_processes(label: str) -> None:
-  """Diagnostic: dump nvidia-smi's own compute-process list, plus our own pid, so a large memory
-  figure can be attributed to THIS process vs. some other one still holding the GPU. Added
-  2026-07-22 after jobs 18515871/18518766 left this genuinely ambiguous: nvidia-smi listed a
-  ~105GB compute-app entry under this project's own venv path in both runs, under a DIFFERENT
-  PID each time -- most likely this script's own JAX preallocation from an earlier subprocess in
-  the same job not having been released by the time the next subprocess started (SLURM tracks
-  GPU allocation at the node level across partitions, so a same-node third-party job isn't
-  expected to explain this). See `_wait_for_gpu_free`, which gates on the GPU actually being
-  free rather than relying on this diagnostic alone. Logging our own pid lets a future run
-  confirm directly: if the elevated entry's pid never matches ours, something else is holding it.
+  """Diagnostic: dump nvidia-smi's own compute-process list, plus our own pid. This is what
+  resolved the mystery in job 18523524 (2026-07-22): `ps` on the compute node showed the ~105GB
+  entry's pid was this SCRIPT's own top-level orchestrator process (the one launched by the
+  sbatch script with no `--strategy` flag, running the whole job) -- see the module-level
+  comment for the actual fix (keep jax out of that process's imports entirely). Kept for future
+  debugging: logging our own pid lets a run immediately tell whether an elevated entry is us.
   Safe no-op if nvidia-smi is absent (e.g. CPU-only local dev) or the call fails for any reason
   -- this must never break a run."""
   try:
@@ -334,6 +346,9 @@ def _jax_bucket_pad_tile(
   the batch (previously discarded; now surfaced so cold-vs-warm persistent-compilation-cache
   runs can be compared directly, see ``--compilation-cache-dir``).
   """
+  import equinox as eqx  # noqa: PLC0415 -- see module-level comment: keep JAX out of the orchestrator process
+  import jax  # noqa: PLC0415
+  import jax.numpy as jnp  # noqa: PLC0415
   from xtrax.tiling import select_bucket  # noqa: PLC0415
 
   groups: dict[int, list[dict[str, np.ndarray]]] = {}
@@ -483,11 +498,18 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
   n_repeats = min(args.n_repeats, 2) if args.smoke else args.n_repeats
   structures = _build_heterogeneous_batch(n_structures, args.seed, max_length=BUCKET_BOUNDARIES[-1])
   model_cfg, diffuser_cfg, state_dict = _load_model_configs(args)
-  device_label = jax.devices()[0].platform if name == "jax_bucket_pad_tile" else _torch_device()
+  if name == "jax_bucket_pad_tile":
+    import jax  # noqa: PLC0415 -- see module-level comment: keep JAX out of the orchestrator process
+
+    device_label = jax.devices()[0].platform
+  else:
+    device_label = _torch_device()
 
   cache_state: str | None = None
   cache_dir = getattr(args, "compilation_cache_dir", None)
   if name == "jax_bucket_pad_tile" and cache_dir is not None:
+    import jax  # noqa: PLC0415
+
     cache_state = "warm" if cache_dir.exists() and any(cache_dir.iterdir()) else "cold"
     cache_dir.mkdir(parents=True, exist_ok=True)
     jax.config.update("jax_compilation_cache_dir", str(cache_dir))  # mirrors src/aminx/host/prep.py
@@ -508,17 +530,12 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
     times, padded_elements, real_elements = strategy_fn(ref_model, structures, args.diffusion_time, n_repeats, device=device_label)
     return times, padded_elements, real_elements, None  # eager PyTorch has no separate compile phase
 
-  # Originally this comment attributed a persistently-elevated nvidia-smi reading (~105GB in use
-  # by a dead PID) to node4009 being double-booked across the `pi_so3`/`mit_preemptable`
-  # partitions. CORRECTED 2026-07-22: SLURM tracks GPU allocation at the node level across every
-  # partition it belongs to, so that theory doesn't actually hold -- a same-node third-party job
-  # shouldn't be able to land on the same physical GPU. Most likely explanation is this script's
-  # own earlier subprocess in the same job not having released its memory by the time the next
-  # one started. Rather than keep chasing the exact mechanism, `_wait_for_gpu_free` above now
-  # gates each strategy on the GPU actually reporting enough free memory before touching
-  # anything, which helps regardless of cause. The retry backoff below stays as a second layer
-  # for whatever it doesn't catch (e.g. memory freed mid-attempt, or a genuinely transient
-  # driver-level race like the documented Blackwell/SM120 ghost-listing behavior).
+  # A persistently-elevated nvidia-smi reading (~105GB in use) was root-caused 2026-07-22 (job
+  # 18523524) to this script's own top-level orchestrator process eagerly initializing JAX via a
+  # module-level `import jax` -- see the module-level comment. Fixed at the import level, which
+  # is the real fix; `_wait_for_gpu_free` above and the retry backoff below stay as defense in
+  # depth for anything that fix doesn't catch (e.g. a genuinely transient driver-level race like
+  # the documented Blackwell/SM120 ghost-listing behavior).
   max_attempts = 6
   for attempt in range(1, max_attempts + 1):
     try:

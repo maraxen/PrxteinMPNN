@@ -80,7 +80,24 @@ SMOKE_HEADS = 2
 SMOKE_NUM_CONTACT_EMBEDDINGS = 2
 
 STRATEGY_NAMES: tuple[str, ...] = (
-  "jax_bucket_pad_tile", "pytorch_pad_to_batch_max", "pytorch_per_structure_loop",
+  # jax_bucket_pad_tile runs LAST, not first: in production (jobs 18515871 and 18518766,
+  # 2026-07-22, H200/node4009) a ~105GB compute-app entry showed up under this project's own
+  # venv path before this script's own strategies had allocated anything meaningful, under a
+  # DIFFERENT pid each time. Two explanations remain open (see _log_gpu_processes, which now
+  # logs our own pid to disambiguate on the next run): (a) this script's own JAX preallocation
+  # from an EARLIER subprocess in the same job outliving that subprocess's exit, or (b) node4009
+  # being genuinely double-booked -- confirmed separately that it belongs to both `pi_so3`
+  # (OverSubscribe=NO) and `mit_preemptable`, and a third-party job (aaru0302's
+  # zinc_finetune_s1_h200_resume, running since 2026-07-21T22:41, holding gres/gpu:h200=1) was
+  # concurrently occupying one of the node's two physical H200s throughout both of these runs --
+  # GRES accounting isn't coordinated across that partition boundary, so a pi_so3-submitted job
+  # CAN land on the same physical GPU a mit_preemptable job already holds. (b) is confirmed real
+  # regardless of which explains the specific pid seen here, and isn't fixable from inside this
+  # script -- avoid pinning --nodelist=node4009 (or any node listed under both partitions) for
+  # GPU-memory-sensitive runs. Kept this ordering as cheap defense in depth either way: whatever
+  # the source of pressure, the strategy most likely to fail from it should never be positioned
+  # to starve the others that come after it.
+  "pytorch_pad_to_batch_max", "pytorch_per_structure_loop", "jax_bucket_pad_tile",
 )
 
 
@@ -176,14 +193,23 @@ def _torch_device() -> str:
 
 
 def _log_gpu_processes(label: str) -> None:
-  """Diagnostic: dump nvidia-smi's own compute-process list. Safe no-op if nvidia-smi is absent
-  (e.g. CPU-only local dev) or the call fails for any reason -- this must never break a run."""
+  """Diagnostic: dump nvidia-smi's own compute-process list, plus our own pid, so a large memory
+  figure can be attributed to THIS process vs. some other one sharing the GPU. Added 2026-07-22
+  after jobs 18515871/18518766 left this genuinely ambiguous: nvidia-smi listed a ~105GB
+  compute-app entry under this project's own venv path in both runs, under a DIFFERENT PID each
+  time -- consistent with either (a) this script's own JAX preallocation from an earlier
+  subprocess in the same job not being released, or (b) node4009 being concurrently used by
+  another job (confirmed real and separate: node4009 is double-booked between the `pi_so3` and
+  `mit_preemptable` partitions, see STRATEGY_NAMES comment). Logging our own pid resolves which
+  one it is on the next run: if the elevated entry's pid never matches ours, it's (b).
+  Safe no-op if nvidia-smi is absent (e.g. CPU-only local dev) or the call fails for any reason
+  -- this must never break a run."""
   try:
     out = subprocess.run(  # noqa: S603, S607 -- fixed argv, no shell, diagnostic-only
       ["nvidia-smi", "--query-compute-apps=pid,used_memory,process_name", "--format=csv"],
       capture_output=True, text=True, timeout=10, check=False,
     )
-    log.info("[gpu-processes %s]\n%s", label, out.stdout.strip() or "(no output)")
+    log.info("[gpu-processes %s] (our pid=%d)\n%s", label, os.getpid(), out.stdout.strip() or "(no output)")
   except Exception as e:  # noqa: BLE001 -- diagnostic only, never fatal
     log.info("[gpu-processes %s] nvidia-smi unavailable: %s", label, e)
 
@@ -428,16 +454,20 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
     times, padded_elements, real_elements = strategy_fn(ref_model, structures, args.diffusion_time, n_repeats, device=device_label)
     return times, padded_elements, real_elements, None  # eager PyTorch has no separate compile phase
 
-  # Confirmed via nvidia-smi --query-compute-apps (see _log_gpu_processes calls in the job logs)
-  # that this is a genuine Blackwell/SM120 driver quirk, not a bug here or real capacity pressure:
-  # after a JAX subprocess with a large preallocation exits, nvidia-smi keeps reporting a "ghost"
-  # compute-app entry for its now-dead PID -- confirmed via `ps` that the PID itself no longer
-  # exists -- for several minutes before the driver actually reclaims it. Same family of issue as
-  # the documented autotuning-crash "leaking" behavior (audit doc sec. 7), just triggered here by
-  # ordinary large-context teardown, not only by the illegal-address fault. Retry OOM-shaped
-  # failures with a generous backoff before recording a genuine crash; at production scale each
-  # strategy's own runtime is much longer than this smoke test's, which should naturally leave more
-  # gap for the ghost entry to clear before the next subprocess starts.
+  # Originally this comment attributed a persistently-elevated nvidia-smi reading (~105GB in use
+  # by a dead PID) to a crashed JAX subprocess's preallocation outliving the process. CORRECTED
+  # 2026-07-22 (jobs 18515871 and 18518766, H200/node4009): that theory doesn't hold -- the PID
+  # holding the memory was DIFFERENT across separate jobs and was already present before this
+  # script's own strategies had touched the GPU, ruling out a leak from OUR crashed subprocess.
+  # Actual cause: node4009 is double-booked between the `pi_so3` and `mit_preemptable`
+  # partitions, and a third-party job (aaru0302, running since 2026-07-21T22:41) held one of the
+  # node's two physical H200s the entire time -- see the STRATEGY_NAMES comment above. This is
+  # genuine multi-tenant GPU contention, not fixable from inside this process. The retry backoff
+  # below still has value for short-lived transients (e.g. the documented Blackwell/SM120
+  # ghost-listing race, or another tenant's job briefly freeing/reallocating), but it cannot wait
+  # out a whole other job's multi-hour GPU hold -- see jax_bucket_pad_tile's reduced
+  # XLA_PYTHON_CLIENT_MEM_FRACTION in _child_env for reducing OUR OWN exposure to that
+  # contention, and avoid pinning to a node shared with a preemptable partition when possible.
   max_attempts = 6
   for attempt in range(1, max_attempts + 1):
     try:
@@ -513,11 +543,20 @@ def _child_env(strategy: str) -> dict[str, str]:
   """Env for a strategy's subprocess. Belt-and-suspenders on top of only building the needed
   model: the pytorch strategies never need JAX to touch the GPU at all, so tell it not to
   preallocate (JAX's default ~75% upfront grab would otherwise starve PyTorch in that process
-  if anything ever imports/touches JAX there again). The JAX strategy keeps normal preallocation
-  -- disabling it there would slow its own allocator and skew the very throughput being measured.
+  if anything ever imports/touches JAX there again). The JAX strategy keeps preallocation ON
+  (disabling it entirely would slow its own allocator and skew the very throughput being
+  measured) but at a REDUCED fraction: confirmed in production (job 18515871, 2026-07-22) that
+  the default 0.75 fraction leaves too little headroom for XLA's autotuner, which profiles
+  candidate GEMM kernels for the largest bucket group (512) by allocating scratch buffers on top
+  of the model's own live activations -- one profiling attempt there needed an extra 36GB, but
+  the default fraction only left ~25% (~35GB of a 139.8GB H200) free, so autotuning OOM'd on
+  every one of its 6 retries (retrying doesn't help: it's the same process reusing the same
+  static arena each time). 0.5 leaves ~70GB of headroom instead, still with preallocation on.
   """
   env = dict(os.environ)
-  if strategy != "jax_bucket_pad_tile":
+  if strategy == "jax_bucket_pad_tile":
+    env["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.5"
+  else:
     env["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
   return env
 

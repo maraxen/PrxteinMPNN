@@ -801,6 +801,18 @@ def _write_payload(
         "strategies once they shared the same GPU (see "
         ".praxia/docs/audits/260716_proteinebm-parity-report.md sec. 7). Separate "
         "processes mean a JAX crash can no longer take the PyTorch numbers with it.",
+        "pytorch_pad_to_batch_max hits a genuine, confirmed OOM on a single H200 at "
+        "n_structures=256 (max_length=512): padding the WHOLE batch to one dense "
+        "[256, 512, ...] tensor needs ~140-145GiB, more than the GPU's 139.8GiB. This "
+        "is NOT fixable by torch.compile (confirmed empirically -- Inductor kernel "
+        "fusion still needed ~140GiB, identical order of magnitude to eager) because "
+        "the dominant cost is a pairwise conditioning tensor every attention layer "
+        "consumes in full, not redundant intermediate-buffer overhead fusion can "
+        "eliminate. It is a real O(n_structures * max_length^2) capacity wall specific "
+        "to padding-everything-to-batch-max with no bucketing concept -- the intended "
+        "finding this strategy exists to demonstrate, not a bug. Production comparisons "
+        "use a smaller --n-structures (see scripts/ebm/benchmarks/run_cluster_benchmarks.sh) "
+        "so all three strategies produce numbers on the same batch composition.",
       ],
     },
     "results": results,

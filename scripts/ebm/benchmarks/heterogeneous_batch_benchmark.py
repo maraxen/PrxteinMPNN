@@ -54,6 +54,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from bucket_boundary_check import build_proxy_distribution  # noqa: E402
 
 if TYPE_CHECKING:
+  from collections.abc import Callable
+
   import equinox as eqx
   import jax
   import jax.numpy as jnp
@@ -102,6 +104,10 @@ DEFAULT_CHECKPOINT = Path("/tmp/proteinebm_weights/model_6_expert_frozen_1m_md.p
 DEFAULT_REFERENCE_REPO = Path("~/repos/ProteinEBM").expanduser()
 DEFAULT_DIFFUSION_TIME = 0.05
 BUCKET_BOUNDARIES: tuple[int, ...] = (64, 128, 256, 512)  # E4.5-confirmed boundaries.
+# Vmap/SafeMap cutoff for the per-bucket-group axis in _jax_bucket_pad_tile. Matches
+# aminx.ebm.plan's N_DECOYS/N_MUTANTS/N_ENSEMBLE axis-template default (8); not yet empirically
+# tuned for this specific axis -- see the E11e handoff's open question.
+BUCKET_GROUP_BATCH_SIZE = 8
 
 SMOKE_TOKEN_S = 32
 SMOKE_TOKEN_Z = 16
@@ -365,7 +371,9 @@ def _jax_bucket_pad_tile(
   import equinox as eqx  # noqa: PLC0415 -- see module-level comment: keep JAX out of the orchestrator process
   import jax  # noqa: PLC0415
   import jax.numpy as jnp  # noqa: PLC0415
-  from xtrax.tiling import select_bucket  # noqa: PLC0415
+  from xtrax.tiling import AxisSpec, BatchPlanner, select_bucket  # noqa: PLC0415
+
+  from aminx.ebm.plan import dispatch_axis  # noqa: PLC0415
 
   groups: dict[int, list[dict[str, np.ndarray]]] = {}
   for s in structures:
@@ -385,13 +393,29 @@ def _jax_bucket_pad_tile(
 
   t_arr = jnp.asarray(t)
 
-  @eqx.filter_jit
-  def _score_group(m: ProteinEBMModel, coords: jax.Array, aatype: jax.Array, mask: jax.Array) -> jax.Array:
-    return jax.vmap(lambda c, a, mk: m.energy(c, a, t_arr, mk))(coords, aatype, mask)
+  def _make_score_group(strategy: object) -> Callable[[ProteinEBMModel, jax.Array, jax.Array, jax.Array], jax.Array]:
+    @eqx.filter_jit
+    def _score_group(m: ProteinEBMModel, coords: jax.Array, aatype: jax.Array, mask: jax.Array) -> jax.Array:
+      def _score_one(xs: tuple[jax.Array, jax.Array, jax.Array]) -> jax.Array:
+        c, a, mk = xs
+        return m.energy(c, a, t_arr, mk)
+
+      return dispatch_axis(strategy, _score_one, (coords, aatype, mask))
+
+    return _score_group
+
+  # BUCKET_GROUP_BATCH_SIZE is a provisional default (aminx.ebm.plan's own N_DECOYS/N_MUTANTS/
+  # N_ENSEMBLE axis templates use 8) -- not yet empirically validated for this axis specifically.
+  score_fns = [
+    _make_score_group(BatchPlanner().plan([
+      AxisSpec(name="bucket_group", cardinality=len(members), default_batch_size=BUCKET_GROUP_BATCH_SIZE),
+    ]).decisions[0].strategy)
+    for members in groups.values()
+  ]
 
   def _call() -> None:
-    for coords, aatype, mask in batched_inputs:
-      jax.block_until_ready(_score_group(model, coords, aatype, mask))
+    for (coords, aatype, mask), score_fn in zip(batched_inputs, score_fns, strict=True):
+      jax.block_until_ready(score_fn(model, coords, aatype, mask))
 
   compile_start = time.perf_counter()
   _call()  # warmup -- forces jit compilation per distinct bucket shape; timed separately below

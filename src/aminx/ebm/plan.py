@@ -146,11 +146,11 @@ def plan_axis(
   return plan.decisions[0]
 
 
-def dispatch_axis[T](
+def dispatch_axis[T, U](
   strategy: object,
-  body: Callable[[T], T],
+  body: Callable[[T], U],
   xs: T,
-) -> T:
+) -> U:
   """Dispatch iteration over an axis using a BatchPlanner-selected strategy.
 
   Analogous to ``aminx.host.kernel_dispatch._dispatch_axis``, deliberately
@@ -199,7 +199,8 @@ def dispatch_axis[T](
   if isinstance(strategy, SafeMap):
     return safe_map(body, xs, batch_size=strategy.batch_size)
   if isinstance(strategy, Scan):
-    def _scan_body(carry: object, x: T) -> tuple[object, T]:
+
+    def _scan_body(carry: object, x: T) -> tuple[object, U]:
       return carry, body(x)
 
     init = strategy.init if strategy.init is not None else jnp.array(0)

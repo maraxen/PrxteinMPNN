@@ -160,6 +160,13 @@ def _parse_args() -> argparse.Namespace:
     "boundaries. Cache state (cold/warm, based on whether the directory already had entries "
     "before this run) is recorded in the output for provenance.",
   )
+  parser.add_argument(
+    "--torch-compile", action="store_true",
+    help="Wrap the PyTorch reference model's compute_energy in torch.compile (CUDA/Triton "
+    "backend when running on GPU) for the pytorch_pad_to_batch_max strategy only. Diagnostic "
+    "flag: tests whether Inductor's kernel fusion reduces peak activation memory enough to avoid "
+    "that strategy's ~130GiB OOM at n=256 -- has no effect on the other two strategies.",
+  )
   return parser.parse_args()
 
 
@@ -429,9 +436,18 @@ def _jax_bucket_pad_tile(
 
 
 def _pytorch_pad_to_batch_max(
-  ref_model: "ProteinEBM", structures: list[dict[str, np.ndarray]], t: float, n_repeats: int, device: "str | torch.device" = "cpu",
-) -> tuple[list[float], int, int]:
-  """Strategy 2: pad every structure to the single batch-max length, one dense forward."""
+  ref_model: "ProteinEBM", structures: list[dict[str, np.ndarray]], t: float, n_repeats: int,
+  device: "str | torch.device" = "cpu", *, torch_compile: bool = False,
+) -> tuple[list[float], int, int, float | None]:
+  """Strategy 2: pad every structure to the single batch-max length, one dense forward.
+
+  ``torch_compile=True`` wraps ``ref_model.compute_energy`` in ``torch.compile`` (Inductor,
+  Triton codegen when ``device`` is CUDA) before timing -- diagnostic flag to test whether
+  kernel fusion reduces peak activation memory enough to avoid this strategy's ~130GiB OOM at
+  n=256 (see the E11e handoff). The warmup call (which triggers compilation when enabled) is
+  timed separately as the 4th return value, mirroring ``_jax_bucket_pad_tile``'s own
+  compile/run split.
+  """
   import torch  # noqa: PLC0415
 
   max_len = max(s["length"] for s in structures)
@@ -449,11 +465,24 @@ def _pytorch_pad_to_batch_max(
     "t": times_t, "chain_encoding": chain_id, "external_contacts": contacts,
   }
 
+  # Confirm every input tensor and the model's own parameters actually landed on `device` -- a
+  # silent CPU fallback here would make every downstream number meaningless (see
+  # _build_reference_model's docstring: this was a real, previously-undiscovered bug).
+  model_device = next(ref_model.parameters()).device
+  for feat_name, tensor in feats.items():
+    if tensor.device != model_device:
+      msg = f"{feat_name} landed on {tensor.device}, expected model device {model_device} (device arg was {device!r})"
+      raise RuntimeError(msg)
+
+  compute = torch.compile(ref_model.compute_energy) if torch_compile else ref_model.compute_energy
+
   def _call() -> None:
     with torch.no_grad():
-      ref_model.compute_energy(feats, rescale_input_coords=False)
+      compute(feats, rescale_input_coords=False)
 
-  _call()
+  compile_start = time.perf_counter()
+  _call()  # warmup -- also triggers torch.compile's graph capture/codegen when torch_compile=True
+  compile_wall_clock_s = time.perf_counter() - compile_start if torch_compile else None
   times = []
   for _ in range(n_repeats):
     start = time.perf_counter()
@@ -462,7 +491,7 @@ def _pytorch_pad_to_batch_max(
 
   padded_elements = max_len * n
   real_elements = sum(s["length"] for s in structures)
-  return times, padded_elements, real_elements
+  return times, padded_elements, real_elements, compile_wall_clock_s
 
 
 def _pytorch_per_structure_loop(
@@ -567,9 +596,13 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
       jax_model = _build_jax_model(model_cfg, args.seed, state_dict)
       return _jax_bucket_pad_tile(jax_model, structures, args.diffusion_time, n_repeats)
     ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict, device=device_label)
-    strategy_fn = _pytorch_pad_to_batch_max if name == "pytorch_pad_to_batch_max" else _pytorch_per_structure_loop
-    times, padded_elements, real_elements = strategy_fn(ref_model, structures, args.diffusion_time, n_repeats, device=device_label)
-    return times, padded_elements, real_elements, None  # eager PyTorch has no separate compile phase
+    if name == "pytorch_pad_to_batch_max":
+      return _pytorch_pad_to_batch_max(
+        ref_model, structures, args.diffusion_time, n_repeats, device=device_label,
+        torch_compile=getattr(args, "torch_compile", False),
+      )
+    times, padded_elements, real_elements = _pytorch_per_structure_loop(ref_model, structures, args.diffusion_time, n_repeats, device=device_label)
+    return times, padded_elements, real_elements, None  # eager PyTorch (per-structure loop) has no compile phase
 
   # A persistently-elevated nvidia-smi reading (~105GB in use) was root-caused 2026-07-22 (job
   # 18523524) to this script's own top-level orchestrator process eagerly initializing JAX via a
@@ -646,6 +679,8 @@ def _child_argv(args: argparse.Namespace, strategy: str, out_path: Path) -> list
     argv.append("--smoke")
   if args.compilation_cache_dir is not None:
     argv.extend(["--compilation-cache-dir", str(args.compilation_cache_dir)])
+  if getattr(args, "torch_compile", False):
+    argv.append("--torch-compile")
   return argv
 
 

@@ -168,12 +168,58 @@ class AxisNames:
   N_NOISES = "n_noises"
 
 
+# Conservative per-residue activation footprint (float32 bytes) for one innermost
+# (structure, noise, temperature, sample) combination in the sampling dispatch built
+# by host/kernel_dispatch.py's _sample_batch. Two live tensors dominate:
+#   - the EncoderOutput held for the noise/temp loop (aminx.types.encodings.EncoderOutput:
+#     node_features (L, D), edge_features (L, K, D)) -- same shape family as, and reusing
+#     the same conservative D=128/K=32/D_edge=48 constants already established by
+#     aminx.sampling.conditional_logits._plan_axis_strategy's callers for this exact type
+#     (see batched_encode_fn's `activation_bytes = seq_len * (128 + 32 * 48) * 4`), not a
+#     fresh guess;
+#   - the per-sample decode output (res.logits, shape (L, 21)) -- same convention as
+#     conditional_logits.py's batched_decode_fn (`seq_len * 21 * 4`).
+# estimate_memory_theoretical's single flat product (see aminx.tiling.planner) does not
+# distinguish "computed once per noise/temp" from "computed once per sample" -- summing
+# both into one per-element constant is the conservative choice given that architecture,
+# not an attempt to model exact live-tensor accounting.
+_SAMPLING_NODE_FEATURE_DIM = 128
+_SAMPLING_EDGE_NEIGHBORS = 32
+_SAMPLING_EDGE_FEATURE_DIM = 48
+_SAMPLING_DECODE_VOCAB = 21
+_SAMPLING_BYTES_PER_ELEMENT = 4  # float32
+
+
+def _sampling_activation_bytes_per_element(seq_len: int) -> float:
+  """Conservative per-residue activation-byte estimate for one sampling dispatch unit.
+
+  See the module-level constants above for the shape/constant provenance. Used as
+  ``estimate_memory_theoretical``'s ``base_shape_bytes`` argument in
+  ``make_sampling_planner`` -- previously hardcoded to ``1.0`` (a dimensionless
+  placeholder, off by ~7-8 orders of magnitude from a real device memory budget for
+  a realistic samples/temperatures/noises composition), which made the joint-budget
+  Vmap-vs-SafeMap demotion check for those three axes practically inert regardless of
+  real activation size (found investigating the E11e heterogeneous-batch benchmark
+  session, 2026-07-23; git-blame traces the ``1.0`` to the 2026-07-06 joint-budget
+  migration, commit 35dc18b8, inherited unreviewed from the pre-migration local
+  planner -- see .praxia/docs/specs/260706_epic1541-planner-joint-budget-migration.md,
+  which never discusses base_shape_bytes/activation_multiplier calibration).
+  """
+  per_residue_elements = (
+    _SAMPLING_NODE_FEATURE_DIM
+    + _SAMPLING_EDGE_NEIGHBORS * _SAMPLING_EDGE_FEATURE_DIM
+    + _SAMPLING_DECODE_VOCAB
+  )
+  return seq_len * per_residue_elements * _SAMPLING_BYTES_PER_ELEMENT
+
+
 def make_sampling_planner(
   spec: SamplingSpecification,
   param_bytes: float = 0.0,
   headroom: float = 0.80,
   activation_multiplier: float = 2.5,
   n_samples_override: int | None = None,
+  seq_len: int | None = None,
 ) -> BatchPlan:
   """Create a BatchPlan for _sample_batch dispatch with advisory logging.
 
@@ -210,6 +256,18 @@ def make_sampling_planner(
       with callers/tests that construct a plan without a real per-call
       sample count in hand; the one production call site
       (``host/kernel_dispatch.py``'s ``_sample_batch``) always passes it.
+  seq_len : int | None, optional
+      Real per-structure residue count, e.g. from
+      ``batched_ensemble.coordinates.shape[1]``. Used to compute a real
+      per-element activation-byte estimate for the joint memory-budget check
+      (see ``_sampling_activation_bytes_per_element``) instead of the
+      previous hardcoded ``base_shape_bytes=1.0`` placeholder, which made the
+      budget check practically inert for the samples/temperatures/noises
+      axes regardless of real activation size. Defaults to ``None`` (falls
+      back to the old ``1.0`` placeholder) only for backward compatibility
+      with callers/tests that construct a plan without a real structure in
+      hand; the one production call site (``host/kernel_dispatch.py``'s
+      ``_sample_batch``) always passes it.
 
   Returns
   -------
@@ -235,10 +293,11 @@ def make_sampling_planner(
     ),
     dataclasses.replace(N_NOISES, cardinality=max(1, len(getattr(spec, "backbone_noise", [0.0])))),
   ]
+  base_shape_bytes = 1.0 if seq_len is None else _sampling_activation_bytes_per_element(seq_len)
   return _plan_with_joint_budget(
     axes,
     budget_bytes=budget_bytes,
-    estimate_fn=lambda ds: estimate_memory_theoretical(ds, 1.0, activation_multiplier),
+    estimate_fn=lambda ds: estimate_memory_theoretical(ds, base_shape_bytes, activation_multiplier),
     carry_specs=getattr(spec, "carry_specs", None) or [],
     dedup_specs=getattr(spec, "dedup_specs", None) or [],
   )

@@ -67,6 +67,35 @@
   `.praxia/docs/specs/260706_samples-axis-planner-cardinality-mismatch.md` for the full root-cause
   history and `tests/host/test_samples_cardinality_fix.py` for the regression coverage.
 
+- **State axis in multistate PoE sampling hardcoded `Vmap`, bypassing `BatchPlanner` entirely**
+  ([`src/aminx/inference/sample_autoregressive.py`](src/aminx/inference/sample_autoregressive.py),
+  [`src/aminx/sampling/multistate_poe.py`](src/aminx/sampling/multistate_poe.py))
+
+  `sample_autoregressive.kernel()` always passed `strategy=Vmap()` for the state axis to
+  `make_decode_fn`, regardless of `bundle.geometry.n_states` or the device memory budget —
+  invisible to any BatchPlanner accounting, even though `aminx.tiling.axes.N_STATES` already
+  declares the canonical convention (`default_batch_size=1`, i.e. SafeMap-one-state-at-a-time
+  whenever `num_states>1`). Harmless at `num_states=1` (the only case the single-structure
+  campaign path hits), but for a genuinely fused multi-state bundle (`sample_states_fused`)
+  this batches every decoder layer's per-state MLPs simultaneously. At production sample
+  counts this produced a single fused GEMM XLA's autotuner could not find a valid kernel
+  config for: `sample_count=128` crashed after an 809s compile ("Autotuning failed for HLO:
+  `f32[128,12582912]{1,0}` fusion(...)"), `sample_count=512` failed differently ("9 out of 89
+  instructions"). Found investigating tev_design's necklace PoE production-scaling
+  bottleneck (praxia debt #942).
+
+  Fix: `kernel()` gained an optional `state_strategy` parameter (`None` preserves the prior
+  Vmap default for the single-state path); `sample_states_fused` now resolves the state axis
+  through `BatchPlanner` against `N_STATES` (a plain cardinality-vs-`default_batch_size` rule,
+  deliberately not a memory-estimator/budget call — an optimistic byte estimate is exactly
+  what let this bug go unnoticed) and passes the resolved strategy through, translating
+  xtrax-native decisions back to aminx's own `AxisStrategy` union the same way
+  `_plan_axis_strategy` already does for the samples axis.
+
+  See `tests/sampling/test_multistate_poe.py`'s
+  `test_multistate_state_axis_resolved_via_batchplanner_not_hardcoded_vmap` and
+  `test_single_state_still_passes_an_explicit_resolved_strategy` for the regression coverage.
+
 ### Changed
 
 - **`xtrax` pin bumped `0.4.0a1` → `0.4.0a2`** (`pyproject.toml`): picks up xtrax's

@@ -46,6 +46,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from xtrax.run import SinkSpec, ZarrStagingSink
+from xtrax.tiling import BatchPlanner
+from xtrax.tiling import SafeMap as _XtraxSafeMap
+from xtrax.tiling import Vmap as _XtraxVmap
 
 from aminx.host._sampling_grid_lineage import (
   _base_sampling_key,
@@ -72,8 +75,9 @@ from aminx.inference.bundle_builder import build_inference_bundle
 from aminx.inference.logits import make_stage_set
 from aminx.inference.sample_autoregressive import kernel as _sample_autoregressive_kernel
 from aminx.sampling.conditional_logits import _plan_axis_strategy
-from aminx.tiling.axes import N_SAMPLES
+from aminx.tiling.axes import N_SAMPLES, N_STATES
 from aminx.tiling.dispatch import make_axis_dispatch_via_xtrax
+from aminx.tiling.strategy import SafeMap, Vmap
 
 if TYPE_CHECKING:
   from jaxtyping import Array, Float, Int, PRNGKeyArray
@@ -115,6 +119,19 @@ def sample_states_fused(
   exactly as `ConditionalDecode`'s teacher-forced scoring path does. Each sample gets its own
   PRNG key (`jax.random.split`); `bundle`/`config`/`stage_set` are shared and re-encoded once
   per sample by the kernel (matching `_sample_batch`'s own per-sample-key semantics).
+
+  The state axis (`bundle.geometry.n_states`) is ALSO resolved through `BatchPlanner`, against
+  the canonical `N_STATES` `AxisSpec` (`aminx.tiling.axes` -- `default_batch_size=1`, i.e.
+  SafeMap-one-state-at-a-time whenever `num_states>1`), and passed to `kernel` as
+  `state_strategy`. Previously `kernel` hardcoded `strategy=Vmap()` for the state axis
+  unconditionally, invisible to any budget accounting -- fine at num_states=1 (the only
+  case `sample.py`'s single-structure campaign path ever hits), but for a genuinely fused
+  multi-state bundle it batches every decoder layer's per-state MLPs simultaneously. At
+  production sample counts this produces a single fused GEMM whose shape XLA's autotuner
+  cannot find a valid kernel config for: sample_count=128 crashed after an 809s compile
+  ("Autotuning failed for HLO: f32[128,12582912]{1,0} fusion(...)"), sample_count=512 failed
+  differently ("9 out of 89 instructions"). Resolving N_STATES through BatchPlanner instead
+  removes the state axis from that multiplicative blowup entirely.
 
   Parameters
   ----------
@@ -162,8 +179,36 @@ def sample_states_fused(
   )
   iterator = make_axis_dispatch_via_xtrax(strategy, axis=N_SAMPLES.name)
 
+  # Resolve the state axis through BatchPlanner too (see docstring): N_STATES'
+  # default_batch_size=1 already encodes "SafeMap one state at a time whenever
+  # num_states>1" via the plain cardinality-vs-batch-size rule -- deliberately
+  # NOT a MemoryBudget/estimator call (unlike the samples axis above): a wrong
+  # or optimistic byte estimate could keep this at Vmap, reproducing a variant
+  # of the exact bug this fixes, since the estimate is precisely what's
+  # already been shown to drift out of sync with reality (aminx debt #942).
+  # This is what previously never happened at all (kernel() hardcoded Vmap
+  # unconditionally, bypassing BatchPlanner for this axis entirely).
+  state_spec = dataclasses.replace(N_STATES, cardinality=num_states)
+  xtrax_state_strategy = BatchPlanner().plan([state_spec]).decisions[0].strategy
+  # BatchPlanner is xtrax-native; translate back to aminx's own AxisStrategy
+  # union before handing it to aminx call sites (make_axis_dispatch_via_xtrax
+  # expects aminx-native instances -- mirrors _plan_axis_strategy's identical
+  # translation for the samples axis above).
+  if isinstance(xtrax_state_strategy, _XtraxSafeMap):
+    state_strategy = SafeMap(tile=xtrax_state_strategy.batch_size)
+  elif isinstance(xtrax_state_strategy, _XtraxVmap):
+    state_strategy = Vmap()
+  else:
+    msg = (
+      "sample_states_fused: unexpected BatchPlanner state-axis decision "
+      f"{type(xtrax_state_strategy)}"
+    )
+    raise TypeError(msg)
+
   def _one_sample(key: PRNGKeyArray) -> tuple[Any, Any]:
-    result = _sample_autoregressive_kernel(model, key, bundle, config, stage_set)
+    result = _sample_autoregressive_kernel(
+      model, key, bundle, config, stage_set, state_strategy=state_strategy,
+    )
     return result.sequence, result.logits
 
   sequences, logits = iterator(_one_sample, sample_keys)

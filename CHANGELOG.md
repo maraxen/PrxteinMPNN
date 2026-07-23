@@ -96,6 +96,20 @@
   `test_multistate_state_axis_resolved_via_batchplanner_not_hardcoded_vmap` and
   `test_single_state_still_passes_an_explicit_resolved_strategy` for the regression coverage.
 
+  **Follow-up (same investigation):** fixing the state axis alone wasn't sufficient —
+  `sample_count=128`/`512` still failed after this fix (differently: "Failed to get configs
+  for: N out of M instructions", not the original 809s-compile blowup), because the samples
+  axis's own memory estimate (`activation_bytes_per_element` in `sample_states_fused`) was
+  *also* a hand-typed linear formula (`num_states * seq_len * a hidden-dim-sized magic
+  constant`) that missed the AR mask's quadratic `(L, L)` term and the `(L, K, D)`
+  edge-feature term entirely. Replaced with `xtrax.tiling.estimators.
+  lowered_memory_estimate` — lowers+compiles a ONE-sample representative tile (state axis
+  already resolved) and reads XLA's own buffer-assignment numbers, a real measurement
+  instead of a formula that's now been shown to drift out of sync with reality twice in the
+  same function. This primitive already existed in xtrax with zero call sites anywhere in
+  aminx before this (praxia debt #945 tracks auditing every other hand-typed estimate
+  in aminx for the same migration).
+
 ### Changed
 
 - **`xtrax` pin bumped `0.4.0a1` → `0.4.0a2`** (`pyproject.toml`): picks up xtrax's

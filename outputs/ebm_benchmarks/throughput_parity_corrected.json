@@ -1,0 +1,1191 @@
+{
+  "convention": "speedup = pytorch_time / jax_time (>1 = JAX faster)",
+  "platforms": {
+    "Blackwell": {
+      "decoy": [
+        {
+          "protein_length": 64,
+          "batch_size": 4,
+          "jax_energy_ms": 2.2430543322116137,
+          "jax_grad_ms": 3.346057515591383,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 7.1099949069321156,
+              "pytorch_grad_ms": 22.32412016019225,
+              "energy_speedup": 3.169782739913295,
+              "grad_speedup": 6.67176820965275
+            },
+            "shipped": {
+              "pytorch_energy_ms": 7.1099949069321156,
+              "pytorch_grad_ms": 26.815685350447893,
+              "energy_speedup": 3.169782739913295,
+              "grad_speedup": 8.014113692157645
+            },
+            "compiled": {
+              "pytorch_energy_ms": 7.1099949069321156,
+              "pytorch_grad_ms": null,
+              "energy_speedup": 3.169782739913295
+            }
+          }
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 16,
+          "jax_energy_ms": 6.440176954492927,
+          "jax_grad_ms": 3.3109170850366354,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 13.313306216150522,
+              "pytorch_grad_ms": 22.74165442213416,
+              "energy_speedup": 2.0672267719076607,
+              "grad_speedup": 6.868687387223568
+            },
+            "shipped": {
+              "pytorch_energy_ms": 13.313306216150522,
+              "pytorch_grad_ms": 27.3819197434932,
+              "energy_speedup": 2.0672267719076607,
+              "grad_speedup": 8.270191925748637
+            },
+            "compiled": {
+              "pytorch_energy_ms": 13.313306216150522,
+              "pytorch_grad_ms": null,
+              "energy_speedup": 2.0672267719076607
+            }
+          }
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 64,
+          "jax_energy_ms": 25.046694790944457,
+          "jax_grad_ms": 3.647561324760318,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 42.09788562729955,
+              "pytorch_grad_ms": 23.248869786038995,
+              "energy_speedup": 1.6807760855743683,
+              "grad_speedup": 6.373811902276018
+            },
+            "shipped": {
+              "pytorch_energy_ms": 42.09788562729955,
+              "pytorch_grad_ms": 27.484973846003413,
+              "energy_speedup": 1.6807760855743683,
+              "grad_speedup": 7.535164291668067
+            },
+            "compiled": {
+              "pytorch_energy_ms": 42.09788562729955,
+              "pytorch_grad_ms": null,
+              "energy_speedup": 1.6807760855743683
+            }
+          }
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 256,
+          "jax_energy_ms": 97.54086043685675,
+          "jax_grad_ms": 3.6629293113946915,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 149.83609071932733,
+              "pytorch_grad_ms": 19.203865807503462,
+              "energy_speedup": 1.5361366513300752,
+              "grad_speedup": 5.242761782970752
+            },
+            "shipped": {
+              "pytorch_energy_ms": 149.83609071932733,
+              "pytorch_grad_ms": 22.418268583714962,
+              "energy_speedup": 1.5361366513300752,
+              "grad_speedup": 6.1203115533722965
+            },
+            "compiled": {
+              "pytorch_energy_ms": 149.83609071932733,
+              "pytorch_grad_ms": null,
+              "energy_speedup": 1.5361366513300752
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 4,
+          "jax_energy_ms": 4.032079176977277,
+          "jax_grad_ms": 4.877587826922536,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 10.427769972011447,
+              "pytorch_grad_ms": 23.427210561931133,
+              "energy_speedup": 2.5862016875940466,
+              "grad_speedup": 4.803032030017241
+            },
+            "shipped": {
+              "pytorch_energy_ms": 10.427769972011447,
+              "pytorch_grad_ms": 27.89236018434167,
+              "energy_speedup": 2.5862016875940466,
+              "grad_speedup": 5.718474207760205
+            },
+            "compiled": {
+              "pytorch_energy_ms": 10.427769972011447,
+              "pytorch_grad_ms": null,
+              "energy_speedup": 2.5862016875940466
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 16,
+          "jax_energy_ms": 16.021350165829062,
+          "jax_grad_ms": 4.825106915086508,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 32.14302733540535,
+              "pytorch_grad_ms": 24.673621775582433,
+              "energy_speedup": 2.0062620817040258,
+              "grad_speedup": 5.113590685096781
+            },
+            "shipped": {
+              "pytorch_energy_ms": 32.14302733540535,
+              "pytorch_grad_ms": 28.97482248954475,
+              "energy_speedup": 2.0062620817040258,
+              "grad_speedup": 6.005011494968142
+            },
+            "compiled": {
+              "pytorch_energy_ms": 32.14302733540535,
+              "pytorch_grad_ms": null,
+              "energy_speedup": 2.0062620817040258
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 64,
+          "jax_energy_ms": 62.76740529574454,
+          "jax_grad_ms": 4.8523814883083105,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 113.77848642878234,
+              "pytorch_grad_ms": 23.981841932982206,
+              "energy_speedup": 1.8127001728474543,
+              "grad_speedup": 4.94228287507193
+            },
+            "shipped": {
+              "pytorch_energy_ms": 113.77848642878234,
+              "pytorch_grad_ms": 28.441979875788093,
+              "energy_speedup": 1.8127001728474543,
+              "grad_speedup": 5.86144760965689
+            },
+            "compiled": {
+              "pytorch_energy_ms": 113.77848642878234,
+              "pytorch_grad_ms": null,
+              "energy_speedup": 1.8127001728474543
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 256,
+          "jax_energy_ms": null,
+          "jax_grad_ms": null,
+          "variants": {},
+          "oom": {
+            "framework": "pytorch",
+            "jax_survived": false,
+            "error_head": "OutOfMemoryError: CUDA out of memory. Tried to allocate 16.00 GiB. GPU 0 has a total capacity of 94.97 GiB of which 6.05 GiB is free. Including non-PyTorch memory, this process has 88.91 GiB memory in"
+          }
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 4,
+          "jax_energy_ms": 12.414329219609499,
+          "jax_grad_ms": 9.230238245800138,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 27.392636239528656,
+              "pytorch_grad_ms": 22.535123908892274,
+              "energy_speedup": 2.2065337365356505,
+              "grad_speedup": 2.441445530308604
+            },
+            "shipped": {
+              "pytorch_energy_ms": 27.392636239528656,
+              "pytorch_grad_ms": 27.207882329821587,
+              "energy_speedup": 2.2065337365356505,
+              "grad_speedup": 2.947690146806501
+            },
+            "compiled": {
+              "pytorch_energy_ms": 27.392636239528656,
+              "pytorch_grad_ms": null,
+              "energy_speedup": 2.2065337365356505
+            }
+          }
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 16,
+          "jax_energy_ms": 53.96310165524483,
+          "jax_grad_ms": 9.207520866766572,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 99.6130742598325,
+              "pytorch_grad_ms": 22.984017757698894,
+              "energy_speedup": 1.8459479015167177,
+              "grad_speedup": 2.4962221742724378
+            },
+            "shipped": {
+              "pytorch_energy_ms": 99.6130742598325,
+              "pytorch_grad_ms": 27.52770772203803,
+              "energy_speedup": 1.8459479015167177,
+              "grad_speedup": 2.98969810879234
+            },
+            "compiled": {
+              "pytorch_energy_ms": 99.6130742598325,
+              "pytorch_grad_ms": null,
+              "energy_speedup": 1.8459479015167177
+            }
+          }
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 64,
+          "jax_energy_ms": null,
+          "jax_grad_ms": null,
+          "variants": {},
+          "oom": {
+            "framework": "pytorch",
+            "jax_survived": false,
+            "error_head": "OutOfMemoryError: CUDA out of memory. Tried to allocate 16.00 GiB. GPU 0 has a total capacity of 94.97 GiB of which 6.16 GiB is free. Including non-PyTorch memory, this process has 88.80 GiB memory in"
+          }
+        },
+        {
+          "protein_length": 512,
+          "batch_size": 4,
+          "jax_energy_ms": 43.6683701351285,
+          "jax_grad_ms": 28.595284139737487,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 85.78557204455137,
+              "pytorch_grad_ms": 53.91509281471372,
+              "energy_speedup": 1.964478449255018,
+              "grad_speedup": 1.8854539983322114
+            },
+            "shipped": {
+              "pytorch_energy_ms": 85.78557204455137,
+              "pytorch_grad_ms": 59.740097261965275,
+              "energy_speedup": 1.964478449255018,
+              "grad_speedup": 2.089159071475962
+            },
+            "compiled": {
+              "pytorch_energy_ms": 85.78557204455137,
+              "pytorch_grad_ms": null,
+              "energy_speedup": 1.964478449255018
+            }
+          }
+        },
+        {
+          "protein_length": 512,
+          "batch_size": 16,
+          "jax_energy_ms": null,
+          "jax_grad_ms": null,
+          "variants": {},
+          "oom": {
+            "framework": "pytorch",
+            "jax_survived": false,
+            "error_head": "OutOfMemoryError: CUDA out of memory. Tried to allocate 16.00 GiB. GPU 0 has a total capacity of 94.97 GiB of which 1.52 GiB is free. Including non-PyTorch memory, this process has 93.45 GiB memory in"
+          }
+        }
+      ],
+      "ddg": [
+        {
+          "protein_length": 64,
+          "batch_size": 4,
+          "jax_energy_ms": 2.1219908725470304,
+          "jax_grad_ms": 3.4039029851555824,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 6.9709851406514645,
+              "pytorch_grad_ms": 22.40986186079681,
+              "energy_speedup": 3.2851155162058614,
+              "grad_speedup": 6.583578309524741
+            },
+            "shipped": {
+              "pytorch_energy_ms": 6.9709851406514645,
+              "pytorch_grad_ms": 26.828896068036556,
+              "energy_speedup": 3.2851155162058614,
+              "grad_speedup": 7.881803971804527
+            },
+            "compiled": {
+              "pytorch_energy_ms": 6.9709851406514645,
+              "pytorch_grad_ms": 13.280043238773942,
+              "energy_speedup": 3.2851155162058614,
+              "grad_speedup": 3.9014164906250848
+            }
+          }
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 16,
+          "jax_energy_ms": 6.271518021821976,
+          "jax_grad_ms": 3.407991398125887,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 13.268486550077796,
+              "pytorch_grad_ms": 23.549879295751452,
+              "energy_speedup": 2.11567382951139,
+              "grad_speedup": 6.91019329118669
+            },
+            "shipped": {
+              "pytorch_energy_ms": 13.268486550077796,
+              "pytorch_grad_ms": 27.736872248351574,
+              "energy_speedup": 2.11567382951139,
+              "grad_speedup": 8.138774136461892
+            },
+            "compiled": {
+              "pytorch_energy_ms": 13.268486550077796,
+              "pytorch_grad_ms": 12.872752407565713,
+              "energy_speedup": 2.11567382951139,
+              "grad_speedup": 3.7772256158406563
+            }
+          }
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 64,
+          "jax_energy_ms": 24.588722409680486,
+          "jax_grad_ms": 3.72978993691504,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 42.127965949475765,
+              "pytorch_grad_ms": 24.00858085602522,
+              "energy_speedup": 1.7133043859525676,
+              "grad_speedup": 6.436979364012935
+            },
+            "shipped": {
+              "pytorch_energy_ms": 42.127965949475765,
+              "pytorch_grad_ms": 28.25350440107286,
+              "energy_speedup": 1.7133043859525676,
+              "grad_speedup": 7.575092667133345
+            },
+            "compiled": {
+              "pytorch_energy_ms": 42.127965949475765,
+              "pytorch_grad_ms": 12.944470066577196,
+              "energy_speedup": 1.7133043859525676,
+              "grad_speedup": 3.470562762385418
+            }
+          }
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 256,
+          "jax_energy_ms": 93.15752862021327,
+          "jax_grad_ms": 3.4190527629107237,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 149.48073071427643,
+              "pytorch_grad_ms": 24.28920050151646,
+              "energy_speedup": 1.6046017206369103,
+              "grad_speedup": 7.104073024260225
+            },
+            "shipped": {
+              "pytorch_energy_ms": 149.48073071427643,
+              "pytorch_grad_ms": 29.061067616567016,
+              "energy_speedup": 1.6046017206369103,
+              "grad_speedup": 8.499742364849208
+            },
+            "compiled": {
+              "pytorch_energy_ms": 149.48073071427643,
+              "pytorch_grad_ms": 13.07090730406344,
+              "energy_speedup": 1.6046017206369103,
+              "grad_speedup": 3.822961565803932
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 4,
+          "jax_energy_ms": 4.056654684245586,
+          "jax_grad_ms": 5.450288858264685,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 10.419246321544051,
+              "pytorch_grad_ms": 24.167648795992136,
+              "energy_speedup": 2.568433138272333,
+              "grad_speedup": 4.434195952631924
+            },
+            "shipped": {
+              "pytorch_energy_ms": 10.419246321544051,
+              "pytorch_grad_ms": 28.847523452714086,
+              "energy_speedup": 2.568433138272333,
+              "grad_speedup": 5.292843040597822
+            },
+            "compiled": {
+              "pytorch_energy_ms": 10.419246321544051,
+              "pytorch_grad_ms": 14.432997349649668,
+              "energy_speedup": 2.568433138272333,
+              "grad_speedup": 2.6481160402652466
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 16,
+          "jax_energy_ms": 15.894556045532227,
+          "jax_grad_ms": 5.431521125137806,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 32.11979940533638,
+              "pytorch_grad_ms": 23.664024099707603,
+              "energy_speedup": 2.0208050676800675,
+              "grad_speedup": 4.356795003555695
+            },
+            "shipped": {
+              "pytorch_energy_ms": 32.11979940533638,
+              "pytorch_grad_ms": 28.391983453184366,
+              "energy_speedup": 2.0208050676800675,
+              "grad_speedup": 5.22726190307582
+            },
+            "compiled": {
+              "pytorch_energy_ms": 32.11979940533638,
+              "pytorch_grad_ms": 13.681218586862087,
+              "energy_speedup": 2.0208050676800675,
+              "grad_speedup": 2.518855818040287
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 64,
+          "jax_energy_ms": 61.83684142306447,
+          "jax_grad_ms": 5.443096719682217,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 113.68000619113445,
+              "pytorch_grad_ms": 24.062161473557353,
+              "energy_speedup": 1.8383863660399227,
+              "grad_speedup": 4.420674978371902
+            },
+            "shipped": {
+              "pytorch_energy_ms": 113.68000619113445,
+              "pytorch_grad_ms": 28.70964426547289,
+              "energy_speedup": 1.8383863660399227,
+              "grad_speedup": 5.274505625016532
+            },
+            "compiled": {
+              "pytorch_energy_ms": 113.68000619113445,
+              "pytorch_grad_ms": 13.71942674741149,
+              "energy_speedup": 1.8383863660399227,
+              "grad_speedup": 2.520518641126125
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 256,
+          "jax_energy_ms": null,
+          "jax_grad_ms": null,
+          "variants": {},
+          "oom": {
+            "framework": "pytorch",
+            "jax_survived": false,
+            "error_head": "OutOfMemoryError: CUDA out of memory. Tried to allocate 16.00 GiB. GPU 0 has a total capacity of 94.97 GiB of which 4.89 GiB is free. Including non-PyTorch memory, this process has 90.08 GiB memory in"
+          }
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 4,
+          "jax_energy_ms": 12.44602594524622,
+          "jax_grad_ms": 9.198177605867386,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 27.407743269577622,
+              "pytorch_grad_ms": 23.357178177684546,
+              "energy_speedup": 2.202128084109133,
+              "grad_speedup": 2.539326720847979
+            },
+            "shipped": {
+              "pytorch_energy_ms": 27.407743269577622,
+              "pytorch_grad_ms": 27.545617520809174,
+              "energy_speedup": 2.202128084109133,
+              "grad_speedup": 2.9946820665039366
+            },
+            "compiled": {
+              "pytorch_energy_ms": 27.407743269577622,
+              "pytorch_grad_ms": 20.399314537644386,
+              "energy_speedup": 2.202128084109133,
+              "grad_speedup": 2.217756104712737
+            }
+          }
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 16,
+          "jax_energy_ms": 54.101739125326276,
+          "jax_grad_ms": 9.561097109690309,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 99.5839184615761,
+              "pytorch_grad_ms": 24.242416908964515,
+              "energy_speedup": 1.8406786929878667,
+              "grad_speedup": 2.5355266901739215
+            },
+            "shipped": {
+              "pytorch_energy_ms": 99.5839184615761,
+              "pytorch_grad_ms": 28.509874874725938,
+              "energy_speedup": 1.8406786929878667,
+              "grad_speedup": 2.981862285012331
+            },
+            "compiled": {
+              "pytorch_energy_ms": 99.5839184615761,
+              "pytorch_grad_ms": 20.51890967413783,
+              "energy_speedup": 1.8406786929878667,
+              "grad_speedup": 2.14608317839818
+            }
+          }
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 64,
+          "jax_energy_ms": null,
+          "jax_grad_ms": null,
+          "variants": {},
+          "oom": {
+            "framework": "pytorch",
+            "jax_survived": false,
+            "error_head": "OutOfMemoryError: CUDA out of memory. Tried to allocate 16.00 GiB. GPU 0 has a total capacity of 94.97 GiB of which 5.00 GiB is free. Including non-PyTorch memory, this process has 89.96 GiB memory in"
+          }
+        },
+        {
+          "protein_length": 512,
+          "batch_size": 4,
+          "jax_energy_ms": 43.662721989676356,
+          "jax_grad_ms": 28.56712373904884,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 85.77900342643261,
+              "pytorch_grad_ms": 54.346344992518425,
+              "energy_speedup": 1.9645821313365268,
+              "grad_speedup": 1.9024087090094959
+            },
+            "shipped": {
+              "pytorch_energy_ms": 85.77900342643261,
+              "pytorch_grad_ms": 59.75141725502908,
+              "energy_speedup": 1.9645821313365268,
+              "grad_speedup": 2.0916147457069316
+            },
+            "compiled": {
+              "pytorch_energy_ms": 85.77900342643261,
+              "pytorch_grad_ms": 46.07472843490541,
+              "energy_speedup": 1.9645821313365268,
+              "grad_speedup": 1.612858503214489
+            }
+          }
+        },
+        {
+          "protein_length": 512,
+          "batch_size": 16,
+          "jax_energy_ms": null,
+          "jax_grad_ms": null,
+          "variants": {},
+          "oom": {
+            "framework": "pytorch",
+            "jax_survived": false,
+            "error_head": "OutOfMemoryError: CUDA out of memory. Tried to allocate 16.00 GiB. GPU 0 has a total capacity of 94.97 GiB of which 374.12 MiB is free. Including non-PyTorch memory, this process has 94.60 GiB memory "
+          }
+        }
+      ]
+    },
+    "H200": {
+      "decoy": [
+        {
+          "protein_length": 64,
+          "batch_size": 4,
+          "jax_energy_ms": 2.461017621681094,
+          "jax_grad_ms": 3.9482355583459143,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 10.415294533595443,
+              "pytorch_grad_ms": 26.439004996791482,
+              "energy_speedup": 4.232108881236238,
+              "grad_speedup": 6.696410233402568
+            },
+            "shipped": {
+              "pytorch_energy_ms": 10.415294533595443,
+              "pytorch_grad_ms": 29.723311448469758,
+              "energy_speedup": 4.232108881236238,
+              "grad_speedup": 7.5282517998804845
+            },
+            "compiled": {
+              "pytorch_energy_ms": 10.415294533595443,
+              "pytorch_grad_ms": 17.179269902408123,
+              "energy_speedup": 4.232108881236238,
+              "grad_speedup": 4.351125875986299
+            }
+          }
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 16,
+          "jax_energy_ms": 6.068073213100433,
+          "jax_grad_ms": 4.11080289632082,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 13.195855356752872,
+              "pytorch_grad_ms": 26.348696602508426,
+              "energy_speedup": 2.1746368069957014,
+              "grad_speedup": 6.409622953727745
+            },
+            "shipped": {
+              "pytorch_energy_ms": 13.195855356752872,
+              "pytorch_grad_ms": 29.745521629229188,
+              "energy_speedup": 2.1746368069957014,
+              "grad_speedup": 7.23593963988191
+            },
+            "compiled": {
+              "pytorch_energy_ms": 13.195855356752872,
+              "pytorch_grad_ms": 16.055907774716616,
+              "energy_speedup": 2.1746368069957014,
+              "grad_speedup": 3.905783901506613
+            }
+          }
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 64,
+          "jax_energy_ms": 21.63414442911744,
+          "jax_grad_ms": 4.094335529953241,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 40.9235053230077,
+              "pytorch_grad_ms": 29.3351911008358,
+              "energy_speedup": 1.891616535014376,
+              "grad_speedup": 7.1648234215848
+            },
+            "shipped": {
+              "pytorch_energy_ms": 40.9235053230077,
+              "pytorch_grad_ms": 30.907161999493837,
+              "energy_speedup": 1.891616535014376,
+              "grad_speedup": 7.548761398127722
+            },
+            "compiled": {
+              "pytorch_energy_ms": 40.9235053230077,
+              "pytorch_grad_ms": 19.49661960825324,
+              "energy_speedup": 1.891616535014376,
+              "grad_speedup": 4.7618519453572725
+            }
+          }
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 256,
+          "jax_energy_ms": 84.5541079994291,
+          "jax_grad_ms": 4.302990809082985,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 149.58437788300216,
+              "pytorch_grad_ms": 32.77057772502303,
+              "energy_speedup": 1.7690965160913545,
+              "grad_speedup": 7.6157675391379245
+            },
+            "shipped": {
+              "pytorch_energy_ms": 149.58437788300216,
+              "pytorch_grad_ms": 30.9368047863245,
+              "energy_speedup": 1.7690965160913545,
+              "grad_speedup": 7.189605127908111
+            },
+            "compiled": {
+              "pytorch_energy_ms": 149.58437788300216,
+              "pytorch_grad_ms": 17.648793989792466,
+              "energy_speedup": 1.7690965160913545,
+              "grad_speedup": 4.101517937834875
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 4,
+          "jax_energy_ms": 3.927428415045142,
+          "jax_grad_ms": 5.146546894684434,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 10.9013463370502,
+              "pytorch_grad_ms": 31.702770898118615,
+              "energy_speedup": 2.7756957441387,
+              "grad_speedup": 6.160008166031198
+            },
+            "shipped": {
+              "pytorch_energy_ms": 10.9013463370502,
+              "pytorch_grad_ms": 36.9741786736995,
+              "energy_speedup": 2.7756957441387,
+              "grad_speedup": 7.184269264482552
+            },
+            "compiled": {
+              "pytorch_energy_ms": 10.9013463370502,
+              "pytorch_grad_ms": 18.938027042895555,
+              "energy_speedup": 2.7756957441387,
+              "grad_speedup": 3.6797541012315524
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 16,
+          "jax_energy_ms": 10.566811775788665,
+          "jax_grad_ms": 5.229583289474249,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 30.752864200621843,
+              "pytorch_grad_ms": 30.277189519256353,
+              "energy_speedup": 2.9103257305183305,
+              "grad_speedup": 5.789598873049068
+            },
+            "shipped": {
+              "pytorch_energy_ms": 30.752864200621843,
+              "pytorch_grad_ms": 35.17529843375087,
+              "energy_speedup": 2.9103257305183305,
+              "grad_speedup": 6.7262144011644915
+            },
+            "compiled": {
+              "pytorch_energy_ms": 30.752864200621843,
+              "pytorch_grad_ms": 18.955694139003754,
+              "energy_speedup": 2.9103257305183305,
+              "grad_speedup": 3.6247045108080584
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 64,
+          "jax_energy_ms": 39.37635929323733,
+          "jax_grad_ms": 5.252907006070018,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 110.31729173846543,
+              "pytorch_grad_ms": 26.88542315736413,
+              "energy_speedup": 2.8016122800213226,
+              "grad_speedup": 5.118198956558068
+            },
+            "shipped": {
+              "pytorch_energy_ms": 110.31729173846543,
+              "pytorch_grad_ms": 30.378743959590793,
+              "energy_speedup": 2.8016122800213226,
+              "grad_speedup": 5.783225159799424
+            },
+            "compiled": {
+              "pytorch_energy_ms": 110.31729173846543,
+              "pytorch_grad_ms": 17.284257104620337,
+              "energy_speedup": 2.8016122800213226,
+              "grad_speedup": 3.290417493522624
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 256,
+          "jax_energy_ms": null,
+          "jax_grad_ms": null,
+          "variants": {},
+          "oom": {
+            "framework": "pytorch",
+            "jax_survived": false,
+            "error_head": "OutOfMemoryError: CUDA out of memory. Tried to allocate 18.00 GiB. GPU 0 has a total capacity of 139.80 GiB of which 8.79 GiB is free. Including non-PyTorch memory, this process has 131.01 GiB memory "
+          }
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 4,
+          "jax_energy_ms": 7.226847857236862,
+          "jax_grad_ms": 7.6697558630257845,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 25.301919830963016,
+              "pytorch_grad_ms": 27.751523768529296,
+              "energy_speedup": 3.5011003871661743,
+              "grad_speedup": 3.618306014447386
+            },
+            "shipped": {
+              "pytorch_energy_ms": 25.301919830963016,
+              "pytorch_grad_ms": 34.483777498826385,
+              "energy_speedup": 3.5011003871661743,
+              "grad_speedup": 4.496072380225964
+            },
+            "compiled": {
+              "pytorch_energy_ms": 25.301919830963016,
+              "pytorch_grad_ms": 20.053192786872387,
+              "energy_speedup": 3.5011003871661743,
+              "grad_speedup": 2.614580326284497
+            }
+          }
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 16,
+          "jax_energy_ms": 25.327266892418265,
+          "jax_grad_ms": 8.043043315410614,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 94.96672246605158,
+              "pytorch_grad_ms": 29.868503846228123,
+              "energy_speedup": 3.749584306488275,
+              "grad_speedup": 3.713582368628991
+            },
+            "shipped": {
+              "pytorch_energy_ms": 94.96672246605158,
+              "pytorch_grad_ms": 34.83871724456549,
+              "energy_speedup": 3.749584306488275,
+              "grad_speedup": 4.331534206438238
+            },
+            "compiled": {
+              "pytorch_energy_ms": 94.96672246605158,
+              "pytorch_grad_ms": 21.070784283801913,
+              "energy_speedup": 3.749584306488275,
+              "grad_speedup": 2.6197526803604196
+            }
+          }
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 64,
+          "jax_energy_ms": null,
+          "jax_grad_ms": null,
+          "variants": {},
+          "oom": {
+            "framework": "pytorch",
+            "jax_survived": false,
+            "error_head": "OutOfMemoryError: CUDA out of memory. Tried to allocate 18.00 GiB. GPU 0 has a total capacity of 139.80 GiB of which 8.64 GiB is free. Including non-PyTorch memory, this process has 131.15 GiB memory "
+          }
+        },
+        {
+          "protein_length": 512,
+          "batch_size": 4,
+          "jax_energy_ms": 21.133854053914547,
+          "jax_grad_ms": 19.038922665640712,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 76.68200456537306,
+              "pytorch_grad_ms": 47.36445718444884,
+              "energy_speedup": 3.628396617566758,
+              "grad_speedup": 2.4877698185058987
+            },
+            "shipped": {
+              "pytorch_energy_ms": 76.68200456537306,
+              "pytorch_grad_ms": 49.48445735499263,
+              "energy_speedup": 3.628396617566758,
+              "grad_speedup": 2.59912066580829
+            },
+            "compiled": {
+              "pytorch_energy_ms": 76.68200456537306,
+              "pytorch_grad_ms": 41.200340585783124,
+              "energy_speedup": 3.628396617566758,
+              "grad_speedup": 2.164005879394469
+            }
+          }
+        },
+        {
+          "protein_length": 512,
+          "batch_size": 16,
+          "jax_energy_ms": null,
+          "jax_grad_ms": null,
+          "variants": {},
+          "oom": {
+            "framework": "pytorch",
+            "jax_survived": false,
+            "error_head": "OutOfMemoryError: CUDA out of memory. Tried to allocate 16.00 GiB. GPU 0 has a total capacity of 139.80 GiB of which 12.00 GiB is free. Including non-PyTorch memory, this process has 127.79 GiB memory"
+          }
+        }
+      ],
+      "ddg": [
+        {
+          "protein_length": 64,
+          "batch_size": 4,
+          "jax_energy_ms": 2.4180869571864605,
+          "jax_grad_ms": 4.1088123340159655,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 9.784374479204416,
+              "pytorch_grad_ms": 24.829798098653555,
+              "energy_speedup": 4.04632862773013,
+              "grad_speedup": 6.043059667897959
+            },
+            "shipped": {
+              "pytorch_energy_ms": 9.784374479204416,
+              "pytorch_grad_ms": 28.011398715898395,
+              "energy_speedup": 4.04632862773013,
+              "grad_speedup": 6.81739549991079
+            },
+            "compiled": {
+              "pytorch_energy_ms": 9.784374479204416,
+              "pytorch_grad_ms": 18.975430447608232,
+              "energy_speedup": 4.04632862773013,
+              "grad_speedup": 4.61822758136573
+            }
+          }
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 16,
+          "jax_energy_ms": 5.958653474226594,
+          "jax_grad_ms": 4.294951679185033,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 13.249030150473118,
+              "pytorch_grad_ms": 27.688796585425735,
+              "energy_speedup": 2.2234939836290417,
+              "grad_speedup": 6.4468237721081145
+            },
+            "shipped": {
+              "pytorch_energy_ms": 13.249030150473118,
+              "pytorch_grad_ms": 30.866501294076443,
+              "energy_speedup": 2.2234939836290417,
+              "grad_speedup": 7.186693494985573
+            },
+            "compiled": {
+              "pytorch_energy_ms": 13.249030150473118,
+              "pytorch_grad_ms": 16.748762782663107,
+              "energy_speedup": 2.2234939836290417,
+              "grad_speedup": 3.8996393984672686
+            }
+          }
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 64,
+          "jax_energy_ms": 21.822630148380995,
+          "jax_grad_ms": 4.28332588635385,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 40.79962493851781,
+              "pytorch_grad_ms": 30.625971173867583,
+              "energy_speedup": 1.869601631934577,
+              "grad_speedup": 7.150044611697224
+            },
+            "shipped": {
+              "pytorch_energy_ms": 40.79962493851781,
+              "pytorch_grad_ms": 34.29222567938268,
+              "energy_speedup": 1.869601631934577,
+              "grad_speedup": 8.005981003834776
+            },
+            "compiled": {
+              "pytorch_energy_ms": 40.79962493851781,
+              "pytorch_grad_ms": 18.06178167462349,
+              "energy_speedup": 1.869601631934577,
+              "grad_speedup": 4.216765698861743
+            }
+          }
+        },
+        {
+          "protein_length": 64,
+          "batch_size": 256,
+          "jax_energy_ms": 82.91556779295206,
+          "jax_grad_ms": 4.215824604034424,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 149.23161552287638,
+              "pytorch_grad_ms": 31.91142249852419,
+              "energy_speedup": 1.7998021299874796,
+              "grad_speedup": 7.569437890747606
+            },
+            "shipped": {
+              "pytorch_energy_ms": 149.23161552287638,
+              "pytorch_grad_ms": 36.05182613246143,
+              "energy_speedup": 1.7998021299874796,
+              "grad_speedup": 8.55154792207457
+            },
+            "compiled": {
+              "pytorch_energy_ms": 149.23161552287638,
+              "pytorch_grad_ms": 17.93022402562201,
+              "energy_speedup": 1.7998021299874796,
+              "grad_speedup": 4.253076375251308
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 4,
+          "jax_energy_ms": 3.7006898783147335,
+          "jax_grad_ms": 5.03868511877954,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 10.899596149101853,
+              "pytorch_grad_ms": 28.747809026390314,
+              "energy_speedup": 2.9452876375756856,
+              "grad_speedup": 5.705418844143519
+            },
+            "shipped": {
+              "pytorch_energy_ms": 10.899596149101853,
+              "pytorch_grad_ms": 32.17980773188174,
+              "energy_speedup": 2.9452876375756856,
+              "grad_speedup": 6.386548667616734
+            },
+            "compiled": {
+              "pytorch_energy_ms": 10.899596149101853,
+              "pytorch_grad_ms": 18.04820685647428,
+              "energy_speedup": 2.9452876375756856,
+              "grad_speedup": 3.581927909963518
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 16,
+          "jax_energy_ms": 10.732187703251839,
+          "jax_grad_ms": 5.4040065966546535,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 30.758508574217558,
+              "pytorch_grad_ms": 30.97347184084356,
+              "energy_speedup": 2.8660054617659894,
+              "grad_speedup": 5.7315755054810005
+            },
+            "shipped": {
+              "pytorch_energy_ms": 30.758508574217558,
+              "pytorch_grad_ms": 34.72402826882899,
+              "energy_speedup": 2.8660054617659894,
+              "grad_speedup": 6.4256080461346725
+            },
+            "compiled": {
+              "pytorch_energy_ms": 30.758508574217558,
+              "pytorch_grad_ms": 19.61608724668622,
+              "energy_speedup": 2.8660054617659894,
+              "grad_speedup": 3.629915488783738
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 64,
+          "jax_energy_ms": 39.801995223388076,
+          "jax_grad_ms": 5.348551366478205,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 110.2177216205746,
+              "pytorch_grad_ms": 27.351756719872355,
+              "energy_speedup": 2.769150666994942,
+              "grad_speedup": 5.113862585540117
+            },
+            "shipped": {
+              "pytorch_energy_ms": 110.2177216205746,
+              "pytorch_grad_ms": 30.143466964364052,
+              "energy_speedup": 2.769150666994942,
+              "grad_speedup": 5.635818915994117
+            },
+            "compiled": {
+              "pytorch_energy_ms": 110.2177216205746,
+              "pytorch_grad_ms": 17.434414150193334,
+              "energy_speedup": 2.769150666994942,
+              "grad_speedup": 3.2596516244496985
+            }
+          }
+        },
+        {
+          "protein_length": 128,
+          "batch_size": 256,
+          "jax_energy_ms": null,
+          "jax_grad_ms": null,
+          "variants": {},
+          "oom": {
+            "framework": "pytorch",
+            "jax_survived": false,
+            "error_head": "OutOfMemoryError: CUDA out of memory. Tried to allocate 18.00 GiB. GPU 0 has a total capacity of 139.80 GiB of which 8.78 GiB is free. Including non-PyTorch memory, this process has 131.01 GiB memory "
+          }
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 4,
+          "jax_energy_ms": 7.2640439961105585,
+          "jax_grad_ms": 7.757121836766601,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 25.306668365374207,
+              "pytorch_grad_ms": 28.068780433386564,
+              "energy_speedup": 3.4838264166522595,
+              "grad_speedup": 3.61845295510873
+            },
+            "shipped": {
+              "pytorch_energy_ms": 25.306668365374207,
+              "pytorch_grad_ms": 33.13023764640093,
+              "energy_speedup": 3.4838264166522595,
+              "grad_speedup": 4.2709446033672975
+            },
+            "compiled": {
+              "pytorch_energy_ms": 25.306668365374207,
+              "pytorch_grad_ms": 19.918415509164333,
+              "energy_speedup": 3.4838264166522595,
+              "grad_speedup": 2.567758497069955
+            }
+          }
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 16,
+          "jax_energy_ms": 25.087686767801642,
+          "jax_grad_ms": 7.786886999383569,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 94.83576393686235,
+              "pytorch_grad_ms": 30.08473073132336,
+              "energy_speedup": 3.780171715894415,
+              "grad_speedup": 3.863511918653109
+            },
+            "shipped": {
+              "pytorch_energy_ms": 94.83576393686235,
+              "pytorch_grad_ms": 34.56173022277653,
+              "energy_speedup": 3.780171715894415,
+              "grad_speedup": 4.43845277650909
+            },
+            "compiled": {
+              "pytorch_energy_ms": 94.83576393686235,
+              "pytorch_grad_ms": 19.842373114079237,
+              "energy_speedup": 3.780171715894415,
+              "grad_speedup": 2.548177868209724
+            }
+          }
+        },
+        {
+          "protein_length": 256,
+          "batch_size": 64,
+          "jax_energy_ms": null,
+          "jax_grad_ms": null,
+          "variants": {},
+          "oom": {
+            "framework": "pytorch",
+            "jax_survived": false,
+            "error_head": "OutOfMemoryError: CUDA out of memory. Tried to allocate 18.00 GiB. GPU 0 has a total capacity of 139.80 GiB of which 8.64 GiB is free. Including non-PyTorch memory, this process has 131.15 GiB memory "
+          }
+        },
+        {
+          "protein_length": 512,
+          "batch_size": 4,
+          "jax_energy_ms": 20.40703180246055,
+          "jax_grad_ms": 18.92245397903025,
+          "variants": {
+            "eager": {
+              "pytorch_energy_ms": 76.62016381509602,
+              "pytorch_grad_ms": 48.237209767103195,
+              "energy_speedup": 3.7545961880579637,
+              "grad_speedup": 2.5492047606805848
+            },
+            "shipped": {
+              "pytorch_energy_ms": 76.62016381509602,
+              "pytorch_grad_ms": 49.28435324691236,
+              "energy_speedup": 3.7545961880579637,
+              "grad_speedup": 2.6045434329780366
+            },
+            "compiled": {
+              "pytorch_energy_ms": 76.62016381509602,
+              "pytorch_grad_ms": 41.13567606545985,
+              "energy_speedup": 3.7545961880579637,
+              "grad_speedup": 2.1739081046806166
+            }
+          }
+        },
+        {
+          "protein_length": 512,
+          "batch_size": 16,
+          "jax_energy_ms": null,
+          "jax_grad_ms": null,
+          "variants": {},
+          "oom": {
+            "framework": "pytorch",
+            "jax_survived": false,
+            "error_head": "OutOfMemoryError: CUDA out of memory. Tried to allocate 16.00 GiB. GPU 0 has a total capacity of 139.80 GiB of which 12.00 GiB is free. Including non-PyTorch memory, this process has 127.79 GiB memory"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -277,10 +277,11 @@ class WaveScheduleBundle(eqx.Module):
     independent, for a proper coloring) groups. `group_colors[i]` is the color of
     the i-th unique tie group in ascending group-id order.
 
-    Note: `AutoregressiveDecode.__call__` currently only decodes group slot 0 of
-    each wave (`wave.group_positions[wave_idx, 0, ...]`) — multi-group waves
-    (G > 1, the actual chromatic-parallelism case this constructor produces) are
-    not yet consumed correctly by the decode kernel. See
+    Note: `AutoregressiveDecode.__call__` correctly decodes all `G` group slots
+    of each wave (fixed in commit `0be59efe`, 2026-06-30) — multi-group waves
+    (G > 1, the actual chromatic-parallelism case this constructor produces)
+    are consumed correctly by the decode kernel. No production caller wires
+    `schedule="chromatic"` in yet, though. See
     `aminx/inference/schedule_selector.py` module docstring.
 
     Parameters

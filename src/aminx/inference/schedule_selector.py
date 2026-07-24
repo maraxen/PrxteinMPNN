@@ -10,16 +10,27 @@ ligand-mediated contacts) so it can be checked against the actual model k-NN via
 See `mpnn_ext/.praxia/docs/preregistration/260630_wave-color-scheduling-fundamental-tests.md`
 section 3 (W0.3) for the spec this implements.
 
-Known gap (next step after this module): `AutoregressiveDecode.__call__`
+Fixed (was: "known gap"): `AutoregressiveDecode.__call__`
 (`aminx/inference/decode/autoregressive.py`, both the `lax.scan` and
-`lax.while_loop` branches) only decodes group slot 0 of each wave
-(`wave.group_positions[wave_idx, 0, ...]` / `wave.group_valid[wave_idx, 0]`).
-The `chromatic` and `improper_coloring` arms built here produce multi-group
-waves (G > 1 — the whole point of within-color Jacobi parallelism); until the
-decode kernel's `step_fn` is extended to iterate all `G` group slots in a wave
-(masked by `group_valid`), positions in slots 1..G-1 are silently never
-sampled. `random_ar` / `fixed_n_to_c` / `frozen_random_sigma` are G=1 by
-construction (via `WaveScheduleBundle.from_tie_groups`) and are unaffected.
+`lax.while_loop` branches) previously only decoded group slot 0 of each wave
+(`wave.group_positions[wave_idx, 0, ...]` / `wave.group_valid[wave_idx, 0]`),
+silently dropping sampling for slots 1..G-1 in multi-group waves. Fixed in
+commit `0be59efe` (2026-06-30), which vmaps averaging/sampling/scatter over
+the full `G` axis (masked by `group_valid`) in both branches; regression
+coverage lives in `tests/inference/decode/test_autoregressive.py`
+(`test_chromatic_schedule_full_coverage_and_parallelism`,
+`test_chromatic_within_wave_independence`). `random_ar` / `fixed_n_to_c` /
+`frozen_random_sigma` are G=1 by construction and were never affected.
+
+Not yet done: no production caller (`sampling/sample.py`, `scoring/score.py`,
+`host/kernel_dispatch.py`, `host/runner.py`) passes `schedule="chromatic"` or
+`"improper_coloring"` — the decode kernel is correct but unused outside tests
+and this project's own research harness. Statistical validity of chromatic
+scheduling (does it reduce schedule-induced marginal variance without bias)
+is tracked separately and currently blocked on a null result; see
+`mpnn_ext/.praxia/docs/decisions/260701_w1a1-b1-null-stage1a-blocked.md`.
+Wall-clock benefit of fewer waves is out of that epic's scope by mandate;
+see `mpnn_ext/scripts/benchmarks/` for a standalone measurement.
 """
 
 from __future__ import annotations

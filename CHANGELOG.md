@@ -47,6 +47,28 @@
 
 ### Bug Fixes
 
+- **`SamplingSpecification` had no `weight_profile`/`fixed_group` fields, so any manifest
+  row carrying them in its nested `sampling_spec` hard-crashed real sampling**
+  ([`src/aminx/run/specs.py`](src/aminx/run/specs.py))
+
+  `run_manifest_row`'s `SamplingSpecification(**worker_payload)` construction
+  (`host/campaign.py`) is deliberately strict about unknown keys — an audit safety
+  mechanism, not something to weaken. A manifest-building caller (tev_design's necklace
+  campaign) writes `weight_profile`/`fixed_group` provenance labels into a row's nested
+  `sampling_spec` for anti-mislabel validation (checking the executed output against
+  manifest intent) — a pattern already established for other CLI-flag-less fields
+  (`batch_size`, `state_weights`, `multi_state_strategy`). But these two were never added
+  as real fields, so any freshly-built manifest carrying them crashed real sampling with
+  `TypeError: unexpected keyword argument 'weight_profile'`. Undetected until now because
+  the L1 static validator that manifest builders typically gate on reads raw JSON and
+  never constructs `SamplingSpecification` — only a real sampling call exercised this gap,
+  and no one had re-run one against a freshly-built manifest since these labels were added.
+
+  Fix: both are now real, first-class (if sampling-inert) `str | None = None` fields,
+  matching the same pattern as `job_id`. See `tests/run/test_specs.py`'s
+  `TestSamplingSpecificationValidation.test_weight_profile_and_fixed_group_are_real_fields`
+  for the regression coverage.
+
 - **`n_samples` axis planning was silently decoupled from the actual runtime sample count**
   ([`src/aminx/host/plan.py`](src/aminx/host/plan.py),
   [`src/aminx/host/kernel_dispatch.py`](src/aminx/host/kernel_dispatch.py))

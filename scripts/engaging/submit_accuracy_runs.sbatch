@@ -29,6 +29,7 @@
 
 set -uo pipefail
 cd /home/maarxaru/projects/aminx
+export PYTHONUNBUFFERED=1  # live per-item logging under SLURM redirection (else block-buffered)
 
 ASSETS="${HOME}/proteinebm_bench_assets/ProteinEBM/eval_data"
 ORBAX_MODEL="${ACC_ORBAX_MODEL:-/orcd/scratch/orcd/011/maarxaru/proteinebm_accuracy/orbax_model}"
@@ -42,6 +43,14 @@ if [[ "${_NODE}" == *node4007* ]] || [[ "${_NODE}" == *node4008* ]]; then
     export XLA_FLAGS="${XLA_FLAGS:+${XLA_FLAGS} }--xla_gpu_shard_autotuning=false"
 fi
 
+# Persistent XLA compilation cache on scratch: the 16-layer transformer's first compile is slow
+# (~15-20 min cold and can blow a short walltime), but only needs to happen ONCE -- cache it so
+# every native/assay after the first, and every re-run on any node, reuses it.
+export JAX_COMPILATION_CACHE_DIR="${ACC_JAX_CACHE:-/orcd/scratch/orcd/011/maarxaru/jax_compilation_cache}"
+export JAX_PERSISTENT_CACHE_MIN_ENTRY_SIZE_BYTES=-1
+export JAX_PERSISTENT_CACHE_MIN_COMPILE_TIME_SECS=0
+mkdir -p "${JAX_COMPILATION_CACHE_DIR}"
+
 # cuDNN on LD_LIBRARY_PATH from the existing venv (no sync).
 _CUDNN_LIB="$(uv run --no-sync python -c 'import os, nvidia.cudnn; print(os.path.join(os.path.dirname(nvidia.cudnn.__file__), "lib"))' 2>/dev/null || true)"
 if [[ -n "${_CUDNN_LIB}" && -d "${_CUDNN_LIB}" ]]; then
@@ -54,6 +63,7 @@ echo "GPU:         $(nvidia-smi --query-gpu=name,compute_cap --format=csv,nohead
 echo "Orbax model: ${ORBAX_MODEL}"
 echo "Assets:      ${ASSETS}"
 echo "XLA_FLAGS:   ${XLA_FLAGS:-<unset>}"
+echo "JAX cache:   ${JAX_COMPILATION_CACHE_DIR}"
 
 # ---- decoy ranking (paper target 0.838) ----------------------------------
 if [[ "${ACC_SKIP_DECOY:-0}" != "1" ]]; then

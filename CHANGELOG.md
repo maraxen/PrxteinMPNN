@@ -93,7 +93,7 @@
   `_plan_axis_strategy` already does for the samples axis.
 
   See `tests/sampling/test_multistate_poe.py`'s
-  `test_multistate_state_axis_resolved_via_batchplanner_not_hardcoded_vmap` and
+  `test_multistate_state_axis_falls_back_to_safe_map_when_budget_unknown` and
   `test_single_state_still_passes_an_explicit_resolved_strategy` for the regression coverage.
 
   **Follow-up (same investigation):** fixing the state axis alone wasn't sufficient —
@@ -109,6 +109,25 @@
   same function. This primitive already existed in xtrax with zero call sites anywhere in
   aminx before this (praxia debt #945 tracks auditing every other hand-typed estimate
   in aminx for the same migration).
+
+  **Second follow-up (same investigation):** production-scale validation (tev_design,
+  `sample_count` 8/32/128/512, real L40S GPU) confirmed both fixes above resolve the
+  crash, but a `jax.profiler` trace of the working code (properly isolated to the
+  execution phase, not the compile/tracing phase — an earlier trace attempt was
+  accidentally truncated by the chrome-trace exporter's ~1M-event cap during compile-phase
+  logging noise and gave a false "98% idle GPU" reading, since retracted) showed the GPU
+  ~98% busy but firing ~12,000 kernel launches for just 8 samples at `num_states=4`. The
+  unconditional `SafeMap(tile=1)` from the first fix, while safe, forces every decoder
+  layer through `num_states` sequential per-state passes instead of one batched-across-
+  states pass — real, not idle, compute, but fragmented into far more kernels than
+  necessary. `sample_states_fused` now MEASURES (via `lowered_memory_estimate` +
+  `xtrax.tiling.estimators.device_memory_budget`) whether `Vmap` across states actually
+  fits the device budget, and only falls back to `SafeMap(1)` when it genuinely doesn't
+  (or when the backend can't report memory stats at all, e.g. this module's own CPU test
+  suite) — letting XLA fuse across the state axis when it's safe to, instead of always
+  paying the fragmentation cost. See `test_multistate_state_axis_uses_vmap_when_it_fits_
+  budget` (mocked, since CPU can't exercise the real Vmap-fits path) for the regression
+  coverage on this decision logic.
 
 ### Changed
 

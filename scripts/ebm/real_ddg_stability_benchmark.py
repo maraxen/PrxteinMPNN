@@ -161,12 +161,20 @@ def main() -> int:
 
   model = _restore_model(args.orbax_model, args.seed)
 
+  # Incremental checkpoint: append each assay's result to a sibling .partial.jsonl as soon as it is
+  # scored, so a walltime timeout (or crash) mid-run does not discard every completed assay. The
+  # final aggregate JSON is still written atomically at the end; the partial file is a recovery log.
+  args.out.parent.mkdir(parents=True, exist_ok=True)
+  partial_path = args.out.parent / f"{args.out.stem}.partial.jsonl"
+
   per_assay: list[dict] = []
   t0 = time.time()
   for i, csv_path in enumerate(assays):
     result = _score_one_assay(model, csv_path, args.proteingym_dir / "ProteinGym_AF2_structures", args.max_mutants_per_assay, args.seed)
     if result is not None:
       per_assay.append(result)
+      with partial_path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(result) + "\n")
       log.info(
         "[%d/%d] %s: n=%d spearman=%.3f (p=%.3g)  (%.1fs elapsed)",
         i + 1, len(assays), result["protein"], result["n_mutants_scored"],

@@ -191,12 +191,20 @@ def main() -> int:
   log.info("Restoring ported checkpoint from %s", args.orbax_model)
   model = _restore_model(args.orbax_model, args.seed)
 
+  # Incremental checkpoint: append each native's result to a sibling .partial.jsonl as soon as it is
+  # scored, so a walltime timeout (or crash) mid-run does not discard every completed native. The
+  # final aggregate JSON is still written atomically at the end; the partial file is a recovery log.
+  args.out.parent.mkdir(parents=True, exist_ok=True)
+  partial_path = args.out.parent / f"{args.out.stem}.partial.jsonl"
+
   per_native: list[dict] = []
   t0 = time.time()
   for i, native_id in enumerate(natives):
     result = _score_one_native(model, native_id, args.decoys_dir, tm_index[native_id], args.max_decoys_per_native)
     if result is not None:
       per_native.append(result)
+      with partial_path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(result) + "\n")
       log.info(
         "[%d/%d] %s: n_decoys=%d spearman(t=%.2f)=%.3f best=%.3f@t=%.2f (%.1fs elapsed)",
         i + 1, len(natives), native_id, result["n_decoys_scored"], PINNED_T,

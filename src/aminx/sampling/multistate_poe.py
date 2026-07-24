@@ -46,6 +46,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from xtrax.run import SinkSpec, ZarrStagingSink
+from xtrax.tiling import BatchPlanner
+from xtrax.tiling import SafeMap as _XtraxSafeMap
+from xtrax.tiling import Vmap as _XtraxVmap
+from xtrax.tiling.estimators import lowered_memory_estimate
 
 from aminx.host._sampling_grid_lineage import (
   _base_sampling_key,
@@ -72,8 +76,9 @@ from aminx.inference.bundle_builder import build_inference_bundle
 from aminx.inference.logits import make_stage_set
 from aminx.inference.sample_autoregressive import kernel as _sample_autoregressive_kernel
 from aminx.sampling.conditional_logits import _plan_axis_strategy
-from aminx.tiling.axes import N_SAMPLES
+from aminx.tiling.axes import N_SAMPLES, N_STATES
 from aminx.tiling.dispatch import make_axis_dispatch_via_xtrax
+from aminx.tiling.strategy import SafeMap, Vmap
 
 if TYPE_CHECKING:
   from jaxtyping import Array, Float, Int, PRNGKeyArray
@@ -109,12 +114,33 @@ def sample_states_fused(
   `_plan_axis_strategy`'s `BatchPlanner`/`MemoryBudget` exists to prevent for large campaign-
   scale sample counts (thousands of samples per bead).
 
+  The per-sample memory estimate feeding that decision (`activation_bytes_per_element`) is
+  measured, not guessed: `xtrax.tiling.estimators.lowered_memory_estimate` lowers+compiles a
+  ONE-sample representative tile of the real computation (state axis already resolved, see
+  below) and reads XLA's own buffer-assignment numbers, rather than a hand-typed byte formula.
+  The prior formula (`num_states * seq_len * a hidden-dim-sized magic constant`) was linear and
+  missed the AR mask's quadratic `(L, L)` term and the `(L, K, D)` edge-feature term entirely --
+  exactly the kind of drift a graph-derived measurement can't have (aminx debt #945).
+
   Calls `aminx.inference.sample_autoregressive.kernel` -- the genuine, already-tested
   `AutoregressiveMode` sampling path, which fuses `bundle`'s own state axis
   (`bundle.geometry.n_states`) via `stage_set.logit_transform`/`_realign_states_to_reference`
   exactly as `ConditionalDecode`'s teacher-forced scoring path does. Each sample gets its own
   PRNG key (`jax.random.split`); `bundle`/`config`/`stage_set` are shared and re-encoded once
   per sample by the kernel (matching `_sample_batch`'s own per-sample-key semantics).
+
+  The state axis (`bundle.geometry.n_states`) is ALSO resolved through `BatchPlanner`, against
+  the canonical `N_STATES` `AxisSpec` (`aminx.tiling.axes` -- `default_batch_size=1`, i.e.
+  SafeMap-one-state-at-a-time whenever `num_states>1`), and passed to `kernel` as
+  `state_strategy`. Previously `kernel` hardcoded `strategy=Vmap()` for the state axis
+  unconditionally, invisible to any budget accounting -- fine at num_states=1 (the only
+  case `sample.py`'s single-structure campaign path ever hits), but for a genuinely fused
+  multi-state bundle it batches every decoder layer's per-state MLPs simultaneously. At
+  production sample counts this produces a single fused GEMM whose shape XLA's autotuner
+  cannot find a valid kernel config for: sample_count=128 crashed after an 809s compile
+  ("Autotuning failed for HLO: f32[128,12582912]{1,0} fusion(...)"), sample_count=512 failed
+  differently ("9 out of 89 instructions"). Resolving N_STATES through BatchPlanner instead
+  removes the state axis from that multiplicative blowup entirely.
 
   Parameters
   ----------
@@ -146,14 +172,52 @@ def sample_states_fused(
 
   """
   sample_keys = jax.random.split(prng_key, n_samples)
-
-  seq_len = bundle.geometry.coords.shape[1]
   num_states = bundle.geometry.coords.shape[0]
-  # Conservative per-sample activation estimate: per-state decode features (node+edge,
-  # float32) scaled by num_states, plus the (L, 21) logits output -- mirrors the
-  # replicate-axis estimate in conditional_logits.py:390, scaled for the extra state axis
-  # AR sampling carries that encode-only replicate estimation doesn't.
-  activation_bytes = num_states * seq_len * (128 + 32 * 48) * 4
+
+  # Resolve the state axis through BatchPlanner FIRST (see docstring): N_STATES'
+  # default_batch_size=1 already encodes "SafeMap one state at a time whenever
+  # num_states>1" via the plain cardinality-vs-batch-size rule -- deliberately
+  # NOT a MemoryBudget/estimator call: a wrong or optimistic byte estimate could
+  # keep this at Vmap, reproducing a variant of the exact bug this fixes, since
+  # a hand-typed estimate is precisely what let it go unnoticed (aminx debt
+  # #942). This is what previously never happened at all (kernel() hardcoded
+  # Vmap unconditionally, bypassing BatchPlanner for this axis entirely).
+  state_spec = dataclasses.replace(N_STATES, cardinality=num_states)
+  xtrax_state_strategy = BatchPlanner().plan([state_spec]).decisions[0].strategy
+  # BatchPlanner is xtrax-native; translate back to aminx's own AxisStrategy
+  # union before handing it to aminx call sites (make_axis_dispatch_via_xtrax
+  # expects aminx-native instances -- mirrors _plan_axis_strategy's identical
+  # translation for the samples axis below).
+  if isinstance(xtrax_state_strategy, _XtraxSafeMap):
+    state_strategy = SafeMap(tile=xtrax_state_strategy.batch_size)
+  elif isinstance(xtrax_state_strategy, _XtraxVmap):
+    state_strategy = Vmap()
+  else:
+    msg = (
+      "sample_states_fused: unexpected BatchPlanner state-axis decision "
+      f"{type(xtrax_state_strategy)}"
+    )
+    raise TypeError(msg)
+
+  def _one_sample(key: PRNGKeyArray) -> tuple[Any, Any]:
+    result = _sample_autoregressive_kernel(
+      model, key, bundle, config, stage_set, state_strategy=state_strategy,
+    )
+    return result.sequence, result.logits
+
+  # Measure the REAL per-sample peak memory (state axis already correctly
+  # resolved above) via xtrax's own compiled-graph-based estimator
+  # (xtrax.tiling.estimators.lowered_memory_estimate -- XLA's own buffer-
+  # assignment numbers from lowering+compiling a ONE-sample representative
+  # tile, not the full n_samples shape), instead of a hand-typed byte formula.
+  # The previous formula (num_states * seq_len * a hidden-dim-sized magic
+  # constant) was linear and missed the AR mask's quadratic (L, L) term and
+  # the (L, K, D) edge-feature term entirely -- exactly the kind of drift a
+  # graph-derived measurement can't have, since it reads the real computation
+  # instead of approximating it (aminx debt #945; this is a systemic gap
+  # xtrax already provides the primitive to close -- lowered_memory_estimate
+  # had zero call sites anywhere in aminx before this).
+  activation_bytes = lowered_memory_estimate(_one_sample, sample_keys[0])
   strategy = _plan_axis_strategy(
     N_SAMPLES,
     n_samples,
@@ -161,10 +225,6 @@ def sample_states_fused(
     activation_bytes_per_element=activation_bytes,
   )
   iterator = make_axis_dispatch_via_xtrax(strategy, axis=N_SAMPLES.name)
-
-  def _one_sample(key: PRNGKeyArray) -> tuple[Any, Any]:
-    result = _sample_autoregressive_kernel(model, key, bundle, config, stage_set)
-    return result.sequence, result.logits
 
   sequences, logits = iterator(_one_sample, sample_keys)
   return sequences, logits

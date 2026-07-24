@@ -141,6 +141,70 @@ class TestSampleStatesFused:
 
     assert jnp.array_equal(logits_a, logits_b), "identical inputs must give identical output"
 
+  def test_multistate_state_axis_resolved_via_batchplanner_not_hardcoded_vmap(self):
+    """Regression test for aminx debt #942 (found investigating tev_design's necklace PoE
+    campaign): sample_autoregressive.kernel() previously hardcoded strategy=Vmap() for the
+    state axis unconditionally -- invisible to any budget accounting, fine at num_states=1,
+    but for a genuinely fused multi-state bundle it batches every decoder layer's per-state
+    MLPs simultaneously. At production sample counts this produced a single fused GEMM XLA's
+    autotuner could not find a valid kernel config for: sample_count=128 crashed after an
+    809s compile ("Autotuning failed for HLO: f32[128,12582912]{1,0} fusion(...)"),
+    sample_count=512 failed differently ("9 out of 89 instructions"). This synthetic fixture
+    is far too small to reproduce the crash itself (that needs a real production-scale model
+    and shape) -- this test instead verifies the fix's actual wiring: sample_states_fused must
+    resolve the state axis through BatchPlanner against the canonical N_STATES AxisSpec
+    (default_batch_size=1) and pass a real state_strategy through to the kernel, rather than
+    leaving kernel()'s Vmap default in effect.
+
+    Uses a (num_states, num_residues, n_samples) combination not used by any other test in
+    this file/class, so eqx.filter_jit is guaranteed to retrace (not serve a cached trace from
+    a different test) and the mock genuinely observes the call.
+    """
+    from aminx.sampling import multistate_poe as poe_mod
+    from aminx.tiling.strategy import SafeMap
+
+    num_states, num_residues, n_samples = 4, 6, 2
+    model, bundle, config = _build_synthetic_bundle(
+      num_states=num_states, num_residues=num_residues, seed=31,
+    )
+    stage_set = make_stage_set(strategy="product", state_weights=bundle.conditioning.state_weights)
+
+    real_kernel = poe_mod._sample_autoregressive_kernel
+    with patch.object(poe_mod, "_sample_autoregressive_kernel", wraps=real_kernel) as mock_kernel:
+      sample_states_fused(model, bundle, config, stage_set, jax.random.PRNGKey(0), n_samples)
+
+    # jax.vmap traces _one_sample's Python body once to build the batched computation
+    # graph (it does not literally call the Python function n_samples times) -- assert
+    # at least one traced call, not exactly n_samples.
+    assert mock_kernel.call_count >= 1
+    for call in mock_kernel.call_args_list:
+      state_strategy = call.kwargs["state_strategy"]
+      assert isinstance(state_strategy, SafeMap), (
+        f"num_states={num_states} > N_STATES.default_batch_size=1 must resolve to SafeMap "
+        f"(the axis's own canonical template default), got {type(state_strategy).__name__} "
+        "-- state axis is not going through BatchPlanner"
+      )
+      assert state_strategy.tile == 1
+
+  def test_single_state_still_passes_an_explicit_resolved_strategy(self):
+    """num_states=1 <= N_STATES.default_batch_size=1 -> Vmap is the correct (and harmless,
+    since cardinality=1 makes Vmap/SafeMap equivalent) BatchPlanner decision; must still be
+    an explicitly resolved strategy passed through, not silently relying on kernel()'s own
+    Vmap default (which would mask a regression if N_STATES' default_batch_size ever changes).
+    """
+    from aminx.sampling import multistate_poe as poe_mod
+    from aminx.tiling.strategy import Vmap
+
+    model, bundle, config = _build_synthetic_bundle(num_states=1, num_residues=9, seed=32)
+    stage_set = make_stage_set(strategy="product", state_weights=bundle.conditioning.state_weights)
+
+    real_kernel = poe_mod._sample_autoregressive_kernel
+    with patch.object(poe_mod, "_sample_autoregressive_kernel", wraps=real_kernel) as mock_kernel:
+      sample_states_fused(model, bundle, config, stage_set, jax.random.PRNGKey(0), 1)
+
+    state_strategy = mock_kernel.call_args.kwargs["state_strategy"]
+    assert isinstance(state_strategy, Vmap)
+
 
 class TestSampleMultistatePoeBead:
   """Coverage for the high-level orchestration function (real structure loading)."""

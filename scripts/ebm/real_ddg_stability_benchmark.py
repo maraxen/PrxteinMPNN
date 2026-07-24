@@ -90,7 +90,14 @@ def _restore_model(orbax_dir: Path, seed: int) -> ProteinEBMModel:
   if step is None:
     msg = f"No orbax checkpoint found under {orbax_dir}"
     raise FileNotFoundError(msg)
-  return manager.restore(step, items={"model": template})["model"]
+  # Current orbax requires explicit per-leaf sharding on restore (the legacy ``items=`` path
+  # leaves it None and raises "sharding ... Got None"). Derive it from the concrete template
+  # arrays (a SingleDeviceSharding on the current device) via construct_restore_args.
+  restore_args = ocp.checkpoint_utils.construct_restore_args(template)
+  return manager.restore(
+    step,
+    args=ocp.args.Composite(model=ocp.args.PyTreeRestore(item=template, restore_args=restore_args)),
+  )["model"]
 
 
 def _find_tsuboyama_assays(proteingym_dir: Path) -> list[Path]:

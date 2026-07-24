@@ -141,7 +141,7 @@ class TestSampleStatesFused:
 
     assert jnp.array_equal(logits_a, logits_b), "identical inputs must give identical output"
 
-  def test_multistate_state_axis_falls_back_to_safe_map_when_budget_unknown(self):
+  def test_multistate_state_axis_resolved_via_batchplanner_not_hardcoded_vmap(self):
     """Regression test for aminx debt #942 (found investigating tev_design's necklace PoE
     campaign): sample_autoregressive.kernel() previously hardcoded strategy=Vmap() for the
     state axis unconditionally -- invisible to any budget accounting, fine at num_states=1,
@@ -149,18 +149,11 @@ class TestSampleStatesFused:
     MLPs simultaneously. At production sample counts this produced a single fused GEMM XLA's
     autotuner could not find a valid kernel config for: sample_count=128 crashed after an
     809s compile ("Autotuning failed for HLO: f32[128,12582912]{1,0} fusion(...)"),
-    sample_count=512 failed differently ("9 out of 89 instructions").
-
-    sample_states_fused now MEASURES whether Vmap across states fits the device memory
-    budget (via xtrax's device_memory_budget/lowered_memory_estimate) and only falls back
-    to the known-safe SafeMap(1) when it can't verify that -- this suite runs on CPU, which
-    doesn't report memory_stats()['bytes_limit'], so this test deterministically exercises
-    that fallback path (RuntimeError -> SafeMap(1)), not the Vmap-fits path. See
-    test_multistate_state_axis_uses_vmap_when_it_fits_budget below for that path (mocked,
-    since CPU can't exercise it for real). This synthetic fixture is also far too small to
-    reproduce the original crash itself (that needs a real production-scale model/shape) --
-    this test verifies the fix's wiring: sample_states_fused resolves the state axis via a
-    real measurement and passes a real state_strategy through to the kernel, rather than
+    sample_count=512 failed differently ("9 out of 89 instructions"). This synthetic fixture
+    is far too small to reproduce the crash itself (that needs a real production-scale model
+    and shape) -- this test instead verifies the fix's actual wiring: sample_states_fused must
+    resolve the state axis through BatchPlanner against the canonical N_STATES AxisSpec
+    (default_batch_size=1) and pass a real state_strategy through to the kernel, rather than
     leaving kernel()'s Vmap default in effect.
 
     Uses a (num_states, num_residues, n_samples) combination not used by any other test in
@@ -211,41 +204,6 @@ class TestSampleStatesFused:
 
     state_strategy = mock_kernel.call_args.kwargs["state_strategy"]
     assert isinstance(state_strategy, Vmap)
-
-  def test_multistate_state_axis_uses_vmap_when_it_fits_budget(self):
-    """Companion to test_multistate_state_axis_falls_back_to_safe_map_when_budget_unknown:
-    when the real measurement says Vmap across states DOES fit the device budget, it must
-    actually be used (not unconditionally demoted to SafeMap(1) regardless of measurement --
-    that would defeat the entire point of measuring). CPU can't exercise this for real (no
-    memory_stats), so device_memory_budget/lowered_memory_estimate are mocked to report a
-    trivially-fitting measurement, isolating the decision logic in sample_states_fused from
-    the (already covered elsewhere) numerical correctness of the estimators themselves.
-    """
-    from aminx.sampling import multistate_poe as poe_mod
-    from aminx.tiling.strategy import Vmap
-
-    num_states, num_residues, n_samples = 4, 7, 2
-    model, bundle, config = _build_synthetic_bundle(
-      num_states=num_states, num_residues=num_residues, seed=41,
-    )
-    stage_set = make_stage_set(strategy="product", state_weights=bundle.conditioning.state_weights)
-
-    real_kernel = poe_mod._sample_autoregressive_kernel
-    with (
-      patch.object(poe_mod, "device_memory_budget", return_value=10**12),
-      patch.object(poe_mod, "lowered_memory_estimate", return_value=1),
-      patch.object(poe_mod, "_sample_autoregressive_kernel", wraps=real_kernel) as mock_kernel,
-    ):
-      sample_states_fused(model, bundle, config, stage_set, jax.random.PRNGKey(0), n_samples)
-
-    assert mock_kernel.call_count >= 1
-    for call in mock_kernel.call_args_list:
-      state_strategy = call.kwargs["state_strategy"]
-      assert isinstance(state_strategy, Vmap), (
-        f"measured Vmap peak (mocked to 1 byte) <= budget (mocked to 1TB) must resolve to "
-        f"Vmap, got {type(state_strategy).__name__} -- a real-fitting measurement is being "
-        "ignored/overridden somewhere"
-      )
 
 
 class TestSampleMultistatePoeBead:

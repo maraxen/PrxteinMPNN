@@ -38,7 +38,6 @@ option 1's MVP actually reachable from a real campaign run.
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -47,7 +46,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from xtrax.run import SinkSpec, ZarrStagingSink
-from xtrax.tiling.estimators import device_memory_budget, lowered_memory_estimate
+from xtrax.tiling import BatchPlanner
+from xtrax.tiling import SafeMap as _XtraxSafeMap
+from xtrax.tiling import Vmap as _XtraxVmap
+from xtrax.tiling.estimators import lowered_memory_estimate
 
 from aminx.host._sampling_grid_lineage import (
   _base_sampling_key,
@@ -74,9 +76,9 @@ from aminx.inference.bundle_builder import build_inference_bundle
 from aminx.inference.logits import make_stage_set
 from aminx.inference.sample_autoregressive import kernel as _sample_autoregressive_kernel
 from aminx.sampling.conditional_logits import _plan_axis_strategy
-from aminx.tiling.axes import N_SAMPLES
+from aminx.tiling.axes import N_SAMPLES, N_STATES
 from aminx.tiling.dispatch import make_axis_dispatch_via_xtrax
-from aminx.tiling.strategy import AxisStrategy, SafeMap, Vmap
+from aminx.tiling.strategy import SafeMap, Vmap
 
 if TYPE_CHECKING:
   from jaxtyping import Array, Float, Int, PRNGKeyArray
@@ -172,67 +174,50 @@ def sample_states_fused(
   sample_keys = jax.random.split(prng_key, n_samples)
   num_states = bundle.geometry.coords.shape[0]
 
-  def _make_one_sample(strategy: AxisStrategy) -> Callable[[PRNGKeyArray], tuple[Any, Any]]:
-    def _fn(key: PRNGKeyArray) -> tuple[Any, Any]:
-      result = _sample_autoregressive_kernel(
-        model, key, bundle, config, stage_set, state_strategy=strategy,
-      )
-      return result.sequence, result.logits
-    return _fn
-
-  # Resolve the state axis by MEASURING, not guessing or blanket-demoting.
-  # An earlier version of this fix used the plain N_STATES.default_batch_size=1
-  # cardinality rule unconditionally (SafeMap-one-state-at-a-time whenever
-  # num_states>1, no memory check at all) -- safe (fixes aminx debt #942's
-  # crash), but a jax.profiler trace of the real production shape showed the
-  # GPU ~98% busy but firing ~12,000 kernel launches for just 8 samples
-  # (num_states=4): SafeMap(1) forces every decoder layer through 4 SEQUENTIAL
-  # per-state passes instead of one batched-across-states pass, fragmenting
-  # what XLA could otherwise fuse into far fewer, larger kernels. Now that
-  # lowered_memory_estimate gives real numbers (see below), measure whether
-  # Vmap across states actually fits the device budget; only fall back to the
-  # known-safe SafeMap(1) path if it genuinely doesn't. This directly reuses
-  # xtrax.tiling.estimators.device_memory_budget -- the same "read the real
-  # allocator limit, don't guess" primitive as lowered_memory_estimate.
-  if num_states > 1:
-    try:
-      device_budget = device_memory_budget(fraction=0.80)
-      vmap_states_bytes = lowered_memory_estimate(_make_one_sample(Vmap()), sample_keys[0])
-      vmap_states_fits = vmap_states_bytes <= device_budget
-    except RuntimeError:
-      # device_memory_budget/lowered_memory_estimate fail loud (by design, no
-      # silent fallback) when the backend can't report memory stats or memory
-      # analysis (e.g. CPU -- exercised by this module's own CPU test suite).
-      # Can't verify Vmap fits -> fall back to the proven-safe SafeMap(1) path
-      # rather than risk reproducing aminx debt #942's crash.
-      vmap_states_bytes = None
-      vmap_states_fits = False
-    if vmap_states_fits:
-      state_strategy: AxisStrategy = Vmap()
-      activation_bytes: int | None = vmap_states_bytes  # same shape; no need to re-measure below
-    else:
-      state_strategy = SafeMap(tile=1)
-      activation_bytes = None
-  else:
+  # Resolve the state axis through BatchPlanner FIRST (see docstring): N_STATES'
+  # default_batch_size=1 already encodes "SafeMap one state at a time whenever
+  # num_states>1" via the plain cardinality-vs-batch-size rule -- deliberately
+  # NOT a MemoryBudget/estimator call: a wrong or optimistic byte estimate could
+  # keep this at Vmap, reproducing a variant of the exact bug this fixes, since
+  # a hand-typed estimate is precisely what let it go unnoticed (aminx debt
+  # #942). This is what previously never happened at all (kernel() hardcoded
+  # Vmap unconditionally, bypassing BatchPlanner for this axis entirely).
+  state_spec = dataclasses.replace(N_STATES, cardinality=num_states)
+  xtrax_state_strategy = BatchPlanner().plan([state_spec]).decisions[0].strategy
+  # BatchPlanner is xtrax-native; translate back to aminx's own AxisStrategy
+  # union before handing it to aminx call sites (make_axis_dispatch_via_xtrax
+  # expects aminx-native instances -- mirrors _plan_axis_strategy's identical
+  # translation for the samples axis below).
+  if isinstance(xtrax_state_strategy, _XtraxSafeMap):
+    state_strategy = SafeMap(tile=xtrax_state_strategy.batch_size)
+  elif isinstance(xtrax_state_strategy, _XtraxVmap):
     state_strategy = Vmap()
-    activation_bytes = None
+  else:
+    msg = (
+      "sample_states_fused: unexpected BatchPlanner state-axis decision "
+      f"{type(xtrax_state_strategy)}"
+    )
+    raise TypeError(msg)
 
-  _one_sample = _make_one_sample(state_strategy)
+  def _one_sample(key: PRNGKeyArray) -> tuple[Any, Any]:
+    result = _sample_autoregressive_kernel(
+      model, key, bundle, config, stage_set, state_strategy=state_strategy,
+    )
+    return result.sequence, result.logits
 
-  # Measure the REAL per-sample peak memory (state axis already resolved above)
-  # via xtrax's own compiled-graph-based estimator (xtrax.tiling.estimators.
-  # lowered_memory_estimate -- XLA's own buffer-assignment numbers from
-  # lowering+compiling a ONE-sample representative tile, not the full
-  # n_samples shape), instead of a hand-typed byte formula. The previous
-  # formula (num_states * seq_len * a hidden-dim-sized magic constant) was
-  # linear and missed the AR mask's quadratic (L, L) term and the (L, K, D)
-  # edge-feature term entirely -- exactly the kind of drift a graph-derived
-  # measurement can't have, since it reads the real computation instead of
-  # approximating it (aminx debt #945; this is a systemic gap xtrax already
-  # provides the primitive to close -- lowered_memory_estimate had zero call
-  # sites anywhere in aminx before this).
-  if activation_bytes is None:
-    activation_bytes = lowered_memory_estimate(_one_sample, sample_keys[0])
+  # Measure the REAL per-sample peak memory (state axis already correctly
+  # resolved above) via xtrax's own compiled-graph-based estimator
+  # (xtrax.tiling.estimators.lowered_memory_estimate -- XLA's own buffer-
+  # assignment numbers from lowering+compiling a ONE-sample representative
+  # tile, not the full n_samples shape), instead of a hand-typed byte formula.
+  # The previous formula (num_states * seq_len * a hidden-dim-sized magic
+  # constant) was linear and missed the AR mask's quadratic (L, L) term and
+  # the (L, K, D) edge-feature term entirely -- exactly the kind of drift a
+  # graph-derived measurement can't have, since it reads the real computation
+  # instead of approximating it (aminx debt #945; this is a systemic gap
+  # xtrax already provides the primitive to close -- lowered_memory_estimate
+  # had zero call sites anywhere in aminx before this).
+  activation_bytes = lowered_memory_estimate(_one_sample, sample_keys[0])
   strategy = _plan_axis_strategy(
     N_SAMPLES,
     n_samples,

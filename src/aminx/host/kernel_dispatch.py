@@ -119,16 +119,19 @@ def _sample_batch(
   base_key = _base_sampling_key(spec, grid_lineage=grid_lineage)
   target_num_samples = resolve_target_samples(spec, chunk_sample_count, grid_lineage)
 
+  # seq_len is resolved here (moved ahead of its other former use below) so the
+  # planner's joint-budget memory estimate can be computed against the real
+  # per-structure residue count -- see make_sampling_planner's seq_len docstring.
+  seq_len = batched_ensemble.coordinates.shape[1]
+  batch_size = batched_ensemble.coordinates.shape[0]
+
   # 2. Plan batching
-  batch_plan = make_sampling_planner(spec, n_samples_override=target_num_samples)
+  batch_plan = make_sampling_planner(spec, n_samples_override=target_num_samples, seq_len=seq_len)
 
   structures_bs, samples_bs, temps_bs, noises_bs = extract_batch_sizes(batch_plan)
 
   noises = jnp.asarray(spec.run_spec.sampling.backbone_noise)
   temperatures = jnp.asarray(spec.run_spec.sampling.temperature)
-
-  seq_len = batched_ensemble.coordinates.shape[1]
-  batch_size = batched_ensemble.coordinates.shape[0]
 
   # The unified driver indexes these per-structure arrays by a (possibly traced)
   # structure index under vmap. Convert to JAX arrays so traced indexing lowers to a

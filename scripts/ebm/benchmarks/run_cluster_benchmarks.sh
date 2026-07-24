@@ -163,9 +163,20 @@ run_step biasing uv run python scripts/ebm/benchmarks/biasing_benchmark.py \
 # prior data, while langevin already has partial coverage from 18059808 and (as of the
 # incremental-write fix above) now salvages every completed cell even if a later one
 # crashes -- so if something crashes again, these two get priority for first data.
+#
+# BENCHMARK_HETEROGENEOUS_N default capped at 64, not 256: confirmed (jobs 18632128, 18634944,
+# 18639374, 2026-07-23) that pytorch_pad_to_batch_max's whole-batch dense padding needs
+# ~140-145GiB at n_structures=256/max_length=512, more than a single H200's 139.8GiB -- a real
+# O(n_structures * max_length^2) capacity wall (the dominant cost is a pairwise conditioning
+# tensor every attention layer consumes in full), NOT fixable by torch.compile (confirmed
+# empirically: Inductor kernel fusion still needed the same ~140GiB). At n_structures=64 the same
+# seed's sampled batch still includes a length-512 structure (max_length stays pinned at 512 --
+# the distribution reliably draws near-boundary real lengths regardless of sample size), so memory
+# scales ~linearly with n_structures alone: ~35GiB, a ~4x safety margin under the H200's capacity.
+# Override via BENCHMARK_HETEROGENEOUS_N=256 only if deliberately re-confirming the OOM itself.
 run_step heterogeneous uv run python scripts/ebm/benchmarks/heterogeneous_batch_benchmark.py \
   --checkpoint "${CHECKPOINT}" --reference-repo "${REFERENCE_REPO}" \
-  --n-structures "${BENCHMARK_HETEROGENEOUS_N:-256}" --n-repeats "${N_REPEATS}" \
+  --n-structures "${BENCHMARK_HETEROGENEOUS_N:-64}" --n-repeats "${N_REPEATS}" \
   --out "${OUT_DIR}/heterogeneous_batch_benchmark_full.json"
 
 run_step annealing uv run python scripts/ebm/benchmarks/langevin_annealing_benchmark.py \

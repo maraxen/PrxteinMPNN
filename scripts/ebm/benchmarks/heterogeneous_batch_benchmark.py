@@ -50,19 +50,53 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-import equinox as eqx
-import jax
-import jax.numpy as jnp
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from bucket_boundary_check import build_proxy_distribution  # noqa: E402
 
-from aminx.ebm.checkpoint import load_pytorch_checkpoint  # noqa: E402
-from aminx.ebm.model import ProteinEBMModel  # noqa: E402
-
 if TYPE_CHECKING:
+  from collections.abc import Callable
+
+  import equinox as eqx
+  import jax
+  import jax.numpy as jnp
   import torch
+  from aminx.ebm.model import ProteinEBMModel
   from protein_ebm.model.ebm import ProteinEBM  # type: ignore[import-not-found]
+
+# jax/equinox/aminx.ebm.model/aminx.ebm.checkpoint are DELIBERATELY NOT imported at module level
+# (only under TYPE_CHECKING above, for annotations -- safe since `from __future__ import
+# annotations` makes all hints lazy strings). This file's own top-level entry point (the parent
+# process launched by the sbatch script, with no --strategy flag) only orchestrates subprocesses
+# via `subprocess.run` -- it never needs JAX itself. Confirmed in production (job 18523524,
+# 2026-07-22) that a bare top-level `import jax` in that ORCHESTRATOR process was enough to
+# trigger JAX's eager CUDA backend init and its default ~75% preallocation (~105GB of a 139.8GB
+# H200) in a process that does nothing with the GPU -- and because that parent process stays
+# alive for the entire job (it sequentially launches and waits on each strategy's own
+# subprocess), it permanently starved every strategy subprocess of that memory for the whole
+# job, regardless of strategy ordering or per-child env vars like XLA_PYTHON_CLIENT_PREALLOCATE
+# (those only apply to the children `subprocess.run` launches, not to this process itself).
+# Confirmed via `ps` on the compute node: the PID holding ~105GB the whole time was this exact
+# parent process (etime matching the job's own elapsed time), not a leaked child or another
+# tenant. Import jax/equinox/ProteinEBMModel/load_pytorch_checkpoint LOCALLY, only inside the
+# functions that actually run inside a `--strategy` child subprocess (_build_jax_model,
+# _jax_bucket_pad_tile, and the two jax_bucket_pad_tile-only branches in _run_one_strategy) --
+# never at module scope.
+#
+# THIRD occurrence of this exact bug class (job 18527774, 2026-07-22), after two prior "confirmed"
+# fixes (this file's own top-level import, then bucket_boundary_check.py's top-level xtrax import)
+# both held up under `ast.walk` but still missed a deeper transitive path: main() used to call
+# _build_heterogeneous_batch() directly (to log/report `lengths`), which calls
+# build_proxy_distribution() -> load_real_lengths() -> a FUNCTION-LOCAL (already "lazy") `from
+# aminx.io.parsing import parse_structure`. That import is local to load_real_lengths, but
+# load_real_lengths is unconditionally invoked by the orchestrator, so the "lazy" label didn't
+# help -- and aminx.io.parsing.dispatch itself imports `Protein` from `proxide.core.containers` at
+# THAT module's own top level, which does `import jax.numpy as jnp` unconditionally (a third-party
+# dependency, not our own code). Fix: the orchestrator no longer calls _build_heterogeneous_batch
+# at all -- every --strategy subprocess already reconstructs the identical seeded batch
+# independently (_run_one_strategy) and now returns `lengths` in its result dict; main() reads
+# `lengths` off the first subprocess's result instead. Lesson: a function-scoped import is only as
+# lazy as the least-lazy function that calls it -- trace the full call graph of anything the
+# orchestrator invokes, not just its own module-level imports.
 
 log = logging.getLogger("heterogeneous_batch_benchmark")
 
@@ -70,6 +104,10 @@ DEFAULT_CHECKPOINT = Path("/tmp/proteinebm_weights/model_6_expert_frozen_1m_md.p
 DEFAULT_REFERENCE_REPO = Path("~/repos/ProteinEBM").expanduser()
 DEFAULT_DIFFUSION_TIME = 0.05
 BUCKET_BOUNDARIES: tuple[int, ...] = (64, 128, 256, 512)  # E4.5-confirmed boundaries.
+# Vmap/SafeMap cutoff for the per-bucket-group axis in _jax_bucket_pad_tile. Matches
+# aminx.ebm.plan's N_DECOYS/N_MUTANTS/N_ENSEMBLE axis-template default (8); not yet empirically
+# tuned for this specific axis -- see the E11e handoff's open question.
+BUCKET_GROUP_BATCH_SIZE = 8
 
 SMOKE_TOKEN_S = 32
 SMOKE_TOKEN_Z = 16
@@ -80,7 +118,17 @@ SMOKE_HEADS = 2
 SMOKE_NUM_CONTACT_EMBEDDINGS = 2
 
 STRATEGY_NAMES: tuple[str, ...] = (
-  "jax_bucket_pad_tile", "pytorch_pad_to_batch_max", "pytorch_per_structure_loop",
+  # jax_bucket_pad_tile runs LAST, not first. ROOT CAUSE CONFIRMED 2026-07-22 (job 18523524):
+  # this was originally a mystery -- a ~105GB compute-app entry under this project's own venv
+  # path, present before this script's own strategies had allocated anything, ruled out both a
+  # crashed-child leak theory and a node-double-booking theory (see module-level comment for the
+  # actual answer: the ORCHESTRATOR process itself, via a module-level `import jax`, was
+  # preallocating ~105GB it never used and holding it for the entire job). That's fixed now at
+  # the import level, which is the real fix. This ordering (and _wait_for_gpu_free below) remain
+  # as cheap defense in depth on top of that fix: whatever residual pressure they don't catch,
+  # the strategy most likely to fail from memory pressure should never be positioned to starve
+  # the others that come after it.
+  "pytorch_pad_to_batch_max", "pytorch_per_structure_loop", "jax_bucket_pad_tile",
 )
 
 
@@ -100,6 +148,24 @@ def _parse_args() -> argparse.Namespace:
     help="Internal: run only this one strategy and write a single-result partial file. Used by "
     "the parent process to isolate each strategy in its own subprocess/CUDA context -- not "
     "meant to be passed by a human caller.",
+  )
+  parser.add_argument(
+    "--compilation-cache-dir", type=Path, default=None,
+    help="If set, enables JAX's persistent compilation cache at this directory for the "
+    "jax_bucket_pad_tile strategy only (mirrors src/aminx/host/prep.py's production "
+    "jax.config.update('jax_compilation_cache_dir', ...) wiring exactly). Each distinct bucket "
+    "size (64/128/256/512) present in the batch is its own JIT compile -- passing the SAME "
+    "directory across two separate invocations lets the second run load those compiles from "
+    "disk instead of recompiling, demonstrating cold-vs-warm compile cost across the bucket "
+    "boundaries. Cache state (cold/warm, based on whether the directory already had entries "
+    "before this run) is recorded in the output for provenance.",
+  )
+  parser.add_argument(
+    "--torch-compile", action="store_true",
+    help="Wrap the PyTorch reference model's compute_energy in torch.compile (CUDA/Triton "
+    "backend when running on GPU) for the pytorch_pad_to_batch_max strategy only. Diagnostic "
+    "flag: tests whether Inductor's kernel fusion reduces peak activation memory enough to avoid "
+    "that strategy's ~130GiB OOM at n=256 -- has no effect on the other two strategies.",
   )
   return parser.parse_args()
 
@@ -146,6 +212,10 @@ def _build_reference_model(reference_repo: Path, model_cfg: Any, diffuser_cfg: A
 
 
 def _build_jax_model(model_cfg: Any, seed: int, state_dict: Any) -> ProteinEBMModel:  # noqa: ANN401
+  import jax  # noqa: PLC0415 -- see module-level comment: keep JAX out of the orchestrator process
+  from aminx.ebm.checkpoint import load_pytorch_checkpoint  # noqa: PLC0415
+  from aminx.ebm.model import ProteinEBMModel  # noqa: PLC0415
+
   key = jax.random.PRNGKey(seed)
   model = ProteinEBMModel(
     token_s=model_cfg.token_s, token_z=model_cfg.token_z, dim_fourier=model_cfg.dim_fourier,
@@ -165,16 +235,77 @@ def _torch_device() -> str:
 
 
 def _log_gpu_processes(label: str) -> None:
-  """Diagnostic: dump nvidia-smi's own compute-process list. Safe no-op if nvidia-smi is absent
-  (e.g. CPU-only local dev) or the call fails for any reason -- this must never break a run."""
+  """Diagnostic: dump nvidia-smi's own compute-process list, plus our own pid. This is what
+  resolved the mystery in job 18523524 (2026-07-22): `ps` on the compute node showed the ~105GB
+  entry's pid was this SCRIPT's own top-level orchestrator process (the one launched by the
+  sbatch script with no `--strategy` flag, running the whole job) -- see the module-level
+  comment for the actual fix (keep jax out of that process's imports entirely). Kept for future
+  debugging: logging our own pid lets a run immediately tell whether an elevated entry is us.
+  Safe no-op if nvidia-smi is absent (e.g. CPU-only local dev) or the call fails for any reason
+  -- this must never break a run."""
   try:
     out = subprocess.run(  # noqa: S603, S607 -- fixed argv, no shell, diagnostic-only
       ["nvidia-smi", "--query-compute-apps=pid,used_memory,process_name", "--format=csv"],
       capture_output=True, text=True, timeout=10, check=False,
     )
-    log.info("[gpu-processes %s]\n%s", label, out.stdout.strip() or "(no output)")
+    log.info("[gpu-processes %s] (our pid=%d)\n%s", label, os.getpid(), out.stdout.strip() or "(no output)")
   except Exception as e:  # noqa: BLE001 -- diagnostic only, never fatal
     log.info("[gpu-processes %s] nvidia-smi unavailable: %s", label, e)
+
+
+# Per-strategy minimum free GPU memory (GiB) required before that strategy's subprocess is
+# allowed to start building its model, derived from the actual worst-case allocation each one
+# has been observed to attempt at production scale (n=256, see BATCH_SIZES_LARGE_L-style ceiling
+# in run_cluster_benchmarks.sh for the analogous per-length convention elsewhere in this repo):
+# pytorch_pad_to_batch_max pads the WHOLE batch to its single largest length and tried to
+# allocate 128GiB doing so (job 18515871's OOM); jax_bucket_pad_tile's own preallocation plus its
+# largest bucket's autotuning scratch needed at least 104.85+36.02=~141GB in the worst observed
+# case, so it gets the highest bar; pytorch_per_structure_loop never pads and has consistently
+# needed only a few GB. These are heuristics tied to the current n_structures=256 production
+# config, not a formula derived from --n-structures -- revisit if that default changes materially.
+_MIN_FREE_GB_BY_STRATEGY: dict[str, float] = {
+  "pytorch_pad_to_batch_max": 130.0,
+  "pytorch_per_structure_loop": 10.0,
+  "jax_bucket_pad_tile": 110.0,
+}
+
+
+def _wait_for_gpu_free(min_free_gb: float, timeout_s: float = 600.0, poll_interval_s: float = 15.0) -> None:
+  """Block until the GPU reports at least ``min_free_gb`` free, or ``timeout_s`` elapses.
+
+  Added 2026-07-22 after jobs 18515871/18518766 both saw a large, unexplained chunk of GPU
+  memory already in use the moment a strategy's subprocess started (see _log_gpu_processes) --
+  most likely this script's own earlier subprocess in the same job not having released its
+  memory yet by the time the next one launched. Rather than trying to fully pin down why the GPU
+  isn't free, just wait until it actually is: this is a strict superset fix that also covers any
+  other transient reason the device might not be ready yet. Safe no-op if nvidia-smi is absent
+  (e.g. CPU-only local dev) -- proceeds immediately rather than blocking forever. If the timeout
+  elapses without enough free memory, logs a warning and proceeds anyway -- the retry-with-backoff
+  loop in ``_run_one_strategy`` is the last line of defense if this optimistic proceed still OOMs.
+  """
+  deadline = time.monotonic() + timeout_s
+  free_gb = None
+  while True:
+    try:
+      out = subprocess.run(  # noqa: S603, S607 -- fixed argv, no shell, diagnostic-only
+        ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+        capture_output=True, text=True, timeout=10, check=False,
+      )
+      free_gb = float(out.stdout.strip().splitlines()[0]) / 1024.0
+    except Exception as e:  # noqa: BLE001 -- diagnostic-only gate, never block a run on this failing
+      log.info("[gpu-wait] nvidia-smi unavailable, proceeding without gating: %s", e)
+      return
+    if free_gb >= min_free_gb:
+      log.info("[gpu-wait] %.1fGiB free (>= %.1fGiB required), proceeding", free_gb, min_free_gb)
+      return
+    if time.monotonic() >= deadline:
+      log.warning(
+        "[gpu-wait] timed out after %.0fs waiting for %.1fGiB free (last saw %.1fGiB) -- "
+        "proceeding anyway", timeout_s, min_free_gb, free_gb,
+      )
+      return
+    log.info("[gpu-wait] only %.1fGiB free (need %.1fGiB), waiting %.0fs...", free_gb, min_free_gb, poll_interval_s)
+    time.sleep(poll_interval_s)
 
 
 def _load_model_configs(args: argparse.Namespace) -> tuple[Any, Any, Any]:
@@ -236,9 +367,20 @@ def _pad_to(struct: dict[str, np.ndarray], target_len: int) -> dict[str, np.ndar
 
 def _jax_bucket_pad_tile(
   model: ProteinEBMModel, structures: list[dict[str, np.ndarray]], t: float, n_repeats: int,
-) -> tuple[list[float], int, int]:
-  """Strategy 1: group by bucket, pad per-group, one vmap'd energy call per bucket."""
-  from xtrax.tiling import select_bucket  # noqa: PLC0415
+) -> tuple[list[float], int, int, float]:
+  """Strategy 1: group by bucket, pad per-group, one vmap'd energy call per bucket.
+
+  Returns ``(times, padded_elements, real_elements, compile_wall_clock_s)`` -- the 4th element
+  is the warmup call's wall-clock time, i.e. one JIT compile per distinct bucket size present in
+  the batch (previously discarded; now surfaced so cold-vs-warm persistent-compilation-cache
+  runs can be compared directly, see ``--compilation-cache-dir``).
+  """
+  import equinox as eqx  # noqa: PLC0415 -- see module-level comment: keep JAX out of the orchestrator process
+  import jax  # noqa: PLC0415
+  import jax.numpy as jnp  # noqa: PLC0415
+  from xtrax.tiling import AxisSpec, BatchPlanner, select_bucket  # noqa: PLC0415
+
+  from aminx.ebm.plan import dispatch_axis  # noqa: PLC0415
 
   groups: dict[int, list[dict[str, np.ndarray]]] = {}
   for s in structures:
@@ -258,27 +400,54 @@ def _jax_bucket_pad_tile(
 
   t_arr = jnp.asarray(t)
 
-  @eqx.filter_jit
-  def _score_group(m: ProteinEBMModel, coords: jax.Array, aatype: jax.Array, mask: jax.Array) -> jax.Array:
-    return jax.vmap(lambda c, a, mk: m.energy(c, a, t_arr, mk))(coords, aatype, mask)
+  def _make_score_group(strategy: object) -> Callable[[ProteinEBMModel, jax.Array, jax.Array, jax.Array], jax.Array]:
+    @eqx.filter_jit
+    def _score_group(m: ProteinEBMModel, coords: jax.Array, aatype: jax.Array, mask: jax.Array) -> jax.Array:
+      def _score_one(xs: tuple[jax.Array, jax.Array, jax.Array]) -> jax.Array:
+        c, a, mk = xs
+        return m.energy(c, a, t_arr, mk)
+
+      return dispatch_axis(strategy, _score_one, (coords, aatype, mask))
+
+    return _score_group
+
+  # BUCKET_GROUP_BATCH_SIZE is a provisional default (aminx.ebm.plan's own N_DECOYS/N_MUTANTS/
+  # N_ENSEMBLE axis templates use 8) -- not yet empirically validated for this axis specifically.
+  score_fns = [
+    _make_score_group(BatchPlanner().plan([
+      AxisSpec(name="bucket_group", cardinality=len(members), default_batch_size=BUCKET_GROUP_BATCH_SIZE),
+    ]).decisions[0].strategy)
+    for members in groups.values()
+  ]
 
   def _call() -> None:
-    for coords, aatype, mask in batched_inputs:
-      jax.block_until_ready(_score_group(model, coords, aatype, mask))
+    for (coords, aatype, mask), score_fn in zip(batched_inputs, score_fns, strict=True):
+      jax.block_until_ready(score_fn(model, coords, aatype, mask))
 
-  _call()  # untimed warmup (forces jit compilation per distinct bucket shape)
+  compile_start = time.perf_counter()
+  _call()  # warmup -- forces jit compilation per distinct bucket shape; timed separately below
+  compile_wall_clock_s = time.perf_counter() - compile_start
   times = []
   for _ in range(n_repeats):
     start = time.perf_counter()
     _call()
     times.append(time.perf_counter() - start)
-  return times, padded_elements, real_elements
+  return times, padded_elements, real_elements, compile_wall_clock_s
 
 
 def _pytorch_pad_to_batch_max(
-  ref_model: "ProteinEBM", structures: list[dict[str, np.ndarray]], t: float, n_repeats: int, device: "str | torch.device" = "cpu",
-) -> tuple[list[float], int, int]:
-  """Strategy 2: pad every structure to the single batch-max length, one dense forward."""
+  ref_model: "ProteinEBM", structures: list[dict[str, np.ndarray]], t: float, n_repeats: int,
+  device: "str | torch.device" = "cpu", *, torch_compile: bool = False,
+) -> tuple[list[float], int, int, float | None]:
+  """Strategy 2: pad every structure to the single batch-max length, one dense forward.
+
+  ``torch_compile=True`` wraps ``ref_model.compute_energy`` in ``torch.compile`` (Inductor,
+  Triton codegen when ``device`` is CUDA) before timing -- diagnostic flag to test whether
+  kernel fusion reduces peak activation memory enough to avoid this strategy's ~130GiB OOM at
+  n=256 (see the E11e handoff). The warmup call (which triggers compilation when enabled) is
+  timed separately as the 4th return value, mirroring ``_jax_bucket_pad_tile``'s own
+  compile/run split.
+  """
   import torch  # noqa: PLC0415
 
   max_len = max(s["length"] for s in structures)
@@ -296,11 +465,24 @@ def _pytorch_pad_to_batch_max(
     "t": times_t, "chain_encoding": chain_id, "external_contacts": contacts,
   }
 
+  # Confirm every input tensor and the model's own parameters actually landed on `device` -- a
+  # silent CPU fallback here would make every downstream number meaningless (see
+  # _build_reference_model's docstring: this was a real, previously-undiscovered bug).
+  model_device = next(ref_model.parameters()).device
+  for feat_name, tensor in feats.items():
+    if tensor.device != model_device:
+      msg = f"{feat_name} landed on {tensor.device}, expected model device {model_device} (device arg was {device!r})"
+      raise RuntimeError(msg)
+
+  compute = torch.compile(ref_model.compute_energy) if torch_compile else ref_model.compute_energy
+
   def _call() -> None:
     with torch.no_grad():
-      ref_model.compute_energy(feats, rescale_input_coords=False)
+      compute(feats, rescale_input_coords=False)
 
-  _call()
+  compile_start = time.perf_counter()
+  _call()  # warmup -- also triggers torch.compile's graph capture/codegen when torch_compile=True
+  compile_wall_clock_s = time.perf_counter() - compile_start if torch_compile else None
   times = []
   for _ in range(n_repeats):
     start = time.perf_counter()
@@ -309,7 +491,7 @@ def _pytorch_pad_to_batch_max(
 
   padded_elements = max_len * n
   real_elements = sum(s["length"] for s in structures)
-  return times, padded_elements, real_elements
+  return times, padded_elements, real_elements, compile_wall_clock_s
 
 
 def _pytorch_per_structure_loop(
@@ -384,33 +566,54 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
   n_structures = min(args.n_structures, 6) if args.smoke else args.n_structures
   n_repeats = min(args.n_repeats, 2) if args.smoke else args.n_repeats
   structures = _build_heterogeneous_batch(n_structures, args.seed, max_length=BUCKET_BOUNDARIES[-1])
+  lengths = [s["length"] for s in structures]
   model_cfg, diffuser_cfg, state_dict = _load_model_configs(args)
-  device_label = jax.devices()[0].platform if name == "jax_bucket_pad_tile" else _torch_device()
+  if name == "jax_bucket_pad_tile":
+    import jax  # noqa: PLC0415 -- see module-level comment: keep JAX out of the orchestrator process
+
+    device_label = jax.devices()[0].platform
+  else:
+    device_label = _torch_device()
+
+  cache_state: str | None = None
+  cache_dir = getattr(args, "compilation_cache_dir", None)
+  if name == "jax_bucket_pad_tile" and cache_dir is not None:
+    import jax  # noqa: PLC0415
+
+    cache_state = "warm" if cache_dir.exists() and any(cache_dir.iterdir()) else "cold"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    jax.config.update("jax_compilation_cache_dir", str(cache_dir))  # mirrors src/aminx/host/prep.py
+    # JAX's default 1.0s min-compile-time threshold means fast compiles (small/smoke-scale
+    # models, or genuinely quick real ones) silently never get persisted -- 0 guarantees this
+    # demo actually reflects cache_state rather than flaking depending on model/scale.
+    jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)
 
   _log_gpu_processes(f"before {name}")
+  _wait_for_gpu_free(_MIN_FREE_GB_BY_STRATEGY[name])
 
-  def _build_and_run() -> tuple[list[float], int, int]:
+  def _build_and_run() -> tuple[list[float], int, int, float | None]:
     if name == "jax_bucket_pad_tile":
       jax_model = _build_jax_model(model_cfg, args.seed, state_dict)
       return _jax_bucket_pad_tile(jax_model, structures, args.diffusion_time, n_repeats)
     ref_model = _build_reference_model(args.reference_repo, model_cfg, diffuser_cfg, state_dict, device=device_label)
-    strategy_fn = _pytorch_pad_to_batch_max if name == "pytorch_pad_to_batch_max" else _pytorch_per_structure_loop
-    return strategy_fn(ref_model, structures, args.diffusion_time, n_repeats, device=device_label)
+    if name == "pytorch_pad_to_batch_max":
+      return _pytorch_pad_to_batch_max(
+        ref_model, structures, args.diffusion_time, n_repeats, device=device_label,
+        torch_compile=getattr(args, "torch_compile", False),
+      )
+    times, padded_elements, real_elements = _pytorch_per_structure_loop(ref_model, structures, args.diffusion_time, n_repeats, device=device_label)
+    return times, padded_elements, real_elements, None  # eager PyTorch (per-structure loop) has no compile phase
 
-  # Confirmed via nvidia-smi --query-compute-apps (see _log_gpu_processes calls in the job logs)
-  # that this is a genuine Blackwell/SM120 driver quirk, not a bug here or real capacity pressure:
-  # after a JAX subprocess with a large preallocation exits, nvidia-smi keeps reporting a "ghost"
-  # compute-app entry for its now-dead PID -- confirmed via `ps` that the PID itself no longer
-  # exists -- for several minutes before the driver actually reclaims it. Same family of issue as
-  # the documented autotuning-crash "leaking" behavior (audit doc sec. 7), just triggered here by
-  # ordinary large-context teardown, not only by the illegal-address fault. Retry OOM-shaped
-  # failures with a generous backoff before recording a genuine crash; at production scale each
-  # strategy's own runtime is much longer than this smoke test's, which should naturally leave more
-  # gap for the ghost entry to clear before the next subprocess starts.
+  # A persistently-elevated nvidia-smi reading (~105GB in use) was root-caused 2026-07-22 (job
+  # 18523524) to this script's own top-level orchestrator process eagerly initializing JAX via a
+  # module-level `import jax` -- see the module-level comment. Fixed at the import level, which
+  # is the real fix; `_wait_for_gpu_free` above and the retry backoff below stay as defense in
+  # depth for anything that fix doesn't catch (e.g. a genuinely transient driver-level race like
+  # the documented Blackwell/SM120 ghost-listing behavior).
   max_attempts = 6
   for attempt in range(1, max_attempts + 1):
     try:
-      times, padded_elements, real_elements = _build_and_run()
+      times, padded_elements, real_elements, compile_wall_clock_s = _build_and_run()
       break
     except Exception as e:  # noqa: BLE001 -- must still report a result row, not crash the subprocess silently
       is_oom = "out of memory" in str(e).lower() or "RESOURCE_EXHAUSTED" in str(e)
@@ -426,14 +629,16 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
         time.sleep(wait_s)
         continue
       log.error("[%s] FAILED (attempt %d/%d): %s: %s", name, attempt, max_attempts, type(e).__name__, e)
-      return {"strategy": name, "error": f"{type(e).__name__}: {e}"}
+      return {"strategy": name, "error": f"{type(e).__name__}: {e}", "lengths": lengths}
 
   mean_ms = float(np.mean(times)) * 1000.0
   std_ms = float(np.std(times)) * 1000.0
   padding_overhead = padded_elements / real_elements if real_elements else float("nan")
+  compile_ms = compile_wall_clock_s * 1000.0 if compile_wall_clock_s is not None else None
   log.info(
-    "[%s] wall_clock=%.2fms (+/-%.2fms) padding_overhead=%.3fx (%d padded / %d real elements)",
+    "[%s] wall_clock=%.2fms (+/-%.2fms) padding_overhead=%.3fx (%d padded / %d real elements)%s",
     name, mean_ms, std_ms, padding_overhead, padded_elements, real_elements,
+    f" compile={compile_ms:.2f}ms cache_state={cache_state}" if compile_ms is not None else "",
   )
   return {
     "strategy": name,
@@ -443,6 +648,10 @@ def _run_one_strategy(name: str, args: argparse.Namespace) -> dict[str, Any]:
     "padded_elements": padded_elements,
     "real_elements": real_elements,
     "padding_overhead_ratio": padding_overhead,
+    "compile_wall_clock_ms": compile_ms,
+    "compilation_cache_dir": str(cache_dir) if cache_dir is not None else None,
+    "compilation_cache_state": cache_state,
+    "lengths": lengths,
   }
 
 
@@ -468,6 +677,10 @@ def _child_argv(args: argparse.Namespace, strategy: str, out_path: Path) -> list
   ]
   if args.smoke:
     argv.append("--smoke")
+  if args.compilation_cache_dir is not None:
+    argv.extend(["--compilation-cache-dir", str(args.compilation_cache_dir)])
+  if getattr(args, "torch_compile", False):
+    argv.append("--torch-compile")
   return argv
 
 
@@ -475,8 +688,21 @@ def _child_env(strategy: str) -> dict[str, str]:
   """Env for a strategy's subprocess. Belt-and-suspenders on top of only building the needed
   model: the pytorch strategies never need JAX to touch the GPU at all, so tell it not to
   preallocate (JAX's default ~75% upfront grab would otherwise starve PyTorch in that process
-  if anything ever imports/touches JAX there again). The JAX strategy keeps normal preallocation
-  -- disabling it there would slow its own allocator and skew the very throughput being measured.
+  if anything ever imports/touches JAX there again).
+
+  jax_bucket_pad_tile gets NO override here (uses JAX's own default: preallocation on, 0.75
+  fraction). A prior version of this function REDUCED its fraction to 0.5, reasoning (job
+  18515871, 2026-07-22) that the default 0.75 fraction's natural ~35GB-free residual
+  (139.8GiB * 0.25) was too little headroom for XLA's autotuner, which needs scratch on top of
+  the model's own live activations to profile the largest bucket group's (512) GEMM fusion.
+  That reduction was backwards: autotuning scratch is allocated *inside* the preallocated arena,
+  so a SMALLER fraction means a smaller arena, not more headroom within it -- confirmed in
+  production (job 18530690, 2026-07-22, after the ~105GB orchestrator-leak fix in this same
+  session): at 0.5 (~70GB arena) the model's own activations for n=256/bucket=512 already used
+  nearly the whole arena, leaving no room for the ~4GB the autotuner still needed, and it OOM'd
+  on all 6 retries. Removing the override (falling back to 0.75, a ~105GB arena on this H200)
+  gives ~29GB of headroom instead of ~0. Safe to do now that the orchestrator no longer holds a
+  competing ~105GB (see the module-level comment) -- this strategy has the whole GPU to itself.
   """
   env = dict(os.environ)
   if strategy != "jax_bucket_pad_tile":
@@ -495,21 +721,31 @@ def main() -> int:
 
   n_structures = min(args.n_structures, 6) if args.smoke else args.n_structures
   n_repeats = min(args.n_repeats, 2) if args.smoke else args.n_repeats
-  structures = _build_heterogeneous_batch(n_structures, args.seed, max_length=BUCKET_BOUNDARIES[-1])
-  lengths = [s["length"] for s in structures]
-  log.info("Heterogeneous batch: n=%d lengths=%s", n_structures, sorted(lengths))
+  # The orchestrator itself does NOT call _build_heterogeneous_batch (deliberately -- see the
+  # module-level comment): every --strategy subprocess already reconstructs the identical, seeded
+  # batch independently (_run_one_strategy) and now reports its `lengths` back in its result dict,
+  # so the orchestrator just reads `lengths` off the first subprocess result instead of building
+  # (and importing aminx.io.parsing -> proxide -> jax.numpy to do so) its own copy.
+  log.info("Heterogeneous batch: n=%d (each strategy subprocess reconstructs an identical, seeded batch)", n_structures)
 
   results: list[dict[str, Any]] = []
+  lengths: list[Any] = []
   for name in STRATEGY_NAMES:
     partial_path = args.out.with_suffix(f".{name}.partial.json")
     log.info("=== launching isolated subprocess: %s ===", name)
     proc = subprocess.run(_child_argv(args, name, partial_path), env=_child_env(name), check=False)  # noqa: S603 -- fixed argv, no shell
+    result: dict[str, Any]
     if partial_path.exists():
       result = json.loads(partial_path.read_text())["result"]
       partial_path.unlink()
     else:
       log.error("[%s] subprocess exited %d with no output file -- recording as crashed", name, proc.returncode)
       result = {"strategy": name, "error": f"subprocess exit code {proc.returncode}, no output written"}
+    if not lengths and "lengths" in result:
+      lengths = result.pop("lengths")
+      log.info("Heterogeneous batch lengths (from %s subprocess): %s", name, sorted(lengths))
+    else:
+      result.pop("lengths", None)
     results.append(result)
     _write_payload(args, n_structures, n_repeats, lengths, results)
 
@@ -565,6 +801,18 @@ def _write_payload(
         "strategies once they shared the same GPU (see "
         ".praxia/docs/audits/260716_proteinebm-parity-report.md sec. 7). Separate "
         "processes mean a JAX crash can no longer take the PyTorch numbers with it.",
+        "pytorch_pad_to_batch_max hits a genuine, confirmed OOM on a single H200 at "
+        "n_structures=256 (max_length=512): padding the WHOLE batch to one dense "
+        "[256, 512, ...] tensor needs ~140-145GiB, more than the GPU's 139.8GiB. This "
+        "is NOT fixable by torch.compile (confirmed empirically -- Inductor kernel "
+        "fusion still needed ~140GiB, identical order of magnitude to eager) because "
+        "the dominant cost is a pairwise conditioning tensor every attention layer "
+        "consumes in full, not redundant intermediate-buffer overhead fusion can "
+        "eliminate. It is a real O(n_structures * max_length^2) capacity wall specific "
+        "to padding-everything-to-batch-max with no bucketing concept -- the intended "
+        "finding this strategy exists to demonstrate, not a bug. Production comparisons "
+        "use a smaller --n-structures (see scripts/ebm/benchmarks/run_cluster_benchmarks.sh) "
+        "so all three strategies produce numbers on the same batch composition.",
       ],
     },
     "results": results,

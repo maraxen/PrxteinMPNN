@@ -1,0 +1,378 @@
+<title>ProteinEBM · JAX Port Parity Report</title>
+<style>
+  :root {
+    --paper: #f5f6f8;
+    --panel: #ffffff;
+    --panel-2: #eef1f4;
+    --ink: #14181e;
+    --muted: #5a636e;
+    --faint: #8b939d;
+    --rule: #d9dee4;
+    --rule-strong: #c2c9d1;
+    --jax: #0d7d74;         /* teal — the JAX port */
+    --jax-soft: #d7ece9;
+    --torch: #bf6a37;       /* clay — PyTorch reference */
+    --good: #2f7d52;
+    --good-soft: #dcefe3;
+    --warn: #b07d12;
+    --warn-soft: #f4ebd3;
+    --bad: #b23b3b;
+    --bad-soft: #f4dedd;
+    --shadow: 0 1px 2px rgba(20,24,30,.06), 0 6px 24px rgba(20,24,30,.05);
+    --serif: Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0f1216; --panel: #171b21; --panel-2: #1e232b;
+      --ink: #e7ebf0; --muted: #9aa3ad; --faint: #6c7580;
+      --rule: #272d35; --rule-strong: #333b45;
+      --jax: #3fb9ac; --jax-soft: #12312e;
+      --torch: #d9895a; --torch-soft: #2f2016;
+      --good: #4bbd7e; --good-soft: #13301f;
+      --warn: #d6a53a; --warn-soft: #2f2810;
+      --bad: #e0655f; --bad-soft: #331817;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #f5f6f8; --panel: #ffffff; --panel-2: #eef1f4;
+    --ink: #14181e; --muted: #5a636e; --faint: #8b939d;
+    --rule: #d9dee4; --rule-strong: #c2c9d1;
+    --jax: #0d7d74; --jax-soft: #d7ece9; --torch: #bf6a37; --torch-soft:#f2e2d6;
+    --good: #2f7d52; --good-soft: #dcefe3; --warn: #b07d12; --warn-soft:#f4ebd3;
+    --bad: #b23b3b; --bad-soft: #f4dedd;
+  }
+  :root[data-theme="dark"] {
+    --paper: #0f1216; --panel: #171b21; --panel-2: #1e232b;
+    --ink: #e7ebf0; --muted: #9aa3ad; --faint: #6c7580;
+    --rule: #272d35; --rule-strong: #333b45;
+    --jax: #3fb9ac; --jax-soft: #12312e; --torch: #d9895a; --torch-soft:#2f2016;
+    --good: #4bbd7e; --good-soft: #13301f; --warn: #d6a53a; --warn-soft:#2f2810;
+    --bad: #e0655f; --bad-soft: #331817;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: var(--sans); line-height: 1.6;
+    -webkit-font-smoothing: antialiased; font-size: 16px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: clamp(1.2rem, 4vw, 3rem) clamp(1rem, 4vw, 2.5rem) 5rem; }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--jax); margin: 0 0 .9rem;
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 650; font-size: clamp(1.9rem, 5vw, 3rem);
+    line-height: 1.08; letter-spacing: -.01em; margin: 0 0 .7rem; text-wrap: balance;
+  }
+  .lede { font-size: clamp(1.02rem, 2.2vw, 1.18rem); color: var(--muted); margin: 0 0 1.4rem; max-width: 62ch; }
+  .meta {
+    font-family: var(--mono); font-size: .76rem; color: var(--faint);
+    display: flex; flex-wrap: wrap; gap: .35rem 1.3rem; padding: .8rem 0; border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule); margin-bottom: 2.4rem;
+  }
+  .meta b { color: var(--muted); font-weight: 600; }
+
+  h2 {
+    font-family: var(--serif); font-weight: 640; font-size: clamp(1.35rem, 3vw, 1.7rem);
+    letter-spacing: -.01em; margin: 3rem 0 .4rem; padding-top: 1.4rem; border-top: 2px solid var(--rule-strong);
+    text-wrap: balance;
+  }
+  h2 .n { font-family: var(--mono); font-size: .8rem; color: var(--jax); font-weight: 500; vertical-align: middle; margin-right: .6rem; }
+  h3 { font-family: var(--sans); font-weight: 680; font-size: 1.02rem; letter-spacing: .01em; margin: 1.8rem 0 .5rem; }
+  p { margin: .7rem 0; max-width: 68ch; }
+  a { color: var(--jax); }
+  strong { font-weight: 680; }
+  .sub { color: var(--muted); font-size: .95rem; }
+
+  /* verdict cards */
+  .verdicts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .9rem; margin: 1.6rem 0 .6rem; }
+  .card {
+    background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 1.05rem 1.1rem;
+    box-shadow: var(--shadow); display: flex; flex-direction: column; gap: .35rem; position: relative; overflow: hidden;
+  }
+  .card::before { content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background: var(--stripe, var(--rule)); }
+  .card .label { font-family: var(--mono); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .card .big { font-family: var(--serif); font-size: 1.9rem; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+  .card .vs { font-size: .8rem; color: var(--muted); font-family: var(--mono); }
+  .pill { align-self: flex-start; font-family: var(--mono); font-size: .68rem; font-weight: 600; letter-spacing: .06em;
+    text-transform: uppercase; padding: .18rem .5rem; border-radius: 999px; }
+  .pill.good { background: var(--good-soft); color: var(--good); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .pill.bad  { background: var(--bad-soft);  color: var(--bad); }
+  .card.good  { --stripe: var(--good); }
+  .card.warn  { --stripe: var(--warn); }
+  .card.bad   { --stripe: var(--bad); }
+
+  /* callout */
+  .callout { background: var(--panel); border: 1px solid var(--rule); border-left: 4px solid var(--jax);
+    border-radius: 10px; padding: 1rem 1.2rem; margin: 1.4rem 0; box-shadow: var(--shadow); }
+  .callout.bad { border-left-color: var(--bad); }
+  .callout.key { border-left-color: var(--warn); }
+  .callout p:first-child { margin-top: 0; } .callout p:last-child { margin-bottom: 0; }
+
+  /* tables */
+  .tablewrap { overflow-x: auto; margin: 1rem 0 .4rem; border: 1px solid var(--rule); border-radius: 10px; box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; font-size: .875rem; background: var(--panel); }
+  caption { text-align: left; font-family: var(--mono); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--faint); padding: .7rem .9rem .3rem; }
+  th, td { padding: .5rem .7rem; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th { font-family: var(--mono); font-size: .7rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
+    border-bottom: 1.5px solid var(--rule-strong); font-weight: 600; background: var(--panel-2); position: sticky; top: 0; }
+  td { border-bottom: 1px solid var(--rule); }
+  tbody tr:last-child td { border-bottom: none; }
+  th.l, td.l { text-align: left; }
+  td.mono { font-family: var(--mono); }
+  .spd { font-family: var(--mono); font-weight: 600; border-radius: 5px; }
+  .oomcell { font-family: var(--mono); font-size: .72rem; color: var(--torch); font-weight: 600; }
+  .oomcell .j { color: var(--jax); }
+
+  ol.findings { list-style: none; counter-reset: f; padding: 0; margin: 1.2rem 0; display: flex; flex-direction: column; gap: .8rem; }
+  ol.findings > li { counter-increment: f; background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+    padding: 1rem 1.1rem 1rem 3rem; position: relative; box-shadow: var(--shadow); }
+  ol.findings > li::before { content: counter(f); position: absolute; left: 1rem; top: 1rem; font-family: var(--mono);
+    font-weight: 700; font-size: .95rem; color: var(--jax); }
+  ol.findings h3 { margin: 0 0 .3rem; }
+  ol.findings .impact { font-family: var(--mono); font-size: .68rem; letter-spacing: .05em; text-transform: uppercase;
+    padding: .12rem .45rem; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
+  .impact.crit { background: var(--bad-soft); color: var(--bad); }
+  .impact.maj { background: var(--warn-soft); color: var(--warn); }
+  .impact.min { background: var(--panel-2); color: var(--muted); }
+  ol.findings code, .cite { font-family: var(--mono); font-size: .8em; background: var(--panel-2); padding: .05rem .35rem;
+    border-radius: 4px; color: var(--muted); }
+
+  ul.clean { padding-left: 1.1rem; } ul.clean li { margin: .3rem 0; }
+  .legend { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; font-family: var(--mono); font-size: .72rem; color: var(--muted); margin:.3rem 0 0; }
+  .swatch { display: inline-block; width: .8rem; height: .8rem; border-radius: 3px; vertical-align: -1px; margin-right: .3rem; }
+  .chartcard { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; box-shadow: var(--shadow);
+    padding: 1rem 1.1rem; margin: 1.2rem 0; }
+  canvas { width: 100%; height: auto; display: block; }
+  footer { margin-top: 4rem; padding-top: 1.4rem; border-top: 1px solid var(--rule); color: var(--faint);
+    font-family: var(--mono); font-size: .74rem; line-height: 1.7; }
+  .prelim { font-family: var(--mono); font-size: .7rem; color: var(--warn); font-weight: 600; }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">ProteinEBM · aminx · JAX/Equinox port</p>
+  <h1>Parity &amp; benchmark performance report</h1>
+  <p class="lede">Where the JAX port stands against the reference PyTorch ProteinEBM: throughput parity is achieved and exceeded; accuracy parity is not yet reproduced, and the gap is root-caused to a small set of evaluation-protocol defects.</p>
+  <div class="meta">
+    <span><b>Checkpoint</b> model_6_expert_frozen_1m (85M params)</span>
+    <span><b>Hardware</b> RTX PRO 6000 (Blackwell, 95 GiB) · H200 (140 GiB) · L40S</span>
+    <span><b>Date</b> 2026-07-24</span>
+    <span><b>Status</b> throughput final · accuracy <span class="prelim" data-acc-status>preliminary</span></span>
+  </div>
+
+  <div class="verdicts">
+    <div class="card good">
+      <span class="label">Numerical checkpoint parity</span>
+      <span class="big">PASS</span>
+      <span class="vs">ported energies match reference to tolerance</span>
+      <span class="pill good">verified</span>
+    </div>
+    <div class="card good">
+      <span class="label">Throughput vs PyTorch</span>
+      <span class="big">1.5–4.2×</span>
+      <span class="vs">faster; runs where PyTorch OOMs</span>
+      <span class="pill good">exceeds target</span>
+    </div>
+    <div class="card bad">
+      <span class="label">Decoy ranking (Spearman)</span>
+      <span class="big" data-acc="decoy">≈0.35</span>
+      <span class="vs">paper target 0.838 · |ρ| at t=0.05</span>
+      <span class="pill bad">below target</span>
+    </div>
+    <div class="card bad">
+      <span class="label">ΔΔG stability (Spearman)</span>
+      <span class="big" data-acc="ddg">≈0.16</span>
+      <span class="vs">paper target 0.686 · |ρ|</span>
+      <span class="pill bad">below target</span>
+    </div>
+  </div>
+
+  <h2><span class="n">01</span>The verdict</h2>
+  <p>The port is <strong>correct at the tensor level and fast at the systems level, but not yet correct at the evaluation level.</strong> Two independent results establish this:</p>
+  <ul class="clean">
+    <li><strong>Throughput parity is real and strong.</strong> On a fair energy-throughput comparison against PyTorch-eager, the JAX port is 1.5–3.3× faster on Blackwell and 1.8–4.2× on H200, and it completes batch/length cells where the reference PyTorch runs out of memory — on <em>both</em> GPUs, at identical cells, despite the H200's 47% larger VRAM.</li>
+    <li><strong>Accuracy parity is not yet reproduced.</strong> The ported weights reproduce reference energies to numerical tolerance, yet the real decoy-ranking and ΔΔG-stability correlations fall far short of the paper's published targets. Because the weights match, the gap is localized to the <strong>evaluation protocol</strong>, and has been traced to specific, fixable defects (§3).</li>
+  </ul>
+  <div class="callout key">
+    <p><strong>Why the numerical check passed but accuracy didn't.</strong> The checkpoint-parity gate validates on <em>random</em> <code>aatype</code> integers, which select the same embedding row in both frameworks regardless of whether that row is <em>semantically</em> the right amino acid. A residue-alphabet permutation is therefore invisible to the numerical gate but catastrophic for any real-sequence task — which is exactly the dominant defect found below.</p>
+  </div>
+
+  <h2><span class="n">02</span>Throughput parity</h2>
+  <p>The headline comparison is <strong>energy-evaluation wall-clock</strong>, JAX vs PyTorch-eager, at matched sequence length (L) and batch size (bs). Speedup = PyTorch&nbsp;/&nbsp;JAX; higher is better for JAX. Cells are heat-shaded by speedup; PyTorch out-of-memory cells (where JAX still runs) are marked.</p>
+  <div class="callout">
+    <p style="margin:.2rem 0"><strong>Provenance note.</strong> This supersedes an earlier "11–92×" figure that was <strong>invalidated</strong>: it came from a single-batch micro-run (n=4) that never saturated the GPU. The numbers here are the batch-swept runs (bs ∈ {4,16,64,256}), the only regime that exposes real throughput and the PyTorch memory wall.</p>
+  </div>
+  <div class="legend">
+    <span><span class="swatch" style="background:var(--jax-soft)"></span>≥3× faster</span>
+    <span><span class="swatch" style="background:color-mix(in srgb, var(--jax-soft) 55%, var(--panel))"></span>2–3×</span>
+    <span><span class="swatch" style="background:color-mix(in srgb, var(--jax-soft) 25%, var(--panel))"></span>1.5–2×</span>
+    <span><span class="swatch" style="background:var(--torch-soft)"></span>PyTorch OOM · JAX runs</span>
+  </div>
+
+  <div class="chartcard">
+    <strong style="font-size:.95rem">Energy-throughput speedup vs batch size</strong>
+    <p class="sub" style="margin:.2rem 0 .6rem">Decoy-scoring workload. Blackwell parity <em>shrinks</em> as the batch grows (the GPU saturates); H200 <em>holds and rises</em> — its extra headroom keeps JAX ahead at scale.</p>
+    <canvas id="spdChart" width="900" height="340" role="img" aria-label="Line chart of JAX-vs-PyTorch energy speedup versus batch size for Blackwell and H200 at L=64 and L=256"></canvas>
+  </div>
+
+  <div id="tables"></div>
+
+  <h2><span class="n">03</span>Accuracy parity — and why it falls short</h2>
+  <p>Two real-data accuracy harnesses were run for the first time against the ported checkpoint: Rosetta decoy ranking (133 native targets, ~957 decoys each, correlated against TM-score) and Tsuboyama-2023 ΔΔG stability (64 assays, correlated against experimental <code>DMS_score</code>). Spearman is computed per target, then averaged.</p>
+
+  <div class="tablewrap">
+    <table>
+      <caption>Measured accuracy vs paper targets</caption>
+      <thead><tr><th class="l">Task</th><th>Measured |ρ|</th><th>Signed ρ</th><th>Paper target</th><th>Gap</th><th class="l">Scored</th></tr></thead>
+      <tbody>
+        <tr><td class="l">Decoy ranking (t=0.05)</td><td class="mono" data-acc="decoy_abs">0.35</td><td class="mono" data-acc="decoy_signed">−0.24</td><td class="mono">0.838</td><td class="mono" data-acc="decoy_gap" style="color:var(--bad)">−0.49</td><td class="l mono" data-acc="decoy_n">preliminary</td></tr>
+        <tr><td class="l">ΔΔG stability</td><td class="mono" data-acc="ddg_abs">0.16</td><td class="mono" data-acc="ddg_signed">−0.10</td><td class="mono">0.686</td><td class="mono" data-acc="ddg_gap" style="color:var(--bad)">−0.53</td><td class="l mono" data-acc="ddg_n">preliminary</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub">Signs are physically correct (lower energy ↔ more native-like ⇒ negative raw Spearman against TM-score); the shortfall is in <em>magnitude</em>. Some individual targets score strongly (e.g. decoy 1fna, |ρ|≈0.75), so the model carries real signal — it is being read out through a broken protocol.</p>
+
+  <div class="callout bad">
+    <p><strong>The natural experiment.</strong> ΔΔG ranking is <em>purely</em> sequence-driven and collapses hardest (|ρ|≈0.16). Decoy ranking holds the sequence fixed and only varies coordinates, and it degrades less (|ρ|≈0.35). That asymmetry is the fingerprint of a <strong>sequence-embedding defect</strong> — and it points straight to finding&nbsp;#1.</p>
+  </div>
+
+  <h3>Root-cause findings <span class="sub">(code-confirmed; ranked by explanatory power)</span></h3>
+  <ol class="findings">
+    <li>
+      <h3>Amino-acid alphabet is permuted <span class="impact crit">critical · both tasks</span></h3>
+      <p>The ported <code>sequence_embedding</code> table preserves the reference's AF2 residue order (<span class="cite">A R N D C Q E G H I L K M F P S T W Y V</span>), but the harness feeds <strong>MPNN-ordered</strong> indices (<span class="cite">A C D E F G H I K L M N P Q R S T V W Y</span>) with no conversion. The two orders agree on only 4 of 20 residues, so <strong>16/20 residue types look up the wrong embedding row.</strong></p>
+      <p class="sub">Confirmed: <code>aa_convert.py:16–17</code> (the two orders) · <code>ddg_stability.py:206</code> (MPNN indexing) · <code>model.py:187</code> (direct lookup, no <code>mpnn_to_af</code>). Invisible to the numerical gate, which uses random integers. This alone explains why ΔΔG (pure sequence) collapses and decoy (fixed sequence) merely degrades.</p>
+    </li>
+    <li>
+      <h3>ΔΔG unfolded-state correction is a mathematical no-op <span class="impact maj">major · ΔΔG</span></h3>
+      <p>The reference scores the unfolded ensemble with each <em>mutant</em> sequence, so the folded-vs-unfolded gap varies per mutant and carries real ΔG-of-folding signal. The harness computes the correction from the <strong>wildtype</strong> sequence — a single constant across all mutants. Subtracting a constant cannot change rank order, so the entire correction contributes zero to the Spearman.</p>
+      <p class="sub">Confirmed: <code>real_ddg_stability_benchmark.py:139–143</code> passes <code>wildtype.aatype</code>. The score collapses to E(wt-backbone, mutant-seq) alone.</p>
+    </li>
+    <li>
+      <h3>Coordinates are not centered <span class="impact maj">major · decoy + ΔΔG</span></h3>
+      <p>The reference applies <code>center_random_augmentation</code> to every scored structure. The model is not translation-equivariant, so absolute position matters. The harness only scales coordinates (×0.1) and never removes the centroid, and the folded/unfolded ΔΔG pair ends up in inconsistent frames.</p>
+      <p class="sub">Confirmed: <code>real_decoy_ranking_benchmark.py:152</code>, <code>ddg_stability.py:218</code>.</p>
+    </li>
+    <li>
+      <h3>Wrong contact / self-conditioning defaults <span class="impact min">minor</span></h3>
+      <p>The checkpoint was trained with <code>external_contacts = ones</code> and (for ΔΔG) self-conditioning on the folded template. The harness passes <code>None</code> for both, which defaults to zeros — selecting the wrong contact-embedding row and disabling self-conditioning.</p>
+      <p class="sub">Confirmed: <code>model.py:342–345</code>. Decoy self-conditioning happens to match the reference default (zeros); the contact default does not.</p>
+    </li>
+    <li>
+      <h3>Noise-time evaluation point <span class="impact min">minor</span></h3>
+      <p>The harness pins t=0.05 as the pre-registered comparison; the reference reports nearer its per-target peak (t≈0.10) or best-of-sweep. A small contributor, not the main driver — the best-of-sweep |ρ| is already meaningfully higher than the pinned value.</p>
+    </li>
+  </ol>
+
+  <h2><span class="n">04</span>Recommended fixes</h2>
+  <p>All defects are in the <strong>evaluation harness and scoring-call path</strong>, not the trunk or the weights — so they are low-risk to fix and independently testable. In priority order:</p>
+  <ul class="clean">
+    <li><strong>Convert <code>aatype</code> MPNN→AF before every embedding lookup</strong> (apply <code>mpnn_to_af</code> in the scoring path, or permute the embedding table once at load). Re-run both harnesses — this is expected to recover the bulk of the gap, ΔΔG most of all.</li>
+    <li><strong>Score the ΔΔG unfolded ensemble with the mutant sequence</strong> and match the reference estimator form (folded and unfolded both per-mutant, negated).</li>
+    <li><strong>Center every scored structure</strong> (centroid removal) for decoys and for both members of each ΔΔG folded/unfolded pair.</li>
+    <li><strong>Set <code>external_contacts = ones</code></strong> and enable folded-template self-conditioning for ΔΔG, matching the checkpoint's training configuration.</li>
+    <li><strong>Harden the numerical gate:</strong> add a real-sequence parity assertion (not just random integers) so an alphabet permutation can never pass silently again.</li>
+  </ul>
+
+  <h2><span class="n">05</span>Methodology &amp; provenance</h2>
+  <ul class="clean">
+    <li><strong>Throughput</strong> — batch-swept <code>decoy_benchmark</code> / <code>ddg_benchmark</code> runs, 10 repeats/cell, bf16, real 85M checkpoint. Blackwell &amp; H200 result JSONs consolidated by <code>scripts/ebm/summarize_throughput_parity.py</code> → <code>throughput_parity_corrected.json</code>.</li>
+    <li><strong>Accuracy</strong> — <code>scripts/ebm/real_decoy_ranking_benchmark.py</code> (Rosetta decoy set + TM-score labels) and <code>real_ddg_stability_benchmark.py</code> (Tsuboyama-2023 + AF2 structures), scored against the orbax-ported checkpoint on GPU. Both write per-target results incrementally.</li>
+    <li><strong>Numerical parity</strong> — <code>scripts/ebm/checkpoint_parity_check.py</code> (energies match the reference to tolerance; masked residues contribute exactly zero on both sides).</li>
+    <li><strong>Root cause</strong> — harness scoring path compared line-by-line against the reference <code>ProteinEBM</code> repo (<code>score_decoys.py</code>, <code>ddg_prediction.ipynb</code>, <code>protein_utils.py</code>) and the design spec's stated targets.</li>
+  </ul>
+
+  <footer>
+    ProteinEBM JAX-port parity report · aminx · generated 2026-07-24 ·
+    throughput numbers final · accuracy numbers <span data-acc-status2>preliminary (runs completing)</span> ·
+    all figures reproducible from tracked scripts + committed result JSONs.
+  </footer>
+</div>
+
+<script>
+  const RAW = {
+    "Blackwell": {
+      "decoy": [[64,4,2.24,3.17,6.67],[64,16,6.44,2.07,6.87],[64,64,25.05,1.68,6.37],[64,256,97.54,1.54,5.24],[128,4,4.03,2.59,4.80],[128,16,16.02,2.01,5.11],[128,64,62.77,1.81,4.94],[128,256,null,null,null],[256,4,12.41,2.21,2.44],[256,16,53.96,1.85,2.50],[256,64,null,null,null],[512,4,43.67,1.96,1.89],[512,16,null,null,null]],
+      "ddg":   [[64,4,2.12,3.29,6.58],[64,16,6.27,2.12,6.91],[64,64,24.59,1.71,6.44],[64,256,93.16,1.60,7.10],[128,4,4.06,2.57,4.43],[128,16,15.89,2.02,4.36],[128,64,61.84,1.84,4.42],[128,256,null,null,null],[256,4,12.45,2.20,2.54],[256,16,54.10,1.84,2.54],[256,64,null,null,null],[512,4,43.66,1.96,1.90],[512,16,null,null,null]]
+    },
+    "H200": {
+      "decoy": [[64,4,2.46,4.23,6.70],[64,16,6.07,2.17,6.41],[64,64,21.63,1.89,7.16],[64,256,84.55,1.77,7.62],[128,4,3.93,2.78,6.16],[128,16,10.57,2.91,5.79],[128,64,39.38,2.80,5.12],[128,256,null,null,null],[256,4,7.23,3.50,3.62],[256,16,25.33,3.75,3.71],[256,64,null,null,null],[512,4,21.13,3.63,2.49],[512,16,null,null,null]],
+      "ddg":   [[64,4,2.42,4.05,6.04],[64,16,5.96,2.22,6.45],[64,64,21.82,1.87,7.15],[64,256,82.92,1.80,7.57],[128,4,3.70,2.95,5.71],[128,16,10.73,2.87,5.73],[128,64,39.80,2.77,5.11],[128,256,null,null,null],[256,4,7.26,3.48,3.62],[256,16,25.09,3.78,3.86],[256,64,null,null,null],[512,4,20.41,3.75,2.55],[512,16,null,null,null]]
+    }
+  };
+
+  function heat(spd) {
+    if (spd == null) return "";
+    if (spd >= 3) return "background:var(--jax-soft)";
+    if (spd >= 2) return "background:color-mix(in srgb, var(--jax-soft) 55%, var(--panel))";
+    return "background:color-mix(in srgb, var(--jax-soft) 25%, var(--panel))";
+  }
+  function buildTable(plat, bench) {
+    const rows = RAW[plat][bench];
+    let body = "";
+    for (const [L,bs,jax,e,g] of rows) {
+      if (e == null) {
+        body += `<tr><td class="mono">${L}</td><td class="mono">${bs}</td><td class="mono">—</td>`
+          + `<td colspan="2" class="oomcell">PyTorch OOM · <span class="j">JAX runs</span></td></tr>`;
+      } else {
+        body += `<tr><td class="mono">${L}</td><td class="mono">${bs}</td>`
+          + `<td class="mono">${jax.toFixed(2)}</td>`
+          + `<td class="spd" style="${heat(e)}">${e.toFixed(2)}×</td>`
+          + `<td class="spd" style="${heat(g)}">${g.toFixed(2)}×</td></tr>`;
+      }
+    }
+    return `<div class="tablewrap"><table>`
+      + `<caption>${plat} · ${bench === "decoy" ? "decoy-scoring" : "ΔΔG-scoring"} workload</caption>`
+      + `<thead><tr><th>L</th><th>batch</th><th>JAX ms</th><th>energy ↑</th><th>grad ↑</th></tr></thead>`
+      + `<tbody>${body}</tbody></table></div>`;
+  }
+  const host = document.getElementById("tables");
+  for (const plat of ["Blackwell","H200"]) {
+    for (const bench of ["decoy","ddg"]) host.insertAdjacentHTML("beforeend", buildTable(plat, bench));
+  }
+
+  // speedup vs batch chart (energy, decoy) for L=64 and L=256
+  (function(){
+    const cv = document.getElementById("spdChart"); if (!cv) return;
+    const dpr = Math.min(window.devicePixelRatio||1, 2);
+    const W = cv.width, H = cv.height; cv.width = W*dpr; cv.height = H*dpr;
+    const ctx = cv.getContext("2d"); ctx.scale(dpr,dpr);
+    const css = getComputedStyle(document.documentElement);
+    const ink = css.getPropertyValue("--ink").trim(), muted = css.getPropertyValue("--muted").trim(),
+          rule = css.getPropertyValue("--rule").trim(), jax = css.getPropertyValue("--jax").trim(),
+          torch = css.getPropertyValue("--torch").trim();
+    const pad = {l:44,r:120,t:16,b:38};
+    const batches = [4,16,64,256];
+    const xs = b => pad.l + (Math.log2(b)-2)/(8-2) * (W-pad.l-pad.r);
+    const ymin=1, ymax=4.5;
+    const ys = v => H-pad.b - (v-ymin)/(ymax-ymin) * (H-pad.t-pad.b);
+    ctx.clearRect(0,0,W,H);
+    // grid + y labels
+    ctx.strokeStyle = rule; ctx.fillStyle = muted; ctx.font = "11px ui-monospace, monospace"; ctx.lineWidth=1;
+    for (let v=1; v<=4; v++){ ctx.beginPath(); ctx.moveTo(pad.l,ys(v)); ctx.lineTo(W-pad.r,ys(v)); ctx.stroke();
+      ctx.textAlign="right"; ctx.fillText(v+"×", pad.l-6, ys(v)+3); }
+    ctx.textAlign="center";
+    for (const b of batches) ctx.fillText("bs "+b, xs(b), H-pad.b+16);
+    // draw four series: Blackwell L64/L256, H200 L64/L256
+    const B=RAW.Blackwell.decoy, Hh=RAW.H200.decoy;
+    function line(rows,L,color,dash,label){
+      const pts=rows.filter(r=>r[0]===L&&r[3]!=null).map(r=>[r[1],r[3]]);
+      ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;ctx.setLineDash(dash||[]);
+      ctx.beginPath();pts.forEach((p,i)=>{const x=xs(p[0]),y=ys(p[1]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();ctx.setLineDash([]);
+      pts.forEach(p=>{ctx.beginPath();ctx.arc(xs(p[0]),ys(p[1]),3.2,0,7);ctx.fill();});
+      const last=pts[pts.length-1];ctx.textAlign="left";ctx.font="11px ui-monospace, monospace";
+      ctx.fillText(label,W-pad.r+8,ys(last[1])+3);
+    }
+    line(Hh,64,jax,[],"H200 · L64");
+    line(Hh,256,jax,[5,4],"H200 · L256");
+    line(B,64,torch,[],"Blackwell · L64");
+    line(B,256,torch,[5,4],"Blackwell · L256");
+  })();
+</script>

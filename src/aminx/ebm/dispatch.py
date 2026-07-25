@@ -61,6 +61,7 @@ def score_decoy_batch(
   t: DiffusionTime,
   mask: ResidueMask,
   *,
+  contacts: Array | None = None,
   default_batch_size: int | None = None,
 ) -> EnergyVector:
   """Score ``D`` decoy backbones of one fixed sequence at one fixed noise time.
@@ -90,7 +91,7 @@ def score_decoy_batch(
   decision = plan_axis(EBMAxisNames.N_DECOYS, n_decoys, default_batch_size=default_batch_size)
 
   def _score_one(c: Coords) -> Energy:
-    return model.energy(c, aatype, t, mask)
+    return model.energy(c, aatype, t, mask, contacts=contacts)
 
   return dispatch_axis(decision.strategy, _score_one, coords)
 

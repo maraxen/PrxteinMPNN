@@ -160,9 +160,18 @@ def _score_one_native(
     log.info("native %s: dropped %d/%d decoys for residue-count mismatch vs. native", native_id, n_skipped_mismatch, len(decoy_files))
 
   coords = jnp.asarray(np.stack(coords_list, axis=0))
+  # Center each decoy (subtract its CA centroid): the model is not translation-equivariant, so the
+  # reference (score_decoys.py) applies center_random_augmentation before scoring. Without this the
+  # absolute position of each decoy leaks into its energy. (Rotation augmentation is omitted for a
+  # deterministic score.)
+  coords = coords - jnp.mean(coords, axis=1, keepdims=True)
+  # external_contacts = ones: the checkpoint has num_contact_embeddings == 3, so the reference's
+  # compute_energy defaults external_contacts to ONES (ebm.py:167-169), not zeros. aminx's model
+  # defaults contacts=None to zeros, which selects the wrong contact-embedding row for every residue.
+  contacts = jnp.ones((n_res,), dtype=jnp.int32)
   quality = np.asarray(tmscores)
 
-  result = rank_decoys_over_noise_time(model, coords, aatype, mask, quality)
+  result = rank_decoys_over_noise_time(model, coords, aatype, mask, quality, contacts=contacts)
   spearman_by_t = dict(zip((f"{t:.3f}" for t in result.t_values), result.spearman_by_t, strict=True))
   spearman_at_pinned_t = spearman_by_t.get(f"{PINNED_T:.3f}")
 

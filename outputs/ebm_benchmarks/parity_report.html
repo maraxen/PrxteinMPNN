@@ -159,12 +159,12 @@
 <div class="wrap">
   <p class="eyebrow">ProteinEBM · aminx · JAX/Equinox port</p>
   <h1>Parity &amp; benchmark performance report</h1>
-  <p class="lede">Where the JAX port stands against the reference PyTorch ProteinEBM: throughput parity is achieved and exceeded; accuracy parity is not yet reproduced, and the gap is root-caused to a small set of evaluation-protocol defects.</p>
+  <p class="lede">Where the JAX port stands against the reference PyTorch ProteinEBM: throughput parity is achieved and exceeded, and accuracy parity is reproduced — once a set of evaluation-protocol defects is corrected, decoy ranking and ΔΔG stability both reach the paper's published targets.</p>
   <div class="meta">
     <span><b>Checkpoint</b> model_6_expert_frozen_1m (85M params)</span>
     <span><b>Hardware</b> RTX PRO 6000 (Blackwell, 95 GiB) · H200 (140 GiB) · L40S</span>
-    <span><b>Date</b> 2026-07-24</span>
-    <span><b>Status</b> throughput final · accuracy final (133 natives / 64 assays)</span>
+    <span><b>Date</b> 2026-07-25</span>
+    <span><b>Status</b> throughput final · accuracy final, corrected protocol (133 natives / 64 assays)</span>
   </div>
 
   <div class="verdicts">
@@ -180,28 +180,29 @@
       <span class="vs">faster; runs where PyTorch OOMs</span>
       <span class="pill good">exceeds target</span>
     </div>
-    <div class="card bad">
+    <div class="card good">
       <span class="label">Decoy ranking (Spearman)</span>
-      <span class="big" data-acc="decoy">0.32</span>
-      <span class="vs">paper target 0.838 · |ρ| at t=0.05</span>
-      <span class="pill bad">below target</span>
+      <span class="big" data-acc="decoy">0.828</span>
+      <span class="vs">paper 0.838 · |ρ| at t=0.05 · was 0.320</span>
+      <span class="pill good">at target</span>
     </div>
-    <div class="card bad">
+    <div class="card good">
       <span class="label">ΔΔG stability (Spearman)</span>
-      <span class="big" data-acc="ddg">0.17</span>
-      <span class="vs">paper target 0.686 · |ρ|</span>
-      <span class="pill bad">below target</span>
+      <span class="big" data-acc="ddg">0.699</span>
+      <span class="vs">paper 0.686 · |ρ| · was 0.169</span>
+      <span class="pill good">exceeds target</span>
     </div>
   </div>
 
   <h2><span class="n">01</span>The verdict</h2>
-  <p>The port is <strong>correct at the tensor level and fast at the systems level, but not yet correct at the evaluation level.</strong> Two independent results establish this:</p>
+  <p>The port is <strong>correct at the tensor level, fast at the systems level, and — once the evaluation harness is corrected — accurate at the science level.</strong> Three results establish this:</p>
   <ul class="clean">
     <li><strong>Throughput parity is real and strong.</strong> On a fair energy-throughput comparison against PyTorch-eager, the JAX port is 1.5–3.3× faster on Blackwell and 1.8–4.2× on H200, and it completes batch/length cells where the reference PyTorch runs out of memory — on <em>both</em> GPUs, at identical cells, despite the H200's 47% larger VRAM.</li>
-    <li><strong>Accuracy parity is not yet reproduced.</strong> The ported weights reproduce reference energies to numerical tolerance, yet the real decoy-ranking and ΔΔG-stability correlations fall far short of the paper's published targets. Because the weights match, the gap is localized to the <strong>evaluation protocol</strong>, and has been traced to specific, fixable defects (§3).</li>
+    <li><strong>Accuracy parity is reproduced.</strong> The first accuracy runs fell far short of the paper (decoy 0.320, ΔΔG 0.169). Because the ported weights already match reference energies numerically, the gap had to live in the <strong>evaluation protocol</strong> — and it did. Correcting five harness-side defects (§3) lifts decoy ranking to <strong>0.828</strong> (paper 0.838; best-of-sweep 0.857) and ΔΔG stability to <strong>0.699</strong> (paper 0.686), both at or above the published targets.</li>
+    <li><strong>The model was never wrong.</strong> Every fix is in the scoring harness, not the trunk or the weights; the library defaults and all 40 unit tests are unchanged.</li>
   </ul>
   <div class="callout key">
-    <p><strong>Why the numerical check passed but accuracy didn't.</strong> The checkpoint-parity gate validates on <em>random</em> <code>aatype</code> integers, which select the same embedding row in both frameworks regardless of whether that row is <em>semantically</em> the right amino acid. A residue-alphabet permutation is therefore invisible to the numerical gate but catastrophic for any real-sequence task — which is exactly the dominant defect found below.</p>
+    <p><strong>Why the numerical check passed while accuracy first failed.</strong> The checkpoint-parity gate validates on <em>random</em> <code>aatype</code> integers, which select the same embedding row in both frameworks regardless of whether that row is <em>semantically</em> the right amino acid. A residue-alphabet permutation is therefore invisible to the numerical gate but catastrophic for any real-sequence task — which was exactly the dominant defect. The lasting fix (§4) hardens the gate with a real-sequence assertion.</p>
   </div>
 
   <h2><span class="n">02</span>Throughput parity</h2>
@@ -224,27 +225,27 @@
 
   <div id="tables"></div>
 
-  <h2><span class="n">03</span>Accuracy parity — and why it falls short</h2>
-  <p>Two real-data accuracy harnesses were run for the first time against the ported checkpoint: Rosetta decoy ranking (133 native targets, ~957 decoys each, correlated against TM-score) and Tsuboyama-2023 ΔΔG stability (64 assays, correlated against experimental <code>DMS_score</code>). Spearman is computed per target, then averaged.</p>
+  <h2><span class="n">03</span>Accuracy parity — the gap and its fix</h2>
+  <p>Two real-data accuracy harnesses were run against the ported checkpoint: Rosetta decoy ranking (133 native targets, ~957 decoys each, correlated against TM-score) and Tsuboyama-2023 ΔΔG stability (64 assays, correlated against experimental <code>DMS_score</code>). Spearman is computed per target, then averaged. The first run fell far short; correcting the protocol closed the gap entirely.</p>
 
   <div class="tablewrap">
     <table>
-      <caption>Measured accuracy vs paper targets</caption>
-      <thead><tr><th class="l">Task</th><th>Measured |ρ|</th><th>Signed ρ</th><th>Paper target</th><th>Gap</th><th class="l">Scored</th></tr></thead>
+      <caption>Accuracy: first run → corrected protocol → paper</caption>
+      <thead><tr><th class="l">Task</th><th>Initial |ρ|</th><th>Corrected |ρ|</th><th>Paper target</th><th>Residual gap</th><th class="l">Scored</th></tr></thead>
       <tbody>
-        <tr><td class="l">Decoy ranking (t=0.05)</td><td class="mono" data-acc="decoy_abs">0.320</td><td class="mono" data-acc="decoy_signed">−0.195</td><td class="mono">0.838</td><td class="mono" data-acc="decoy_gap" style="color:var(--bad)">−0.52</td><td class="l mono" data-acc="decoy_n">133 / 133</td></tr>
-        <tr><td class="l">Decoy ranking (best-of-sweep)</td><td class="mono">0.480</td><td class="mono">−0.322</td><td class="mono">0.838</td><td class="mono" style="color:var(--bad)">−0.36</td><td class="l mono">133 / 133</td></tr>
-        <tr><td class="l">ΔΔG stability</td><td class="mono" data-acc="ddg_abs">0.169</td><td class="mono" data-acc="ddg_signed">−0.100</td><td class="mono">0.686</td><td class="mono" data-acc="ddg_gap" style="color:var(--bad)">−0.52</td><td class="l mono" data-acc="ddg_n">64 / 64</td></tr>
+        <tr><td class="l">Decoy ranking (t=0.05)</td><td class="mono">0.320</td><td class="mono" data-acc="decoy_abs" style="color:var(--good)">0.828</td><td class="mono">0.838</td><td class="mono">−0.010</td><td class="l mono" data-acc="decoy_n">133 / 133</td></tr>
+        <tr><td class="l">Decoy ranking (best-of-sweep)</td><td class="mono">0.480</td><td class="mono" style="color:var(--good)">0.857</td><td class="mono">0.838</td><td class="mono" style="color:var(--good)">+0.019</td><td class="l mono">133 / 133</td></tr>
+        <tr><td class="l">ΔΔG stability</td><td class="mono">0.169</td><td class="mono" data-acc="ddg_abs" style="color:var(--good)">0.699</td><td class="mono">0.686</td><td class="mono" style="color:var(--good)">+0.013</td><td class="l mono" data-acc="ddg_n">64 / 64</td></tr>
       </tbody>
     </table>
   </div>
-  <p class="sub">Signs are physically correct (lower energy ↔ more native-like ⇒ negative raw Spearman against TM-score); the shortfall is in <em>magnitude</em>. Some individual targets score strongly (e.g. decoy 1fna, |ρ|≈0.75), so the model carries real signal — it is being read out through a broken protocol.</p>
+  <p class="sub">Decoy ranking lands within 0.010 of the paper's pinned-t figure (and exceeds it on best-of-sweep); ΔΔG stability exceeds the paper target outright. Raw Spearman is negative by convention (lower energy ↔ more native-like / more stable); |ρ| is compared to the target.</p>
 
-  <div class="callout bad">
-    <p><strong>The natural experiment.</strong> ΔΔG ranking is <em>purely</em> sequence-driven and collapses hardest (|ρ|=0.17). Decoy ranking holds the sequence fixed and only varies coordinates, and it degrades less (|ρ|=0.32). That asymmetry is the fingerprint of a <strong>sequence-embedding defect</strong> — and it points straight to finding&nbsp;#1.</p>
+  <div class="callout">
+    <p><strong>The natural experiment that pinned the cause.</strong> In the first run, ΔΔG ranking — <em>purely</em> sequence-driven — collapsed hardest (0.17), while decoy ranking, which holds the sequence fixed and varies only coordinates, degraded less (0.32). That asymmetry was the fingerprint of a <strong>sequence-embedding defect</strong> (finding #1), and correcting it recovered ΔΔG the most (0.17 → 0.70). The decoy path, already sequence-correct, recovered from the coordinate-side fixes (#3, #4).</p>
   </div>
 
-  <h3>Root-cause findings <span class="sub">(code-confirmed; ranked by explanatory power)</span></h3>
+  <h3>Root-cause findings <span class="sub">(code-confirmed; all fixed in commit 0fc1b4ae)</span></h3>
   <ol class="findings">
     <li>
       <h3>Amino-acid alphabet is permuted <span class="impact crit">critical · both tasks</span></h3>
@@ -272,27 +273,28 @@
     </li>
   </ol>
 
-  <h2><span class="n">04</span>Recommended fixes</h2>
-  <p>All defects are in the <strong>evaluation harness and scoring-call path</strong>, not the trunk or the weights — so they are low-risk to fix and independently testable. In priority order:</p>
+  <h2><span class="n">04</span>Fixes applied</h2>
+  <p>All defects were in the <strong>evaluation harness and scoring-call path</strong>, not the trunk or the weights — low-risk and independently testable. Five corrections, all in commit <code>0fc1b4ae</code>, took the numbers from the initial column to parity:</p>
   <ul class="clean">
-    <li><strong>Convert <code>aatype</code> MPNN→AF before every embedding lookup</strong> (apply <code>mpnn_to_af</code> in the scoring path, or permute the embedding table once at load). Re-run both harnesses — this is expected to recover the bulk of the gap, ΔΔG most of all.</li>
-    <li><strong>Score the ΔΔG unfolded ensemble with the mutant sequence</strong> and match the reference estimator form (folded and unfolded both per-mutant, negated).</li>
-    <li><strong>Center every scored structure</strong> (centroid removal) for decoys and for both members of each ΔΔG folded/unfolded pair.</li>
-    <li><strong>Set <code>external_contacts = ones</code></strong> and enable folded-template self-conditioning for ΔΔG, matching the checkpoint's training configuration.</li>
-    <li><strong>Harden the numerical gate:</strong> add a real-sequence parity assertion (not just random integers) so an alphabet permutation can never pass silently again.</li>
+    <li><strong>AF2-ordered <code>aatype</code> (dominant).</strong> The ΔΔG harness now builds sequences with <code>sequence_to_af_aatype</code> instead of the MPNN-ordered <code>string_to_protein_sequence</code>, so the embedding lookup hits the row the checkpoint was trained on. <span class="sub">(The decoy path was already AF-correct via <code>parse_structure</code>.)</span></li>
+    <li><strong>Reference ΔΔG estimator.</strong> The unfolded correction — previously a wildtype constant, i.e. a no-op on rank order — now scores the folded template and each unfolded member with the <em>mutant</em> sequence: <code>score = −E_fold + mean<sub>u</sub> E_unf</code>, <code>ddg = score_wt − score_mut</code>.</li>
+    <li><strong>Coordinate centering</strong> (both paths): subtract the CA centroid before scoring, since the model is not translation-equivariant.</li>
+    <li><strong><code>external_contacts = ones</code></strong> (both paths): the checkpoint has <code>num_contact_embeddings == 3</code>, so the reference defaults contacts to ones, not zeros. Threaded through <code>score_decoy_batch</code> / <code>sweep_noise_time_energies</code> / <code>rank_decoys_over_noise_time</code> as a backward-compatible optional argument.</li>
+    <li><strong>ΔΔG self-conditioning</strong> set to the folded template (was zeros).</li>
   </ul>
+  <p class="sub"><strong>Still open:</strong> harden the numerical gate with a real-sequence parity assertion (not just random integers) so an alphabet permutation can never pass silently again.</p>
 
   <h2><span class="n">05</span>Methodology &amp; provenance</h2>
   <ul class="clean">
     <li><strong>Throughput</strong> — batch-swept <code>decoy_benchmark</code> / <code>ddg_benchmark</code> runs, 10 repeats/cell, bf16, real 85M checkpoint. Blackwell &amp; H200 result JSONs consolidated by <code>scripts/ebm/summarize_throughput_parity.py</code> → <code>throughput_parity_corrected.json</code>.</li>
-    <li><strong>Accuracy</strong> — <code>scripts/ebm/real_decoy_ranking_benchmark.py</code> (Rosetta decoy set + TM-score labels) and <code>real_ddg_stability_benchmark.py</code> (Tsuboyama-2023 + AF2 structures), scored against the orbax-ported checkpoint on GPU. Both write per-target results incrementally.</li>
-    <li><strong>Numerical parity</strong> — <code>scripts/ebm/checkpoint_parity_check.py</code> (energies match the reference to tolerance; masked residues contribute exactly zero on both sides).</li>
+    <li><strong>Accuracy</strong> — <code>scripts/ebm/real_decoy_ranking_benchmark.py</code> (Rosetta decoy set + TM-score labels) and <code>real_ddg_stability_benchmark.py</code> (Tsuboyama-2023 + AF2 structures), scored against the orbax-ported checkpoint on GPU with the corrected protocol. Both write per-target results incrementally; corrected results are the <code>*_fixed_full.json</code> outputs (133 natives / 64 assays, uncapped).</li>
+    <li><strong>Numerical parity</strong> — <code>scripts/ebm/checkpoint_parity_check.py</code> (energies match the reference to tolerance; masked residues contribute exactly zero on both sides). The harness fixes touch no model or checkpoint code, so this gate is unaffected; the 40 <code>test_decoy_ranking</code> / <code>test_ddg_stability</code> unit tests still pass.</li>
     <li><strong>Root cause</strong> — harness scoring path compared line-by-line against the reference <code>ProteinEBM</code> repo (<code>score_decoys.py</code>, <code>ddg_prediction.ipynb</code>, <code>protein_utils.py</code>) and the design spec's stated targets.</li>
   </ul>
 
   <footer>
-    ProteinEBM JAX-port parity report · aminx · generated 2026-07-24 ·
-    throughput numbers final · accuracy numbers final (SLURM 18793047 · 18793048) ·
+    ProteinEBM JAX-port parity report · aminx · updated 2026-07-25 ·
+    throughput final · accuracy final, corrected protocol (initial SLURM 18793047 / 18793048 → corrected 18847210 / 18847211) ·
     all figures reproducible from tracked scripts + committed result JSONs.
   </footer>
 </div>

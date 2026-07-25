@@ -164,7 +164,7 @@
     <span><b>Checkpoint</b> model_6_expert_frozen_1m (85M params)</span>
     <span><b>Hardware</b> RTX PRO 6000 (Blackwell, 95 GiB) · H200 (140 GiB) · L40S</span>
     <span><b>Date</b> 2026-07-24</span>
-    <span><b>Status</b> throughput final · accuracy <span class="prelim" data-acc-status>preliminary</span></span>
+    <span><b>Status</b> throughput final · accuracy final (133 natives / 64 assays)</span>
   </div>
 
   <div class="verdicts">
@@ -182,13 +182,13 @@
     </div>
     <div class="card bad">
       <span class="label">Decoy ranking (Spearman)</span>
-      <span class="big" data-acc="decoy">≈0.35</span>
+      <span class="big" data-acc="decoy">0.32</span>
       <span class="vs">paper target 0.838 · |ρ| at t=0.05</span>
       <span class="pill bad">below target</span>
     </div>
     <div class="card bad">
       <span class="label">ΔΔG stability (Spearman)</span>
-      <span class="big" data-acc="ddg">≈0.16</span>
+      <span class="big" data-acc="ddg">0.17</span>
       <span class="vs">paper target 0.686 · |ρ|</span>
       <span class="pill bad">below target</span>
     </div>
@@ -232,15 +232,16 @@
       <caption>Measured accuracy vs paper targets</caption>
       <thead><tr><th class="l">Task</th><th>Measured |ρ|</th><th>Signed ρ</th><th>Paper target</th><th>Gap</th><th class="l">Scored</th></tr></thead>
       <tbody>
-        <tr><td class="l">Decoy ranking (t=0.05)</td><td class="mono" data-acc="decoy_abs">0.35</td><td class="mono" data-acc="decoy_signed">−0.24</td><td class="mono">0.838</td><td class="mono" data-acc="decoy_gap" style="color:var(--bad)">−0.49</td><td class="l mono" data-acc="decoy_n">preliminary</td></tr>
-        <tr><td class="l">ΔΔG stability</td><td class="mono" data-acc="ddg_abs">0.16</td><td class="mono" data-acc="ddg_signed">−0.10</td><td class="mono">0.686</td><td class="mono" data-acc="ddg_gap" style="color:var(--bad)">−0.53</td><td class="l mono" data-acc="ddg_n">preliminary</td></tr>
+        <tr><td class="l">Decoy ranking (t=0.05)</td><td class="mono" data-acc="decoy_abs">0.320</td><td class="mono" data-acc="decoy_signed">−0.195</td><td class="mono">0.838</td><td class="mono" data-acc="decoy_gap" style="color:var(--bad)">−0.52</td><td class="l mono" data-acc="decoy_n">133 / 133</td></tr>
+        <tr><td class="l">Decoy ranking (best-of-sweep)</td><td class="mono">0.480</td><td class="mono">−0.322</td><td class="mono">0.838</td><td class="mono" style="color:var(--bad)">−0.36</td><td class="l mono">133 / 133</td></tr>
+        <tr><td class="l">ΔΔG stability</td><td class="mono" data-acc="ddg_abs">0.169</td><td class="mono" data-acc="ddg_signed">−0.100</td><td class="mono">0.686</td><td class="mono" data-acc="ddg_gap" style="color:var(--bad)">−0.52</td><td class="l mono" data-acc="ddg_n">64 / 64</td></tr>
       </tbody>
     </table>
   </div>
   <p class="sub">Signs are physically correct (lower energy ↔ more native-like ⇒ negative raw Spearman against TM-score); the shortfall is in <em>magnitude</em>. Some individual targets score strongly (e.g. decoy 1fna, |ρ|≈0.75), so the model carries real signal — it is being read out through a broken protocol.</p>
 
   <div class="callout bad">
-    <p><strong>The natural experiment.</strong> ΔΔG ranking is <em>purely</em> sequence-driven and collapses hardest (|ρ|≈0.16). Decoy ranking holds the sequence fixed and only varies coordinates, and it degrades less (|ρ|≈0.35). That asymmetry is the fingerprint of a <strong>sequence-embedding defect</strong> — and it points straight to finding&nbsp;#1.</p>
+    <p><strong>The natural experiment.</strong> ΔΔG ranking is <em>purely</em> sequence-driven and collapses hardest (|ρ|=0.17). Decoy ranking holds the sequence fixed and only varies coordinates, and it degrades less (|ρ|=0.32). That asymmetry is the fingerprint of a <strong>sequence-embedding defect</strong> — and it points straight to finding&nbsp;#1.</p>
   </div>
 
   <h3>Root-cause findings <span class="sub">(code-confirmed; ranked by explanatory power)</span></h3>
@@ -267,7 +268,7 @@
     </li>
     <li>
       <h3>Noise-time evaluation point <span class="impact min">minor</span></h3>
-      <p>The harness pins t=0.05 as the pre-registered comparison; the reference reports nearer its per-target peak (t≈0.10) or best-of-sweep. A small contributor, not the main driver — the best-of-sweep |ρ| is already meaningfully higher than the pinned value.</p>
+      <p>The harness pins t=0.05 as the pre-registered comparison; the reference reports nearer its per-target peak (t≈0.10) or best-of-sweep. A real but secondary contributor: the decoy best-of-sweep |ρ| is <strong>0.48</strong> — half again the pinned-t 0.32 — so ~0.16 of the decoy gap is recoverable from the evaluation point alone.</p>
     </li>
   </ol>
 
@@ -291,7 +292,7 @@
 
   <footer>
     ProteinEBM JAX-port parity report · aminx · generated 2026-07-24 ·
-    throughput numbers final · accuracy numbers <span data-acc-status2>preliminary (runs completing)</span> ·
+    throughput numbers final · accuracy numbers final (SLURM 18793047 · 18793048) ·
     all figures reproducible from tracked scripts + committed result JSONs.
   </footer>
 </div>

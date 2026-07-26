@@ -1,0 +1,85 @@
+# Claim for campaign: ebm-ddg-decoy-literature-parity (aba3bfe6)
+# Generated via bth claim scaffold; authored 2026-07-25/26
+
+[claim]
+headline = "The eval-protocol fix (AA-alphabet order, unfolded-state correction, external_contacts defaults, coordinate centering, self-conditioning coords) is sufficient to reproduce the ProteinEBM paper's ddG-stability (Spearman rho=0.686) and decoy-ranking (Spearman rho=0.838) accuracy, reproducibly, on an independently bathos-tracked full-scale run."
+kill_condition = "A bathos-tracked, full-scale (64 ddG assays / 133 decoy natives) confirmatory re-run on the fixed protocol falls materially short of the untracked 2026-07-25 run's point estimates (ddG mean_spearman_abs 0.699, decoy mean_spearman_at_pinned_t_abs 0.828) -- e.g. drops below 0.60 (ddG) or 0.75 (decoy) -- indicating the prior result was not reproducible (fluke, non-determinism, or a measurement artifact), even if it happens to still exceed the pre-fix numbers."
+regime = "Full assay/native coverage: all 64 ProteinGym/Tsuboyama-2023 ddG-stability assays (real cDNA-display proteolysis DMS data), all 133 decoy-ranking native structures. pinned_t=0.05, UNCHANGED from the untracked run -- diagnosed defect #5 (noise-time t=0.05 vs reference peak) was NOT part of the applied fix (0fc1b4ae) and remains untested; this claim does not cover whether retuning t would improve results further."
+
+[[hypotheses]]
+id = "H_fix_sufficient"
+label = "The five diagnosed eval-protocol defects (AA-alphabet permutation dominant) fully explain the pre-fix accuracy gap; correcting them alone recovers paper-level accuracy, and the recovery reproduces independently."
+predicted_signature = "Tracked full-scale re-run: ddG mean_spearman_abs >= ~0.60, decoy mean_spearman_at_pinned_t_abs >= ~0.75, consistent with (not necessarily identical to) the untracked run's 0.699 / 0.828."
+
+[[hypotheses]]
+id = "H_null_misspec"
+label = "The untracked run's near-paper numbers were a fluke, non-determinism, data leakage, or a measurement-pipeline artifact (e.g. a bug that happens to produce plausible-looking correlations) that will not reproduce on an independent run."
+predicted_signature = "Tracked full-scale re-run falls well short of the untracked run's point estimates and/or of paper targets, or per-assay/per-native arrays fail to recompute to the reported aggregate when independently checked."
+
+[[assumptions]]
+id = "A_weights_match"
+label = "The JAX port's model weights already numerically match the PyTorch reference (established separately: MAE 6e-6-3e-5, cosine sim ~1.0) -- this claim is scoped to eval-protocol correctness, not weight-porting fidelity."
+halt_if = "New evidence surfaces that the numeric port-parity check itself was flawed (e.g. it used inputs too degenerate to catch a real weight-level bug)."
+status = "controlled"
+
+[[assumptions]]
+id = "A_result_files_genuine"
+label = "The untracked run's result JSONs (ddg_stability_fixed_full.json, decoy_ranking_fixed_full.json) are genuine model output, not hand-edited or produced by a script bug that coincidentally yields plausible-looking correlations."
+halt_if = "Independently recomputing the aggregate Spearman from the stored per-assay/per-native arrays does not match the reported mean_spearman_abs, or the SLURM job logs (18847210/18847211) do not corroborate real GPU compute matching the claimed scale/duration."
+status = "controlled"
+# Verified 2026-07-26: both aggregate reported values recompute exactly (match to 1e-15) from the
+# stored per-assay/per-native arrays (64 assays, 133 natives), and SLURM sacct confirms real completed
+# GPU jobs (18845733 ebm-acc-f, 18847210 ebm-decoy-f 2h33m, 18847211 ebm-ddg-f 1h17m) on engaging/
+# mit_normal timed consistently with the fix (0fc1b4ae, 06:48 PT) and report (4fb015d2, 09:48 PT)
+# commits. This does NOT substitute for independent reproduction -- see C_ddg_reproduced/
+# C_decoy_reproduced clauses -- it only rules out the "hand-typed aggregate" / "no compute happened"
+# failure modes.
+
+[[confounds]]
+id = "C_ddg_reference_parity"
+label = "ddG-stability baseline (paper_target=0.686, Roney/Ou/Ovchinnikov bioRxiv 2025.12.09.693073) is asserted from reading the paper's reported headline number, not established via bathos's formal 5-phase literature-parity protocol (blind reconstruction -> adversarial refutation -> graded verdict). NO parity_run_id exists yet -- deliberately left uncontrolled rather than backed by a fabricated one. Running the full protocol (parity.bth.toml against the paper PDF) is deferred follow-up work; until then this campaign's Union Gate should read as 'confounded' at best, not a clean 'pass', regardless of how close the numbers land."
+control = "deferred -- see label"
+isolating_run = ""
+status = "uncontrolled"
+
+[[confounds]]
+id = "C_decoy_reference_parity"
+label = "Decoy-ranking baseline (paper_target=0.838, same paper) has the identical gap: no formal literature-parity run establishes that 0.838 and the eval protocol it was measured under are faithfully represented here. Deliberately left uncontrolled for the same reason as C_ddg_reference_parity."
+control = "deferred -- see label"
+isolating_run = ""
+status = "uncontrolled"
+
+[[claim.discriminability]]
+hypothesis_a = "H_fix_sufficient"
+hypothesis_b = "H_null_misspec"
+planned_run_label = "ddg_stability_tracked_full"
+predicted_outcome = "pass"
+
+[[claim.discriminability]]
+hypothesis_a = "H_fix_sufficient"
+hypothesis_b = "H_null_misspec"
+planned_run_label = "decoy_ranking_tracked_full"
+predicted_outcome = "pass"
+
+# Pre-fix baseline anchor (already observed, not a planned run) -- shows the matrix is not
+# all-positive-predicting: under the SAME protocol minus the fix, both hypotheses predict this
+# already-confirmed 'fail' result (real full-scale pre-fix run, uv/sbatch jobs 18793047/18793048,
+# 2026-07-24: ddG mean_spearman_abs=0.169, decoy mean_spearman_at_pinned_t_abs=0.320 -- both well
+# below the ddg/decoy sidecars' own pass thresholds). Included to demonstrate the eval is not
+# miscalibrated to always read 'pass' regardless of protocol correctness.
+[[claim.discriminability]]
+hypothesis_a = "H_fix_sufficient"
+hypothesis_b = "H_null_misspec"
+planned_run_label = "prefix_full_baseline_already_observed"
+predicted_outcome = "fail"
+
+[claim.union_gate]
+[[claim.union_gate.clauses]]
+id = "C_ddg_reproduced"
+description = "ddG-stability accuracy is distinguishable from the null-misspecification hypothesis on an independently bathos-tracked full-scale run."
+hypothesis_ids = ["H_fix_sufficient", "H_null_misspec"]
+
+[[claim.union_gate.clauses]]
+id = "C_decoy_reproduced"
+description = "Decoy-ranking accuracy is distinguishable from the null-misspecification hypothesis on an independently bathos-tracked full-scale run."
+hypothesis_ids = ["H_fix_sufficient", "H_null_misspec"]

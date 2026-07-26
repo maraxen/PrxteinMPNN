@@ -38,14 +38,13 @@ import orbax.checkpoint as ocp
 import pandas as pd
 from scipy.stats import spearmanr
 
+from aminx.ebm.conformational_biasing import sequence_to_af_aatype
 from aminx.ebm.ddg_stability import (
   generate_real_unfolded_ensemble,
   load_ca_backbone_from_pdb,
-  unfolded_state_correction,
 )
-from aminx.ebm.dispatch import score_mutant_ensemble
 from aminx.ebm.model import ProteinEBMModel
-from aminx.utils.aa_convert import protein_sequence_to_string, string_to_protein_sequence
+from aminx.utils.aa_convert import protein_sequence_to_string
 
 log = logging.getLogger("real_ddg_stability_benchmark")
 
@@ -90,7 +89,14 @@ def _restore_model(orbax_dir: Path, seed: int) -> ProteinEBMModel:
   if step is None:
     msg = f"No orbax checkpoint found under {orbax_dir}"
     raise FileNotFoundError(msg)
-  return manager.restore(step, items={"model": template})["model"]
+  # Current orbax requires explicit per-leaf sharding on restore (the legacy ``items=`` path
+  # leaves it None and raises "sharding ... Got None"). Derive it from the concrete template
+  # arrays (a SingleDeviceSharding on the current device) via construct_restore_args.
+  restore_args = ocp.checkpoint_utils.construct_restore_args(template)
+  return manager.restore(
+    step,
+    args=ocp.args.Composite(model=ocp.args.PyTreeRestore(item=template, restore_args=restore_args)),
+  )["model"]
 
 
 def _find_tsuboyama_assays(proteingym_dir: Path) -> list[Path]:
@@ -122,18 +128,37 @@ def _score_one_assay(
     log.warning("%s: only %d length-matched mutants, skipping", csv_path.name, len(df))
     return None
 
-  mutant_aatype = jnp.stack([string_to_protein_sequence(seq) for seq in df["mutated_sequence"]])
-  wt_sequence = protein_sequence_to_string(wildtype.aatype)
+  # Sequences in AF2 alphabet order -- the order the ported sequence_embedding table was trained in
+  # (see aminx.ebm.conformational_biasing.sequence_to_af_aatype, verified against lpla.csv). The old
+  # code fed MPNN-ordered indices (string_to_protein_sequence / load_ca_backbone_from_pdb), which
+  # selected the wrong embedding row for 16/20 residues -- the dominant ddG accuracy defect.
+  wt_sequence = protein_sequence_to_string(wildtype.aatype)  # correct AF one-letter string
+  wt_aatype = sequence_to_af_aatype(wt_sequence)
+  mutant_aatype = jnp.stack([sequence_to_af_aatype(seq) for seq in df["mutated_sequence"]])  # (M, N)
 
-  raw_ddg = score_mutant_ensemble(
-    model, wildtype.coords, mutant_aatype, jnp.asarray(PINNED_T), wildtype.mask,
-    wildtype_aatype=wildtype.aatype,
-  )
-  unfolded_coords = generate_real_unfolded_ensemble(wt_sequence, N_UNFOLDED_ENSEMBLE, seed)
-  correction = unfolded_state_correction(
-    model, wildtype.aatype, jnp.asarray(PINNED_T), wildtype.mask, unfolded_coords,
-  )
-  ddg = np.asarray(raw_ddg - correction)
+  mask = wildtype.mask
+  # external_contacts = ones (num_contact_embeddings == 3 -> ebm.py:167-169 default is ones).
+  contacts = jnp.ones((n_res,), dtype=jnp.int32)
+  t = jnp.asarray(PINNED_T)
+  # Center the folded template (unfolded members are already mean-centered + scaled). Self-conditioning
+  # coords are the folded template for every member, matching ddg_prediction.ipynb's single_feats.
+  folded = wildtype.coords - jnp.mean(wildtype.coords, axis=0, keepdims=True)  # (N, 3)
+  unfolded = generate_real_unfolded_ensemble(wt_sequence, N_UNFOLDED_ENSEMBLE, seed)  # (U, N, 3)
+  coords_stack = jnp.concatenate([folded[None], unfolded], axis=0)  # (U+1, N, 3): folded, then unfolded
+  sc = folded
+
+  def _score_seq(aatype_seq: jax.Array) -> jax.Array:
+    # Reference estimator (ddg_prediction.ipynb): score = -E_folded + mean_unfolded E_unfolded,
+    # scoring the folded template AND every unfolded member with THIS sequence (mutant or wildtype).
+    energies = jax.vmap(
+      lambda c: model.energy(c, aatype_seq, t, mask, contacts=contacts, sc_coords=sc)
+    )(coords_stack)
+    return -energies[0] + jnp.mean(energies[1:])
+
+  score_wt = _score_seq(wt_aatype)
+  score_mut = jax.lax.map(_score_seq, mutant_aatype)  # (M,)
+  # Reference `nrg = -(score_mut - score_wt)` is what correlates with DMS_score.
+  ddg = np.asarray(score_wt - score_mut)
   dms_score = df["DMS_score"].to_numpy()
 
   result = spearmanr(ddg, dms_score)
@@ -161,12 +186,20 @@ def main() -> int:
 
   model = _restore_model(args.orbax_model, args.seed)
 
+  # Incremental checkpoint: append each assay's result to a sibling .partial.jsonl as soon as it is
+  # scored, so a walltime timeout (or crash) mid-run does not discard every completed assay. The
+  # final aggregate JSON is still written atomically at the end; the partial file is a recovery log.
+  args.out.parent.mkdir(parents=True, exist_ok=True)
+  partial_path = args.out.parent / f"{args.out.stem}.partial.jsonl"
+
   per_assay: list[dict] = []
   t0 = time.time()
   for i, csv_path in enumerate(assays):
     result = _score_one_assay(model, csv_path, args.proteingym_dir / "ProteinGym_AF2_structures", args.max_mutants_per_assay, args.seed)
     if result is not None:
       per_assay.append(result)
+      with partial_path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(result) + "\n")
       log.info(
         "[%d/%d] %s: n=%d spearman=%.3f (p=%.3g)  (%.1fs elapsed)",
         i + 1, len(assays), result["protein"], result["n_mutants_scored"],

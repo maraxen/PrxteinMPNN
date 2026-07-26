@@ -401,6 +401,36 @@ class TestScoringSpecification:
 class TestSamplingSpecificationValidation:
     """Tests for ValueError branches in SamplingSpecification.__post_init__."""
 
+    def test_weight_profile_and_fixed_group_are_real_fields(
+        self, minimal_sampling_kwargs: dict,
+    ) -> None:
+        """Regression test: run_manifest_row's SamplingSpecification(**worker_payload)
+        construction (host/campaign.py) is deliberately strict about unknown keys (an
+        audit safety mechanism, per that module's own comment) -- a manifest-building
+        caller writing provenance labels like weight_profile/fixed_group into a row's
+        nested sampling_spec (tev_design's necklace campaign does exactly this, for
+        anti-mislabel validation of the executed output against manifest intent)
+        previously hard-crashed real sampling with "unexpected keyword argument
+        'weight_profile'", discovered live re-running a freshly-built manifest against
+        real production sampling code (the manifest itself validated fine via its own
+        L1 static checks, which read raw JSON and never construct SamplingSpecification
+        -- only real sampling exercised this gap). Both are now real, first-class
+        (if sampling-inert) fields.
+        """
+        spec = SamplingSpecification(
+            **minimal_sampling_kwargs, weight_profile="uniform", fixed_group="catalytic_triad",
+        )
+        assert spec.weight_profile == "uniform"
+        assert spec.fixed_group == "catalytic_triad"
+
+    def test_weight_profile_and_fixed_group_default_to_none(
+        self, minimal_sampling_kwargs: dict,
+    ) -> None:
+        """Every existing caller that doesn't set these must be unaffected."""
+        spec = SamplingSpecification(**minimal_sampling_kwargs)
+        assert spec.weight_profile is None
+        assert spec.fixed_group is None
+
     def test_temperature_float_coercion(self, minimal_sampling_kwargs: dict) -> None:
         """Float temperature should coerce to 1-tuple."""
         spec = SamplingSpecification(**minimal_sampling_kwargs, temperature=0.5)

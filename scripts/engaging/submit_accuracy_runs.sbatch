@@ -70,10 +70,16 @@ echo "JAX cache:   ${JAX_COMPILATION_CACHE_DIR}"
 # provenance; capped/smoke runs stay untracked (bth run's sidecar enforcement is
 # meant for the confirmatory runs the claim actually references).
 BTH_CAMPAIGN="${ACC_BTH_CAMPAIGN:-aba3bfe6}"
-RUN_PREFIX=()
+USE_BTH_RUN=0
 if [[ -z "${ACC_MAX_NATIVES:-}${ACC_MAX_ASSAYS:-}${ACC_MAX_DECOYS:-}${ACC_MAX_MUTANTS:-}" ]]; then
-    RUN_PREFIX=(bth run --campaign "${BTH_CAMPAIGN}" --tag "epic:proteinebm" --tag "ebm:e5-e6-accuracy" --tag "report:260716-parity" --)
+    USE_BTH_RUN=1
 fi
+# NOTE: `bth run`'s own flags (--campaign/--tag/--out) MUST precede the `--`
+# separator -- anything after `--` is the literal argv `bth run` execs. An
+# earlier version put --out AFTER a pre-built RUN_PREFIX ending in `--`, so
+# `bth run` tried to exec a binary literally named "--out" and failed instantly
+# with FileNotFoundError (confirmed via ~/.bth/catalog/logs/events.node4008.*
+# from job 18885835's run.error records).
 
 # ---- decoy ranking (paper target 0.838) ----------------------------------
 if [[ "${ACC_SKIP_DECOY:-0}" != "1" ]]; then
@@ -87,8 +93,9 @@ if [[ "${ACC_SKIP_DECOY:-0}" != "1" ]]; then
     )
     [[ -n "${ACC_MAX_NATIVES:-}" ]] && DECOY_ARGS+=(--max-natives "${ACC_MAX_NATIVES}")
     [[ -n "${ACC_MAX_DECOYS:-}"  ]] && DECOY_ARGS+=(--max-decoys-per-native "${ACC_MAX_DECOYS}")
-    if [[ ${#RUN_PREFIX[@]} -gt 0 ]]; then
-        "${RUN_PREFIX[@]}" --out "${DECOY_OUT}" uv run --no-sync python scripts/ebm/real_decoy_ranking_benchmark.py "${DECOY_ARGS[@]}"
+    if [[ "${USE_BTH_RUN}" == "1" ]]; then
+        bth run --campaign "${BTH_CAMPAIGN}" --tag "epic:proteinebm" --tag "ebm:e5-e6-accuracy" --tag "report:260716-parity" --out "${DECOY_OUT}" -- \
+            uv run --no-sync python scripts/ebm/real_decoy_ranking_benchmark.py "${DECOY_ARGS[@]}"
     else
         uv run --no-sync python scripts/ebm/real_decoy_ranking_benchmark.py "${DECOY_ARGS[@]}"
     fi
@@ -106,8 +113,9 @@ if [[ "${ACC_SKIP_DDG:-0}" != "1" ]]; then
     )
     [[ -n "${ACC_MAX_ASSAYS:-}"  ]] && DDG_ARGS+=(--max-assays "${ACC_MAX_ASSAYS}")
     [[ -n "${ACC_MAX_MUTANTS:-}" ]] && DDG_ARGS+=(--max-mutants-per-assay "${ACC_MAX_MUTANTS}")
-    if [[ ${#RUN_PREFIX[@]} -gt 0 ]]; then
-        "${RUN_PREFIX[@]}" --out "${DDG_OUT}" uv run --no-sync python scripts/ebm/real_ddg_stability_benchmark.py "${DDG_ARGS[@]}"
+    if [[ "${USE_BTH_RUN}" == "1" ]]; then
+        bth run --campaign "${BTH_CAMPAIGN}" --tag "epic:proteinebm" --tag "ebm:e5-e6-accuracy" --tag "report:260716-parity" --out "${DDG_OUT}" -- \
+            uv run --no-sync python scripts/ebm/real_ddg_stability_benchmark.py "${DDG_ARGS[@]}"
     else
         uv run --no-sync python scripts/ebm/real_ddg_stability_benchmark.py "${DDG_ARGS[@]}"
     fi

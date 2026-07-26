@@ -7,6 +7,11 @@ schema_version = "0.3"
 hypothesis = "The JAX-ported ProteinEBM-x's ddG = E(mutant) - E(wildtype) - MC-unfolded-correction reproduces the paper's published stability Spearman correlation on the real Tsuboyama-2023 cDNA-display proteolysis assays (64 proteins), using the real (not synthetic-substitute) unfolded-ensemble generator."
 stage_name = "exploration"
 novel = true
+# Full-scale confirmatory runs (--max-assays unset) additionally discriminate the
+# ebm-ddg-decoy-literature-parity claim (campaign aba3bfe6) -- see that claim's
+# C_ddg_reproduced union-gate clause. Smoke-scale runs (--max-assays set) are NOT
+# claim-discriminating; they're pre-registered signal checks only.
+claim_discriminates = ["H_fix_sufficient", "H_null_misspec"]
 
 [outcomes.pass]
 condition = "n_assays_scored >= 3 AND mean_spearman_abs >= 0.4"

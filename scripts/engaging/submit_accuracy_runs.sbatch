@@ -65,32 +65,52 @@ echo "Assets:      ${ASSETS}"
 echo "XLA_FLAGS:   ${XLA_FLAGS:-<unset>}"
 echo "JAX cache:   ${JAX_COMPILATION_CACHE_DIR}"
 
+# Bathos tracking: full-scale (unset ACC_MAX_*) runs are the claim's confirmatory
+# evidence (campaign ${ACC_BTH_CAMPAIGN}) and get wrapped in `bth run` for real
+# provenance; capped/smoke runs stay untracked (bth run's sidecar enforcement is
+# meant for the confirmatory runs the claim actually references).
+BTH_CAMPAIGN="${ACC_BTH_CAMPAIGN:-aba3bfe6}"
+RUN_PREFIX=()
+if [[ -z "${ACC_MAX_NATIVES:-}${ACC_MAX_ASSAYS:-}${ACC_MAX_DECOYS:-}${ACC_MAX_MUTANTS:-}" ]]; then
+    RUN_PREFIX=(bth run --campaign "${BTH_CAMPAIGN}" --tag "epic:proteinebm" --tag "ebm:e5-e6-accuracy" --tag "report:260716-parity" --)
+fi
+
 # ---- decoy ranking (paper target 0.838) ----------------------------------
 if [[ "${ACC_SKIP_DECOY:-0}" != "1" ]]; then
     echo "--- decoy ranking ---"
+    DECOY_OUT="${OUT_DIR}/decoy_ranking_${OUT_TAG}.json"
     DECOY_ARGS=(
         --decoys-dir "${ASSETS}/decoys"
         --tmscore    "${ASSETS}/decoy_data/tmscore.txt"
         --orbax-model "${ORBAX_MODEL}"
-        --out "${OUT_DIR}/decoy_ranking_${OUT_TAG}.json"
+        --out "${DECOY_OUT}"
     )
     [[ -n "${ACC_MAX_NATIVES:-}" ]] && DECOY_ARGS+=(--max-natives "${ACC_MAX_NATIVES}")
     [[ -n "${ACC_MAX_DECOYS:-}"  ]] && DECOY_ARGS+=(--max-decoys-per-native "${ACC_MAX_DECOYS}")
-    uv run --no-sync python scripts/ebm/real_decoy_ranking_benchmark.py "${DECOY_ARGS[@]}"
+    if [[ ${#RUN_PREFIX[@]} -gt 0 ]]; then
+        "${RUN_PREFIX[@]}" --out "${DECOY_OUT}" uv run --no-sync python scripts/ebm/real_decoy_ranking_benchmark.py "${DECOY_ARGS[@]}"
+    else
+        uv run --no-sync python scripts/ebm/real_decoy_ranking_benchmark.py "${DECOY_ARGS[@]}"
+    fi
     echo "=== decoy ranking exit: $? ==="
 fi
 
 # ---- ddG stability (paper target 0.686) ----------------------------------
 if [[ "${ACC_SKIP_DDG:-0}" != "1" ]]; then
     echo "--- ddG stability ---"
+    DDG_OUT="${OUT_DIR}/ddg_stability_${OUT_TAG}.json"
     DDG_ARGS=(
         --proteingym-dir "${ASSETS}/proteingym"
         --orbax-model "${ORBAX_MODEL}"
-        --out "${OUT_DIR}/ddg_stability_${OUT_TAG}.json"
+        --out "${DDG_OUT}"
     )
     [[ -n "${ACC_MAX_ASSAYS:-}"  ]] && DDG_ARGS+=(--max-assays "${ACC_MAX_ASSAYS}")
     [[ -n "${ACC_MAX_MUTANTS:-}" ]] && DDG_ARGS+=(--max-mutants-per-assay "${ACC_MAX_MUTANTS}")
-    uv run --no-sync python scripts/ebm/real_ddg_stability_benchmark.py "${DDG_ARGS[@]}"
+    if [[ ${#RUN_PREFIX[@]} -gt 0 ]]; then
+        "${RUN_PREFIX[@]}" --out "${DDG_OUT}" uv run --no-sync python scripts/ebm/real_ddg_stability_benchmark.py "${DDG_ARGS[@]}"
+    else
+        uv run --no-sync python scripts/ebm/real_ddg_stability_benchmark.py "${DDG_ARGS[@]}"
+    fi
     echo "=== ddG stability exit: $? ==="
 fi
 

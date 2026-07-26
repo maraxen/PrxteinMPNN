@@ -1,0 +1,64 @@
+[
+  {
+    "protein_length": 512,
+    "batch_size": 4,
+    "device": "gpu",
+    "impl": "jax",
+    "pytorch_variant": null,
+    "energy_evals_per_sec": 196.0108671716631,
+    "energy_wall_clock_mean_ms": 20.40703180246055,
+    "energy_wall_clock_std_ms": 0.1670178989881703,
+    "score_grad_ms": 18.92245397903025,
+    "score_wall_clock_mean_ms": 18.92245397903025,
+    "score_wall_clock_std_ms": 0.22653424633891334,
+    "compile_error": null
+  },
+  {
+    "protein_length": 512,
+    "batch_size": 4,
+    "device": "cuda",
+    "impl": "pytorch",
+    "pytorch_variant": "eager",
+    "energy_evals_per_sec": 52.205578803681746,
+    "energy_wall_clock_mean_ms": 76.62016381509602,
+    "energy_wall_clock_std_ms": 22.40420129014333,
+    "score_grad_ms": 48.237209767103195,
+    "score_wall_clock_mean_ms": 48.237209767103195,
+    "score_wall_clock_std_ms": 3.123861613929158,
+    "compile_error": null
+  },
+  {
+    "protein_length": 512,
+    "batch_size": 4,
+    "device": "cuda",
+    "impl": "pytorch",
+    "pytorch_variant": "shipped",
+    "energy_evals_per_sec": 52.205578803681746,
+    "energy_wall_clock_mean_ms": 76.62016381509602,
+    "energy_wall_clock_std_ms": 22.40420129014333,
+    "score_grad_ms": 49.28435324691236,
+    "score_wall_clock_mean_ms": 49.28435324691236,
+    "score_wall_clock_std_ms": 3.7943467452781867,
+    "compile_error": null
+  },
+  {
+    "protein_length": 512,
+    "batch_size": 4,
+    "device": "cuda",
+    "impl": "pytorch",
+    "pytorch_variant": "compiled",
+    "energy_evals_per_sec": 52.205578803681746,
+    "energy_wall_clock_mean_ms": 76.62016381509602,
+    "energy_wall_clock_std_ms": 22.40420129014333,
+    "score_grad_ms": 41.13567606545985,
+    "score_wall_clock_mean_ms": 41.13567606545985,
+    "score_wall_clock_std_ms": 6.161653610887077,
+    "compile_error": null
+  },
+  {
+    "protein_length": 512,
+    "batch_size": 16,
+    "impl": "error",
+    "error": "OutOfMemoryError: CUDA out of memory. Tried to allocate 16.00 GiB. GPU 0 has a total capacity of 139.80 GiB of which 12.00 GiB is free. Including non-PyTorch memory, this process has 127.79 GiB memory in use. Of the allocated memory 16.43 GiB is allocated by PyTorch, and 5.08 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)"
+  }
+]

@@ -85,6 +85,7 @@ def sweep_noise_time_energies(
   mask: ResidueMask,
   t_values: tuple[float, ...] = DEFAULT_NOISE_TIME_GRID,
   *,
+  contacts: Array | None = None,
   default_batch_size: int | None = None,
 ) -> Float[Array, "T D"]:
   """Score every decoy in ``coords`` at every noise time in ``t_values``.
@@ -126,6 +127,7 @@ def sweep_noise_time_energies(
       aatype,
       jnp.asarray(t),
       mask,
+      contacts=contacts,
       default_batch_size=default_batch_size,
     )
     for t in t_values
@@ -256,6 +258,7 @@ def rank_decoys_over_noise_time(
   quality_labels: QualityLabels | np.ndarray,
   t_values: tuple[float, ...] = DEFAULT_NOISE_TIME_GRID,
   *,
+  contacts: Array | None = None,
   default_batch_size: int | None = None,
 ) -> NoiseTimeSweepResult:
   """The E5 decoy-ranking application: noise-time sweep + Spearman correlation.
@@ -302,6 +305,7 @@ def rank_decoys_over_noise_time(
     aatype,
     mask,
     t_values,
+    contacts=contacts,
     default_batch_size=default_batch_size,
   )
   spearman_by_t = tuple(

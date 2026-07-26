@@ -104,7 +104,14 @@ def _restore_model(orbax_dir: Path, seed: int) -> ProteinEBMModel:
   if step is None:
     msg = f"No orbax checkpoint found under {orbax_dir}"
     raise FileNotFoundError(msg)
-  restored = manager.restore(step, items={"model": template})
+  # Current orbax requires explicit per-leaf sharding on restore (the legacy ``items=`` path
+  # leaves it None and raises "sharding ... Got None"). Derive it from the concrete template
+  # arrays (a SingleDeviceSharding on the current device) via construct_restore_args.
+  restore_args = ocp.checkpoint_utils.construct_restore_args(template)
+  restored = manager.restore(
+    step,
+    args=ocp.args.Composite(model=ocp.args.PyTreeRestore(item=template, restore_args=restore_args)),
+  )
   return restored["model"]
 
 
@@ -153,9 +160,18 @@ def _score_one_native(
     log.info("native %s: dropped %d/%d decoys for residue-count mismatch vs. native", native_id, n_skipped_mismatch, len(decoy_files))
 
   coords = jnp.asarray(np.stack(coords_list, axis=0))
+  # Center each decoy (subtract its CA centroid): the model is not translation-equivariant, so the
+  # reference (score_decoys.py) applies center_random_augmentation before scoring. Without this the
+  # absolute position of each decoy leaks into its energy. (Rotation augmentation is omitted for a
+  # deterministic score.)
+  coords = coords - jnp.mean(coords, axis=1, keepdims=True)
+  # external_contacts = ones: the checkpoint has num_contact_embeddings == 3, so the reference's
+  # compute_energy defaults external_contacts to ONES (ebm.py:167-169), not zeros. aminx's model
+  # defaults contacts=None to zeros, which selects the wrong contact-embedding row for every residue.
+  contacts = jnp.ones((n_res,), dtype=jnp.int32)
   quality = np.asarray(tmscores)
 
-  result = rank_decoys_over_noise_time(model, coords, aatype, mask, quality)
+  result = rank_decoys_over_noise_time(model, coords, aatype, mask, quality, contacts=contacts)
   spearman_by_t = dict(zip((f"{t:.3f}" for t in result.t_values), result.spearman_by_t, strict=True))
   spearman_at_pinned_t = spearman_by_t.get(f"{PINNED_T:.3f}")
 
@@ -191,12 +207,20 @@ def main() -> int:
   log.info("Restoring ported checkpoint from %s", args.orbax_model)
   model = _restore_model(args.orbax_model, args.seed)
 
+  # Incremental checkpoint: append each native's result to a sibling .partial.jsonl as soon as it is
+  # scored, so a walltime timeout (or crash) mid-run does not discard every completed native. The
+  # final aggregate JSON is still written atomically at the end; the partial file is a recovery log.
+  args.out.parent.mkdir(parents=True, exist_ok=True)
+  partial_path = args.out.parent / f"{args.out.stem}.partial.jsonl"
+
   per_native: list[dict] = []
   t0 = time.time()
   for i, native_id in enumerate(natives):
     result = _score_one_native(model, native_id, args.decoys_dir, tm_index[native_id], args.max_decoys_per_native)
     if result is not None:
       per_native.append(result)
+      with partial_path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(result) + "\n")
       log.info(
         "[%d/%d] %s: n_decoys=%d spearman(t=%.2f)=%.3f best=%.3f@t=%.2f (%.1fs elapsed)",
         i + 1, len(natives), native_id, result["n_decoys_scored"], PINNED_T,

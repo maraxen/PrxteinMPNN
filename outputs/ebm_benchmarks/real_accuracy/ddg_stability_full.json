@@ -1,0 +1,524 @@
+{
+  "n_assays_scored": 64,
+  "n_assays_total": 64,
+  "pinned_t": 0.05,
+  "n_unfolded_ensemble": 32,
+  "paper_target": 0.686,
+  "mean_spearman_signed": -0.10046354748072453,
+  "mean_spearman_abs": 0.16893843444778142,
+  "sign_convention_note": "ddG-vs-DMS_score sign depends on DMS_score's own stability-direction convention crossed with ddG's E(mutant)-E(wildtype)-correction convention. Compare mean_spearman_abs against paper_target, not the signed value.",
+  "per_assay": [
+    {
+      "assay": "AMFR_HUMAN_Tsuboyama_2023_4G3O",
+      "protein": "AMFR_HUMAN",
+      "n_residues": 47,
+      "n_mutants_scored": 2972,
+      "spearman_r": -0.06367801770832457,
+      "spearman_p": 0.0005136421589421013
+    },
+    {
+      "assay": "ARGR_ECOLI_Tsuboyama_2023_1AOY",
+      "protein": "ARGR_ECOLI",
+      "n_residues": 69,
+      "n_mutants_scored": 1287,
+      "spearman_r": -0.19114557871365664,
+      "spearman_p": 4.69544213185604e-12
+    },
+    {
+      "assay": "BBC1_YEAST_Tsuboyama_2023_1TG0",
+      "protein": "BBC1_YEAST",
+      "n_residues": 64,
+      "n_mutants_scored": 2069,
+      "spearman_r": -0.17659033340219982,
+      "spearman_p": 5.90576143241904e-16
+    },
+    {
+      "assay": "BCHB_CHLTE_Tsuboyama_2023_2KRU",
+      "protein": "BCHB_CHLTE",
+      "n_residues": 52,
+      "n_mutants_scored": 1572,
+      "spearman_r": 0.05798426166982242,
+      "spearman_p": 0.02149970738663123
+    },
+    {
+      "assay": "CATR_CHLRE_Tsuboyama_2023_2AMI",
+      "protein": "CATR_CHLRE",
+      "n_residues": 72,
+      "n_mutants_scored": 1903,
+      "spearman_r": -0.311143839802551,
+      "spearman_p": 5.434474057474465e-44
+    },
+    {
+      "assay": "CBPA2_HUMAN_Tsuboyama_2023_1O6X",
+      "protein": "CBPA2_HUMAN",
+      "n_residues": 72,
+      "n_mutants_scored": 2068,
+      "spearman_r": -0.39271107519383647,
+      "spearman_p": 3.1985713320176296e-77
+    },
+    {
+      "assay": "CBX4_HUMAN_Tsuboyama_2023_2K28",
+      "protein": "CBX4_HUMAN",
+      "n_residues": 50,
+      "n_mutants_scored": 2282,
+      "spearman_r": -0.11277133820367351,
+      "spearman_p": 6.612099678093605e-08
+    },
+    {
+      "assay": "CSN4_MOUSE_Tsuboyama_2023_1UFM",
+      "protein": "CSN4_MOUSE",
+      "n_residues": 72,
+      "n_mutants_scored": 3295,
+      "spearman_r": 0.1929894194142066,
+      "spearman_p": 5.164564876693121e-29
+    },
+    {
+      "assay": "CUE1_YEAST_Tsuboyama_2023_2MYX",
+      "protein": "CUE1_YEAST",
+      "n_residues": 52,
+      "n_mutants_scored": 1580,
+      "spearman_r": -0.03326243336064216,
+      "spearman_p": 0.18634308636493369
+    },
+    {
+      "assay": "DN7A_SACS2_Tsuboyama_2023_1JIC",
+      "protein": "DN7A_SACS2",
+      "n_residues": 55,
+      "n_mutants_scored": 1008,
+      "spearman_r": -0.027864074383863145,
+      "spearman_p": 0.37684152191609754
+    },
+    {
+      "assay": "DNJA1_HUMAN_Tsuboyama_2023_2LO1",
+      "protein": "DNJA1_HUMAN",
+      "n_residues": 65,
+      "n_mutants_scored": 2264,
+      "spearman_r": -0.016537722547656415,
+      "spearman_p": 0.43156934296539046
+    },
+    {
+      "assay": "DOCK1_MOUSE_Tsuboyama_2023_2M0Y",
+      "protein": "DOCK1_MOUSE",
+      "n_residues": 66,
+      "n_mutants_scored": 2915,
+      "spearman_r": -0.15704903339073098,
+      "spearman_p": 1.482197698085915e-17
+    },
+    {
+      "assay": "EPHB2_HUMAN_Tsuboyama_2023_1F0M",
+      "protein": "EPHB2_HUMAN",
+      "n_residues": 66,
+      "n_mutants_scored": 1960,
+      "spearman_r": -0.24448765119974045,
+      "spearman_p": 4.556031101433846e-28
+    },
+    {
+      "assay": "FECA_ECOLI_Tsuboyama_2023_2D1U",
+      "protein": "FECA_ECOLI",
+      "n_residues": 72,
+      "n_mutants_scored": 1886,
+      "spearman_r": -0.13497807333399395,
+      "spearman_p": 3.982836512641203e-09
+    },
+    {
+      "assay": "FKBP3_HUMAN_Tsuboyama_2023_2KFV",
+      "protein": "FKBP3_HUMAN",
+      "n_residues": 69,
+      "n_mutants_scored": 1237,
+      "spearman_r": -0.09872052249162126,
+      "spearman_p": 0.0005068936549107368
+    },
+    {
+      "assay": "HCP_LAMBD_Tsuboyama_2023_2L6Q",
+      "protein": "HCP_LAMBD",
+      "n_residues": 55,
+      "n_mutants_scored": 1040,
+      "spearman_r": -0.2379113146090878,
+      "spearman_p": 7.53961323739666e-15
+    },
+    {
+      "assay": "HECD1_HUMAN_Tsuboyama_2023_3DKM",
+      "protein": "HECD1_HUMAN",
+      "n_residues": 72,
+      "n_mutants_scored": 5586,
+      "spearman_r": -0.22276620156851099,
+      "spearman_p": 9.167521596564002e-64
+    },
+    {
+      "assay": "ILF3_HUMAN_Tsuboyama_2023_2L33",
+      "protein": "ILF3_HUMAN",
+      "n_residues": 71,
+      "n_mutants_scored": 1329,
+      "spearman_r": -0.19376558651649076,
+      "spearman_p": 1.0423780520028508e-12
+    },
+    {
+      "assay": "ISDH_STAAW_Tsuboyama_2023_2LHR",
+      "protein": "ISDH_STAAW",
+      "n_residues": 55,
+      "n_mutants_scored": 1944,
+      "spearman_r": -0.01730252165163015,
+      "spearman_p": 0.4457922626731948
+    },
+    {
+      "assay": "MAFG_MOUSE_Tsuboyama_2023_1K1V",
+      "protein": "MAFG_MOUSE",
+      "n_residues": 41,
+      "n_mutants_scored": 1429,
+      "spearman_r": 0.035399520004138624,
+      "spearman_p": 0.18108397557172864
+    },
+    {
+      "assay": "MBD11_ARATH_Tsuboyama_2023_6ACV",
+      "protein": "MBD11_ARATH",
+      "n_residues": 66,
+      "n_mutants_scored": 2116,
+      "spearman_r": -0.2657967509402217,
+      "spearman_p": 1.5089742782847946e-35
+    },
+    {
+      "assay": "MYO3_YEAST_Tsuboyama_2023_2BTT",
+      "protein": "MYO3_YEAST",
+      "n_residues": 61,
+      "n_mutants_scored": 3297,
+      "spearman_r": -0.23298252346563045,
+      "spearman_p": 6.943568568127076e-42
+    },
+    {
+      "assay": "NKX31_HUMAN_Tsuboyama_2023_2L9R",
+      "protein": "NKX31_HUMAN",
+      "n_residues": 61,
+      "n_mutants_scored": 2482,
+      "spearman_r": -0.3565756204831886,
+      "spearman_p": 2.6230767116013764e-75
+    },
+    {
+      "assay": "NUSA_ECOLI_Tsuboyama_2023_1WCL",
+      "protein": "NUSA_ECOLI",
+      "n_residues": 69,
+      "n_mutants_scored": 2028,
+      "spearman_r": -0.4246649461685214,
+      "spearman_p": 1.3500905092782573e-89
+    },
+    {
+      "assay": "NUSG_MYCTU_Tsuboyama_2023_2MI6",
+      "protein": "NUSG_MYCTU",
+      "n_residues": 55,
+      "n_mutants_scored": 1380,
+      "spearman_r": -0.10694668343489193,
+      "spearman_p": 6.870852821610553e-05
+    },
+    {
+      "assay": "OBSCN_HUMAN_Tsuboyama_2023_1V1C",
+      "protein": "OBSCN_HUMAN",
+      "n_residues": 65,
+      "n_mutants_scored": 3197,
+      "spearman_r": -0.044392565500028756,
+      "spearman_p": 0.012062820867822698
+    },
+    {
+      "assay": "ODP2_GEOSE_Tsuboyama_2023_1W4G",
+      "protein": "ODP2_GEOSE",
+      "n_residues": 44,
+      "n_mutants_scored": 1134,
+      "spearman_r": 0.08085818303806566,
+      "spearman_p": 0.006442790712383697
+    },
+    {
+      "assay": "OTU7A_HUMAN_Tsuboyama_2023_2L2D",
+      "protein": "OTU7A_HUMAN",
+      "n_residues": 42,
+      "n_mutants_scored": 635,
+      "spearman_r": -0.17075366248821894,
+      "spearman_p": 1.5171057057334022e-05
+    },
+    {
+      "assay": "PIN1_HUMAN_Tsuboyama_2023_1I6C",
+      "protein": "PIN1_HUMAN",
+      "n_residues": 39,
+      "n_mutants_scored": 802,
+      "spearman_r": 0.18031855741264557,
+      "spearman_p": 2.7359878347673936e-07
+    },
+    {
+      "assay": "PITX2_HUMAN_Tsuboyama_2023_2L7M",
+      "protein": "PITX2_HUMAN",
+      "n_residues": 52,
+      "n_mutants_scored": 1824,
+      "spearman_r": 0.10749532269933218,
+      "spearman_p": 4.2019661235984624e-06
+    },
+    {
+      "assay": "PKN1_HUMAN_Tsuboyama_2023_1URF",
+      "protein": "PKN1_HUMAN",
+      "n_residues": 71,
+      "n_mutants_scored": 1301,
+      "spearman_r": -0.1897090574646644,
+      "spearman_p": 5.242507725350231e-12
+    },
+    {
+      "assay": "POLG_PESV_Tsuboyama_2023_2MXD",
+      "protein": "POLG_PESV",
+      "n_residues": 53,
+      "n_mutants_scored": 5130,
+      "spearman_r": -0.08104386819897227,
+      "spearman_p": 6.142312640076025e-09
+    },
+    {
+      "assay": "PR40A_HUMAN_Tsuboyama_2023_1UZC",
+      "protein": "PR40A_HUMAN",
+      "n_residues": 63,
+      "n_mutants_scored": 2033,
+      "spearman_r": -0.08282640919326219,
+      "spearman_p": 0.00018499504005961757
+    },
+    {
+      "assay": "PSAE_PICP2_Tsuboyama_2023_1PSE",
+      "protein": "PSAE_PICP2",
+      "n_residues": 68,
+      "n_mutants_scored": 1579,
+      "spearman_r": -0.2610173986577425,
+      "spearman_p": 5.239017681408682e-26
+    },
+    {
+      "assay": "RAD_ANTMA_Tsuboyama_2023_2CJJ",
+      "protein": "RAD_ANTMA",
+      "n_residues": 54,
+      "n_mutants_scored": 912,
+      "spearman_r": -0.012129505987602469,
+      "spearman_p": 0.7145037770083054
+    },
+    {
+      "assay": "RBP1_HUMAN_Tsuboyama_2023_2KWH",
+      "protein": "RBP1_HUMAN",
+      "n_residues": 52,
+      "n_mutants_scored": 1332,
+      "spearman_r": 0.053042110337230775,
+      "spearman_p": 0.05294118009132313
+    },
+    {
+      "assay": "RCD1_ARATH_Tsuboyama_2023_5OAO",
+      "protein": "RCD1_ARATH",
+      "n_residues": 57,
+      "n_mutants_scored": 1261,
+      "spearman_r": -0.2790841801359967,
+      "spearman_p": 5.413129685821386e-24
+    },
+    {
+      "assay": "RCRO_LAMBD_Tsuboyama_2023_1ORC",
+      "protein": "RCRO_LAMBD",
+      "n_residues": 63,
+      "n_mutants_scored": 2278,
+      "spearman_r": -0.04264735042384529,
+      "spearman_p": 0.04182084810758382
+    },
+    {
+      "assay": "RD23A_HUMAN_Tsuboyama_2023_1IFY",
+      "protein": "RD23A_HUMAN",
+      "n_residues": 44,
+      "n_mutants_scored": 1019,
+      "spearman_r": -0.2954172258092273,
+      "spearman_p": 5.716592419562853e-22
+    },
+    {
+      "assay": "RFAH_ECOLI_Tsuboyama_2023_2LCL",
+      "protein": "RFAH_ECOLI",
+      "n_residues": 55,
+      "n_mutants_scored": 1326,
+      "spearman_r": -0.022333602870273105,
+      "spearman_p": 0.4164494385317768
+    },
+    {
+      "assay": "RL20_AQUAE_Tsuboyama_2023_1GYZ",
+      "protein": "RL20_AQUAE",
+      "n_residues": 59,
+      "n_mutants_scored": 1461,
+      "spearman_r": -0.3028718931519082,
+      "spearman_p": 2.2543521101458805e-32
+    },
+    {
+      "assay": "RPC1_BP434_Tsuboyama_2023_1R69",
+      "protein": "RPC1_BP434",
+      "n_residues": 61,
+      "n_mutants_scored": 1459,
+      "spearman_r": 0.24377053322536263,
+      "spearman_p": 3.515530022804296e-21
+    },
+    {
+      "assay": "RS15_GEOSE_Tsuboyama_2023_1A32",
+      "protein": "RS15_GEOSE",
+      "n_residues": 63,
+      "n_mutants_scored": 1195,
+      "spearman_r": -0.0914790021616915,
+      "spearman_p": 0.0015473852015621846
+    },
+    {
+      "assay": "SAV1_MOUSE_Tsuboyama_2023_2YSB",
+      "protein": "SAV1_MOUSE",
+      "n_residues": 43,
+      "n_mutants_scored": 965,
+      "spearman_r": -0.08053567686749377,
+      "spearman_p": 0.012327786575671552
+    },
+    {
+      "assay": "SBI_STAAM_Tsuboyama_2023_2JVG",
+      "protein": "SBI_STAAM",
+      "n_residues": 56,
+      "n_mutants_scored": 1025,
+      "spearman_r": -0.19938446948407754,
+      "spearman_p": 1.19158667237345e-10
+    },
+    {
+      "assay": "SCIN_STAAR_Tsuboyama_2023_2QFF",
+      "protein": "SCIN_STAAR",
+      "n_residues": 70,
+      "n_mutants_scored": 1212,
+      "spearman_r": -0.09541151388328975,
+      "spearman_p": 0.0008816556490766227
+    },
+    {
+      "assay": "SDA_BACSU_Tsuboyama_2023_1PV0",
+      "protein": "SDA_BACSU",
+      "n_residues": 44,
+      "n_mutants_scored": 2770,
+      "spearman_r": 0.6910417266525721,
+      "spearman_p": 0.0
+    },
+    {
+      "assay": "SOX30_HUMAN_Tsuboyama_2023_7JJK",
+      "protein": "SOX30_HUMAN",
+      "n_residues": 57,
+      "n_mutants_scored": 1010,
+      "spearman_r": -0.06290545042476586,
+      "spearman_p": 0.045644011878950924
+    },
+    {
+      "assay": "SPA_STAAU_Tsuboyama_2023_1LP1",
+      "protein": "SPA_STAAU",
+      "n_residues": 55,
+      "n_mutants_scored": 2105,
+      "spearman_r": -0.26606845025606984,
+      "spearman_p": 1.9202526876241864e-35
+    },
+    {
+      "assay": "SPG2_STRSG_Tsuboyama_2023_5UBS",
+      "protein": "SPG2_STRSG",
+      "n_residues": 56,
+      "n_mutants_scored": 1451,
+      "spearman_r": -0.3658450854280392,
+      "spearman_p": 3.507554306831555e-47
+    },
+    {
+      "assay": "SPTN1_CHICK_Tsuboyama_2023_1TUD",
+      "protein": "SPTN1_CHICK",
+      "n_residues": 60,
+      "n_mutants_scored": 3201,
+      "spearman_r": -0.22715034442580934,
+      "spearman_p": 9.785799462893486e-39
+    },
+    {
+      "assay": "SQSTM_MOUSE_Tsuboyama_2023_2RRU",
+      "protein": "SQSTM_MOUSE",
+      "n_residues": 40,
+      "n_mutants_scored": 707,
+      "spearman_r": -0.16890604616504973,
+      "spearman_p": 6.31202571131946e-06
+    },
+    {
+      "assay": "SR43C_ARATH_Tsuboyama_2023_2N88",
+      "protein": "SR43C_ARATH",
+      "n_residues": 48,
+      "n_mutants_scored": 1583,
+      "spearman_r": -0.06622237665790616,
+      "spearman_p": 0.008398933208209357
+    },
+    {
+      "assay": "SRBS1_HUMAN_Tsuboyama_2023_2O2W",
+      "protein": "SRBS1_HUMAN",
+      "n_residues": 67,
+      "n_mutants_scored": 1556,
+      "spearman_r": 0.13434683004008527,
+      "spearman_p": 1.0414455411671618e-07
+    },
+    {
+      "assay": "TCRG1_MOUSE_Tsuboyama_2023_1E0L",
+      "protein": "TCRG1_MOUSE",
+      "n_residues": 37,
+      "n_mutants_scored": 1058,
+      "spearman_r": -0.2682965215470565,
+      "spearman_p": 6.695398661179142e-19
+    },
+    {
+      "assay": "THO1_YEAST_Tsuboyama_2023_2WQG",
+      "protein": "THO1_YEAST",
+      "n_residues": 41,
+      "n_mutants_scored": 1279,
+      "spearman_r": 0.2192096704736637,
+      "spearman_p": 2.2166832181177134e-15
+    },
+    {
+      "assay": "TNKS2_HUMAN_Tsuboyama_2023_5JRT",
+      "protein": "TNKS2_HUMAN",
+      "n_residues": 59,
+      "n_mutants_scored": 1479,
+      "spearman_r": 0.03693342132897804,
+      "spearman_p": 0.15570656665908436
+    },
+    {
+      "assay": "UBE4B_HUMAN_Tsuboyama_2023_3L1X",
+      "protein": "UBE4B_HUMAN",
+      "n_residues": 69,
+      "n_mutants_scored": 3622,
+      "spearman_r": -0.09018315870884265,
+      "spearman_p": 5.4274796657617536e-08
+    },
+    {
+      "assay": "UBR5_HUMAN_Tsuboyama_2023_1I2T",
+      "protein": "UBR5_HUMAN",
+      "n_residues": 58,
+      "n_mutants_scored": 1453,
+      "spearman_r": 0.0524513216454428,
+      "spearman_p": 0.04560756565568131
+    },
+    {
+      "assay": "VG08_BPP22_Tsuboyama_2023_2GP8",
+      "protein": "VG08_BPP22",
+      "n_residues": 40,
+      "n_mutants_scored": 723,
+      "spearman_r": -0.2362038322922687,
+      "spearman_p": 1.2640346287503693e-10
+    },
+    {
+      "assay": "VILI_CHICK_Tsuboyama_2023_1YU5",
+      "protein": "VILI_CHICK",
+      "n_residues": 65,
+      "n_mutants_scored": 2568,
+      "spearman_r": -0.31441156847283797,
+      "spearman_p": 5.012331788367852e-60
+    },
+    {
+      "assay": "VRPI_BPT7_Tsuboyama_2023_2WNM",
+      "protein": "VRPI_BPT7",
+      "n_residues": 56,
+      "n_mutants_scored": 1047,
+      "spearman_r": -0.1948330560289459,
+      "spearman_p": 2.046925312835695e-10
+    },
+    {
+      "assay": "YAIA_ECOLI_Tsuboyama_2023_2KVT",
+      "protein": "YAIA_ECOLI",
+      "n_residues": 52,
+      "n_mutants_scored": 1890,
+      "spearman_r": 0.1053555050042744,
+      "spearman_p": 4.43271964900946e-06
+    },
+    {
+      "assay": "YNZC_BACSU_Tsuboyama_2023_2JVD",
+      "protein": "YNZC_BACSU",
+      "n_residues": 39,
+      "n_mutants_scored": 2300,
+      "spearman_r": -0.0891483064556402,
+      "spearman_p": 1.8554975321530613e-05
+    }
+  ]
+}

@@ -1,3 +1,7 @@
 [project]
 slug = "aminx"
 root = "/home/marielle/projects/aminx"
+
+[remotes.engaging]
+host = "engaging"
+remote_root = "~/projects/aminx"

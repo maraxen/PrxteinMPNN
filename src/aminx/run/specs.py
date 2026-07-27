@@ -593,6 +593,17 @@ class SamplingSpecification(RunSpecification):
   multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean"
   compute_pseudo_perplexity: bool = False
   state_weights: ArrayLike | None = None
+  # Provenance-only labels for anti-mislabel validation against a manifest-building
+  # caller's own intent (e.g. tev_design's necklace campaign, which weight profile /
+  # fixed-position group a row was PLANNED as) -- never read by any sampling/decode
+  # logic, just carried through so the executed row's stored spec can be checked
+  # against what the manifest claimed it was. Added because run_manifest_row's
+  # SamplingSpecification(**worker_payload) construction is deliberately strict
+  # about unknown keys (host/campaign.py's own comment: an audit safety mechanism,
+  # not weakened for these) -- a caller writing such labels into a row's nested
+  # sampling_spec without these fields existing here hard-crashes real sampling.
+  weight_profile: str | None = None
+  fixed_group: str | None = None
   ligand_conditioning: bool = False
   campaign_mode: bool = False
   allow_logits_in_campaign: bool = False

@@ -7,6 +7,11 @@ schema_version = "0.3"
 hypothesis = "The JAX-ported ProteinEBM-x reproduces the paper's published decoy-ranking Spearman(E, TM-score) correlation on the real Rosetta decoy set (133 native structures, ~957 decoys each), at the design spec's own pinned t=0.05."
 stage_name = "exploration"
 novel = true
+# Full-scale confirmatory runs (--max-natives unset) additionally discriminate the
+# ebm-ddg-decoy-literature-parity claim (campaign aba3bfe6) -- see that claim's
+# C_decoy_reproduced union-gate clause. Smoke-scale runs (--max-natives set) are NOT
+# claim-discriminating; they're pre-registered signal checks only.
+claim_discriminates = ["H_fix_sufficient", "H_null_misspec"]
 
 [outcomes.pass]
 condition = "n_natives_scored >= 3 AND mean_spearman_at_pinned_t_abs >= 0.5"

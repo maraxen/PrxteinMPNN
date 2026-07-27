@@ -214,6 +214,12 @@ OBSERVATIONS: dict[str, Verdict] = {
   "sample_start": NotApplicable(reason="set per-row by the planner, campaign.py:678"),
   "sample_count": NotApplicable(reason="set per-row by the planner, campaign.py:679"),
   "output_h5_path": NotApplicable(reason="set per-row by the planner, campaign.py:680; the worker rewrites it to a partial path, campaign.py:854"),
+  # Provenance-only labels written by a manifest-building caller (tev_design's necklace
+  # campaign) into a row's nested sampling_spec, for anti-mislabel validation of the executed
+  # output against manifest intent -- carried through, never read by any sampling/decode logic.
+  # Same inert-but-carried nature as job_id above; asserted inert so a future wiring change trips it.
+  "weight_profile": NotApplicable(reason="provenance-only label, never read by sampling/decode; carried for anti-mislabel validation of executed row vs manifest intent (specs.py:596-605 comment + field)"),
+  "fixed_group": NotApplicable(reason="provenance-only label, never read by sampling/decode; carried for anti-mislabel validation of executed row vs manifest intent (specs.py:596-606 comment + field)"),
   "iterations": NotApplicable(reason="straight_through only; grid_mode forbids that strategy"),
   "learning_rate": NotApplicable(reason="straight_through only; grid_mode forbids that strategy"),
   "use_concrete": NotApplicable(reason="STE-loop knob (optimize_ste.py); unreachable under grid_mode's temperature strategy"),

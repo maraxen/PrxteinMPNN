@@ -77,13 +77,26 @@ index vocabulary matches the rest of aminx's MPNN-style alphabet
 (``aminx.utils.aa_convert.MPNN_ALPHABET`` = ``"ACDEFGHIKLMNPQRSTVWYX"``, ``X``
 = mask/unknown at index 20), consistent with
 ``aminx.ebm.contracts.AAType``'s documented "21-way embedding incl. mask
-token 20" contract. **Caveat, stated plainly:** whether the ProteinEBM
-reference checkpoint's ``sequence_embedding`` table was actually trained
-against *this exact* letter ordering was not independently verified anywhere
-in this epic so far (E3.5's parity gate validates shapes/values on
-arbitrary/random ``aatype`` integers, not the semantic letter-to-index
-mapping) -- this module inherits that same, already-existing assumption
-rather than introducing a new one.
+token 20" contract.
+
+**RESOLVED (PR #130) -- and a trap this module still carries.** The ProteinEBM
+``sequence_embedding`` table consumes **AlphaFold order**
+(``aminx.utils.aa_convert.AF_ALPHABET``), verified against the reference
+``restypes`` and pinned by ``tests/ebm/test_alphabet_boundary_ebm.py`` +
+``aminx.ebm.model.InputEmbeddings``'s embedding-lookup docstring. But this
+module's CA loader (``load_ca_backbone_from_pdb``) and mutant helpers
+(``make_point_mutants``/``random_point_mutants``) still emit **MPNN order**
+(``MPNN_ALPHABET``). Their output is therefore **NOT** safe to feed straight
+into ``model.energy``/``score_mutant_ensemble`` -- doing so selects the wrong
+embedding row for ~15/21 residues (the exact PR #130 accuracy defect). The
+correct, reference-faithful path converts to AF order first
+(``protein_sequence_to_string`` -> ``sequence_to_af_aatype``), which is what
+the accuracy harness ``scripts/ebm/real_ddg_stability_benchmark.py`` does.
+``compute_ddg_stability`` below still runs on this module's MPNN-order aatype
+and is retained only for the wiring/degeneracy sanity checks in
+``tests/ebm/test_ddg_stability.py`` (which assert relative comparisons that
+survive the ordering); it does **not** reproduce the paper Spearman and must
+not be treated as the accuracy path.
 """
 
 from __future__ import annotations
@@ -218,7 +231,13 @@ def load_ca_backbone_from_pdb(
   coords = jnp.asarray(coords_angstrom) * _COORDINATE_SCALING
   aatype = jnp.asarray(aatype_np)
   mask = jnp.ones((len(residues),), dtype=bool)
-  return WildtypeStructure(coords=coords, aatype=aatype, mask=mask, residue_ids=residue_ids, sasa=sasa_tuple)
+  return WildtypeStructure(
+    coords=coords,
+    aatype=aatype,
+    mask=mask,
+    residue_ids=residue_ids,
+    sasa=sasa_tuple,
+  )
 
 
 def identify_buried_hydrophobic_positions(
@@ -404,14 +423,22 @@ _C_N_CA_ANGLE = np.radians(121.7)
 # ramachandran_file is supplied -- which is exactly how the reference's own ddg_prediction.ipynb
 # calls generate_random_backbone_coords: no file, uniform_sampling=True). Only this fallback path
 # is ported; the file-based branch is dead code for this use case and is not ported.
-_RAMACHANDRAN_REGIONS_DEFAULT: tuple[tuple[float, float], ...] = ((-60.0, 30.0), (-120.0, 120.0), (60.0, 30.0))
+_RAMACHANDRAN_REGIONS_DEFAULT: tuple[tuple[float, float], ...] = (
+  (-60.0, 30.0),
+  (-120.0, 120.0),
+  (60.0, 30.0),
+)
 _RAMACHANDRAN_REGIONS_GLY: tuple[tuple[float, float], ...] = ((-60.0, 30.0), (60.0, 30.0))
 _RAMACHANDRAN_REGIONS_PRO: tuple[tuple[float, float], ...] = ((-60.0, 30.0),)
 
 
 def _place_atom(
-  p1: np.ndarray, p2: np.ndarray, p3: np.ndarray,
-  bond_length: float, bond_angle: float, dihedral_angle: float,
+  p1: np.ndarray,
+  p2: np.ndarray,
+  p3: np.ndarray,
+  bond_length: float,
+  bond_angle: float,
+  dihedral_angle: float,
 ) -> np.ndarray:
   """Place a 4th atom given 3 prior atoms + bond length/angle/dihedral (NeRF-style placement).
 
@@ -514,20 +541,64 @@ def generate_real_unfolded_ensemble(
 
     if n_residues > 1:
       omega0 = 0.0
-      coords[1, 0] = _place_atom(coords[0, 0], coords[0, 1], coords[0, 2], _C_N_LENGTH, _CA_C_N_ANGLE, omega0)
+      coords[1, 0] = _place_atom(
+        coords[0, 0],
+        coords[0, 1],
+        coords[0, 2],
+        _C_N_LENGTH,
+        _CA_C_N_ANGLE,
+        omega0,
+      )
       phi, psi = _sample_backbone_dihedral(sequence[1], rng)
-      coords[1, 1] = _place_atom(coords[0, 1], coords[0, 2], coords[1, 0], _N_CA_LENGTH, _C_N_CA_ANGLE, phi)
-      coords[1, 2] = _place_atom(coords[0, 2], coords[1, 0], coords[1, 1], _CA_C_LENGTH, _N_CA_C_ANGLE, psi)
+      coords[1, 1] = _place_atom(
+        coords[0, 1],
+        coords[0, 2],
+        coords[1, 0],
+        _N_CA_LENGTH,
+        _C_N_CA_ANGLE,
+        phi,
+      )
+      coords[1, 2] = _place_atom(
+        coords[0, 2],
+        coords[1, 0],
+        coords[1, 1],
+        _CA_C_LENGTH,
+        _N_CA_C_ANGLE,
+        psi,
+      )
 
     for i in range(2, n_residues):
       phi, psi = _sample_backbone_dihedral(sequence[i], rng)
       omega = rng.normal(0.0, 0.1)
-      coords[i, 0] = _place_atom(coords[i - 1, 0], coords[i - 1, 1], coords[i - 1, 2], _C_N_LENGTH, _CA_C_N_ANGLE, omega)
-      coords[i, 1] = _place_atom(coords[i - 1, 1], coords[i - 1, 2], coords[i, 0], _N_CA_LENGTH, _C_N_CA_ANGLE, phi)
-      coords[i, 2] = _place_atom(coords[i - 1, 2], coords[i, 0], coords[i, 1], _CA_C_LENGTH, _N_CA_C_ANGLE, psi)
+      coords[i, 0] = _place_atom(
+        coords[i - 1, 0],
+        coords[i - 1, 1],
+        coords[i - 1, 2],
+        _C_N_LENGTH,
+        _CA_C_N_ANGLE,
+        omega,
+      )
+      coords[i, 1] = _place_atom(
+        coords[i - 1, 1],
+        coords[i - 1, 2],
+        coords[i, 0],
+        _N_CA_LENGTH,
+        _C_N_CA_ANGLE,
+        phi,
+      )
+      coords[i, 2] = _place_atom(
+        coords[i - 1, 2],
+        coords[i, 0],
+        coords[i, 1],
+        _CA_C_LENGTH,
+        _N_CA_C_ANGLE,
+        psi,
+      )
 
     ca = coords[:, 1, :]
-    members[member_idx] = ((ca - ca.mean(axis=0, keepdims=True)) * coordinate_scaling).astype(np.float32)
+    members[member_idx] = ((ca - ca.mean(axis=0, keepdims=True)) * coordinate_scaling).astype(
+      np.float32,
+    )
 
   return jnp.asarray(members)
 
@@ -577,7 +648,11 @@ def unfolded_state_correction(
   def _score_one(c: Coords) -> Energy:
     return model.energy(c, aatype, t, mask)
 
-  ensemble_energies: EnergyVector = dispatch_axis(decision.strategy, _score_one, unfolded_coords_ensemble)
+  ensemble_energies: EnergyVector = dispatch_axis(
+    decision.strategy,
+    _score_one,
+    unfolded_coords_ensemble,
+  )
   return mean_fuse(ensemble_energies)
 
 

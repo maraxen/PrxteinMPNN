@@ -21,12 +21,15 @@ each individually gated/no-op in the reference too:
 * ``atom_mask_embedding`` / all sidechain-diffusion machinery is **dropped**
   (``diffuse_sidechain = False`` in both shipped configs; out of scope for
   E0-E7 per design spec §1 Fork 5).
-* ``external_contacts`` always defaults to the all-zeros "no external
-  contact" category (design spec §1) -- the reference's
-  ``num_contact_embeddings == 3 -> default ones`` special case (a 3-way
-  contact-type variant, ``ebm.py:169``) is not reproduced; only the 2-way
-  (no-contact / has-contact) default-zero behavior is, matching the
-  documented MVP contract.
+* ``external_contacts`` defaults to match the reference exactly
+  (``ebm.py:167-169``): all-**ones** when ``num_contact_embeddings == 3``
+  (the 3-way contact-type variant the shipped checkpoint uses), all-**zeros**
+  ("no external contact") otherwise. The default is resolved in
+  :meth:`ProteinEBMModel.trunk_features` by reading the contact embedding
+  table's row count, so callers no longer have to pass ``contacts=ones``
+  explicitly on the num=3 checkpoint to be reference-faithful. Guarded by
+  ``tests/ebm/test_model.py::TestContactsDefaultFallback`` (both the 2-way
+  zeros and 3-way ones cases).
 
 ``use_self_conditioning`` (default ``True`` in the shipped configs) **is**
 included: :class:`InputEmbeddings` always builds a
@@ -125,8 +128,9 @@ if TYPE_CHECKING:
 DATA_DIMENSION = 3
 
 # Default number of contact-embedding categories (the reference's 2-way
-# no-contact/has-contact variant; the 3-way variant's ones-default special
-# case is not reproduced -- see module docstring).
+# no-contact/has-contact variant). The contacts=None default is now resolved
+# per-variant in ``trunk_features`` (zeros for 2-way, ones for the 3-way
+# checkpoint variant), matching the reference -- see module docstring.
 DEFAULT_NUM_CONTACT_EMBEDDINGS = 2
 
 
@@ -173,7 +177,10 @@ class InputEmbeddings(eqx.Module):
     self.noisy_coord_embedding = eqx.nn.Linear(data_dimension, token_s, use_bias=False, key=k_coord)
     self.contact_embedding = eqx.nn.Embedding(num_contact_embeddings, token_s, key=k_contact)
     self.self_conditioning_embedding = eqx.nn.Linear(
-      data_dimension, token_s, use_bias=False, key=k_selfcond,
+      data_dimension,
+      token_s,
+      use_bias=False,
+      key=k_selfcond,
     )
 
   def __call__(
@@ -183,7 +190,17 @@ class InputEmbeddings(eqx.Module):
     contacts: jax.Array,  # int, shape (N,); see module docstring re: bare-identifier jaxtyping shapes
     sc_coords: Coords,
   ) -> Float[Array, "N four_token_s"]:
-    """Concatenate the four embedding heads into one per-residue vector, dim ``4*token_s``."""
+    """Concatenate the four embedding heads into one per-residue vector, dim ``4*token_s``.
+
+    CONTRACT: ``aatype`` must be **AlphaFold2-ordered** (``AF_ALPHABET``,
+    ``aminx.utils.aa_convert``). This is a direct per-row ``Embedding`` lookup
+    with no ordering conversion -- the row selected is fixed entirely by the
+    caller. Feeding ProteinMPNN-ordered indices selects the wrong row for
+    ~15/21 residues and silently destroys accuracy (the PR #130 regression).
+    Callers arrive at AF-order via ``parse_structure`` (already AF) or
+    ``sequence_to_af_aatype`` (string->AF). Guarded by
+    ``tests/ebm/test_alphabet_boundary_ebm.py``.
+    """
     sequence_emb = jax.vmap(self.sequence_embedding)(aatype)
     coord_emb = jax.vmap(self.noisy_coord_embedding)(r_noisy)
     contact_emb = jax.vmap(self.contact_embedding)(contacts)
@@ -266,7 +283,10 @@ class ProteinEBMModel(eqx.Module):
     k_embed, k_single, k_relpos, k_pairwise, k_transformer, k_readouts = jax.random.split(key, 6)
 
     self.input_embeddings = InputEmbeddings(
-      token_s, num_contact_embeddings, DATA_DIMENSION, key=k_embed,
+      token_s,
+      num_contact_embeddings,
+      DATA_DIMENSION,
+      key=k_embed,
     )
 
     # Always sequence_emb + coord_emb + contact_emb + self_cond_emb == 4 heads
@@ -328,7 +348,10 @@ class ProteinEBMModel(eqx.Module):
 
     Defaults mirror ``ProteinEBM.forward`` (``ebm.py:163-196``):
 
-    * ``contacts=None`` -> all-zeros ("no external contact"; design spec §1).
+    * ``contacts=None`` -> all-ones when ``num_contact_embeddings == 3`` (the
+      shipped checkpoint's 3-way contact variant), all-zeros otherwise --
+      matching ``ProteinEBM.forward``'s default (``ebm.py:167-169``). The row
+      count is read from ``self.input_embeddings.contact_embedding``.
     * ``sc_coords=None`` -> ``jnp.zeros_like(coords)`` (``ebm.py:194``'s
       ``sc_coords if sc_coords is not None else torch.zeros_like(r_noisy)``).
     * ``residue_index=None`` -> ``jnp.arange(N)`` (sequential residue
@@ -340,7 +363,16 @@ class ProteinEBMModel(eqx.Module):
     """
     n = coords.shape[0]
     if contacts is None:
-      contacts = jnp.zeros((n,), dtype=jnp.int32)
+      # Reference-aligned default (ebm.py:167-169): ProteinEBM.forward defaults
+      # external_contacts to all-ONES for the 3-way contact variant
+      # (num_contact_embeddings == 3), all-zeros otherwise ("no external
+      # contact"). num_contact_embeddings is not stored as a model field, so
+      # recover it from the contact embedding table's row count. This makes the
+      # shipped num=3 checkpoint match the reference default without every
+      # caller having to pass contacts=ones explicitly (see B-track guardrail).
+      n_contact = self.input_embeddings.contact_embedding.num_embeddings
+      contact_fill = 1 if n_contact == 3 else 0
+      contacts = jnp.full((n,), contact_fill, dtype=jnp.int32)
     if sc_coords is None:
       sc_coords = jnp.zeros_like(coords)
     if residue_index is None:

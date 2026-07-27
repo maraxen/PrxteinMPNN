@@ -36,6 +36,7 @@ explicitly (``-m "slow and requires_weights"``) where the checkpoint lives.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import jax
@@ -46,11 +47,19 @@ import pytest
 from aminx.ebm.model import ProteinEBMModel
 from aminx.utils.aa_convert import AF_ALPHABET, af_to_mpnn
 
-# --- Checkpoint plumbing (mirrors tests/ebm/test_decoy_ranking.py) ------------
+# --- Checkpoint plumbing -----------------------------------------------------
+# The orbax checkpoint dir is env-overridable so this can run wherever the real
+# checkpoint lives -- locally (/tmp default) or on the cluster (scratch), e.g.
+# AMINX_EBM_ORBAX_CHECKPOINT=/orcd/scratch/.../proteinebm_accuracy/orbax_model.
 _TEST_DATA = Path(__file__).resolve().parent.parent / "data"
 _UBIQUITIN_PDB = _TEST_DATA / "1ubq.pdb"
-_ORBAX_CHECKPOINT_DIR = Path("/tmp/proteinebm_weights/ported_jax_model")
-_REAL_CHECKPOINT_AVAILABLE = (_ORBAX_CHECKPOINT_DIR / "0" / "model").exists()
+_ORBAX_CHECKPOINT_DIR = Path(
+  os.environ.get("AMINX_EBM_ORBAX_CHECKPOINT", "/tmp/proteinebm_weights/ported_jax_model"),
+)
+# Available if the manager dir exists and holds at least one step subdirectory.
+_REAL_CHECKPOINT_AVAILABLE = _ORBAX_CHECKPOINT_DIR.exists() and any(
+  child.name.isdigit() for child in _ORBAX_CHECKPOINT_DIR.iterdir()
+)
 
 # The shipped ProteinEBM-x checkpoint's own dimensions (aminx.ebm.checkpoint).
 _CKPT_TOKEN_S = 256
@@ -78,13 +87,24 @@ def _restore_ported_model() -> ProteinEBMModel:
     num_contact_embeddings=_CKPT_NUM_CONTACT,
     key=jax.random.PRNGKey(0),
   )
-  options = ocp.CheckpointManagerOptions(max_to_keep=1)
   manager = ocp.CheckpointManager(
-    str(_ORBAX_CHECKPOINT_DIR),
-    options=options,
+    _ORBAX_CHECKPOINT_DIR.resolve(),
+    options=ocp.CheckpointManagerOptions(max_to_keep=1),
     item_handlers={"model": ocp.PyTreeCheckpointHandler()},
   )
-  restored = manager.restore(0, items={"model": template})
+  step = manager.latest_step()
+  if step is None:
+    msg = f"No orbax checkpoint found under {_ORBAX_CHECKPOINT_DIR}"
+    raise FileNotFoundError(msg)
+  # Current orbax requires explicit per-leaf sharding on restore (the legacy
+  # ``items=`` path leaves it None and raises "sharding ... Got None"). Derive
+  # it from the concrete template arrays via construct_restore_args -- the exact
+  # pattern scripts/ebm/real_decoy_ranking_benchmark.py::_restore_model uses.
+  restore_args = ocp.checkpoint_utils.construct_restore_args(template)
+  restored = manager.restore(
+    step,
+    args=ocp.args.Composite(model=ocp.args.PyTreeRestore(item=template, restore_args=restore_args)),
+  )
   return restored["model"]
 
 

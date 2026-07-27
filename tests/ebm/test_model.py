@@ -199,8 +199,28 @@ class TestSelfConditioningDefaultFallback:
     assert not jnp.allclose(out_zero_sc, out_nonzero_sc, atol=1e-4)
 
 
+def _make_model_num_contacts(key: jax.Array, num_contact_embeddings: int) -> ProteinEBMModel:
+  return ProteinEBMModel(
+    token_s=TOKEN_S,
+    token_z=TOKEN_Z,
+    dim_fourier=12,
+    conditioning_transition_layers=1,
+    transformer_depth=DEPTH,
+    transformer_heads=HEADS,
+    num_contact_embeddings=num_contact_embeddings,
+    key=key,
+  )
+
+
 class TestContactsDefaultFallback:
-  def test_contacts_none_matches_explicit_zeros(self) -> None:
+  """The ``contacts=None`` default must match the reference (``ebm.py:167-169``):
+  all-zeros for the 2-way variant, all-ones for the 3-way variant the shipped
+  checkpoint uses. Locking both directions guards the PR #130-adjacent footgun
+  where callers had to pass ``contacts=ones`` explicitly to be reference-faithful.
+  """
+
+  def test_contacts_none_matches_explicit_zeros_when_two_way(self) -> None:
+    # Default num_contact_embeddings == 2 -> "no external contact" -> zeros.
     key = jax.random.PRNGKey(25)
     model = _make_model(key)
     coords, aatype, mask, t = _synthetic_inputs(jax.random.PRNGKey(26))
@@ -210,6 +230,23 @@ class TestContactsDefaultFallback:
       coords, aatype, t, mask, contacts=jnp.zeros((N,), dtype=jnp.int32)
     )
     assert jnp.array_equal(out_default, out_explicit_zeros)
+
+  def test_contacts_none_matches_explicit_ones_when_three_way(self) -> None:
+    # num_contact_embeddings == 3 -> reference defaults external_contacts to ones.
+    key = jax.random.PRNGKey(125)
+    model = _make_model_num_contacts(key, num_contact_embeddings=3)
+    coords, aatype, mask, t = _synthetic_inputs(jax.random.PRNGKey(126))
+
+    out_default = model.trunk_features(coords, aatype, t, mask, contacts=None)
+    out_explicit_ones = model.trunk_features(
+      coords, aatype, t, mask, contacts=jnp.ones((N,), dtype=jnp.int32)
+    )
+    out_explicit_zeros = model.trunk_features(
+      coords, aatype, t, mask, contacts=jnp.zeros((N,), dtype=jnp.int32)
+    )
+    assert jnp.array_equal(out_default, out_explicit_ones)
+    # And it must NOT silently fall back to zeros on the 3-way variant.
+    assert not jnp.allclose(out_default, out_explicit_zeros, atol=1e-5)
 
 
 class TestJitCompatibility:

@@ -166,8 +166,10 @@ def _score_one_native(
   # deterministic score.)
   coords = coords - jnp.mean(coords, axis=1, keepdims=True)
   # external_contacts = ones: the checkpoint has num_contact_embeddings == 3, so the reference's
-  # compute_energy defaults external_contacts to ONES (ebm.py:167-169), not zeros. aminx's model
-  # defaults contacts=None to zeros, which selects the wrong contact-embedding row for every residue.
+  # compute_energy defaults external_contacts to ONES (ebm.py:167-169), not zeros.
+  # NOTE: as of the Track-B trunk change, model.energy(contacts=None) now ALSO resolves to ones for
+  # the num=3 checkpoint, so this explicit array is redundant; kept as a defensive, self-documenting
+  # pin so the harness stays correct regardless of the library default.
   contacts = jnp.ones((n_res,), dtype=jnp.int32)
   quality = np.asarray(tmscores)
 

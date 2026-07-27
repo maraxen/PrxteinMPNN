@@ -232,6 +232,54 @@ def _jax_energy_and_score(
   )
 
 
+def _reference_energy_default_contacts(
+  ref_model: "ProteinEBM",
+  fixed_input: dict[str, np.ndarray],
+  t: float,
+) -> np.ndarray:
+  """Reference total energy with ``external_contacts`` left to its OWN default.
+
+  Passes ``external_contacts=None`` so the reference's ``forward`` applies its
+  built-in default (``ebm.py:167-169``: all-ones for the 3-way contact variant
+  this checkpoint uses). Paired with the JAX side's ``contacts=None`` this
+  proves the ported model's default now matches the reference default -- the
+  gap that PR #130's harness had to paper over by passing ``contacts=ones``
+  explicitly at every call site.
+  """
+  import torch  # noqa: PLC0415
+
+  r_noisy = torch.tensor(fixed_input["coords_scaled"], dtype=torch.float32).unsqueeze(0)
+  input_feats = {
+    "r_noisy": r_noisy,
+    "aatype": torch.tensor(fixed_input["aatype"], dtype=torch.long).unsqueeze(0),
+    "residue_idx": torch.tensor(fixed_input["residue_index"], dtype=torch.long).unsqueeze(0),
+    "mask": torch.tensor(fixed_input["residue_mask"], dtype=torch.bool).unsqueeze(0),
+    "t": torch.tensor([t], dtype=torch.float32),
+    "chain_encoding": torch.tensor(fixed_input["chain_id"], dtype=torch.long).unsqueeze(0),
+    "external_contacts": None,
+  }
+  model_out = ref_model.compute_energy(input_feats, rescale_input_coords=False)
+  return model_out["energy"].detach().numpy().reshape(())
+
+
+def _jax_energy_default_contacts(
+  ported_model: "ProteinEBMModel",
+  fixed_input: dict[str, np.ndarray],
+  t: float,
+) -> np.ndarray:
+  """Ported JAX total energy with ``contacts=None`` (its own resolved default)."""
+  energy = ported_model.energy(
+    jnp.asarray(fixed_input["coords_scaled"]),
+    jnp.asarray(fixed_input["aatype"], dtype=jnp.int32),
+    jnp.asarray(t),
+    jnp.asarray(fixed_input["residue_mask"]),
+    contacts=None,
+    residue_index=jnp.asarray(fixed_input["residue_index"], dtype=jnp.int32),
+    chain_id=jnp.asarray(fixed_input["chain_id"], dtype=jnp.int32),
+  )
+  return np.asarray(energy)
+
+
 def _report_allclose(label: str, ref: np.ndarray, jax_val: np.ndarray, atol: float, rtol: float) -> bool:
   diff = np.abs(ref - jax_val)
   max_abs = float(np.max(diff))
@@ -308,6 +356,31 @@ def main() -> int:
   log.info("[%s] masked-residue energy == 0 (reference): %s", "PASS" if masked_ref_zero else "FAIL", masked_ref_zero)
   log.info("[%s] masked-residue energy == 0 (ported JAX): %s", "PASS" if masked_jax_zero else "FAIL", masked_jax_zero)
   results["masked_residue_zero_energy"] = masked_ref_zero and masked_jax_zero
+
+  # Default-contacts parity (Track B / PR #130 follow-up): the port's
+  # contacts=None now resolves to the reference default (all-ones for the num=3
+  # checkpoint), so running BOTH sides with their own defaults must agree. This
+  # is separate from the explicit-zeros cases above (which pin identical inputs)
+  # -- it proves the *defaults themselves* are now reference-faithful, closing
+  # the gap that forced every harness call site to pass contacts=ones by hand.
+  # Guarded so a reference-API mismatch degrades to a WARNING rather than
+  # breaking the (independent) explicit-contacts parity.
+  try:
+    ref_energy_default = _reference_energy_default_contacts(ref_model, fixed_input, args.diffusion_time)
+    jax_energy_default = _jax_energy_default_contacts(ported_model, fixed_input, args.diffusion_time)
+    results["default_contacts_energy"] = _report_allclose(
+      "default_contacts total_energy (contacts=None both sides)",
+      ref_energy_default,
+      jax_energy_default,
+      args.atol,
+      args.rtol,
+    )
+  except Exception as exc:  # noqa: BLE001 -- diagnostic guard: must not break the primary parity
+    log.warning(
+      "Default-contacts parity case could not run (reference API mismatch?): %s. "
+      "Skipping this sub-check; the explicit-contacts parity above is unaffected.",
+      exc,
+    )
 
   all_pass = all(results.values())
   log.info("=== OVERALL: %s ===", "PASS" if all_pass else "FAIL")

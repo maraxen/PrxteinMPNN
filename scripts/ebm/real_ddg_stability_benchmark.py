@@ -138,6 +138,8 @@ def _score_one_assay(
 
   mask = wildtype.mask
   # external_contacts = ones (num_contact_embeddings == 3 -> ebm.py:167-169 default is ones).
+  # As of the Track-B trunk change, contacts=None now resolves to ones for the num=3 checkpoint too;
+  # this explicit array is redundant-but-defensive (kept as a self-documenting pin).
   contacts = jnp.ones((n_res,), dtype=jnp.int32)
   t = jnp.asarray(PINNED_T)
   # Center the folded template (unfolded members are already mean-centered + scaled). Self-conditioning

@@ -25,7 +25,12 @@ from aminx.ebm.conformational_biasing import (
 )
 from aminx.ebm.dispatch import score_state_difference
 from aminx.ebm.model import ProteinEBMModel
-from aminx.utils.aa_convert import AF_ALPHABET
+from aminx.utils.aa_convert import (
+  AF_ALPHABET,
+  MPNN_ALPHABET,
+  af_to_mpnn,
+  string_to_protein_sequence,
+)
 
 TOKEN_S = 16
 TOKEN_Z = 8
@@ -126,6 +131,48 @@ class TestSequenceToAfAatype:
   def test_raises_on_empty_sequence(self) -> None:
     with pytest.raises(ValueError, match="non-empty"):
       sequence_to_af_aatype("")
+
+  # --- Always-on alphabet-contract invariants (no weights) ------------------
+  # These lock the EBM string->aatype convention so a future refactor that
+  # swaps sequence_to_af_aatype for the MPNN-order string_to_protein_sequence
+  # (the PR #130 bug class) fails loudly in default CI, not silently on the
+  # cluster. Complements the weighted golden test in
+  # tests/ebm/test_alphabet_boundary_ebm.py.
+
+  def test_round_trips_through_af_alphabet(self) -> None:
+    # Decoding sequence_to_af_aatype's output with AF_ALPHABET must reproduce
+    # the input exactly -- i.e. it truly targets AF order, not MPNN order.
+    seq = "MQIFVKTLTGKTITLEV"  # ubiquitin N-terminal prefix, all standard residues
+    aatype = np.asarray(sequence_to_af_aatype(seq))
+    decoded = "".join(AF_ALPHABET[int(i)] for i in aatype)
+    assert decoded == seq
+
+  def test_differs_from_mpnn_converter_on_discriminating_residues(self) -> None:
+    # C and D land on different rows in the two alphabets (AF: C=4, D=3;
+    # MPNN: C=1, D=2). sequence_to_af_aatype (AF) and string_to_protein_sequence
+    # (MPNN default) MUST disagree here -- proving they are not interchangeable.
+    af = np.asarray(sequence_to_af_aatype("CD"))
+    mpnn = np.asarray(string_to_protein_sequence("CD"))
+    assert int(af[0]) == AF_ALPHABET.index("C")
+    assert int(af[1]) == AF_ALPHABET.index("D")
+    assert int(mpnn[0]) == MPNN_ALPHABET.index("C")
+    assert int(mpnn[1]) == MPNN_ALPHABET.index("D")
+    assert not np.array_equal(af, mpnn), (
+      "sequence_to_af_aatype and string_to_protein_sequence produced identical "
+      "indices on C/D -- an AF/MPNN alphabet confusion has crept back in."
+    )
+
+  def test_af_then_af_to_mpnn_matches_mpnn_converter(self) -> None:
+    # Locks the harness round-trip contract: converting the AF-order aatype
+    # back to MPNN order (af_to_mpnn) must equal the MPNN-order converter's
+    # output. This pins that AF_ALPHABET and the MPNN converter's base ordering
+    # stay mutually consistent (the assumption the two accuracy harnesses rely
+    # on when they round-trip via protein_sequence_to_string).
+    seq = "MQIFVKTLTGK"  # standard residues only
+    af = sequence_to_af_aatype(seq)
+    round_tripped = np.asarray(af_to_mpnn(af))
+    mpnn_direct = np.asarray(string_to_protein_sequence(seq))
+    np.testing.assert_array_equal(round_tripped, mpnn_direct)
 
 
 class TestScoreConformationalBias:

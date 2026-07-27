@@ -223,12 +223,25 @@ class TestEbmConsumesAfAlphabet:
       "the model shows no native-sequence preference under AF-order."
     )
 
-    # (3) Assert-wrong-fails: the mis-ordered sequence must NOT be preferred --
-    #     it should look like a random shuffle, not a native-low outlier.
-    assert e_wrong >= float(np.percentile(e_random, 25.0)), (
-      f"wrong-alphabet energy {e_wrong:.4f} landed in the native-low quartile "
-      f"(25th pct = {np.percentile(e_random, 25.0):.4f}); the discriminator is "
-      "not separating AF-order from MPNN-order -- investigate before trusting."
+    # (3) Clean AF/MPNN separation -- the property that actually collapses under
+    #     the PR #130 bug: the native must beat the mis-ordered sequence by a
+    #     margin large relative to the null's scale. We deliberately do NOT
+    #     require e_wrong to sit *inside* the random-shuffle null. That null is
+    #     built from *position* shuffles of the native (composition preserved,
+    #     positions scrambled), whereas af_to_mpnn(native) is a *label*
+    #     permutation in native positional order -- a milder corruption that
+    #     legitimately scores below a position-scramble. Observed on the real
+    #     checkpoint (1ubq): E_af=6528, E_wrong=6773 (gap ~245 ~= 7.7 sigma),
+    #     null mu=6892 sigma=32, z_native=-11.4, z_wrong=-3.7 -- native is the
+    #     global minimum, but the wrong sequence still beats the 25th pct of the
+    #     position-shuffle null. Gate the native/wrong gap at 3 sigma: robust to
+    #     run-to-run jitter, and only satisfiable if the EBM reads AF-order.
+    separation = e_wrong - e_af
+    assert separation > 3.0 * rand_std, (
+      f"AF-order native ({e_af:.4f}) and wrong-alphabet ({e_wrong:.4f}) are not "
+      f"cleanly separated: gap {separation:.4f} is under 3x the null spread "
+      f"(sigma = {rand_std:.4f}); the EBM is not distinguishing AF-order from "
+      "MPNN-order strongly enough to trust the guardrail."
     )
 
   def test_af_alphabet_decodes_native_ubiquitin_prefix(

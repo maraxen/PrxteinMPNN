@@ -403,6 +403,9 @@ def make_stage_set(
   -------
   StageSet
       Stage set with logit_transform, ar_logit_transform, and tie_group_fuse wired.
+      ``ar_logit_transform`` is the SAME instance as ``logit_transform``, so the
+      autoregressive path honours ``strategy``, ``state_weights`` and
+      ``strategy_temperature`` identically to the non-AR path.
 
   """
   from aminx.types.stages import StageSet
@@ -425,7 +428,29 @@ def make_stage_set(
 
   return StageSet(
     logit_transform=logit_transform,
-    ar_logit_transform=ARLogitFuse(),
+    # AR decode fuses with the SAME configured instance, not a hardcoded mean.
+    #
+    # This slot used to be `ARLogitFuse()` -- constructed with no strategy and no
+    # weights, so its body (`jnp.mean(logits, axis=0) + bias`) silently overrode
+    # BOTH `strategy` and `state_weights` on the autoregressive path. Callers
+    # asking for `multi_state_strategy="product"` with non-uniform
+    # `state_weights` got an unweighted arithmetic mean and no error, while the
+    # manifest recorded the requested strategy. Weighted product-of-experts
+    # fusion therefore did not exist on the AR path at all, and a zero weight
+    # did NOT drop its state (under a plain mean it contributes like any other).
+    # `strategy_temperature` was lost the same way.
+    #
+    # Reusing the one instance -- rather than building a second strategy-aware AR
+    # fuser -- is deliberate: it makes AR and non-AR fusion identical BY
+    # CONSTRUCTION, so the two can never drift apart again. The strategy classes
+    # are typed `Float[Array, "S ... V"]` with an optional trailing `bias`, which
+    # is exactly the `(S, V) + (V,) -> (V,)` contract the AR kernel calls with,
+    # so no adapter is needed.
+    #
+    # `ARLogitFuse` is kept and still exported: it remains the correct explicit
+    # choice for an intentionally unweighted mean. It is simply no longer
+    # substituted for whatever the caller actually configured.
+    ar_logit_transform=logit_transform,
     decode_step=None,
     sample_step=None,
     tie_group_fuse=TieGroupProductOfExperts(),

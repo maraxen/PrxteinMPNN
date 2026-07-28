@@ -872,8 +872,11 @@ def make_inference_plan(
      ``use_rolling_state=True`` selects scan-based multi-state encoding; False uses vmap.
   2. ``logit_transform`` — instantiated from ``LOGIT_STRATEGIES[multi_state_strategy]``
      with ``state_weights`` and ``multi_state_temperature``.
-  3. ``ar_logit_transform`` — always wired as ``ARLogitFuse()`` (arithmetic mean + bias
-     injection over states, identity when S=1).
+  3. ``ar_logit_transform`` — the SAME instance as ``logit_transform`` (step 2), so the
+     autoregressive path honours ``multi_state_strategy``, ``state_weights`` and
+     ``multi_state_temperature`` identically to the non-AR path; identity when S=1.
+     Until 2026-07-28 this was hardcoded to ``ARLogitFuse()`` (unweighted arithmetic
+     mean), which silently discarded all three on the AR path.
   4. ``tie_group_fuse`` — always wired as ``TieGroupProductOfExperts()`` (log-softmax sum
      across tied positions).
   5. ``decode_step`` and ``sample_step`` — for ``sampling_strategy="straight_through"``,

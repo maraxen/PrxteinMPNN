@@ -23,7 +23,7 @@ dependencies = [
     "proxide>=0.1.0a9",
     "typer>=0.12.0",
     "huggingface-hub>=0.23.0",
-    "xtrax>=0.3.0",
+    "xtrax>=0.4.0a5",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -280,7 +280,6 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.uv.sources]
-xtrax = { path = "/home/marielle/projects/xtrax", editable = true }
 # Resolve proxide from PyPI (not sibling-folder discovery) when ../proxide exists.
 proxide = { index = "pypi" }
 # PyPI serves the CUDA-enabled wheel on Linux and CPU wheel on macOS — correct for both envs.

@@ -123,6 +123,10 @@ class SamplingConfig(eqx.Module):
   sampling_strategy: str = eqx.field(static=True, default="temperature")
   multi_state_strategy: str = eqx.field(static=True, default="arithmetic_mean")
   multi_state_temperature: float = eqx.field(static=True, default=1.0)
+  # Logit scale for the "product" strategy. Separate from state_weights on
+  # purpose: weights are mixing proportions, sharpness is concentration. None
+  # means "match a plain product of S experts". See ProductOfProbabilities.
+  multi_state_sharpness: float | None = eqx.field(static=True, default=1.0)
   use_rolling_state: bool = eqx.field(static=True, default=False)
   decoding_order_fn: Any = eqx.field(static=True, default=None)
   tie_group_map: Any = None
@@ -271,6 +275,20 @@ def topology_hash(plan: PlannerTopology) -> str:
   return hashlib.sha256(hash_input).hexdigest()[:16]
 
 
+def _coerce_sharpness(value: object) -> float | None:
+  """Normalise a user-supplied ``multi_state_sharpness`` to ``float | None``.
+
+  ``None`` is a meaningful value here -- "scale by S, matching a plain product of
+  S experts" -- so it must survive rather than being coalesced to the 1.0 default.
+  Anything else is coerced to float, which surfaces a bad type as a TypeError at
+  spec-build time instead of silently reverting to unscaled fusion deep inside a
+  jitted decode.
+  """
+  if value is None:
+    return None
+  return float(value)
+
+
 def build_run_spec(spec: object) -> RunSpec:
   """Build a :class:`RunSpec` view from a :class:`RunSpecification` (or subclass) instance."""
   pre_idx = getattr(spec, "preprocessed_index_path", None)
@@ -340,6 +358,10 @@ def build_run_spec(spec: object) -> RunSpec:
       getattr(spec, "multi_state_strategy", "arithmetic_mean") or "arithmetic_mean",
     ),
     multi_state_temperature=float(getattr(spec, "multi_state_temperature", 1.0) or 1.0),
+    # `or`-coalescing is WRONG here: sharpness=None is a meaningful value ("use S"),
+    # not a missing one, and 0.0 would be a caller error worth surfacing rather than
+    # silently rewriting to 1.0. Use the sentinel-free getattr default instead.
+    multi_state_sharpness=_coerce_sharpness(getattr(spec, "multi_state_sharpness", 1.0)),
     use_rolling_state=bool(getattr(spec, "use_rolling_state", False)),
     decoding_order_fn=getattr(spec, "decoding_order_fn", None),
     tie_group_map=getattr(spec, "tie_group_map", None),

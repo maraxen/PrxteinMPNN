@@ -920,8 +920,15 @@ def make_inference_plan(
   strategy_name = sampling_config.multi_state_strategy or "arithmetic_mean"
   strategy_temp = sampling_config.multi_state_temperature or 1.0
   state_weights = sampling_config.state_weights
+  # No `or` fallback: sharpness=None means "use S", a real value, not a missing one.
+  sharpness = getattr(sampling_config, "multi_state_sharpness", 1.0)
 
-  stage_set = make_stage_set(strategy_name, strategy_temp, state_weights)
+  stage_set = make_stage_set(
+    strategy_name,
+    strategy_temp,
+    state_weights,
+    sharpness=sharpness,
+  )
 
   # Wire encoding fusion for averaged mode
   if getattr(spec, "average_node_features", False):

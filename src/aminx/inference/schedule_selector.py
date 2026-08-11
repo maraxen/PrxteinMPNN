@@ -44,6 +44,151 @@ DecodingSchedule = Literal[
 _COLORING_SCHEDULES = ("chromatic", "improper_coloring")
 _ORDER_SCHEDULES = ("random_ar", "fixed_n_to_c", "frozen_random_sigma")
 
+ScheduleKeyPolicy = Literal["unused", "run_level", "per_sample"]
+
+SCHEDULE_KEY_POLICY: dict[DecodingSchedule, ScheduleKeyPolicy] = {
+  # Identity order (arange(L)). The key is never consulted.
+  "fixed_n_to_c": "unused",
+  # Seed protocol M6: a FRESH key per sample. This arm's whole purpose is to expose
+  # permutation noise, which requires the permutation to actually vary sample to sample.
+  "random_ar": "per_sample",
+  # Seed protocol M6: the SAME key reused across samples, so sigma is held fixed and
+  # schedule_variance converges to the categorical floor instead of the permutation-noise
+  # floor. Reusing one key is the definition of this arm, not an accident.
+  "frozen_random_sigma": "run_level",
+  # One coloring per structure. Varying it per sample would confound coloring choice with
+  # sampling noise, which is the opposite of what the coloring arms are for.
+  "chromatic": "run_level",
+  "improper_coloring": "run_level",
+}
+"""Which key discipline each schedule arm requires.
+
+This table exists because the distinction used to live ONLY in
+:func:`select_decoding_order`'s docstring, as an instruction to "caller discipline". No
+caller implemented it: ``bundle_builder.build_inference_bundle`` was the sole caller and
+silently defaulted to ``jax.random.PRNGKey(0)``, so every randomized arm was built from one
+constant key. The measurable consequence was that ``random_ar`` and
+``frozen_random_sigma`` produced byte-identical schedules -- collapsing the two arms whose
+*difference* is the entire measurement -- and a variance battery comparing them would have
+reported a null caused by plumbing rather than by the model.
+
+A policy that a caller must remember is a policy that will be forgotten. Encoding it as
+data lets :func:`build_wave_schedule_per_sample` apply it mechanically and lets
+``build_inference_bundle`` reject a missing key instead of inventing one.
+"""
+
+
+def schedule_key_policy(mode: DecodingSchedule) -> ScheduleKeyPolicy:
+  """Return the key discipline required by a schedule arm.
+
+  Args:
+    mode: One of the five schedule arms.
+
+  Returns:
+    ``"unused"``, ``"run_level"``, or ``"per_sample"``.
+
+  Raises:
+    ValueError: If ``mode`` is not a known schedule arm.
+  """
+  if mode not in SCHEDULE_KEY_POLICY:
+    msg = f"Unknown schedule mode: {mode!r}. Known: {sorted(SCHEDULE_KEY_POLICY)}"
+    raise ValueError(msg)
+  return SCHEDULE_KEY_POLICY[mode]
+
+
+def schedule_consumes_key(mode: DecodingSchedule) -> bool:
+  """Whether a schedule arm reads its ``key`` at all.
+
+  Args:
+    mode: One of the five schedule arms.
+
+  Returns:
+    True for every arm except ``fixed_n_to_c``.
+
+  Raises:
+    ValueError: If ``mode`` is not a known schedule arm.
+  """
+  return schedule_key_policy(mode) != "unused"
+
+
+def build_wave_schedule_per_sample(
+  mode: DecodingSchedule,
+  *,
+  key: PRNGKeyArray,
+  num_samples: int,
+  tie_group_map: Int[Array, " L"],
+  coords: Float[Array, "L 4 3"] | None = None,
+  mask: Float[Array, " L"] | None = None,
+  k_neighbors: int = 48,
+  structure_mapping: Int[Array, " L"] | None = None,
+  ligand_coords: Float[Array, "A 3"] | None = None,
+  ligand_mask: Float[Array, " A"] | None = None,
+) -> WaveScheduleBundle:
+  """Build a sample-axis-stacked :class:`WaveScheduleBundle`, honoring the key policy.
+
+  Applies :data:`SCHEDULE_KEY_POLICY` mechanically: ``per_sample`` arms get one fresh key
+  per sample via ``jax.random.split``, while ``run_level`` and ``unused`` arms are built
+  once and broadcast. The result always carries a leading axis of length ``num_samples``,
+  so a caller can ``vmap`` the decode over ``(key, wave_schedule)`` with ``in_axes=(0, 0)``
+  regardless of which arm is in play -- the arm's semantics live in this function rather
+  than in the caller's ``in_axes``.
+
+  Args:
+    mode: One of the five schedule arms.
+    key: Run-level PRNG key. Split per sample for ``per_sample`` arms; used as-is
+      otherwise.
+    num_samples: Length of the leading sample axis to produce. Must be positive.
+    tie_group_map: (L,) tie group id per position.
+    coords: (L, 4, 3) backbone coordinates. Required by the coloring arms.
+    mask: (L,) residue mask. Required by the coloring arms.
+    k_neighbors: k for the coloring adjacency k-NN.
+    structure_mapping: Optional per-position structure index for multistate inputs.
+    ligand_coords: Optional (A, 3) ligand atom coordinates.
+    ligand_mask: Optional (A,) ligand atom mask.
+
+  Returns:
+    A ``WaveScheduleBundle`` whose four fields each carry a leading ``num_samples`` axis.
+
+  Raises:
+    ValueError: If ``mode`` is unknown or ``num_samples`` is not positive.
+
+  Notes:
+    **This is a HOST-SIDE function and cannot be called under ``jax.jit``/``vmap``.**
+    ``WaveScheduleBundle.from_tie_groups`` calls ``decoding_order.tolist()`` and derives
+    ``num_waves`` from the data, so tracing it raises ``ConcretizationTypeError``. Build
+    the stacked bundle here, outside any trace, then pass it in as a traced argument.
+
+    Stacking is well defined because a permutation only reorders the tie groups, it does
+    not change *which* groups exist -- so ``num_waves`` and every field shape are identical
+    across samples for a fixed ``tie_group_map``. Verified in
+    ``tests/inference/test_schedule_key_policy.py``.
+  """
+  policy = schedule_key_policy(mode)
+  if num_samples <= 0:
+    msg = f"num_samples must be positive, got {num_samples}"
+    raise ValueError(msg)
+
+  build_kwargs = {
+    "tie_group_map": tie_group_map,
+    "coords": coords,
+    "mask": mask,
+    "k_neighbors": k_neighbors,
+    "structure_mapping": structure_mapping,
+    "ligand_coords": ligand_coords,
+    "ligand_mask": ligand_mask,
+  }
+
+  if policy == "per_sample":
+    sample_keys = jax.random.split(key, num_samples)
+    bundles = [build_wave_schedule(mode, key=k, **build_kwargs) for k in sample_keys]
+  else:
+    # One schedule, repeated. Built once so the (host-side, Python-loop-heavy) coloring
+    # construction is not paid num_samples times for an identical result.
+    shared = build_wave_schedule(mode, key=key, **build_kwargs)
+    bundles = [shared] * num_samples
+
+  return jax.tree.map(lambda *leaves: jnp.stack(leaves), *bundles)
+
 
 def build_position_adjacency(
   coords: Float[Array, "L 4 3"],
@@ -250,10 +395,15 @@ def build_wave_schedule(
 
 
 __all__ = [
+  "SCHEDULE_KEY_POLICY",
   "DecodingSchedule",
+  "ScheduleKeyPolicy",
   "assert_model_adj_subset",
   "build_position_adjacency",
   "build_wave_schedule",
+  "build_wave_schedule_per_sample",
   "color_positions",
+  "schedule_consumes_key",
+  "schedule_key_policy",
   "select_decoding_order",
 ]

@@ -74,6 +74,19 @@ SCHEDULE_KEY_POLICY: dict[DecodingSchedule, ScheduleKeyPolicy] = {
   "frozen_random_sigma": "run_level",
   # One coloring per structure. Varying it per sample would confound coloring choice with
   # sampling noise, which is the opposite of what the coloring arms are for.
+  #
+  # The two coloring arms reach run_level for DIFFERENT reasons, and conflating them
+  # misdescribes the code: `color_positions` consults `key` ONLY when `improper=True`
+  # (it permutes the adjacency relabeling). Plain `chromatic` is fully DETERMINISTIC given
+  # the adjacency -- greedy DSATUR over a fixed ordering -- and never reads the key at all.
+  # So chromatic's run_level status is about uniform broadcast semantics in
+  # `build_wave_schedule_per_sample`, not about holding a random draw fixed.
+  #
+  # Consequence worth knowing: `schedule_consumes_key("chromatic")` is True, so
+  # `build_inference_bundle` demands a key for an arm that ignores it, and says the arm
+  # "consumes a PRNG key". That is a nominal requirement, not a real one. It is left in
+  # place because uniformity across the coloring arms is cheap and no caller selects
+  # `schedule=` today, but the error message overstates the case -- see backlog #4191.
   "chromatic": "run_level",
   "improper_coloring": "run_level",
 }

@@ -10,16 +10,32 @@ ligand-mediated contacts) so it can be checked against the actual model k-NN via
 See `mpnn_ext/.praxia/docs/preregistration/260630_wave-color-scheduling-fundamental-tests.md`
 section 3 (W0.3) for the spec this implements.
 
-Known gap (next step after this module): `AutoregressiveDecode.__call__`
-(`aminx/inference/decode/autoregressive.py`, both the `lax.scan` and
-`lax.while_loop` branches) only decodes group slot 0 of each wave
-(`wave.group_positions[wave_idx, 0, ...]` / `wave.group_valid[wave_idx, 0]`).
-The `chromatic` and `improper_coloring` arms built here produce multi-group
-waves (G > 1 — the whole point of within-color Jacobi parallelism); until the
-decode kernel's `step_fn` is extended to iterate all `G` group slots in a wave
-(masked by `group_valid`), positions in slots 1..G-1 are silently never
-sampled. `random_ar` / `fixed_n_to_c` / `frozen_random_sigma` are G=1 by
-construction (via `WaveScheduleBundle.from_tie_groups`) and are unaffected.
+Multi-group (G > 1) decode: SUPPORTED. The `chromatic` and `improper_coloring`
+arms built here produce multi-group waves — the whole point of within-color
+Jacobi parallelism — and `AutoregressiveDecode.__call__` decodes every active
+group slot of a wave from one shared forward pass (`step_fn` vmaps over the `G`
+axis, masked by `group_valid`). Fixed in 85d8c480 (2026-06-30); regression-tested
+by `tests/inference/decode/test_autoregressive.py::
+test_chromatic_schedule_full_coverage_and_parallelism` (which asserts G > 1 is
+actually exercised, not merely available) and
+`::test_coloring_arm_via_per_sample_builder_decodes_every_position`.
+
+This docstring previously claimed the opposite — that only group slot 0 was
+decoded, so positions in slots 1..G-1 were "silently never sampled". That text
+outlived the fix by six weeks and was taken at face value on 2026-08-11, which
+got a blocker filed against a bug that no longer existed. Both tests above assert
+the real behavior with a verified negative control, so the claim cannot be
+re-derived from prose alone. If you change this paragraph, change those tests.
+
+Real remaining constraint (NOT a decode bug): the coloring arms are HOST-SIDE
+ONLY. `WaveScheduleBundle.from_colors` and the coloring adjacency builder use
+`.tolist()` and Python loops, so requesting `schedule="chromatic"` from inside a
+`jax.jit`/`vmap` trace raises `ConcretizationTypeError`. Today's traced drivers
+(`host/kernel_dispatch.py`, `sampling/sample.py`) therefore cannot select them
+via `schedule=`. The supported route is to build the schedule out of trace with
+`build_wave_schedule_per_sample` and hand it to `build_inference_bundle(wave=...)`,
+which bypasses `schedule=` entirely. Wiring a driver to do that is a driver task,
+not a kernel one.
 """
 
 from __future__ import annotations

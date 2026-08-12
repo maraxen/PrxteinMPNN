@@ -1154,17 +1154,24 @@ def jacobian(
     msg = "jacobian runner: compute_apc applies to categorical Jacobians only; use --no-compute-apc with reverse mode"
     raise ValueError(msg)
 
-  from aminx.host.output_sinks import (  # noqa: PLC0415
-    jacobian_sink_session,
-    stage_jacobian_io,
-  )
-  from aminx.host.streaming_host import StreamingBatchHost  # noqa: PLC0415
+  import numpy as np  # noqa: PLC0415
+  from xtrax.run import SinkSpec, ZarrStagingSink  # noqa: PLC0415
+
   from aminx.utils.apc import apc_corrected_frobenius_norm  # noqa: PLC0415
-  from aminx.utils.forward_jac import make_categorical_jacobian_fn  # noqa: PLC0415
+  from aminx.utils.forward_jac import (  # noqa: PLC0415
+    _full_context_ar_mask,
+    make_categorical_jacobian_fn,
+  )
   from aminx.utils.reverse_jac import make_reverse_jacobian_score_fn  # noqa: PLC0415
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
-  cat_jac_fn = make_categorical_jacobian_fn(model)  # type: ignore[arg-type]
+  # jacobian_batch_size now reaches the tangent-axis SafeMap tile in forward_jac. Until
+  # 2026-08-12 it was declared on the CLI and the spec and referenced NOWHERE, so a user
+  # hitting an OOM could set it and observe no change whatsoever.
+  cat_jac_fn = make_categorical_jacobian_fn(
+    model,  # type: ignore[arg-type]
+    tangent_batch_size=spec.jacobian_batch_size or None,
+  )
   encode_fn, reverse_grad_fn = make_reverse_jacobian_score_fn(model)  # type: ignore[arg-type]
 
   all_jacobians: list[jax.Array] = []
@@ -1175,10 +1182,36 @@ def jacobian(
   structure_offset = 0
   prng_key = jax.random.PRNGKey(spec.run_spec.sampling.random_seed or 42)
   use_io_sink = spec.output_h5_path is not None
-  stacked_host: list[Any] | None = None
+  n_staged = 0
+
+  # Output goes straight through xtrax's ZarrStagingSink, one structure at a time.
+  #
+  # This replaced aminx's own JacobianAccumulationSink + io_callback round-trip
+  # (host/output_sinks.py), which was a plain Python list: every Jacobian was held in
+  # memory until the loop finished and only then written. At L=242 one categorical
+  # Jacobian is ~103 MB, so an N-structure run peaked at N x 103 MB for no reason -- the
+  # tensor is already materialized on the host inside this Python loop, so the io_callback
+  # bought nothing here. Staging incrementally means peak memory is one structure.
+  #
+  # The APC matrix is staged alongside it. It was previously computed and then discarded
+  # by every CLI invocation: `results["apc_frobenius_norm"]` only ever existed in the
+  # returned dict, which `cli.py` throws away, so the (L, L) map -- the thing an actual
+  # coupling analysis wants -- could not be obtained from the CLI at all.
+  result_key = "score_gradients" if spec.jacobian_mode == "reverse" else "categorical_jacobians"
+
+  zarr_sink: ZarrStagingSink | None = None
+  if use_io_sink:
+    assert spec.output_h5_path is not None
+    zarr_sink = ZarrStagingSink(
+      SinkSpec(
+        output_dir=spec.output_h5_path,
+        format="zarr",
+        flush_every=max(1, spec.combine_batch_size or 1),
+      ),
+    )
 
   def _run_structure_loop(*, stage_to_sink: bool) -> None:
-    nonlocal prng_key, structure_offset
+    nonlocal prng_key, structure_offset, n_staged
 
     global_idx = 0
     for _batch_idx, batched_ensemble in enumerate(protein_iterator):
@@ -1216,7 +1249,13 @@ def jacobian(
           )
           one_hot = jax.nn.one_hot(native_seq, 21)
           length = one_hot.shape[0]
-          ar_mask = jnp.zeros((length, length), dtype=jnp.int32)
+          # Full context minus self, NOT zeros. An all-zero ar_mask admits no sequence
+          # information into the decoder at all (model/decoder.py:144-147 uses it to gate
+          # the sequence edge features). That annihilated the forward categorical Jacobian
+          # outright; measured here it shifts the reverse score gradient by ~0.16% of its
+          # magnitude rather than zeroing it, because the score reads one_hot directly --
+          # affected, not destroyed, but wrong either way for a mutation-effect estimate.
+          ar_mask = _full_context_ar_mask(length)
           jac = reverse_grad_fn(encoding, one_hot, ar_mask)
         else:
           jac = cat_jac_fn(
@@ -1228,36 +1267,42 @@ def jacobian(
             native_seq,
           )
 
+        apc = None
         if apc_matrices is not None:
-          apc_matrices.append(
-            apc_corrected_frobenius_norm(jac, residue_batch_size=spec.apc_residue_batch_size),
+          apc = apc_corrected_frobenius_norm(
+            jac,
+            residue_batch_size=spec.apc_residue_batch_size,
           )
 
         if stage_to_sink:
-          _ = stage_jacobian_io(jnp.asarray(global_idx, dtype=jnp.int32), jac)
-          StreamingBatchHost.sink_barrier()
+          assert zarr_sink is not None
+          payload: dict[str, Any] = {result_key: np.asarray(jac)}
+          if apc is not None:
+            payload["apc_frobenius_norm"] = np.asarray(apc)
+          zarr_sink.stage((str(global_idx),), **payload)
+          n_staged += 1
+          # Deliberately NOT retained: holding `jac` here would reinstate the
+          # accumulate-everything behavior this streaming path exists to remove.
         else:
           all_jacobians.append(jac)
+          if apc_matrices is not None and apc is not None:
+            apc_matrices.append(apc)
         global_idx += 1
 
       resolved_structure_ids.extend(batch_structure_ids)
       structure_offset += batch_size
 
-  if use_io_sink:
-    with jacobian_sink_session() as sink:
-      _run_structure_loop(stage_to_sink=True)
-      stacked_host = sink.take_all()
-  else:
-    _run_structure_loop(stage_to_sink=False)
+  _run_structure_loop(stage_to_sink=use_io_sink)
 
-  result_key = "score_gradients" if spec.jacobian_mode == "reverse" else "categorical_jacobians"
-  jacobian_payload: list[Any] = (
-    stacked_host if use_io_sink and stacked_host is not None else all_jacobians
-  )
+  n_results = n_staged if use_io_sink else len(all_jacobians)
   results: dict[str, Any] = {
-    result_key: jacobian_payload,
+    # Empty when streaming: the tensors are on disk, not in this dict. Read them back from
+    # ``results["output_path"]`` rather than expecting them here -- materializing an
+    # N x (L, 21, L, 21) list is precisely what the streaming path avoids.
+    result_key: [] if use_io_sink else all_jacobians,
     "jacobian_mode": spec.jacobian_mode,
-    "mask": jnp.ones(len(jacobian_payload), dtype=jnp.int32),
+    "mask": jnp.ones(n_results, dtype=jnp.int32),
+    "n_structures": n_results,
     "schema_version": JACOBIAN_SCHEMA_VERSION,
     "metadata": {
       "specification": spec,
@@ -1266,19 +1311,21 @@ def jacobian(
     },
   }
 
-  if apc_matrices is not None:
+  if apc_matrices is not None and not use_io_sink:
     results["apc_frobenius_norm"] = apc_matrices
 
-  if use_io_sink and stacked_host is not None:
-    import numpy as np  # noqa: PLC0415
-    from xtrax.run import SinkSpec, ZarrStagingSink  # noqa: PLC0415
+  if use_io_sink and zarr_sink is not None:
+    from xtrax.run import fsync_tree, zarr_content_digest  # noqa: PLC0415
 
     out_path = spec.output_h5_path
     assert out_path is not None
-    zarr_sink = ZarrStagingSink(SinkSpec(output_dir=out_path, format="zarr", flush_every=1))
-    for idx, jac in enumerate(stacked_host):
-      zarr_sink.stage((str(idx),), **{result_key: np.asarray(jac)})
     zarr_sink.drain()
+    # fsync BEFORE digesting: the digest is only a claim about durable bytes if the tree
+    # has actually reached disk. Both primitives are xtrax's -- they were hoisted out of
+    # aminx into xtrax.run.zarr_integrity, so this uses the promoted version rather than
+    # a local copy.
+    fsync_tree(out_path)
     results["output_path"] = str(out_path)
+    results["output_digest"] = zarr_content_digest(out_path)
 
   return results

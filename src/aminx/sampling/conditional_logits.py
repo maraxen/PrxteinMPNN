@@ -18,7 +18,6 @@ This is used for:
 
 from __future__ import annotations
 
-import dataclasses
 from collections.abc import Callable
 from functools import partial
 from typing import cast
@@ -26,17 +25,13 @@ from typing import cast
 import equinox as eqx
 import jax
 from jaxtyping import PRNGKeyArray
-from xtrax.tiling import AxisSpec, BatchPlanner, MemoryBudget
-from xtrax.tiling import SafeMap as XtraxSafeMap
-from xtrax.tiling import Vmap as XtraxVmap
 
 from aminx.inference.bundle_builder import build_inference_bundle
 from aminx.inference.logits import make_stage_set
 from aminx.inference.score_conditional import kernel as score_conditional
 from aminx.tiling.axes import N_CANDIDATES, N_REPLICATES
 from aminx.tiling.dispatch import make_axis_dispatch_via_xtrax
-from aminx.tiling.planner import estimate_memory_theoretical
-from aminx.tiling.strategy import AxisStrategy, SafeMap, Vmap
+from aminx.tiling.planner import plan_axis_strategy
 from aminx.types.arrays import (
   AlphaCarbonMask,
   AutoRegressiveMask,
@@ -284,54 +279,11 @@ def make_encoding_conditional_logits_split_fn(
   return encode_fn, decode_fn
 
 
-def _plan_axis_strategy(
-  axis_template: AxisSpec,
-  cardinality: int,
-  batch_size_override: int | None,
-  *,
-  activation_bytes_per_element: float,
-  headroom: float = 0.80,
-) -> AxisStrategy:
-  """Resolve a Vmap/SafeMap strategy for one axis via BatchPlanner.
-
-  Composable_jax primitive (see the using-xtrax skill and
-  feedback_xtrax_composable_primitives memory): never hand-roll jax.vmap/lax.map
-  chunking here. An explicit ``batch_size_override`` bypasses the planner with a
-  fixed SafeMap tile (guardrail for callers who already know their memory ceiling);
-  otherwise the planner auto-demotes Vmap -> SafeMap when the device memory budget
-  would be exceeded, mirroring host/plan.py's ``make_sampling_planner`` budget calc
-  (scoped locally so this sampling-layer module does not import the host layer).
-  """
-  if batch_size_override is not None and batch_size_override > 0:
-    return SafeMap(tile=batch_size_override)
-
-  axis = dataclasses.replace(axis_template, cardinality=cardinality)
-  try:
-    limit = jax.devices()[0].memory_stats()["bytes_limit"]
-  except Exception:  # noqa: BLE001 - memory_stats unavailable on some backends (e.g. CPU)
-    limit = 4 * 1024**3
-  budget = MemoryBudget(
-    bytes=int(limit * headroom),
-    estimate=lambda decisions: int(
-      estimate_memory_theoretical(
-        decisions,
-        activation_bytes_per_element,
-        1.0,
-      ),
-    ),
-  )
-  planner = BatchPlanner(budget=budget)
-  plan = planner.plan([axis])
-  xtrax_strategy = plan.decisions[0].strategy
-  # make_axis_dispatch_via_xtrax expects aminx-native strategy objects (it
-  # translates to xtrax-native internally via _strategy_to_xtrax) -- BatchPlanner
-  # itself is xtrax-native, so translate its decision back before returning.
-  if isinstance(xtrax_strategy, XtraxSafeMap):
-    return SafeMap(tile=xtrax_strategy.batch_size)
-  if isinstance(xtrax_strategy, XtraxVmap):
-    return Vmap()
-  msg = f"_plan_axis_strategy: unexpected BatchPlanner decision strategy {type(xtrax_strategy)}"
-  raise TypeError(msg)
+# Promoted to aminx.tiling.planner.plan_axis_strategy (2026-08-12) once it had a third
+# consumer -- this module, mbr_consensus (which imported the private name across modules),
+# and the categorical Jacobian. Kept as an alias so those imports and their tests keep
+# working unchanged; the implementation is byte-identical, only relocated.
+_plan_axis_strategy = plan_axis_strategy
 
 
 def make_batched_conditional_logits_split_fn(

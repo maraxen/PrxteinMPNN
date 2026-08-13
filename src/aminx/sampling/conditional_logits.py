@@ -44,6 +44,7 @@ from aminx.types.arrays import (
 )
 from aminx.types.encodings import EncoderOutput
 from aminx.types.protocols import ConditionalLogitsFn, ModelProtocol
+from aminx.utils.autoregression import full_context_ar_mask
 
 
 def _eqx_module_hash(self: object) -> int:  # pragma: no cover - safe shim
@@ -237,16 +238,34 @@ def make_encoding_conditional_logits_split_fn(
     sequence: ProteinSequence,
     ar_mask: AutoRegressiveMask | None = None,
   ) -> Logits:
-    """Decode encoder features to logits for a given sequence.
+    """Decode encoder features to conditional logits for a given sequence.
 
     Args:
       encoding: EncoderOutput from encode_fn containing node_features, edge_features, neighbor_indices, and mask.
       sequence: Protein sequence as integer array (N,) or one-hot (N, 21).
-      ar_mask: Optional autoregressive mask (N, N). If None, uses zeros.
+      ar_mask: Optional autoregressive mask (N, N). ``ar_mask[i, j] == 1`` means position
+        ``i`` SEES position ``j``'s sequence. Defaults to full context minus self
+        (``1 - I``), matching ``build_inference_bundle(mode="score_conditional")``, so the
+        default here and the default of :func:`make_conditional_logits_fn` agree.
+
+        Pass an explicit all-zero mask for UNCONDITIONAL (structure-only) logits. That is a
+        legitimate request, but it must be made explicitly -- see below.
 
     Returns:
       Logits of shape (N, 21) for each residue position.
 
+    Note:
+      This default was ZEROS until #4222, and the docstring described that as "If None,
+      uses zeros" without saying what it meant. Since an all-zero mask admits no sequence
+      information, the function returned the SAME logits for every sequence: measured on
+      1ubq, max|logits(native) - logits(all-Ala)| was 0.000000 through this path and 8.249
+      through :func:`make_conditional_logits_fn`. Callers that omitted ``ar_mask`` -- which
+      included the runner's own batched ``conditional_logits`` feature -- were silently
+      getting unconditional logits from a function named for conditional ones.
+
+      The failure mode is worse than a crash: downstream, identical conditionals for every
+      sequence look like the finding "these positions carry no sequence-context
+      information" rather than like a bug.
     """
     node_features = encoding.node_features
     processed_edge_features = encoding.edge_features
@@ -254,10 +273,7 @@ def make_encoding_conditional_logits_split_fn(
     mask = encoding.mask
 
     if ar_mask is None:
-      ar_mask = jax.numpy.zeros(
-        (node_features.shape[0], node_features.shape[0]),
-        dtype=jax.numpy.int32,
-      )
+      ar_mask = full_context_ar_mask(node_features.shape[0])
 
     if sequence.ndim == 1:
       one_hot_sequence = jax.nn.one_hot(sequence, inference_model.w_s_embed.num_embeddings)
@@ -366,7 +382,13 @@ def make_batched_conditional_logits_split_fn(
     candidate_sequences: ProteinSequence,
     ar_mask: AutoRegressiveMask | None = None,
   ) -> Logits:
-    """Decode R encodings x C candidate sequences; returns (R, C, L, 21) logits."""
+    """Decode R encodings x C candidate sequences; returns (R, C, L, 21) logits.
+
+    ``ar_mask`` is forwarded to the per-candidate ``decode_fn``, so ``None`` means full
+    context minus self (``1 - I``) -- NOT zeros. Until #4222 it meant zeros, which made
+    every candidate in the batch score identically because none of them could see any
+    sequence at all.
+    """
     n_candidates = candidate_sequences.shape[0]
     seq_len = candidate_sequences.shape[1]
     activation_bytes = seq_len * 21 * 4  # (L, 21) float32 logits per candidate

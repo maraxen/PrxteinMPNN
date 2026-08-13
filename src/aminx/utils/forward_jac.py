@@ -43,6 +43,7 @@ from aminx.tiling.dispatch import make_axis_dispatch_via_xtrax
 from aminx.tiling.planner import plan_axis_strategy
 from aminx.tiling.strategy import SafeMap
 from aminx.types.arrays import CategoricalJacobian
+from aminx.utils.autoregression import full_context_ar_mask
 
 NUM_TOKENS = 21
 
@@ -57,7 +58,20 @@ _BYTES_PER_FLOAT32 = 4
 
 
 def _full_context_ar_mask(seq_len: int) -> jax.Array:
-  """Every position sees every other position's sequence, but not its own.
+  """Deprecated alias for :func:`aminx.utils.autoregression.full_context_ar_mask`.
+
+  Promoted out of this module in the #4222 pass: it had four consumers (this module, the
+  runner's reverse-mode path, the runner's ``decoded_node_features`` feature, and the
+  split ``decode_fn`` default), which is three too many for a leading underscore in the
+  Jacobian module. Behavior is byte-identical, only relocated. The full rationale for
+  ``1 - I`` now lives on the public function.
+
+  The original docstring is kept below because it is the record of how the defect was
+  found.
+
+  ---
+
+  Every position sees every other position's sequence, but not its own.
 
   ``ar_mask[i, j] == 1`` means position ``i`` SEES position ``j``'s sequence: the decoder
   gathers it into ``attention_mask`` and uses it as ``mask_bw`` to gate the *sequence*
@@ -77,7 +91,7 @@ def _full_context_ar_mask(seq_len: int) -> jax.Array:
   ``mode="score_conditional"``. Self-exclusion is wanted here independently: ``J[i,:,i,:]``
   is self-dependence, not a coupling, and is dropped by every downstream reduction anyway.
   """
-  return jnp.ones((seq_len, seq_len), dtype=jnp.float32) - jnp.eye(seq_len, dtype=jnp.float32)
+  return full_context_ar_mask(seq_len)
 
 
 def _activation_bytes_per_tangent(model, seq_len: int) -> float:

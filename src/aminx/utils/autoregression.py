@@ -248,3 +248,46 @@ def generate_wave_ar_mask(
   same_group = tie_group_map[:, None] == tie_group_map[None, :]
 
   return (earlier_wave | (same_wave & same_group)).astype(jnp.float32)
+
+
+def full_context_ar_mask(seq_len: int) -> jnp.ndarray:
+  """Every position sees every other position's sequence, but not its own: ``1 - I``.
+
+  ``ar_mask[i, j] == 1`` means position ``i`` SEES position ``j``'s sequence. The decoder
+  gathers it into ``attention_mask`` and uses it as ``mask_bw`` to gate the *sequence* edge
+  features, while ``1 - attention_mask`` gates the structure-only path
+  (``model/decoder.py:144-147``). **An all-zero ``ar_mask`` therefore admits no sequence
+  information at all** and reduces any "conditional" quantity to a function of structure
+  alone.
+
+  This lives here, public and next to the other mask builders, because that mistake has now
+  been made at four separate sites, each with a comment or docstring asserting the opposite:
+
+  - ``forward_jac`` -- made the categorical Jacobian identically zero for its whole
+    existence, fixed in 40f7edfc. Its comment read "fully conditional / no autoregressive
+    masking, every position sees every other", which is precisely backwards.
+  - the runner's reverse-mode path -- same construct, fixed in 40f7edfc. Not catastrophic
+    there (the score reads ``one_hot`` directly, so context loss shifts the gradient by
+    ~0.16% rather than annihilating it) but wrong for a mutation-effect estimate.
+  - ``sampling.conditional_logits``'s split ``decode_fn`` default, and therefore the
+    runner's batched ``conditional_logits`` feature, which relied on it (#4222).
+  - the runner's ``decoded_node_features`` feature (#4204).
+
+  Every one of those failures was silent: right shape, right dtype, no error, no warning.
+
+  ``1 - I`` matches the "full context minus self" default that
+  ``inference/bundle_builder.py:227-228`` uses for ``mode="score_conditional"``, so a
+  teacher-forced conditional built with this mask agrees with the full
+  ``make_conditional_logits_fn`` path. Self-exclusion is wanted independently: a position's
+  dependence on its own token is self-dependence, not a coupling.
+
+  An all-zero mask is still a legitimate thing to ask for -- it is what "unconditional"
+  means -- but it must be passed **explicitly**, never arrived at by omission.
+
+  Args:
+    seq_len: Number of positions.
+
+  Returns:
+    ``(seq_len, seq_len)`` float32 mask, ones off the diagonal and zeros on it.
+  """
+  return jnp.ones((seq_len, seq_len), dtype=jnp.float32) - jnp.eye(seq_len, dtype=jnp.float32)

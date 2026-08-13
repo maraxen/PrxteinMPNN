@@ -864,6 +864,7 @@ def inspect(  # noqa: PLR0915
     make_conditional_logits_fn,
     make_encoding_conditional_logits_split_fn,
   )
+  from aminx.utils.autoregression import full_context_ar_mask  # noqa: PLC0415
   from aminx.utils.structure_metrics import (  # noqa: PLC0415
     _extract_ca_coordinates,
     calculate_ca_distance_matrix,
@@ -1033,7 +1034,11 @@ def inspect(  # noqa: PLR0915
           )
           one_hot = jax.nn.one_hot(native_seq, 21)
           length = one_hot.shape[0]
-          ar_mask = jnp.zeros((length, length), dtype=jnp.int32)
+          # Full context minus self, NOT zeros (#4204). ar_mask[i, j] == 1 means i SEES j,
+          # so the previous zeros mask meant these "decoded node features" were decoded
+          # from structure alone -- the native one_hot gathered just above reached
+          # call_conditional but could not influence it.
+          ar_mask = full_context_ar_mask(length)
           decoded = model.decoder.call_conditional(  # type: ignore[attr-defined]
             encoding.node_features,
             encoding.edge_features,
@@ -1158,10 +1163,8 @@ def jacobian(
   from xtrax.run import SinkSpec, ZarrStagingSink  # noqa: PLC0415
 
   from aminx.utils.apc import apc_corrected_frobenius_norm  # noqa: PLC0415
-  from aminx.utils.forward_jac import (  # noqa: PLC0415
-    _full_context_ar_mask,
-    make_categorical_jacobian_fn,
-  )
+  from aminx.utils.autoregression import full_context_ar_mask  # noqa: PLC0415
+  from aminx.utils.forward_jac import make_categorical_jacobian_fn  # noqa: PLC0415
   from aminx.utils.reverse_jac import make_reverse_jacobian_score_fn  # noqa: PLC0415
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
@@ -1255,7 +1258,7 @@ def jacobian(
           # outright; measured here it shifts the reverse score gradient by ~0.16% of its
           # magnitude rather than zeroing it, because the score reads one_hot directly --
           # affected, not destroyed, but wrong either way for a mutation-effect estimate.
-          ar_mask = _full_context_ar_mask(length)
+          ar_mask = full_context_ar_mask(length)
           jac = reverse_grad_fn(encoding, one_hot, ar_mask)
         else:
           jac = cat_jac_fn(

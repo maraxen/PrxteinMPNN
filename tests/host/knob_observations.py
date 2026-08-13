@@ -255,6 +255,7 @@ OBSERVATIONS: dict[str, Verdict] = {
     ),
   ),
   "multi_state_temperature": NotApplicable(reason="reaches stage_set.logit_transform, not a bundle arg; only affects geometric_mean (logits.py:130,175)"),
+  "multi_state_sharpness": NotApplicable(reason="reaches stage_set.logit_transform, not a bundle arg; only affects product. Semantics are covered by tests/inference/test_product_sharpness.py, which asserts the invariant a reachability harness cannot express: S identical experts must fuse to p^S under a product and to p under a sum(w)=1 opinion pool"),
   "use_unified_driver": NotApplicable(reason="selects the dispatch path in kernel_dispatch, not a model-facing value"),
   "tied_positions": NotApplicable(reason="requires pass_mode='inter' (specs.py:440-445); the campaign literal carries neither"),
   "pass_mode": NotApplicable(reason="paired with tied_positions; not carried by the manifest"),

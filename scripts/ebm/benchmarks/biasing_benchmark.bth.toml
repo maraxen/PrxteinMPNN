@@ -1,9 +1,16 @@
-[benchmark]
+[experiment]
+hypothesis = "JAX >= PyTorch throughput on pi_so3 (SM120) at L in {64,128,256,512}"
 baseline_ref = "<pytorch-proteinebm-run-id>"  # original PyTorch impl, same hardware -- fill in once an L3 cluster run is recorded.
 metric = "energy_evals_per_sec"
 regression_threshold = 0.05
 target = "JAX >= PyTorch throughput on pi_so3 (SM120) at L in {64,128,256,512}"
 
+# UPDATE (2026-08-13, #3144 track D): converted [benchmark] -> [experiment] as
+# the documented workaround below prescribes. This is the fix the NOTE already
+# called for -- backlog debt #4118 tracks the underlying bathos parser bug
+# itself (parse_sidecar's [benchmark] branch never calls _parse_outcomes), not
+# this file's use of the workaround.
+#
 # NOTE on [outcomes] + a confirmed tool bug (2026-07-10, installed bathos v0.10.0):
 # the design spec's/using-bathos skill's own documented "Benchmark Sidecar
 # Format" is [benchmark]+[result_schema] only (no [outcomes]). Empirically,

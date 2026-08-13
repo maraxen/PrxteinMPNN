@@ -7,6 +7,8 @@ the S dimension to produce a single logit set.
 
 from __future__ import annotations
 
+import dataclasses
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -182,18 +184,63 @@ class GeometricMeanLogits(eqx.Module):
 
 @LOGIT_STRATEGIES.register("product")
 class ProductOfProbabilities(eqx.Module):
-  """Weighted sum of logits across states.
+  """Scaled weighted sum of logits across states.
 
-  Implements: Σ(wᵢ · Lᵢ) — weighted sum of logits (no normalization applied).
+  Implements: ``κ · Σ(wᵢ · Lᵢ)`` where ``κ`` is ``sharpness``.
   Registered strategy name: ``"product"``.
+
+  The two parameters are deliberately separate because they mean different
+  things, and conflating them is what makes a "product" silently stop being one:
+
+  * ``weights`` are **mixing proportions** — which states matter, and how much
+    relative to each other.
+  * ``sharpness`` is the **concentration** of the fused distribution — the thing
+    that makes this a *product* rather than an *average*.
+
+  .. warning::
+
+     With ``Σw = 1`` and ``sharpness = 1`` this is **not** a product of experts.
+     It is a weighted geometric mean (a *logarithmic opinion pool*),
+     ``Π pᵢ^{wᵢ}``. The decisive check: for S identical experts a product must
+     give ``p^S`` (sharper), whereas ``Σw = 1`` returns ``p`` unchanged. The
+     ``Σw = 1`` constraint is precisely what converts the product into an
+     average, so a caller that normalises its weight vector and leaves
+     ``sharpness`` at 1 gets averaging semantics while the strategy is still
+     named ``"product"``.
+
+  Recipes:
+
+  ===========================  ===============  =========================================
+  ``weights``                  ``sharpness``    Operator
+  ===========================  ===============  =========================================
+  all ones (default)           ``1.0``          plain product of experts, ``Σ Lᵢ``
+  ``Σw = 1``                   ``None``         weighted PoE, exponent mass matched to S
+  ``Σw = 1``                   ``1.0``          logarithmic opinion pool (**not** a product)
+  any                          ``κ``            logits scaled by ``κ``
+  ===========================  ===============  =========================================
+
+  ``sharpness`` is the reciprocal of a sampling temperature: scaling logits by
+  ``κ`` is identical to sampling at ``T/κ``. Set it deliberately — if it varies
+  with the number of active states, effective temperature varies with it, and
+  any comparison across weight vectors confounds mixing with concentration.
 
   Parameters
   ----------
   weights : Float[Array, "S"]
-      Per-state weights. S = number of states. Traced JAX leaf.
+      Per-state mixing proportions. S = number of states. Traced JAX leaf.
+  sharpness : float | None
+      Logit scale ``κ``. Static (not a JAX array). Default ``1.0``, which
+      preserves the unscaled weighted sum. ``None`` means "use S", i.e. scale so
+      the total exponent mass matches a plain product of S experts
+      (``Σ aᵢ = S`` for ``aᵢ = S·wᵢ``); with uniform ``Σw = 1`` weights this
+      reproduces ``Σ Lᵢ`` exactly.
 
   References
   ----------
+  .. [Hinton2002] Hinton, G. E. "Training products of experts by minimizing
+     contrastive divergence." *Neural Computation* 14(8):1771-1800 (2002).
+     https://doi.org/10.1162/089976602760128018
+
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
@@ -201,13 +248,14 @@ class ProductOfProbabilities(eqx.Module):
   """
 
   weights: Float[Array, S]
+  sharpness: float | None = eqx.field(static=True, default=1.0)
 
   def __call__(
     self,
     per_state: Float[Array, "S ... V"],
     bias: Float[Array, "... V"] | None = None,
   ) -> Float[Array, "... V"]:
-    """Fuse per-state logits via weighted sum.
+    """Fuse per-state logits via scaled weighted sum.
 
     Parameters
     ----------
@@ -219,7 +267,8 @@ class ProductOfProbabilities(eqx.Module):
     Returns
     -------
     Float[Array, "... V"]
-        Fused logits, shape ``(..., V)``.
+        Fused logits, shape ``(..., V)``. Bias is added AFTER the sharpness
+        scaling, so it stays on the fused-logit scale and is not amplified.
 
     """
     # Broadcast weights from shape (1,) to (S,) if needed, or validate match.
@@ -243,6 +292,12 @@ class ProductOfProbabilities(eqx.Module):
 
     weighted_logits = per_state * w_reshaped
     result = jnp.sum(weighted_logits, axis=0)
+
+    # `None` means "match a plain product of S experts": with a_i = S*w_i and
+    # sum(w) = 1 the exponent mass sums to S, so uniform weights recover sum(L_i).
+    kappa = float(S) if self.sharpness is None else self.sharpness
+    if kappa != 1.0:
+      result = result * kappa
 
     if bias is not None:
       result = result + bias
@@ -385,6 +440,7 @@ def make_stage_set(
   strategy_temperature: float = 1.0,
   state_weights: jax.Array | None = None,
   decoder_sink: tuple = (),
+  sharpness: float | None = 1.0,
 ) -> StageSet:
   """Construct a StageSet with strategy-resolved logit_transform.
 
@@ -395,14 +451,26 @@ def make_stage_set(
   strategy_temperature : float
       Temperature forwarded to strategies that accept it (e.g. GeometricMeanLogits).
   state_weights : jax.Array or None
-      Per-state weights. When None, defaults to uniform weights of shape (1,).
+      Per-state mixing proportions. When None, defaults to uniform weights of
+      shape (1,).
   decoder_sink : tuple, optional
       Zero or more decoder-side effect hooks. Empty tuple (default) = no sinks.
+  sharpness : float | None
+      Logit scale ``κ``, forwarded to strategies that accept it (currently
+      ``ProductOfProbabilities``). Default ``1.0`` preserves existing behaviour.
+      Pass ``None`` for "match a plain product of S experts". This is separate
+      from ``state_weights`` on purpose: weights say which states matter,
+      sharpness says how concentrated the fused distribution is. Normalised
+      weights (``Σw = 1``) with ``sharpness=1`` give a logarithmic opinion pool,
+      NOT a product — see :class:`ProductOfProbabilities`.
 
   Returns
   -------
   StageSet
       Stage set with logit_transform, ar_logit_transform, and tie_group_fuse wired.
+      ``ar_logit_transform`` is the SAME instance as ``logit_transform``, so the
+      autoregressive path honours ``strategy``, ``state_weights`` and
+      ``strategy_temperature`` identically to the non-AR path.
 
   """
   from aminx.types.stages import StageSet
@@ -418,14 +486,46 @@ def make_stage_set(
     else jnp.ones(1, dtype=jnp.float32)
   )
 
-  try:
-    logit_transform = strategy_cls(weights, temperature=strategy_temperature)
-  except TypeError:
-    logit_transform = strategy_cls(weights)
+  # Forward only the optional knobs this strategy actually declares. Introspecting
+  # the dataclass fields (eqx.Module IS a dataclass) rather than catching TypeError
+  # keeps this correct now that more than one optional field exists -- a bare
+  # try/except cannot tell "this class has no `sharpness`" from "constructing it
+  # raised TypeError for an unrelated reason", and would silently fall back to
+  # dropping BOTH knobs.
+  field_names = {f.name for f in dataclasses.fields(strategy_cls)}
+  optional_kwargs: dict[str, float | None] = {}
+  if "temperature" in field_names:
+    optional_kwargs["temperature"] = strategy_temperature
+  if "sharpness" in field_names:
+    optional_kwargs["sharpness"] = sharpness
+
+  logit_transform = strategy_cls(weights, **optional_kwargs)
 
   return StageSet(
     logit_transform=logit_transform,
-    ar_logit_transform=ARLogitFuse(),
+    # AR decode fuses with the SAME configured instance, not a hardcoded mean.
+    #
+    # This slot used to be `ARLogitFuse()` -- constructed with no strategy and no
+    # weights, so its body (`jnp.mean(logits, axis=0) + bias`) silently overrode
+    # BOTH `strategy` and `state_weights` on the autoregressive path. Callers
+    # asking for `multi_state_strategy="product"` with non-uniform
+    # `state_weights` got an unweighted arithmetic mean and no error, while the
+    # manifest recorded the requested strategy. Weighted product-of-experts
+    # fusion therefore did not exist on the AR path at all, and a zero weight
+    # did NOT drop its state (under a plain mean it contributes like any other).
+    # `strategy_temperature` was lost the same way.
+    #
+    # Reusing the one instance -- rather than building a second strategy-aware AR
+    # fuser -- is deliberate: it makes AR and non-AR fusion identical BY
+    # CONSTRUCTION, so the two can never drift apart again. The strategy classes
+    # are typed `Float[Array, "S ... V"]` with an optional trailing `bias`, which
+    # is exactly the `(S, V) + (V,) -> (V,)` contract the AR kernel calls with,
+    # so no adapter is needed.
+    #
+    # `ARLogitFuse` is kept and still exported: it remains the correct explicit
+    # choice for an intentionally unweighted mean. It is simply no longer
+    # substituted for whatever the caller actually configured.
+    ar_logit_transform=logit_transform,
     decode_step=None,
     sample_step=None,
     tie_group_fuse=TieGroupProductOfExperts(),

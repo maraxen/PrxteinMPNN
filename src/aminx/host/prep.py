@@ -146,8 +146,36 @@ def prep_protein_stream_and_model(
   # now fails loudly. That is the correct outcome: it is what "I asked for electrostatics"
   # should do when the checkpoint cannot provide them. Silently ignoring the request is the
   # bug being fixed.
+  #
+  # sidechain_conditioning IMPLIES use_side_chain_context. These are two different
+  # switches for one capability: sidechain_conditioning makes _sampling_helper build
+  # and pass the atom_37 sidechain context, while use_side_chain_context is what
+  # actually BUILDS the model branch that consumes it. Requesting the former while
+  # leaving the latter unset (None -> False) fed real sidechain context to a model
+  # that structurally ignored it -- a silent no-op, the same declared-but-never-
+  # delivered class as the bug the comment above describes. Confirmed empirically
+  # 2026-07-28: with sidechain_conditioning=True and the ctx flag None, AR-decode
+  # logits were BIT-IDENTICAL to sidechain_conditioning=False (max|diff|=0.0); with
+  # the ctx flag set, the same context moved them (max|diff|=2.47). This silently
+  # invalidated the SC arms of a whole tev_design campaign (its "SC conditioning is
+  # inert" conclusion was measuring a no-op, not the feature).
+  #
+  # An explicit `ligand_mpnn_use_side_chain_context=False` alongside
+  # sidechain_conditioning=True is contradictory, so it raises rather than silently
+  # picking one -- never resolve a contradiction by guessing.
+  if spec.sidechain_conditioning and spec.ligand_mpnn_use_side_chain_context is False:
+    msg = (
+      "sidechain_conditioning=True with ligand_mpnn_use_side_chain_context=False is "
+      "contradictory: the sidechain context would be built and passed, but the model "
+      "would be built without the branch that consumes it (a silent no-op). Set "
+      "ligand_mpnn_use_side_chain_context=True (or leave it unset to have it implied), "
+      "or set sidechain_conditioning=False."
+    )
+    raise ValueError(msg)
+
   model_conditioning = {
-    "use_side_chain_context": bool(spec.ligand_mpnn_use_side_chain_context),
+    "use_side_chain_context": bool(spec.ligand_mpnn_use_side_chain_context)
+    or bool(spec.sidechain_conditioning),
     "use_electrostatics": bool(spec.use_electrostatics),
     "use_vdw": bool(spec.use_vdw),
   }

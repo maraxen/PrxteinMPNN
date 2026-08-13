@@ -593,6 +593,15 @@ class SamplingSpecification(RunSpecification):
   multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean"
   compute_pseudo_perplexity: bool = False
   state_weights: ArrayLike | None = None
+  # Logit scale for multi_state_strategy="product". Deliberately separate from
+  # state_weights: weights are MIXING PROPORTIONS (which states matter), sharpness
+  # is CONCENTRATION (how peaked the fused distribution is). Normalised weights
+  # (sum(w)=1) with sharpness=1.0 give a weighted geometric mean -- a logarithmic
+  # opinion pool -- NOT a product of experts, even though the strategy is named
+  # "product". Pass sharpness=None for "match a plain product of S experts", which
+  # keeps sum(w)=1 as a genuine simplex while preserving product semantics.
+  # Default 1.0 preserves pre-existing behaviour. See ProductOfProbabilities.
+  multi_state_sharpness: float | None = 1.0
   # Provenance-only labels for anti-mislabel validation against a manifest-building
   # caller's own intent (e.g. tev_design's necklace campaign, which weight profile /
   # fixed-position group a row was PLANNED as) -- never read by any sampling/decode

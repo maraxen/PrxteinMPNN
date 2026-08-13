@@ -872,8 +872,11 @@ def make_inference_plan(
      ``use_rolling_state=True`` selects scan-based multi-state encoding; False uses vmap.
   2. ``logit_transform`` — instantiated from ``LOGIT_STRATEGIES[multi_state_strategy]``
      with ``state_weights`` and ``multi_state_temperature``.
-  3. ``ar_logit_transform`` — always wired as ``ARLogitFuse()`` (arithmetic mean + bias
-     injection over states, identity when S=1).
+  3. ``ar_logit_transform`` — the SAME instance as ``logit_transform`` (step 2), so the
+     autoregressive path honours ``multi_state_strategy``, ``state_weights`` and
+     ``multi_state_temperature`` identically to the non-AR path; identity when S=1.
+     Until 2026-07-28 this was hardcoded to ``ARLogitFuse()`` (unweighted arithmetic
+     mean), which silently discarded all three on the AR path.
   4. ``tie_group_fuse`` — always wired as ``TieGroupProductOfExperts()`` (log-softmax sum
      across tied positions).
   5. ``decode_step`` and ``sample_step`` — for ``sampling_strategy="straight_through"``,
@@ -917,8 +920,15 @@ def make_inference_plan(
   strategy_name = sampling_config.multi_state_strategy or "arithmetic_mean"
   strategy_temp = sampling_config.multi_state_temperature or 1.0
   state_weights = sampling_config.state_weights
+  # No `or` fallback: sharpness=None means "use S", a real value, not a missing one.
+  sharpness = getattr(sampling_config, "multi_state_sharpness", 1.0)
 
-  stage_set = make_stage_set(strategy_name, strategy_temp, state_weights)
+  stage_set = make_stage_set(
+    strategy_name,
+    strategy_temp,
+    state_weights,
+    sharpness=sharpness,
+  )
 
   # Wire encoding fusion for averaged mode
   if getattr(spec, "average_node_features", False):

@@ -3,20 +3,47 @@ title = "ProteinEBM Langevin Sampler Throughput/Latency Benchmark (JAX vs PyTorc
 created = "260710"
 schema_version = "0.3"
 
-[benchmark]
-# No PyTorch baseline run has been recorded in the bathos catalog yet -- this
-# script has only been run locally (CPU, --smoke/--dry-run L1/L2 gates), not
-# via `bth run` against the real checkpoint, so there is no run_uuid to pin.
-# Set this to the run_uuid of the first `bth run` invocation of this script
-# against the real ProteinEBM checkpoint (impl="pytorch" rows) -- see
-# langevin_benchmark.py's --checkpoint/--reference-repo flags.
-baseline_ref = "TODO: set after first PyTorch baseline bth run (see langevin_benchmark.py module docstring)"
-metric = "langevin_steps_per_sec"
-regression_threshold = 0.05
-regression_threshold_basis = "Matches the sibling E11a/E11b/E11c sidecars' own convention (5%); no prior aminx Langevin-sampler benchmark run exists yet to derive an empirical noise floor from."
-target = "JAX >= PyTorch throughput on pi_so3 (SM120) at L in {64,128,256,512} (design spec §8.3; EPIC DAG §4.3), single fixed noise level t, use_metropolis=False"
+[experiment]
+hypothesis = """
+JAX (aminx.ebm.langevin.langevin_step / run_langevin_equilibration) throughput
+(langevin_steps_per_sec) is >= PyTorch throughput on pi_so3 (SM120) at protein length L in
+{64,128,256,512}, single fixed noise level t, use_metropolis=False -- the sidecar's original
+[benchmark] target, carried over verbatim (design spec §8.3; EPIC DAG §4.3).
+metric = langevin_steps_per_sec; regression_threshold = 0.05 (matches the sibling
+E11a/E11b/E11c sidecars' own convention; no prior aminx Langevin-sampler benchmark run exists
+yet to derive an empirical noise floor from).
+"""
+reasoning = """
+This sidecar gates SINGLE-RUN VALIDITY ONLY, not the cross-run JAX-vs-PyTorch comparison the
+hypothesis states (matches the sibling convention in
+scripts/benchmarks/benchmark_joint_asr_scorer_device.bth.toml and decoy_benchmark.bth.toml). No
+PyTorch baseline run has ever been recorded in the bathos catalog yet -- baseline_ref is still
+the original placeholder "TODO: set after first PyTorch baseline bth run".
+
+STRUCTURAL NOTE: langevin_benchmark.py's `_write_payload` writes `{"meta": {...}, "results":
+[...]}` -- both top-level keys are nested. bathos's evaluate_outcome() therefore sees
+`meta`/`results` as inert JSON-text columns (bathos/src/bathos/sidecar.py's _sql_literal).
+DuckDB's json_extract_string() reads a scalar back out; verified against this exact bathos
+version (0.12.0) before relying on it here, per BATHOS.md's measurement-verification discipline.
+"""
+
+[outcomes.measurement_valid]
+condition = "CAST(json_extract_string(meta, '$.smoke') AS BOOLEAN) = false"
+decision = "Valid real-scale timing measurement (not --smoke). Record per-(length, impl) langevin_steps_per_sec/langevin_step_ms rows from `results` for the cross-run JAX-vs-PyTorch comparison -- a separate reanalysis once a PyTorch baseline run exists."
+reasoning = "meta.smoke=false confirms this is a real-scale run against the ported checkpoint, not the tiny random-init --smoke architecture."
+is_residual = false
+
+[outcomes.smoke_or_unparseable]
+condition = "1 = 1"
+decision = "Either a --smoke run (expected, local L1/L2 validation only -- do NOT use for the JAX-vs-PyTorch throughput comparison) or a run whose meta.smoke could not be parsed as a boolean (investigate before trusting the number)."
+reasoning = "Residual catch-all per bathos v2 discipline -- exactly one outcome must be is_residual=true."
+is_residual = true
 
 [result_schema]
+meta = "str"    # JSON-encoded object; see [experiment].reasoning for the json_extract_string pattern used above
+results = "str" # JSON-encoded array of per-(length, impl) row dicts (or impl="error" rows if a cell raised); not individually addressable by an outcome condition
+
+# Documentation only, below -- the shape of each element inside the `results` JSON array above.
 langevin_steps_per_sec = "float"
 langevin_step_ms = "float"
 langevin_step_ms_std = "float"

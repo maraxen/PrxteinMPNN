@@ -1,11 +1,48 @@
-[metadata]
-run_id = "poe_energy_sanity_v1"
-script = "scripts/validate/poe_energy_sanity.py"
-description = "Sanity check for PoE (Product of Experts) energy computation invariants"
+[experiment]
+hypothesis = """
+identity_backbone: PoeModel with two identical backbones sums energies correctly --
+joint_energy([p, p]) approx 2*single_energy(p) within +/-1e-5.
+x2_scale_factor: doubling h and J linearly scales energy -- energy(2*h, 2*J) approx
+2*energy(h, J) within +/-1e-6.
 
-[hypotheses]
-identity_backbone = "PoeModel with two identical backbones should sum energies correctly: joint_energy([p, p]) ≈ 2*single_energy(p) within ±1e-5"
-x2_scale_factor = "Doubling h and J should linearly scale energy: energy(2*h, 2*J) ≈ 2*energy(h, J) within ±1e-6"
+Both hypotheses and both tolerances (1e-5, 1e-6) are carried over verbatim from this sidecar's
+original [hypotheses] block; they are exactly what poe_energy_sanity.py's ASSERTION 1 and
+ASSERTION 2 blocks compute (tol_1 = 1e-5, tol_2 = 1e-6 in source).
+"""
+
+[outcomes.recorded]
+condition = "1 = 1"
+decision = "Record the run only; do not attempt to grade it against the identity-backbone or x2-scale-factor invariants."
+reasoning = """
+No discriminable pass/fail condition found in source; catch-all only -- NOT because the script
+lacks real verdict logic (it has genuine, well-tolerance-anchored assertions: assertion_1_pass =
+diff_1 < 1e-5, assertion_2_pass = diff_2 < 1e-6, both logged and folded into the process exit
+code), but because that verdict is structurally unreachable by bathos's outcome evaluator as
+currently wired:
+
+1. The script NEVER writes a result JSON. --out's own help text says "Output file path (not
+   used in this version)" and defaults to /dev/null; there is no json.dump/write_text call
+   anywhere in poe_energy_sanity.py. Nothing is ever written to BTH_RESULTS_PATH either.
+2. bathos's runner applies an exit-code guard BEFORE consulting the sidecar at all: if
+   exit_code != 0 the run's outcome is hardcoded to "error", bypassing evaluate_outcome()
+   entirely (bathos/src/bathos/runner.py, ~line 490). Since this script returns exit 1 on
+   ANY assertion failure or NotImplementedError, an [outcomes.fail] condition here would never
+   fire -- exit 1 short-circuits straight to "error" first.
+3. On the success path (exit 0, both assertions pass, or --dry-run), evaluate_outcome() reads
+   an empty {} (no JSON was ever emitted) and evaluate_outcome() returns "unknown" whenever
+   `result` is falsy (bathos/src/bathos/sidecar.py: `if not sidecar.outcomes or not result:
+   return "unknown"`), regardless of what [outcomes.*] conditions are declared here.
+
+Net effect: no [outcomes.*] condition in this sidecar can currently be reached in practice --
+grading will always resolve to "error" (any failure) or "unknown" (dry-run or a real pass),
+never a sidecar-declared label. This is a genuine gap in the SCRIPT (missing JSON emission), not
+something a sidecar rewrite alone can fix -- flagging it here rather than writing conditions
+that would silently never fire. Recommend a follow-up: have main()'s success path write
+{"assertion_1_pass": ..., "diff_1": ..., "assertion_2_pass": ..., "diff_2": ...} to args.out (or
+BTH_RESULTS_PATH) so a future sidecar pass can wire real [outcomes.pass]/[outcomes.fail]
+conditions against it.
+"""
+is_residual = true
 
 [command]
 # Default dry-run validates args and imports only
@@ -19,8 +56,14 @@ full = "uv run python scripts/validate/poe_energy_sanity.py --n-residues 6 --num
 1 = "One or more assertions failed, or NotImplementedError (model not yet complete)"
 
 [tags]
-- "potts-model"
-- "poe-energy"
-- "sanity-check"
-- "alphabet-validation"
-- "scale-factor"
+values = ["potts-model", "poe-energy", "sanity-check", "alphabet-validation", "scale-factor"]
+
+# NOT a live [result_schema] -- deliberately renamed so bathos's validator does not demand an
+# outcome condition reference these fields; the script computes diff_1/diff_2/assertion_*_pass
+# internally but never writes them to JSON (see reasoning above), so no condition can reach
+# them today. Documents the fields a follow-up script fix should emit.
+[would_be_result_schema_once_script_emits_json]
+diff_1 = "float"
+diff_2 = "float"
+assertion_1_pass = "bool"
+assertion_2_pass = "bool"

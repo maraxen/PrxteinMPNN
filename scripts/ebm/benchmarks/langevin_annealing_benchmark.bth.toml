@@ -3,13 +3,48 @@ title = "ProteinEBM outer Langevin annealing (model-swap) + E10 structure-predic
 created = "260716"
 schema_version = "0.3"
 
-[benchmark]
-baseline_ref = "<pytorch-proteinebm-run-id>"  # fill in once an L3 cluster run is recorded
-metric = "outer_annealing_jax_ms_mean"
-regression_threshold = 0.05
-target = "JAX outer annealing + E10 pipeline throughput measured for the first time -- closes the gap flagged in langevin_benchmark.py's own module docstring (inner sampler only, outer loop + E10 never benchmarked)"
+[experiment]
+hypothesis = """
+JAX outer annealing + E10 pipeline throughput measured for the first time -- closes the gap
+flagged in langevin_benchmark.py's own module docstring (inner sampler only, outer loop + E10
+never benchmarked). The sidecar's original [benchmark] target, carried over verbatim.
+metric = outer_annealing_jax_ms_mean; regression_threshold = 0.05.
+"""
+reasoning = """
+This sidecar gates SINGLE-RUN VALIDITY ONLY, not a JAX-vs-PyTorch or a real-vs-stand-in-checkpoint
+verdict (matches the sibling convention in
+scripts/benchmarks/benchmark_joint_asr_scorer_device.bth.toml). No baseline_ref has ever been
+recorded -- still the original placeholder "<pytorch-proteinebm-run-id>  # fill in once an L3
+cluster run is recorded". Separately, this file's own [notes] discloses a load-bearing
+methodology caveat that ANY reading of outer_annealing_speedup must carry forward: only one real
+checkpoint exists in this environment, so both model-swap branches use the SAME ported model --
+this measures the lax.cond/lax.switch dispatch overhead, not a genuine cross-checkpoint cost
+difference.
+
+STRUCTURAL NOTE: langevin_annealing_benchmark.py's `_write_payload` writes `{"meta": {...},
+"results": [...]}` -- both top-level keys are nested. bathos's evaluate_outcome() therefore sees
+`meta`/`results` as inert JSON-text columns (bathos/src/bathos/sidecar.py's _sql_literal).
+DuckDB's json_extract_string() reads a scalar back out; verified against this exact bathos
+version (0.12.0) before relying on it here, per BATHOS.md's measurement-verification discipline.
+"""
+
+[outcomes.measurement_valid]
+condition = "CAST(json_extract_string(meta, '$.smoke') AS BOOLEAN) = false"
+decision = "Valid real-scale measurement (not --smoke) of the outer annealing schedule + E10 pipeline. Record per-length outer_annealing_jax_ms_mean/e10_pipeline_ms from `results` -- read outer_annealing_speedup ONLY alongside the model-swap stand-in caveat in [notes]."
+reasoning = "meta.smoke=false confirms this is a real-scale run against the ported checkpoint, not the reduced-lengths --smoke composition."
+is_residual = false
+
+[outcomes.smoke_or_unparseable]
+condition = "1 = 1"
+decision = "Either a --smoke run (expected, local L1/L2 validation only) or a run whose meta.smoke could not be parsed as a boolean (investigate before trusting the number)."
+reasoning = "Residual catch-all per bathos v2 discipline -- exactly one outcome must be is_residual=true."
+is_residual = true
 
 [result_schema]
+meta = "str"    # JSON-encoded object; see [experiment].reasoning for the json_extract_string pattern used above
+results = "str" # JSON-encoded array of per-length row dicts; not individually addressable by an outcome condition
+
+# Documentation only, below -- the shape of each element inside the `results` JSON array above.
 protein_length = "int"
 outer_annealing_jax_ms_mean = "float"
 outer_annealing_jax_ms_std = "float"

@@ -3,13 +3,49 @@ title = "ProteinEBM heterogeneous-length batch: JAX bucket+pad+tile vs PyTorch d
 created = "260716"
 schema_version = "0.3"
 
-[benchmark]
-baseline_ref = "<pytorch-proteinebm-run-id>"  # fill in once an L3 cluster run is recorded
-metric = "wall_clock_mean_ms"
-regression_threshold = 0.05
-target = "jax_bucket_pad_tile wall-clock <= pytorch_pad_to_batch_max on a realistic mixed-length batch (new comparison, no prior E11x target)"
+[experiment]
+hypothesis = """
+jax_bucket_pad_tile wall-clock <= pytorch_pad_to_batch_max on a realistic mixed-length batch
+(the sidecar's original [benchmark] target, carried over verbatim -- a new comparison, no prior
+E11x target to anchor against). metric = wall_clock_mean_ms; regression_threshold = 0.05.
+"""
+reasoning = """
+This sidecar gates SINGLE-RUN VALIDITY ONLY, not the three-way strategy comparison the
+hypothesis states (matches the sibling convention in
+scripts/benchmarks/benchmark_joint_asr_scorer_device.bth.toml). No PyTorch/JAX baseline_ref has
+ever been recorded here either -- still the original placeholder
+"<pytorch-proteinebm-run-id>  # fill in once an L3 cluster run is recorded". The one existing
+finding in this file's own [notes] (smoke-scale local CPU, 2026-07-16: jax_bucket_pad_tile
+270ms vs pytorch_pad_to_batch_max 1252ms vs pytorch_per_structure_loop 314ms) is itself a
+--smoke measurement and is explicitly NOT the real GPU/production-scale comparison this
+target is about.
+
+STRUCTURAL NOTE: heterogeneous_batch_benchmark.py's orchestrating invocation (no --strategy
+flag) writes `{"meta": {...}, "results": [...]}` -- BOTH top-level keys are nested (dict and
+list respectively; `meta` here has NO wall_clock_seconds field, unlike the sibling decoy/langevin
+benchmarks). bathos's evaluate_outcome() therefore sees `meta`/`results` as inert JSON-text
+columns (bathos/src/bathos/sidecar.py's _sql_literal). DuckDB's json_extract_string() reads a
+scalar back out; verified against this exact bathos version (0.12.0) before relying on it here,
+per BATHOS.md's measurement-verification discipline.
+"""
+
+[outcomes.measurement_valid]
+condition = "CAST(json_extract_string(meta, '$.smoke') AS BOOLEAN) = false"
+decision = "Valid real-scale mixed-length-batch measurement (not --smoke). Record each strategy's wall_clock_mean_ms / padding_overhead_ratio from `results` for the cross-run/cross-strategy comparison -- a separate reanalysis, since a crashed strategy ('error' instead of 'wall_clock_mean_ms', per this file's own notes) needs to be excluded by hand, not by a scalar condition."
+reasoning = "meta.smoke=false confirms this is a real-scale run, not the reduced (n_structures<=6, n_repeats<=2) --smoke composition."
+is_residual = false
+
+[outcomes.smoke_or_unparseable]
+condition = "1 = 1"
+decision = "Either a --smoke run (expected, local L1/L2 validation only -- the 270ms/1252ms/314ms finding in [notes] came from exactly this path and must not be cited as the real GPU-scale comparison) or a run whose meta.smoke could not be parsed as a boolean (investigate before trusting the number)."
+reasoning = "Residual catch-all per bathos v2 discipline -- exactly one outcome must be is_residual=true."
+is_residual = true
 
 [result_schema]
+meta = "str"    # JSON-encoded object; see [experiment].reasoning for the json_extract_string pattern used above
+results = "str" # JSON-encoded array of per-strategy row dicts (or {"strategy":..., "error":...} if that strategy's subprocess crashed); not individually addressable by an outcome condition
+
+# Documentation only, below -- the shape of each element inside the `results` JSON array above.
 strategy = "str"  # "jax_bucket_pad_tile" | "pytorch_pad_to_batch_max" | "pytorch_per_structure_loop"
 wall_clock_mean_ms = "float"
 wall_clock_std_ms = "float"

@@ -3,20 +3,54 @@ title = "ProteinEBM Decoy-Ranking Throughput/Latency Benchmark (JAX vs PyTorch)"
 created = "260709"
 schema_version = "0.3"
 
-[benchmark]
-# No PyTorch baseline run has been recorded in the bathos catalog yet -- this
-# script has only been run locally (CPU, --smoke/--dry-run L1/L2 gates), not
-# via `bth run` against the real checkpoint, so there is no run_uuid to pin.
-# Set this to the run_uuid of the first `bth run` invocation of this script
-# against the real ProteinEBM checkpoint (impl="pytorch" rows) -- see
-# decoy_benchmark.py's --checkpoint/--reference-repo flags.
-baseline_ref = "TODO: set after first PyTorch baseline bth run (see decoy_benchmark.py module docstring)"
-metric = "energy_evals_per_sec"
-regression_threshold = 0.05
-regression_threshold_basis = "Matches the EPIC design spec §8.3's own benchmark.bth.toml template value; no prior aminx EBM benchmark run exists yet to derive an empirical noise floor from, so 5% is the standing aminx-wide bathos benchmark convention (same value used by scripts/benchmarks/*.bth.toml) pending a real baseline run's variance estimate."
-target = "JAX >= PyTorch throughput on pi_so3 (SM120) at L in {64,128,256,512} (design spec §8.3; EPIC DAG §4.3)"
+[experiment]
+hypothesis = """
+JAX (aminx.ebm.dispatch.score_decoy_batch) throughput (energy_evals_per_sec) is >= PyTorch
+throughput on pi_so3 (SM120) at protein length L in {64,128,256,512}, per design spec §8.3 /
+EPIC DAG §4.3 -- the sidecar's original [benchmark] target, carried over verbatim. metric =
+energy_evals_per_sec; regression_threshold = 0.05 (matches the EPIC design spec §8.3's own
+benchmark.bth.toml template value, disclosed there as a convention pending a real baseline's
+variance estimate, not an externally published number).
+"""
+reasoning = """
+This sidecar gates SINGLE-RUN VALIDITY ONLY, not the cross-run JAX-vs-PyTorch comparison the
+hypothesis above states (matches the established sibling convention in
+scripts/benchmarks/benchmark_joint_asr_scorer_device.bth.toml -- a single run's own sidecar
+cannot express "compared to that OTHER run" as a DuckDB condition over its own result_schema,
+and no PyTorch baseline run has ever been recorded in the bathos catalog yet: baseline_ref is
+still the original placeholder "TODO: set after first PyTorch baseline bth run"). The real
+JAX-vs-PyTorch verdict is a separate reanalysis step once both impl="jax" and impl="pytorch"
+rows exist across runs.
+
+STRUCTURAL NOTE on why the condition below uses json_extract_string rather than a plain column
+reference: decoy_benchmark.py's `_write` (main()) writes `{"meta": {...}, "results": [...]}` --
+both top-level keys are nested (a dict and a list), so bathos's evaluate_outcome() encodes each
+as an inert JSON-text column rather than a scalar (bathos/src/bathos/sidecar.py's _sql_literal,
+by explicit design comment). DuckDB's json_extract_string() reads a scalar back out of that text
+column; verified against this exact bathos version (0.12.0) before relying on it here, per
+BATHOS.md's measurement-verification discipline -- CAST(json_extract_string(meta, '$.smoke') AS
+BOOLEAN) = false round-tripped correctly against a synthetic {"smoke": false, ...} payload.
+"""
+
+[outcomes.measurement_valid]
+condition = "CAST(json_extract_string(meta, '$.smoke') AS BOOLEAN) = false"
+decision = "Valid real-scale timing measurement (not --smoke). Record per-(length, impl, variant) rows from `results` for the cross-run JAX-vs-PyTorch comparison -- a separate reanalysis once a PyTorch baseline run exists."
+reasoning = "meta.smoke=false confirms this is a real-scale run against the ported checkpoint, not the tiny random-init --smoke architecture (see module docstring: --smoke does not exercise the real E3.5-ported weights)."
+is_residual = false
+
+[outcomes.smoke_or_unparseable]
+condition = "1 = 1"
+decision = "Either a --smoke run (expected, local L1/L2 validation only -- do NOT use for the JAX-vs-PyTorch throughput comparison) or a run whose meta.smoke could not be parsed as a boolean (investigate before trusting the number)."
+reasoning = "Residual catch-all per bathos v2 discipline -- exactly one outcome must be is_residual=true. Smoke runs are the expected common case reaching this label, not an error condition, but must never be read as a real-scale timing result."
+is_residual = true
 
 [result_schema]
+meta = "str"    # JSON-encoded object; see [experiment].reasoning for the json_extract_string pattern used above
+results = "str" # JSON-encoded array of per-(length, impl[, variant]) row dicts; not individually addressable by an outcome condition (see reasoning)
+
+# Documentation only, below -- the shape of each element inside the `results` JSON array above,
+# NOT top-level/queryable columns (bathos's evaluate_outcome only sees `meta`/`results` as
+# declared above). Kept for readers inspecting a run's output JSON by hand.
 energy_evals_per_sec = "float"
 score_grad_ms = "float"
 protein_length = "int"

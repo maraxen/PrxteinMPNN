@@ -2,15 +2,41 @@
 # Tracks caliby checkpoint recapture from training data
 # See /using-bathos skill for full sidecar schema
 
-[run]
-run_id = "260605_caliby-recapture"
-script = "scripts/recapture/caliby_recapture.py"
-description = "Recapture learned caliby corrections (marginal post-hoc bias terms) from calibration dataset. Output: caliby_<id>.eqx.zst sidecar checkpoint."
+[experiment]
+hypothesis = """
+h1: TRW marginals exhibit systematic bias away from the native sequence distribution; a learned
+correction (LearnedCalibration module) reduces this bias.
+h2: Caliby correction is independent of Potts backbone weights; it can be updated without
+retraining PottsModel.
+h3: IdentityCalibration (caliby_path=None) is a safe default for initial integration;
+LearnedCalibration is an optional enhancement.
 
-[hypotheses]
-h1 = "TRW marginals exhibit systematic bias away from native sequence distribution; learned correction (LearnedCalibration module) reduces this bias."
-h2 = "Caliby correction is independent of Potts backbone weights; can be updated without retraining PottsModel."
-h3 = "IdentityCalibration (caliby_path=None) is safe default for initial integration; LearnedCalibration optional enhancement."
+These three hypotheses are carried over verbatim from this sidecar's original [hypotheses]
+block (260605) -- none is testable yet (see reasoning).
+"""
+
+[outcomes.recorded]
+condition = "1 = 1"
+decision = "Record the run only; do not attempt to grade it against h1/h2/h3."
+reasoning = """
+No discriminable pass/fail condition found in source; catch-all only. caliby_recapture.py's
+`main()` is a scaffold, not an implementation: --dry-run only validates that --dataset-path,
+--potts-model, and --out are well-formed paths and exits 0; any non-dry-run invocation
+unconditionally raises NotImplementedError ("Caliby recapture training pipeline not
+implemented. Awaiting calibration dataset availability and format specification.") before any
+of h1/h2/h3 is ever exercised. The script also never writes a result JSON to --out (that flag
+names the eqx.zst checkpoint output path, not a metrics file) or to BTH_RESULTS_PATH, so even a
+successful --dry-run leaves bathos's outcome evaluator with an empty result dict.
+
+This matches the original sidecar's own honest [metadata] disclosure verbatim: status =
+"scaffolded", notes = "Full implementation deferred pending mistypotts caliby dataset
+specification and availability." Nothing about that status has changed as of this restructuring
+pass -- see .praxia/docs/research/260605_caliby-nature-and-dataset.md for the still-open
+dataset-availability blocker. A catch-all is the honest representation of a script that
+structurally cannot produce a graded outcome yet, not an oversight to be argued around with an
+invented condition.
+"""
+is_residual = true
 
 [gates]
 l1_dry_run = "uv run python scripts/recapture/caliby_recapture.py --dry-run --out /dev/null"
@@ -24,3 +50,6 @@ phase = "P-02: caliby corrections"
 created_date = "2026-06-05"
 status = "scaffolded"
 notes = "Full implementation deferred pending mistypotts caliby dataset specification and availability. See .praxia/docs/research/260605_caliby-nature-and-dataset.md for investigation findings."
+
+# No [result_schema] -- the script never emits a result JSON at all (see reasoning above), and
+# the original sidecar declared none either.

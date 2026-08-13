@@ -25,6 +25,7 @@ from aminx.inference.bundle_builder import build_inference_bundle
 from aminx.inference.decode.autoregressive import AutoregressiveDecode
 from aminx.inference.encode import make_encode_fn
 from aminx.inference.logits import make_stage_set
+from aminx.inference.schedule_selector import build_wave_schedule_per_sample
 from aminx.model import Aminx
 from aminx.tiling.iterator import VmapIterator, SafeMapIterator, JaxScanIterator
 from xtrax.tiling import CarryShape
@@ -570,6 +571,78 @@ def test_ar_decode_state_position_map_changes_fused_logits() -> None:
     assert not jnp.allclose(permuted_result.logits, baseline_result.logits), (
         "state_position_map must actually change AutoregressiveDecode's fused logits"
     )
+
+
+def test_coloring_arm_via_per_sample_builder_decodes_every_position():
+    """A coloring arm routed through the documented host-side path decodes ALL group slots.
+
+    This pins, end to end, the composition that `build_inference_bundle`'s missing-key
+    error message recommends:
+
+        build_wave_schedule_per_sample(...)   # host-side, stacked on a sample axis
+          -> slice one sample
+          -> build_inference_bundle(wave=...) # bypasses `schedule` entirely
+          -> AutoregressiveDecode
+
+    It exists because two module docstrings claimed, until 2026-08-11, that
+    `AutoregressiveDecode.__call__` "only decodes group slot 0 of each wave", so that
+    "positions in slots 1..G-1 are silently never sampled". That was in fact fixed in
+    85d8c480 (2026-06-30) and the docstrings were simply never updated -- but the stale
+    claim was load-bearing enough to get a blocker filed against it. Asserting the real
+    behavior here means the claim cannot be re-derived from prose alone.
+    """
+    num_residues = 12
+    num_samples = 3
+    model, _, _ = _build_scheduled_fixture(
+        num_residues=num_residues,
+        seed=50,
+        schedule="fixed_n_to_c",
+    )
+
+    rng = np.random.default_rng(50)
+    coordinates = jnp.array(rng.normal(size=(num_residues, 4, 3)).astype(np.float32))
+    mask = jnp.ones((num_residues,), dtype=jnp.float32)
+    tie_group_map = jnp.arange(num_residues, dtype=jnp.int32)
+
+    stacked = build_wave_schedule_per_sample(
+        "chromatic",
+        key=jax.random.PRNGKey(1),
+        num_samples=num_samples,
+        tie_group_map=tie_group_map,
+        coords=coordinates,
+        mask=mask,
+        k_neighbors=4,
+    )
+    assert stacked.group_ids.shape[0] == num_samples, "builder must return a leading sample axis"
+    max_groups_per_wave = stacked.group_ids.shape[2]
+    assert max_groups_per_wave > 1, (
+        "fixture must actually produce multi-group waves, or this test proves nothing "
+        f"about slots 1..G-1 (got G={max_groups_per_wave})"
+    )
+
+    for sample_index in range(num_samples):
+        wave = jax.tree.map(lambda leaf, i=sample_index: leaf[i], stacked)
+        bundle, config = build_inference_bundle(
+            coords=coordinates,
+            mask=mask,
+            residue_index=jnp.arange(num_residues, dtype=jnp.int32),
+            chain_index=jnp.zeros((num_residues,), dtype=jnp.int32),
+            state_weights=jnp.ones(1),
+            sequence=None,
+            mode="sample_autoregressive",
+            tie_group_map=tie_group_map,
+            wave=wave,
+        )
+        result = _run_ar_decode(model, bundle, config, jax.random.PRNGKey(999))
+
+        assert result.sequence.shape == (num_residues,)
+        # A position dropped because its group sat in slot >0 would leave an
+        # identically-zero logits row -- the exact signature of the alleged bug.
+        logits_row_norms = jnp.sum(jnp.abs(result.logits), axis=-1)
+        assert bool(jnp.all(logits_row_norms > 0)), (
+            f"sample {sample_index}: positions with all-zero logits (never decoded): "
+            f"{np.flatnonzero(np.asarray(logits_row_norms) == 0).tolist()}"
+        )
 
 
 def test_autoregressive_with_tied_positions_s4():

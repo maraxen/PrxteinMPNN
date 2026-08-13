@@ -5,7 +5,12 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from aminx.inference.schedule_selector import DecodingSchedule, build_wave_schedule
+from aminx.inference.schedule_selector import (
+  DecodingSchedule,
+  build_wave_schedule,
+  schedule_consumes_key,
+  schedule_key_policy,
+)
 from aminx.tiling.bucketing import BucketingConfig, select_bucket
 from aminx.tiling.pad import pad_bundle
 from aminx.types.bundles import (
@@ -178,7 +183,28 @@ def build_inference_bundle(
   elif schedule == "fixed_n_to_c":
     wave = WaveScheduleBundle.empty(seq_len)
   else:
-    resolved_schedule_key = schedule_key if schedule_key is not None else jax.random.PRNGKey(0)
+    # A missing key for a key-consuming arm is an ERROR, not a default.
+    #
+    # This used to be `schedule_key if schedule_key is not None else jax.random.PRNGKey(0)`.
+    # Since no caller ever passed `schedule_key`, every randomized schedule in the package
+    # was built from that one constant -- which made `random_ar` and `frozen_random_sigma`
+    # produce byte-identical schedules, silently collapsing the two arms whose difference is
+    # the entire measurement. Inventing a key is exactly the kind of helpful default that
+    # turns a wiring bug into a research null, so it now fails loudly instead. See
+    # `SCHEDULE_KEY_POLICY` in aminx.inference.schedule_selector for the per-arm discipline.
+    if schedule_key is None and schedule_consumes_key(schedule):
+      policy = schedule_key_policy(schedule)
+      msg = (
+        f"schedule={schedule!r} consumes a PRNG key (policy={policy!r}) but schedule_key is "
+        f"None. Refusing to substitute a constant key: that would make this arm "
+        f"indistinguishable from 'frozen_random_sigma' and silently invalidate any "
+        f"schedule-variance comparison. Pass schedule_key explicitly. For policy="
+        f"'per_sample' arms, prefer building the sample-axis-stacked schedule host-side "
+        f"with aminx.inference.schedule_selector.build_wave_schedule_per_sample and "
+        f"passing it as `wave`, since this builder cannot vary the key under vmap."
+      )
+      raise ValueError(msg)
+    resolved_schedule_key = schedule_key
     if schedule in ("chromatic", "improper_coloring"):
       lig_coords_flat = ligand_coords[0].reshape(-1, 3) if ligand_coords is not None else None
       lig_mask_flat = ligand_mask[0].reshape(-1) if ligand_mask is not None else None

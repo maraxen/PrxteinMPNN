@@ -256,7 +256,7 @@ dev = [
     # Phase 0 alphabet conformance (decision D4). DEV GROUP ONLY -- nothing under src/
     # imports this, so no runtime dependency edge is created.
     # See tests/test_alphabet_conformance.py.
-    "alphex",
+    "alphex>=0.1.0a1",
     "torch>=2.12.0",
     "pytest>=8.0.0",
     "pytest-xdist>=3.5.0",
@@ -295,7 +295,6 @@ explicit = true
 # editable = true }) -- see .gitignore.
 # Resolve proxide from PyPI (not sibling-folder discovery) when ../proxide exists.
 proxide = { index = "pypi" }
-# Local path until the alphabet package is renamed and published.
-alphex = { path = "/home/marielle/projects/alphex", editable = true }
+# alphex: PyPI (https://pypi.org/project/alphex/) -- no source override needed.
 # PyPI serves the CUDA-enabled wheel on Linux and CPU wheel on macOS — correct for both envs.
 torch = { index = "pypi" }

@@ -147,14 +147,35 @@ regression — it does not; the difference is inside the noise.*
 across cases) instead of `max()`; raise per-case work so timings are not microseconds; and/or
 repeat-and-aggregate within the script. Until then, treat only the parity legs as load-bearing.
 
-### 3.3 Incidental finding: `bth run` silently does not record in aminx
+### 3.3 Incidental finding: `bth ls` and `bth find` do not surface runs that exist
 
-Two `bth run` invocations today executed the script (result JSON written) and exited 0, but
-created **no catalog entry** — before and after `bth compact`, the newest aminx run remains
-2026-07-26. `.bth.toml` has `slug = "aminx"`. No warning is emitted. This is the same
-silent-false-negative class the project's own rules flag for `rig-run`: an unqualified exit 0 from
-`bth run` here does not mean the run was tracked. The 260817 gate numbers above therefore live
-only in `outputs/results/xtrax_vs_aminx_tiling_260817.json` and this document.
+**CORRECTED 260817 (same day).** This section first claimed `bth run` records nothing in aminx.
+That was wrong, and the error is instructive: it was inferred from `bth ls` alone.
+
+What is actually true — the write path is fine, the read path is not:
+
+```
+bth sql "SELECT ... FROM runs WHERE project_slug='aminx' ORDER BY timestamp DESC"
+  -> 2026-08-17 15:22:40+00:00  completed  outcome=fail   <-- the run IS there (22 aminx rows)
+
+bth ls   --project aminx --limit 40   -> 0 rows from 2026-08; newest shown is 2026-07-26
+bth find --filter "project_slug='aminx'"  -> does not return it either
+```
+
+So `bth run` recorded the run correctly. `bth ls` and `bth find` both fail to surface it while
+`bth sql` against the same `bathos.db` sees it — a read-path defect, present before and after
+`bth compact`.
+
+This is worse than the original mistaken diagnosis rather than better. `bth ls` is the
+human-facing "did my run get tracked?" check, and it answered *no* when the truth was *yes*. Any
+agent or human using it to confirm tracking gets a false negative, which is how a standing gate
+quietly stops being registered. **Not yet filed** as bathos debt and not fixable from this repo —
+it belongs against bathos, whose read path (`ls`/`find` vs `sql`) is where the divergence lives.
+
+**Second-order problem this exposes:** the catalog now holds `outcome=fail` for a `gate:T2.GATE`
+run whose `fail` verdict is pure noise (§3.2). A future reader querying gate history sees a failed
+gate. That verdict needs annotating, not deleting — the run happened, its threshold comparison is
+just not meaningful at this bench's resolution.
 
 ---
 
@@ -232,8 +253,10 @@ aminx imports from 6 of xtrax's 15 subpackages.
 
 ## Provenance
 
-- Gate re-run output: `outputs/results/xtrax_vs_aminx_tiling_260817.json` (not in the bathos
-  catalog — see §3.3).
+- Gate re-run output: `outputs/results/xtrax_vs_aminx_tiling_260817.json`, and the tracked run
+  **is** in the bathos catalog at `2026-08-17 15:22:40+00:00` (reachable via `bth sql`, though not
+  via `bth ls`/`bth find` — §3.3). Its recorded `outcome=fail` is a noise artifact, annotated by
+  postmortem rather than removed.
 - Commits from this pass: `c7a96c6e` (heterogeneous-axes reconciliation), `9af689e5` (UP037),
   `90027c96` (import hygiene).
 - Prior art relied on and re-verified: `260707_xtrax-migration-gap-audit-runspec-scaffolding.md`,

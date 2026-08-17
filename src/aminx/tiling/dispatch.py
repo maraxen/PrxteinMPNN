@@ -42,6 +42,22 @@ class DispatchRejected(TilingError):
   """
 
 
+# Axis names treated as heterogeneous (variable per-element shape), and therefore
+# invalid under Scan. Read by BOTH dispatch paths -- `make_axis_dispatch` below and
+# `make_axis_dispatch_via_xtrax`, which forwards it to xtrax as `heterogeneous_axes`
+# -- so the two cannot disagree about which axes are heterogeneous. It previously
+# sat below `make_axis_dispatch`, which hardcoded a literal `axis == "state"` check
+# and never read it; adding an axis here would have started rejecting on the xtrax
+# path only, which is exactly the silent divergence the T2.GATE parity suite exists
+# to catch. Add new heterogeneous axes here and both paths follow.
+#
+# Deliberately NOT shared with host/plan.py's _HETEROGENEOUS_AXIS_NAMES
+# ({"n_states", "n_structures"}), which names axes in the BatchPlanner/CarrySpec
+# context and has never been shown to mean the same thing as this one. (That
+# constant used to live in tiling/carry.py, which no longer exists.)
+_DISPATCH_HETEROGENEOUS_AXES = frozenset({"state"})
+
+
 def make_axis_dispatch(strategy: AxisStrategy, *, axis: str = "state") -> object:
   """Dispatch an AxisStrategy to a typed iterator.
 
@@ -88,15 +104,14 @@ def make_axis_dispatch(strategy: AxisStrategy, *, axis: str = "state") -> object
       "Use DedupGather via BatchPlanner + _dispatch_axis, not make_axis_dispatch.",
     )
 
-  # Reject Scan on heterogeneous axes (state is the canonical heterogeneous axis).
-  if isinstance(strategy, Scan):
-    if axis == "state":
-      raise DispatchRejected(
-        f"Cannot use Scan strategy on {axis} axis: {axis} axis contains "
-        "heterogeneous (variable-shape) state elements. Scan requires "
-        "static carry shape across all iterations.",
-      )
-    # For future non-state heterogeneous axes, add more checks here.
+  # Reject Scan on heterogeneous axes ("state" is currently the only one; see
+  # _DISPATCH_HETEROGENEOUS_AXES above, which the xtrax path reads too).
+  if isinstance(strategy, Scan) and axis in _DISPATCH_HETEROGENEOUS_AXES:
+    raise DispatchRejected(
+      f"Cannot use Scan strategy on {axis} axis: {axis} axis contains "
+      "heterogeneous (variable-shape) elements. Scan requires "
+      "static carry shape across all iterations.",
+    )
 
   # Dispatch by strategy type.
   if isinstance(strategy, Vmap):

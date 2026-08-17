@@ -124,6 +124,16 @@ select = ["ALL"]
 ignore = [
   "PD", "D203", "D213",
   "F722", # jaxtyping strings
+  # UP037 strips quotes from any annotation whose contents parse as a Python
+  # expression -- which silently destroys single-token jaxtyping shape specs:
+  # `Float[Array, "..."]` becomes `Float[Array, ...]` (Ellipsis, not the any-shape
+  # spec) and `Float[Array, "C"]` becomes a NameError waiting on the first
+  # get_type_hints() call. Multi-word specs ("S C", "... L V") survive only because
+  # they are not valid expressions, so the corruption is silent AND selective.
+  # `from __future__ import annotations` hides it further -- the module still
+  # imports, the shape contract just stops being one. Combined with `fix = true`
+  # above, a bare `ruff check` was rewriting source on every run.
+  "UP037", # quoted-annotation: see above, mangles jaxtyping shape specs
   "TRY003", # long exception messages
   "EM101", "EM102", # exception literals
   "TC002", "TC003", # move into type-checking block

@@ -31,11 +31,11 @@ from xtrax.run import (
 
 # campaign manifest functions are implemented in this module (see build_manifest_row et al.)
 from aminx.host.runner import sample
-from aminx.host.spec_partition import CAMPAIGN_OWNED_KEYS, campaign_sampling_spec_payload
+from aminx.host.spec_partition import campaign_sampling_spec_payload
 from aminx.run.spec_json import _coerce_field_value
 from aminx.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
-from aminx.sampling.multistate_poe import sample_multistate_poe_campaign_row
 from aminx.runtime import configure_multiprocessing
+from aminx.sampling.multistate_poe import sample_multistate_poe_campaign_row
 
 if TYPE_CHECKING:
   from aminx.types.host_protocols import DistributedLockBackend

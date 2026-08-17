@@ -119,8 +119,8 @@ implementation's carrying cost was being paid across two upgrades without the be
 | bit-for-bit golden (`test_t2_gate_bitforbit_golden.py`) | **6/6 pass** |
 | `all_decision_parity` | **true** (5/5 observations) |
 | `all_recompile_parity` | **true** (5/5 observations) |
-| `max_adapter_vs_legacy_throughput_ratio` | **unusable — see below** |
-| GPU / production-shape leg | **not run** — no CUDA jaxlib locally; needs cluster |
+| `max_adapter_vs_legacy_throughput_ratio` (CPU bench) | **unusable — see below** |
+| GPU / production-shape leg | **RUN 260817 — see §3.2.1; passes on 4 of 5 architectures** |
 
 The correctness legs revalidate cleanly on 0.4.0a5. The throughput leg does not, because it
 cannot:
@@ -146,6 +146,54 @@ regression — it does not; the difference is inside the noise.*
 **Fix before this gate is trusted again:** key on a robust statistic (median or geometric mean
 across cases) instead of `max()`; raise per-case work so timings are not microseconds; and/or
 repeat-and-aggregate within the script. Until then, treat only the parity legs as load-bearing.
+
+### 3.2.1 The GPU leg, run 260817 across five architectures
+
+The leg that actually speaks to T2.GATE's stated DoD (throughput on the production shape
+distribution, not CPU-synthetic toys) was run: `scripts/slurm/t2gate_gpu_sweep.slurm`, 3 repeats
+per architecture, `seq_len=208`, `--n-warmup 10 --n-timed 50`, against xtrax 0.4.0a5. Aggregated by
+`scripts/benchmarks/summarize_t2gate_sweep.py`; raw JSONs under `results/t2gate_<gpu>_rep<N>.json`;
+all 15 runs registered in the catalog via the bench's own `--replay` affordance.
+
+| GPU | arch | SM | reps | min | mean | max | spread | recompile parity | verdict |
+|---|---|---|---|---|---|---|---|---|---|
+| TITAN RTX | Turing | 75 | 3 | 1.0834 | **1.1184** | 1.1703 | 0.0869 | true | **straddles pass/marginal** |
+| A100 | Ampere | 80 | 3 | 1.0026 | 1.0061 | 1.0100 | 0.0073 | true | pass |
+| L40S | Ada | 89 | 3 | 0.9987 | 1.0143 | 1.0373 | 0.0386 | true | pass |
+| H100 | Hopper | 90 | 3 | 1.0034 | 1.0246 | 1.0609 | 0.0576 | true | pass |
+| H200 | Hopper | 90 | 3 | 0.9961 | 1.0197 | 1.0362 | 0.0401 | true | pass |
+
+**Three findings.**
+
+1. **`all_recompile_parity` is true on every architecture.** The correctness half of the gate — the
+   claim that the xtrax adapter does not change JIT retrace behaviour — holds across Turing,
+   Ampere, Ada and Hopper. That is the load-bearing result, and it is now architecture-independent
+   evidence rather than a single-backend observation.
+
+2. **The throughput ratio is architecture-dependent, and the sweep is what exposed it.** Every
+   cluster GPU sits at ~1.00–1.06, comfortably inside the 1.10 bar. TITAN RTX (Turing, 2018) sits
+   at mean 1.118 with two of three repeats *above* the bar. A single-GPU gate run on modern
+   hardware — which is what the gate had always been — would have reported a clean pass and never
+   surfaced this. Turing is titanix, not cluster hardware, so it does not fail the DoD as written
+   (which specifies cluster throughput); it does establish that "the adapter is free" is not a
+   backend-invariant statement, and it is the number to watch if older hardware ever enters scope.
+
+3. **`max()` is fine at GPU resolution — the CPU bench's defect was resolution, not the
+   statistic.** Within-architecture spread here is 0.007–0.087, against the CPU bench's 0.63
+   (§3.2). The prediction in §3.2 was that millisecond-scale timings would resolve adequately;
+   that is now measured rather than assumed. Note the spread widens monotonically with age/tuning
+   (A100 0.007 → H200 0.040 → L40S 0.039 → H100 0.058 → Turing 0.087), so the repeats mattered
+   most exactly where the verdict was least comfortable.
+
+**Blackwell (RTX PRO 6000, SM120) did not run.** Not a GPU shortage: `scontrol show node` reports
+node4007 and node4008 each holding 1 of 2 `rtx_pro_6000` free while `CPUAlloc=32`/`CPUTot=32` — a
+**CPU** exhaustion, the exact inverse of the trap the cluster rules document. Both nodes are held by
+this project's own long-running jobs (`bb10-nmin6-refit`, and the 48h `vllm-pair-serve` gemma
+server). The array was resubmitted at 2 CPU / 16G so it starts the moment anything frees; freeing it
+sooner means preempting that work, which is an owner decision. The Blackwell leg also carries the
+mandatory `XLA_FLAGS=--xla_gpu_shard_autotuning=false` workaround (hostname-keyed in the sweep
+script), so it is the one leg where a wrong environment would be catastrophic rather than merely
+slow — worth having real data for.
 
 ### 3.3 Incidental finding: `bth ls` and `bth find` do not surface runs that exist
 

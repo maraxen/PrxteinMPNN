@@ -572,9 +572,16 @@ def score(  # noqa: PLR0915
           f"sequence has {seq_idx.shape[0]} residues"
         )
         raise ValueError(msg)
-      # Pad the sequence to the structure length with X (index 20). Padded
-      # positions contribute 0 to the NLL because scoring excludes the X column
-      # (``[..., :20]``); the structure mask already excludes them from encoding.
+      # Pad the sequence to the structure length with X (index 20). Padded positions
+      # contribute 0 to the NLL because the structure MASK is 0 there, which drops them
+      # from both the numerator and the denominator of the masked mean.
+      #
+      # This comment used to credit the ``[..., :20]`` vocabulary slice in
+      # ``_nll_from_logits`` instead. That was wrong, and the wrong attribution kept a real
+      # defect alive: the mask alone already handled padding (verified -- the denominator
+      # is 214 for a 214-residue chain at max_length=512), so the slice's only live effect
+      # was to charge 0 nats for a *genuine* X residue while still counting it in the
+      # denominator. The slice is gone; do not reintroduce it to "handle padding".
       if seq_idx.shape[0] < struct_len:
         pad = jnp.full((struct_len - seq_idx.shape[0],), 20, dtype=seq_idx.dtype)
         seq_idx = jnp.concatenate([seq_idx, pad])  # noqa: PLW2901
@@ -1175,7 +1182,16 @@ def jacobian(
     model,  # type: ignore[arg-type]
     tangent_batch_size=spec.jacobian_batch_size or None,
   )
-  encode_fn, reverse_grad_fn = make_reverse_jacobian_score_fn(model)  # type: ignore[arg-type]
+  # `model`'s runtime union (Aminx | PrxteinLigandMPNN) doesn't structurally satisfy
+  # ModelProtocol -- __call__'s first positional param is named `coords` there vs `key`
+  # in the protocol. Same pre-existing mismatch as the `make_encoding_conditional_logits_
+  # split_fn` calls above. The codebase-wide suppression convention seen nearby (a
+  # mypy-style comment naming the ty rule) predates ty and ty does not act on it -- ty's
+  # own directive uses a different tool prefix, spelled out below -- so this is the first
+  # suppression on this call written in the syntax ty actually reads.
+  encode_fn, reverse_grad_fn = make_reverse_jacobian_score_fn(
+    model,  # ty: ignore[invalid-argument-type]
+  )
 
   all_jacobians: list[jax.Array] = []
   apc_matrices: list[jax.Array] | None = [] if spec.compute_apc else None

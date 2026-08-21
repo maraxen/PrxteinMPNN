@@ -7,15 +7,19 @@ score). This allows computing the sensitivity of the score to all possible mutat
 in a single backward pass.
 """
 
+from collections.abc import Callable
+
 import jax
 from jaxtyping import Array, Float
 
 from aminx.sampling.conditional_logits import (
   make_encoding_conditional_logits_split_fn,
 )
+from aminx.scoring.score import _nll_from_logits
+from aminx.types.protocols import ModelProtocol
 
 
-def make_reverse_jacobian_score_fn(model):
+def make_reverse_jacobian_score_fn(model: ModelProtocol) -> tuple[Callable, Callable]:
   """Create a function to compute reverse-mode gradients of the score.
 
   The returned function `grad_fn` takes the pre-computed `encoding` and
@@ -38,13 +42,16 @@ def make_reverse_jacobian_score_fn(model):
     # Extract the mask from the encoding tuple (4th element)
     mask = encoding[3]
 
-    def score_fn(oh_2d):
+    def score_fn(oh_2d: Float[Array, "L 21"]) -> jax.Array:
       logits = decode_fn(encoding, oh_2d, ar_mask=ar_mask)
-      # Only typical 20 amino acids contribute to the actual score probability
-      log_p = jax.nn.log_softmax(logits, axis=-1)[..., :20]
-      per_res_nll = -(oh_2d[..., :20] * log_p).sum(-1)
-      # Mask and average
-      return (per_res_nll * mask).sum() / (mask.sum() + 1e-8)
+      # Delegate to the single NLL definition rather than repeating the formula. This used
+      # to inline its own copy that sliced `[..., :20]` on both factors, with the comment
+      # "Only typical 20 amino acids contribute to the actual score probability". That is
+      # the same defect that was live in `scoring/score.py`, and it is worse here: slicing
+      # the one-hot away from the X column makes the GRADIENT with respect to that column
+      # identically zero, so a mutation-effect estimate is structurally blind to X rather
+      # than merely mis-scaled. Two copies is also how the two definitions drift.
+      return _nll_from_logits(logits, oh_2d, mask)
 
     # Single reverse-mode backward pass
     return jax.grad(score_fn)(one_hot_sequence)

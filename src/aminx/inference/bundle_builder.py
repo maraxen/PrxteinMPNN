@@ -22,7 +22,11 @@ from aminx.types.bundles import (
   WaveScheduleBundle,
 )
 from aminx.types.configs import InferenceConfig
-from aminx.utils.autoregression import generate_ar_mask, generate_wave_ar_mask
+from aminx.utils.autoregression import (
+  full_context_ar_mask,
+  generate_ar_mask,
+  generate_wave_ar_mask,
+)
 
 
 def _scale_packer_bundle(packer: PackerBundle, num_states: int) -> PackerBundle:
@@ -224,8 +228,11 @@ def build_inference_bundle(
 
   if ar_mask is None:
     if mode == "score_conditional":
-      # Default to full context minus self (all-ones except diagonal)
-      ar_mask = 1.0 - jnp.eye(seq_len)
+      # Default to full context minus self. Use the shared builder rather than an inline
+      # `1.0 - jnp.eye`: this construct is the one the codebase has repeatedly got wrong
+      # (see full_context_ar_mask's docstring for the running list), and a second inline
+      # copy is how the definitions drift apart.
+      ar_mask = full_context_ar_mask(seq_len).astype(jnp.float32)
       ar_mask = jnp.broadcast_to(ar_mask[None, ...], (num_states, seq_len, seq_len))
     elif schedule == "fixed_n_to_c" and not wave_explicitly_supplied:
       # generate_ar_mask is pure-jnp (jit/vmap-safe) and tie-group-aware via

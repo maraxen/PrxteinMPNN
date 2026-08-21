@@ -11,7 +11,7 @@ from aminx.inference import score_conditional
 from aminx.inference.bundle_builder import build_inference_bundle
 from aminx.inference.logits import make_stage_set
 from aminx.types.protocols import ModelProtocol, ScoreFn
-from aminx.utils.autoregression import generate_ar_mask
+from aminx.utils.autoregression import full_context_ar_mask
 from aminx.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
 _DEFAULT_DECODING_ORDER_FN = cast("DecodingOrderFn", random_decoding_order)
@@ -33,18 +33,48 @@ def _nll_from_logits(
 ) -> jax.Array:
   """Compute negative log-likelihood from logits and one-hot sequence.
 
-  Computes masked-average NLL using the first 20 amino acids (excluding X/UNK).
+  Computes masked-average NLL over the FULL 21-token vocabulary, matching the reference
+  aggregator (``data_utils.get_score``, which one-hots over all 21).
+
+  This used to slice ``[..., :20]`` on both factors, on the stated grounds that it made
+  padded positions contribute 0. **Padding is not what that slice was doing.** ``mask`` is
+  already 0 at padded positions, which removes them from the numerator (``score *
+  mask_flat``) AND the denominator -- verified directly: the scoring denominator is 214 for
+  a 214-residue chain at both ``max_length=214`` and ``max_length=512``. The slice was
+  therefore redundant for padding and had exactly one live effect: it charged 0 nats for a
+  *real* ``X`` residue while still counting that position in the denominator, silently
+  diluting the mean. 1LVB carries six genuine ``X`` (selenomethionines at canonical 74, 79,
+  113, 116, 179, 210), so this was not hypothetical.
 
   Args:
     logits: Model output logits, shape (..., 21) where last axis is vocab.
     seq_one_hot: One-hot encoded sequence, shape (..., 21).
     mask: Per-residue mask for scoring. If 2-D (S, L), uses first state's mask.
+      Must be 0 at padded positions -- that, not the vocabulary, is what excludes padding.
 
   Returns:
     Scalar NLL (negative log-likelihood), masked and averaged.
   """
-  log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
-  score = -(seq_one_hot[..., :20] * log_probability).sum(-1)
+  # Accept either one-hot ``(..., 21)`` or raw token indices ``(...,)``. Both callers
+  # forward whatever they were handed (``host/runner.py`` one-hots first, so production was
+  # always one-hot; ``make_score_fn``'s own low-level callers frequently pass indices).
+  #
+  # This normalization is not cosmetic. Under the previous ``[..., :20]`` slice a token-index
+  # array was sliced on its ONLY axis, yielding the first 20 *positions* rather than 20 vocab
+  # entries -- which then broadcast against ``(L, 20)`` log-probs whenever ``L > 20`` and
+  # produced a silently meaningless number (measured on a synthetic L=76 case: 530.7 against a
+  # true 3.40), while raising a shape error for ``L <= 20``. ``tests/scoring/test_score.py``
+  # exercised exactly that path and passed, because it only asserted shape and dtype.
+  # Discriminate on the VOCAB axis alone. Comparing ``ndim`` instead is wrong: multi-state
+  # logits are ``(S, L, 21)`` while the one-hot stays ``(L, 21)``, and that legitimate
+  # rank mismatch would be misread as indices. (Ambiguous only for a token array whose
+  # trailing axis happens to equal the vocab size; pass one-hot explicitly in that case.)
+  vocab_size = logits.shape[-1]
+  if seq_one_hot.shape[-1] != vocab_size:
+    seq_one_hot = jax.nn.one_hot(seq_one_hot.astype("int32"), vocab_size)
+
+  log_probability = jax.nn.log_softmax(logits, axis=-1)
+  score = -(seq_one_hot * log_probability).sum(-1)
 
   # Use the first state's mask when batched (S, L); use full vector when 1-D (L,).
   mask_flat = _residue_mask_for_scoring(mask)
@@ -112,9 +142,35 @@ def make_score_fn(
     L = sequence.shape[0]
     S = structure_coordinates.shape[0] if structure_coordinates.ndim == 4 else 1
 
+    # The decoding order is still drawn (and returned) so callers that want an
+    # autoregressive factorization can pass the matching ``ar_mask`` back in, but it no
+    # longer selects the default mask -- see the ``ar_mask is None`` branch below.
     decoding_order, prng_key = decoding_order_fn(prng_key, L, None, None)
     if ar_mask is None:
-      ar_mask_single = generate_ar_mask(decoding_order)
+      # Full context minus self (``1 - I``): every position is scored given every OTHER
+      # position's sequence, never its own. This is the conditional estimand
+      # p(s_i | s_{-i}, X) -- the same quantity the reference exposes as
+      # ``--conditional_probs_only`` -- and it is what ``mode="score_conditional"`` means.
+      #
+      # It replaces ``generate_ar_mask(decoding_order)``, which was wrong twice over:
+      #
+      # 1. Its untied branch is ``(row_indices >= col_indices)`` -- NON-strict -- so
+      #    ``ar_mask[i, i] == 1`` under every permutation. Because a residue is always
+      #    among its own KNN neighbours, ``model/decoder.py`` gated that residue's TRUE
+      #    one-hot into its own node update. Measured leak on 1LVB chain A: +0.036243
+      #    nats (paired over 8 seeds, sd 0.002482, t = 41.3), i.e. the score was
+      #    systematically over-confident by ~2.3x the effect sizes this is used to
+      #    resolve. Every reference construction is ``1 - triu(ones)``, self-excluding.
+      # 2. It made the score depend on the PRNG key even at ``backbone_noise=0``, since a
+      #    fresh order means a fresh mask. That was 100% of the observed seed-to-seed
+      #    variance (sd 0.0177 at L=214), and because the runner derives one key per
+      #    CANDIDATE, two candidates in one call were scored under different orders --
+      #    making every WT/MUT contrast unpaired for no reason.
+      #
+      # ``full_context_ar_mask`` is order-free, so scoring is now deterministic in the key
+      # at ``backbone_noise=0``. ``sampling/conditional_logits.py`` already defaulted this
+      # way; this brings the score path in line with it.
+      ar_mask_single = full_context_ar_mask(L)
     else:
       ar_mask_single = ar_mask[0] if ar_mask.ndim == 3 else ar_mask
 

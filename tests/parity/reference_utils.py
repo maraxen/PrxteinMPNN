@@ -14,6 +14,7 @@ from importlib import import_module
 from importlib.util import find_spec
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import numpy as np
 import pytest
@@ -236,6 +237,54 @@ def _ensure_reference_numpy_aliases() -> None:
   for name, target in aliases.items():
     if name not in np.__dict__:
       setattr(np, name, target)
+
+
+def load_reference_function(module_filename: str, function_name: str) -> Any:  # noqa: ANN401
+  """Lift a single function out of the reference SOURCE without importing the module.
+
+  ``import data_utils`` pulls in ``prody``, which is not a dependency of this repo, so the
+  reference's own aggregators are unreachable through a normal import even when the checkout
+  is present with weights. Extracting the function by AST keeps them reachable.
+
+  The point is that the reference formula is never RETYPED here. A transcribed copy of
+  ``get_score`` would be a second definition that can silently stop matching the thing it is
+  supposed to be a reference for -- which is the exact failure a parity test exists to catch.
+  Extracted this way it tracks upstream edits automatically, and a rename or deletion
+  upstream surfaces as a skip rather than as a stale copy that still passes.
+
+  Only builtins plus ``torch`` are provided as globals, so a function with other
+  module-level dependencies fails loudly here rather than silently picking up a substitute.
+
+  Args:
+    module_filename: File within the reference checkout, e.g. ``"data_utils.py"``.
+    function_name: Top-level function to extract, e.g. ``"get_score"``.
+
+  Returns:
+    The compiled reference function.
+  """
+  import ast  # noqa: PLC0415
+
+  torch = pytest.importorskip("torch")
+  source_path = require_reference_path() / module_filename
+  if not source_path.is_file():
+    pytest.skip(f"Reference file not found: {source_path}", allow_module_level=True)
+
+  tree = ast.parse(source_path.read_text())
+  for node in tree.body:
+    if isinstance(node, ast.FunctionDef) and node.name == function_name:
+      namespace: dict[str, Any] = {"torch": torch}
+      exec(  # noqa: S102
+        compile(ast.Module(body=[node], type_ignores=[]), str(source_path), "exec"),
+        namespace,
+      )
+      return namespace[function_name]
+
+  pytest.skip(
+    f"Reference function '{function_name}' not found in {source_path} — "
+    "it may have been renamed upstream",
+    allow_module_level=True,
+  )
+  raise AssertionError("unreachable")
 
 
 def import_reference_module(module_name: str) -> ModuleType:

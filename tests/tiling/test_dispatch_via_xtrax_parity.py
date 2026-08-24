@@ -12,11 +12,14 @@ covers.
 
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 import pytest
 
 from aminx.host.plan import PlanTopologyError
 from aminx.tiling.dispatch import (
+    _DISPATCH_HETEROGENEOUS_AXES,
     DispatchRejected,
     make_axis_dispatch,
     make_axis_dispatch_via_xtrax,
@@ -113,3 +116,47 @@ class TestSideBySideParity:
             make_axis_dispatch(dg)
         with pytest.raises(DispatchRejected):
             make_axis_dispatch_via_xtrax(dg)
+
+
+class TestHeterogeneousAxesSingleSourceOfTruth:
+    """Both dispatch paths must derive rejection from _DISPATCH_HETEROGENEOUS_AXES.
+
+    The legacy path used to hardcode `axis == "state"` while only the xtrax path
+    read the constant, so adding an axis to the constant would have started
+    rejecting on one path and not the other. These tests are parameterized over
+    the constant's *contents* rather than the literal "state", so adding an axis
+    extends coverage automatically instead of silently escaping it.
+    """
+
+    @pytest.mark.parametrize("axis", sorted(_DISPATCH_HETEROGENEOUS_AXES))
+    def test_every_declared_heterogeneous_axis_rejects_scan_on_both_paths(
+        self, axis: str
+    ) -> None:
+        scan_strategy = Scan(init=0, transition=lambda c, x: (c, x))
+        with pytest.raises(DispatchRejected):
+            make_axis_dispatch(scan_strategy, axis=axis)
+        with pytest.raises(DispatchRejected):
+            make_axis_dispatch_via_xtrax(scan_strategy, axis=axis)
+
+    @pytest.mark.parametrize("axis", ["wave", "samples", "n_structures", "batch"])
+    def test_undeclared_axes_accept_scan_on_both_paths(self, axis: str) -> None:
+        """An axis absent from the constant must be accepted by both paths.
+
+        `n_structures` is included deliberately: it appears in host/plan.py's
+        separate _HETEROGENEOUS_AXIS_NAMES, and this pins that the two constants
+        are genuinely independent rather than one silently shadowing the other.
+        """
+        assert axis not in _DISPATCH_HETEROGENEOUS_AXES
+        scan_strategy = Scan(init=0, transition=lambda c, x: (c, x))
+        legacy = make_axis_dispatch(scan_strategy, axis=axis)
+        via_xtrax = make_axis_dispatch_via_xtrax(scan_strategy, axis=axis)
+        assert type(legacy).__name__ == type(via_xtrax).__name__ == "JaxScanIterator"
+
+    def test_constant_is_what_the_xtrax_path_forwards(self) -> None:
+        """Guard the wiring itself: the xtrax path must forward this constant.
+
+        A rename or a stray literal in `make_axis_dispatch_via_xtrax` would leave
+        every test above passing while the two paths drift apart again.
+        """
+        source = inspect.getsource(make_axis_dispatch_via_xtrax)
+        assert "heterogeneous_axes=set(_DISPATCH_HETEROGENEOUS_AXES)" in source

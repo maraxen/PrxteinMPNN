@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aminx"
-version = "0.1.0a24"
+version = "0.1.0a25"
 description = "Aminx: A functional interface for ProteinMPNN"
 requires-python = ">=3.13"
 dependencies = [
@@ -124,6 +124,16 @@ select = ["ALL"]
 ignore = [
   "PD", "D203", "D213",
   "F722", # jaxtyping strings
+  # UP037 strips quotes from any annotation whose contents parse as a Python
+  # expression -- which silently destroys single-token jaxtyping shape specs:
+  # `Float[Array, "..."]` becomes `Float[Array, ...]` (Ellipsis, not the any-shape
+  # spec) and `Float[Array, "C"]` becomes a NameError waiting on the first
+  # get_type_hints() call. Multi-word specs ("S C", "... L V") survive only because
+  # they are not valid expressions, so the corruption is silent AND selective.
+  # `from __future__ import annotations` hides it further -- the module still
+  # imports, the shape contract just stops being one. Combined with `fix = true`
+  # above, a bare `ruff check` was rewriting source on every run.
+  "UP037", # quoted-annotation: see above, mangles jaxtyping shape specs
   "TRY003", # long exception messages
   "EM101", "EM102", # exception literals
   "TC002", "TC003", # move into type-checking block
@@ -253,6 +263,10 @@ benchmark = [
     "prody>=2.6.1",
 ]
 dev = [
+    # Phase 0 alphabet conformance (decision D4). DEV GROUP ONLY -- nothing under src/
+    # imports this, so no runtime dependency edge is created.
+    # See tests/test_alphabet_conformance.py.
+    "alphex>=0.1.0a1",
     "torch>=2.12.0",
     "pytest>=8.0.0",
     "pytest-xdist>=3.5.0",
@@ -291,5 +305,6 @@ explicit = true
 # editable = true }) -- see .gitignore.
 # Resolve proxide from PyPI (not sibling-folder discovery) when ../proxide exists.
 proxide = { index = "pypi" }
+# alphex: PyPI (https://pypi.org/project/alphex/) -- no source override needed.
 # PyPI serves the CUDA-enabled wheel on Linux and CPU wheel on macOS — correct for both envs.
 torch = { index = "pypi" }

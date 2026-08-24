@@ -1,0 +1,132 @@
+{
+  "architectures": [
+    {
+      "gpu": "titanrtx",
+      "name": "TITAN RTX",
+      "arch": "Turing",
+      "sm": 75,
+      "n_reps": 3,
+      "recompile_parity_all": true,
+      "ratio_min": 1.0834205211651913,
+      "ratio_mean": 1.118410902477405,
+      "ratio_max": 1.170322955657144,
+      "ratio_spread": 0.08690243449195267,
+      "bands": [
+        "marginal",
+        "pass",
+        "marginal"
+      ],
+      "verdict": "straddles:marginal/pass",
+      "ratios": [
+        1.1014892306098798,
+        1.0834205211651913,
+        1.170322955657144
+      ]
+    },
+    {
+      "gpu": "a100",
+      "name": "A100",
+      "arch": "Ampere",
+      "sm": 80,
+      "n_reps": 3,
+      "recompile_parity_all": true,
+      "ratio_min": 1.002647211814273,
+      "ratio_mean": 1.0060997428638607,
+      "ratio_max": 1.0099599622132833,
+      "ratio_spread": 0.007312750399010248,
+      "bands": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "verdict": "pass",
+      "ratios": [
+        1.0099599622132833,
+        1.005692054564026,
+        1.002647211814273
+      ]
+    },
+    {
+      "gpu": "l40s",
+      "name": "L40S",
+      "arch": "Ada",
+      "sm": 89,
+      "n_reps": 3,
+      "recompile_parity_all": true,
+      "ratio_min": 0.9986733553589279,
+      "ratio_mean": 1.014261185707807,
+      "ratio_max": 1.0372570484014714,
+      "ratio_spread": 0.0385836930425435,
+      "bands": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "verdict": "pass",
+      "ratios": [
+        0.9986733553589279,
+        1.0068531533630214,
+        1.0372570484014714
+      ]
+    },
+    {
+      "gpu": "h100",
+      "name": "H100",
+      "arch": "Hopper",
+      "sm": 90,
+      "n_reps": 3,
+      "recompile_parity_all": true,
+      "ratio_min": 1.003357256061878,
+      "ratio_mean": 1.0245811291427442,
+      "ratio_max": 1.0609245846006257,
+      "ratio_spread": 0.057567328538747686,
+      "bands": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "verdict": "pass",
+      "ratios": [
+        1.0094615467657289,
+        1.0609245846006257,
+        1.003357256061878
+      ]
+    },
+    {
+      "gpu": "h200",
+      "name": "H200",
+      "arch": "Hopper",
+      "sm": 90,
+      "n_reps": 3,
+      "recompile_parity_all": true,
+      "ratio_min": 0.9961288237247476,
+      "ratio_mean": 1.0196507711759646,
+      "ratio_max": 1.036223167968527,
+      "ratio_spread": 0.040094344243779334,
+      "bands": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "verdict": "pass",
+      "ratios": [
+        1.0266003218346191,
+        0.9961288237247476,
+        1.036223167968527
+      ]
+    }
+  ],
+  "n_architectures": 5,
+  "n_runs": 15,
+  "recompile_parity_all_architectures": true,
+  "architectures_clean_pass": [
+    "a100",
+    "l40s",
+    "h100",
+    "h200"
+  ],
+  "architectures_not_clean_pass": [
+    "titanrtx"
+  ],
+  "pass_bar": 1.1
+}

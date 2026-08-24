@@ -23,10 +23,17 @@ from aminx.inference import (
 from aminx.io.weights import load_weights
 from aminx.model.mpnn import Aminx
 from aminx.types.bundles import WaveScheduleBundle
-from tests.parity.reference_utils import require_heavy_parity_prereqs
+from tests.parity.reference_utils import load_reference_function, require_heavy_parity_prereqs
 
 
 JaxHeavyWeightSource = Literal["eqx", "pt_convert"]
+
+# Tolerances for the quantities Pearson correlation cannot see. Both derived from measured
+# agreement on the parity fixture (scripts/measure_conditional_nll_parity.py): max |delta|
+# log-prob 1.8e-05, |delta| NLL 2.4e-07 nats. Set ~5x and ~40x above the measurement to
+# absorb platform/BLAS variation, and still far below any effect size that gets claimed.
+LOG_PROB_MAX_ABS_DEVIATION = 1e-4
+NLL_ABS_TOLERANCE_NATS = 1e-5
 
 
 def _jax_protein_for_source(models: HeavyParityModels, source: JaxHeavyWeightSource) -> Aminx:
@@ -424,6 +431,47 @@ def test_decoder_conditional_scoring_parity(
   assert np.array_equal(pt_score["decoding_order"].numpy()[0], parity_batch.decoding_order)
   corr = _pearson_correlation(pt_log_probs, jax_log_probs)
   assert corr >= 0.95
+
+  # Correlation alone cannot certify this. It is affine-invariant, so a pure scale error is
+  # invisible to it: perturbing these logits by `* 2.0` correlates at r = 0.9740 -- a
+  # comfortable pass -- while moving the reported NLL by +0.2477 nats, which is 15x the
+  # effect size the consuming project denominates its claims in. Gate the two things
+  # correlation is structurally blind to: the elementwise deviation, and the aggregate scalar.
+  #
+  # Both tolerances are DERIVED, not guessed. Measured agreement on this fixture
+  # (scripts/measure_conditional_nll_parity.py): r = 1.000000, max |delta| log-prob 1.8e-05,
+  # |delta| NLL 2.4e-07 nats. The bounds below sit ~5x and ~40x above those, leaving room for
+  # platform/BLAS variation while staying orders of magnitude tighter than any effect this
+  # is used to resolve.
+  max_abs_deviation = float(np.abs(pt_log_probs - jax_log_probs).max())
+  assert max_abs_deviation <= LOG_PROB_MAX_ABS_DEVIATION, (
+    f"log-prob deviation {max_abs_deviation:.3e} exceeds {LOG_PROB_MAX_ABS_DEVIATION:.1e}; "
+    "correlation would not have caught this"
+  )
+
+  # Aggregate with the reference's OWN get_score, lifted from its source rather than retyped
+  # here, so this cannot drift from the definition it is checking against.
+  get_score = load_reference_function("data_utils.py", "get_score")
+  sequence_np = np.asarray(parity_batch.sequence[0])
+  mask_np = np.asarray(parity_batch.mask[0])
+
+  def _aggregate(log_probs: np.ndarray) -> float:
+    average, _ = get_score(
+      heavy_parity_models.torch.from_numpy(np.ascontiguousarray(sequence_np)).long()[None, ...],
+      heavy_parity_models.torch.from_numpy(
+        np.array(log_probs, dtype=np.float32, copy=True),
+      )[None, ...],
+      heavy_parity_models.torch.from_numpy(
+        np.array(mask_np, dtype=np.float32, copy=True),
+      )[None, ...],
+    )
+    return float(average.item())
+
+  nll_delta = abs(_aggregate(pt_log_probs) - _aggregate(jax_log_probs))
+  assert nll_delta <= NLL_ABS_TOLERANCE_NATS, (
+    f"conditional NLL differs by {nll_delta:.3e} nats, over the {NLL_ABS_TOLERANCE_NATS:.1e} "
+    "bound — this is the quantity downstream claims are denominated in"
+  )
 
 
 @pytest.mark.requires_weights

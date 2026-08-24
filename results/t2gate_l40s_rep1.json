@@ -1,0 +1,67 @@
+{
+  "cases": [
+    {
+      "num_states": 1,
+      "seq_len": 208,
+      "strategy": "SafeMap",
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
+      "recompile_parity": true,
+      "legacy_mean_s": 7.18457531183958e-05,
+      "legacy_stderr_s": 3.2239519778910497e-07,
+      "adapter_mean_s": 7.117874920368195e-05,
+      "adapter_stderr_s": 2.816207994597753e-07,
+      "adapter_vs_legacy_throughput_ratio": 0.9907161678211559,
+      "n_warmup": 10,
+      "n_timed": 50
+    },
+    {
+      "num_states": 8,
+      "seq_len": 208,
+      "strategy": "SafeMap",
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
+      "recompile_parity": true,
+      "legacy_mean_s": 0.00016970486845821142,
+      "legacy_stderr_s": 6.370542934998632e-07,
+      "adapter_mean_s": 0.0001703071827068925,
+      "adapter_stderr_s": 5.238588644682526e-07,
+      "adapter_vs_legacy_throughput_ratio": 1.0035491866211805,
+      "n_warmup": 10,
+      "n_timed": 50
+    },
+    {
+      "num_states": 32,
+      "seq_len": 208,
+      "strategy": "SafeMap",
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
+      "recompile_parity": true,
+      "legacy_mean_s": 0.0002713236212730408,
+      "legacy_stderr_s": 7.129948492772332e-07,
+      "adapter_mean_s": 0.00027134512085467575,
+      "adapter_stderr_s": 6.528864432620546e-07,
+      "adapter_vs_legacy_throughput_ratio": 1.0000792396236424,
+      "n_warmup": 10,
+      "n_timed": 50
+    },
+    {
+      "num_states": 128,
+      "seq_len": 208,
+      "strategy": "SafeMap",
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
+      "recompile_parity": true,
+      "legacy_mean_s": 0.0008662818418815732,
+      "legacy_stderr_s": 5.280656609026201e-07,
+      "adapter_mean_s": 0.0008722186041995883,
+      "adapter_stderr_s": 4.375312243009639e-07,
+      "adapter_vs_legacy_throughput_ratio": 1.0068531533630214,
+      "n_warmup": 10,
+      "n_timed": 50
+    }
+  ],
+  "all_recompile_parity": true,
+  "max_adapter_vs_legacy_throughput_ratio": 1.0068531533630214,
+  "device": "[CudaDevice(id=0)]"
+}

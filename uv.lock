@@ -52,8 +52,20 @@ wheels = [
 ]
 
 [[package]]
+name = "alphex"
+version = "0.1.0a1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0d/2f/9b031d6422f3495d765490de930f873e8a17e6f1fa3d3b51085cf90f3e77/alphex-0.1.0a1.tar.gz", hash = "sha256:8ae8706c26eac2ccf78d1dd1e73a41bd3046e87552cc37306f80e43b75954652", size = 22775, upload-time = "2026-08-15T19:14:07.809Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/59/59/fe50bd7c21ae9aa57a7b010916510aef70b95e99e2d65d8d11da74c0996c/alphex-0.1.0a1-py3-none-any.whl", hash = "sha256:ce16ce1b214e84d0abc5cf7b68fb8d8d3cc56b056756ee22b36be8e0c94f9338", size = 26720, upload-time = "2026-08-15T19:14:06.587Z" },
+]
+
+[[package]]
 name = "aminx"
-version = "0.1.0a20"
+version = "0.1.0a24"
 source = { editable = "." }
 dependencies = [
     { name = "array-record", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -137,6 +149,7 @@ benchmark = [
     { name = "prody", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 dev = [
+    { name = "alphex", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "biopython", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "dm-tree", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pytest", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -213,6 +226,7 @@ benchmark = [
     { name = "prody", specifier = ">=2.6.1" },
 ]
 dev = [
+    { name = "alphex", specifier = ">=0.1.0a1" },
     { name = "biopython", specifier = ">=1.83" },
     { name = "dm-tree", specifier = ">=0.1.8" },
     { name = "pytest", specifier = ">=8.0.0" },

@@ -1918,8 +1918,8 @@ def campaign_ramp_plan(
     SamplingSpecification,
     _emit_json,
     _parse_csv,
-    parse_fixed_arms,
     _parse_int_csv,
+    parse_fixed_arms,
     plan_scale_ramp,
   )
 

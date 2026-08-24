@@ -145,7 +145,25 @@ def generate_ar_mask(
   tie_group_map: jnp.ndarray | None = None,
   num_groups: int | None = None,
 ) -> AutoRegressiveMask:
-  """Get the autoregressive mask for the given decoding order."""
+  """Get the autoregressive mask for the given decoding order.
+
+  **The diagonal is 1: every position SEES ITSELF.** The untied branch is
+  ``(row_indices >= col_indices)`` -- non-strict -- so this holds under every permutation.
+  That is deliberate for a *sampling* decode, where a position's own slot holds a
+  placeholder token that has not been drawn yet, but it is wrong for anything that
+  teacher-forces a known sequence: the decoder gathers ``ar_mask`` into ``attention_mask``
+  and uses it to gate the *sequence* edge features (``model/decoder.py:144-146``), and a
+  residue is always among its own KNN neighbours -- so with a real sequence in hand, the
+  model is handed the answer to the question it is being asked.
+
+  ``scoring/score.py`` did exactly that until it was switched to
+  :func:`full_context_ar_mask`; the measured cost was +0.036243 nats on 1LVB chain A
+  (paired over 8 seeds, t = 41.3), always in the over-confident direction.
+
+  If you need a self-excluding causal mask (what the reference builds everywhere, as
+  ``1 - triu(ones)``), zero the diagonal explicitly. If you need full context minus self,
+  use :func:`full_context_ar_mask`.
+  """
   N = decoding_order.shape[0]
 
   if tie_group_map is None:
@@ -273,7 +291,15 @@ def full_context_ar_mask(seq_len: int) -> jnp.ndarray:
     runner's batched ``conditional_logits`` feature, which relied on it (#4222).
   - the runner's ``decoded_node_features`` feature (#4204).
 
+  - ``scoring/score.py`` -- a FIFTH site, and a different variant: not an all-zero mask but
+    a self-*inclusive* one, ``generate_ar_mask(decoding_order)``, whose diagonal is 1. That
+    leaked each residue's own identity into its own prediction (+0.036243 nats on 1LVB
+    chain A, paired over 8 seeds, t = 41.3) and made the score depend on the PRNG key at
+    ``backbone_noise=0``, since a fresh order meant a fresh mask.
+
   Every one of those failures was silent: right shape, right dtype, no error, no warning.
+  Note the two failure modes are opposites -- too little context and too much -- so a test
+  that only checks "the mask is not all zeros" catches one and misses the other.
 
   ``1 - I`` matches the "full context minus self" default that
   ``inference/bundle_builder.py:227-228`` uses for ``mode="score_conditional"``, so a

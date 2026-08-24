@@ -1,0 +1,77 @@
+{
+  "cases": [
+    {
+      "strategy_kind": "Vmap",
+      "cardinality": 16,
+      "default_batch_size": 32,
+      "aminx_strategy": "Vmap",
+      "xtrax_strategy": "Vmap",
+      "decision_parity": true,
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
+      "recompile_parity": true,
+      "legacy_median_s": 1.1770520359277725e-05,
+      "adapter_median_s": 1.1206488125026226e-05,
+      "adapter_vs_legacy_throughput_ratio": 0.9520809431498991
+    },
+    {
+      "strategy_kind": "Vmap",
+      "cardinality": 32,
+      "default_batch_size": 32,
+      "aminx_strategy": "Vmap",
+      "xtrax_strategy": "Vmap",
+      "decision_parity": true,
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
+      "recompile_parity": true,
+      "legacy_median_s": 1.140229869633913e-05,
+      "adapter_median_s": 1.0847463272511959e-05,
+      "adapter_vs_legacy_throughput_ratio": 0.951340037776303
+    },
+    {
+      "strategy_kind": "SafeMap",
+      "cardinality": 96,
+      "default_batch_size": 32,
+      "aminx_strategy": "SafeMap",
+      "xtrax_strategy": "SafeMap",
+      "decision_parity": true,
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
+      "recompile_parity": true,
+      "legacy_median_s": 1.2781471014022827e-05,
+      "adapter_median_s": 1.2948527000844479e-05,
+      "adapter_vs_legacy_throughput_ratio": 1.013070169046925
+    },
+    {
+      "strategy_kind": "SafeMap",
+      "cardinality": 256,
+      "default_batch_size": 64,
+      "aminx_strategy": "SafeMap",
+      "xtrax_strategy": "SafeMap",
+      "decision_parity": true,
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
+      "recompile_parity": true,
+      "legacy_median_s": 0.00018367439042776823,
+      "adapter_median_s": 0.00016667507588863373,
+      "adapter_vs_legacy_throughput_ratio": 0.9074486405015747
+    },
+    {
+      "strategy_kind": "Scan",
+      "cardinality": 32,
+      "default_batch_size": null,
+      "aminx_strategy": "Scan",
+      "xtrax_strategy": "Scan",
+      "decision_parity": true,
+      "legacy_recompiles": 1,
+      "adapter_recompiles": 1,
+      "recompile_parity": true,
+      "legacy_median_s": 4.787696525454521e-05,
+      "adapter_median_s": 1.8922029994428158e-05,
+      "adapter_vs_legacy_throughput_ratio": 0.3952220006808345
+    }
+  ],
+  "all_decision_parity": true,
+  "all_recompile_parity": true,
+  "max_adapter_vs_legacy_throughput_ratio": 1.013070169046925
+}

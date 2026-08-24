@@ -1,0 +1,64 @@
+run_id = "ad0183cf-ba08-4f5f-9714-37f62ddad1f5"
+
+[postmortem]
+hypothesis_status = "inconclusive"
+summary = """
+Standing T2.GATE re-run against the current xtrax pin (0.4.0a5); the previous gate-tagged run was
+0.4.0a1 on 2026-07-06, two prereleases earlier. The correctness claims REPRODUCE: all_decision_parity
+and all_recompile_parity are both true, and the companion bit-for-bit golden suite
+(tests/tiling/test_t2_gate_bitforbit_golden.py) passes 6/6 on 0.4.0a5.
+
+The recorded outcome=fail comes solely from max_adapter_vs_legacy_throughput_ratio = 1.637 exceeding
+the sidecar's 1.50 residual threshold. That number is not a measurement of anything. It should not be
+read as a gate failure, and the migration it would appear to block is not implicated.
+"""
+unexpected_observations = """
+The throughput ratio is not reproducible at this bench's resolution. Five observations of the same
+comparison, same machine, minutes apart:
+
+  2026-07-06 (xtrax 0.4.0a1)  1.341  -> marginal
+  this run    (xtrax 0.4.0a5)  1.637  -> fail  (is_residual)
+  repeat 1                     1.032  -> pass
+  repeat 2                     1.479  -> marginal
+  repeat 3                     1.012  -> pass
+
+The spread straddles all three of the sidecar's outcome bands, so a single run can land in any
+verdict by chance. The July "marginal 1.34" reading was equally a coin flip; there is no a1 -> a5
+regression here (an intermediate reading of these numbers as a regression was withdrawn).
+"""
+root_cause = """
+The metric is a max() over ~9 cases whose per-case medians are 11-100 microseconds, measured with
+n_timed=20. At that resolution scheduler jitter in any single case sets the reported figure, and
+max() is the most noise-sensitive statistic available -- it selects for the unluckiest sample rather
+than averaging it away.
+
+In a quiet run every individual case sits at ratio 0.90-1.01, i.e. the xtrax adapter's overhead is
+genuinely within ~1%, comfortably inside the 1.10 pass bar. The instrument is at fault, not the code
+under test.
+
+Note the sibling GPU bench (bench_xtrax_vs_aminx_dispatch_gpu.py) is better constructed -- np.mean
+over n_timed=50 per case rather than a median over 20 -- but it still reduces across cases with
+max(). It is expected to resolve adequately because L=208 GPU timings land in milliseconds rather
+than microseconds, but that is an expectation to demonstrate with repeats, not to assume.
+"""
+verdict_override = "inconclusive"
+next_steps = """
+1. Repair the statistic before this gate is trusted again: reduce across cases with a median or
+   geometric mean instead of max(), and/or raise per-case work so timings are not microsecond-scale,
+   and/or repeat-and-aggregate inside the script so one run yields a spread rather than a point.
+2. Until then treat only the parity legs (decision parity, recompile parity, bit-for-bit golden) as
+   load-bearing evidence for this gate.
+3. Run the GPU/production-shape leg, which is the only leg that speaks to T2.GATE's actual stated
+   DoD (cluster throughput on the production shape distribution). Scoped 260817 across L40S / A100 /
+   H100 / H200 / RTX PRO 6000 (Blackwell, needs XLA_FLAGS=--xla_gpu_shard_autotuning=false) plus
+   titanix TITAN RTX, with >=3 repeats per target specifically so the noise question is answered
+   rather than assumed.
+
+Full context: .praxia/docs/audits/260817_aminx-deeper-work-assessment.md sections 3.2 and 3.3.
+"""
+author = "claude-opus-5 (session 019RDm1728RqJLYrvLoW8Pnj), reviewed by marielle"
+status = "final"
+
+[asset_links]
+result_json = "outputs/results/xtrax_vs_aminx_tiling_260817.json"
+assessment = ".praxia/docs/audits/260817_aminx-deeper-work-assessment.md"

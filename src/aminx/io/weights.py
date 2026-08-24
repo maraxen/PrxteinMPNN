@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import logging
+import os
+from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
 
@@ -17,6 +20,19 @@ from aminx.model import Aminx, PrxteinLigandMPNN
 from aminx.model.packer import Packer
 
 HF_REPO_ID = "maraxen/aminx"
+
+# Pinned so a code pin implies a WEIGHTS pin. The built wheel ships no
+# ``model_params/*.eqx.zst``, so without this the checkpoint bytes are whatever the Hub's
+# default branch happens to serve, and two machines can run different weights while reporting
+# an identical aminx version. Bump deliberately, together with the consumer-side manifest.
+# Override for a checkpoint newer than the pin via ``AMINX_WEIGHTS_REVISION``.
+HF_REVISION = "25fb7f6e985724dee7471c3bc18522fe33b9228e"
+
+#: Env var naming a directory that is AUTHORITATIVE for weights when set. A missing file there
+#: raises instead of silently falling through to the Hub -- the silent fallback is the defect
+#: shape this exists to prevent.
+WEIGHTS_DIR_ENV = "AMINX_WEIGHTS_DIR"
+REVISION_ENV = "AMINX_WEIGHTS_REVISION"
 
 log = logging.getLogger(__name__)
 
@@ -86,17 +102,97 @@ def get_topology_for_checkpoint(checkpoint_id: str) -> dict[str, int | bool | st
   return topology
 
 
-def _load_weight_bytes(filename: str) -> bytes:
-  """Return raw bytes for a weight file, trying local resources before HF Hub."""
+@dataclass(frozen=True)
+class WeightProvenance:
+  """Which checkpoint bytes a process actually loads, and what they hash to.
+
+  The built wheel carries no ``model_params/*.eqx.zst``, so the aminx version pin does NOT
+  determine the weights. Record ``sha256`` alongside the version in any result whose numbers
+  depend on them.
+  """
+
+  filename: str
+  source: str
+  """``"packaged"`` if read from ``aminx.model_params``, ``"hub"`` if downloaded."""
+  path: str
+  sha256: str
+  hub_repo_id: str | None = None
+  hub_revision: str | None = None
+  """Resolved snapshot commit when ``source == "hub"``. ``None`` if it could not be read."""
+
+
+def _resolve_weight_path(filename: str) -> tuple[str, str]:
+  """Return ``(source, path)`` for ``filename``: packaged resource first, then the Hub.
+
+  Single source of truth for the resolution ORDER. Both :func:`_load_weight_bytes` and
+  :func:`weight_provenance` go through here, so a provenance record can never describe a
+  different file from the one that was loaded.
+
+  Order: an authoritative ``AMINX_WEIGHTS_DIR`` (fails closed), then packaged resources, then
+  the Hub at :data:`HF_REVISION`.
+  """
+  explicit_dir = os.environ.get(WEIGHTS_DIR_ENV)
+  if explicit_dir:
+    candidate = Path(explicit_dir) / filename
+    if not candidate.is_file():
+      msg = (
+        f"{WEIGHTS_DIR_ENV}={explicit_dir!r} is set and is authoritative, but {filename!r} is "
+        f"not in it. Refusing to fall back to packaged resources or the Hub: a silent change "
+        f"of weight source is the failure this setting exists to prevent. Place the file "
+        f"there, or unset {WEIGHTS_DIR_ENV}."
+      )
+      raise FileNotFoundError(msg)
+    return "explicit_dir", str(candidate)
+
   try:
     resource_path = files("aminx.model_params").joinpath(filename)
     if resource_path.is_file():
-      return resource_path.read_bytes()
+      return "packaged", str(resource_path)
   except (TypeError, ModuleNotFoundError):
     pass
-  log.info("Downloading %s from %s (cached after first use)", filename, HF_REPO_ID)
-  local_file = hf_hub_download(repo_id=HF_REPO_ID, filename=filename)
-  return Path(local_file).read_bytes()
+
+  revision = os.environ.get(REVISION_ENV, HF_REVISION)
+  log.info(
+    "Downloading %s from %s at %s (cached after first use)", filename, HF_REPO_ID, revision,
+  )
+  return "hub", hf_hub_download(repo_id=HF_REPO_ID, filename=filename, revision=revision)
+
+
+def _hub_revision_from_path(path: str) -> str | None:
+  """Read the snapshot commit out of a Hub cache path, or ``None`` if absent.
+
+  The cache layout is ``.../snapshots/<commit>/<filename>``. Returns ``None`` rather than
+  raising when the layout differs, so provenance recording never breaks weight loading.
+  """
+  parts = Path(path).parts
+  if "snapshots" not in parts:
+    return None
+  index = parts.index("snapshots") + 1
+  return parts[index] if index < len(parts) else None
+
+
+def weight_provenance(filename: str) -> WeightProvenance:
+  """Identify the checkpoint bytes this process would load for ``filename``.
+
+  Resolves through the same path as :func:`_load_weight_bytes`, so the record describes the
+  file that actually executes rather than a caller's guess at the resolution order.
+  """
+  source, path = _resolve_weight_path(filename)
+  digest = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+  return WeightProvenance(
+    filename=filename,
+    source=source,
+    path=str(path),
+    sha256=digest,
+    hub_repo_id=HF_REPO_ID if source == "hub" else None,
+    hub_revision=_hub_revision_from_path(path) if source == "hub" else None,
+  )
+
+
+def _load_weight_bytes(filename: str) -> bytes:
+  """Return raw bytes for a weight file, trying local resources before HF Hub."""
+  _, path = _resolve_weight_path(filename)
+  return Path(path).read_bytes()
 
 
 def load_weights(

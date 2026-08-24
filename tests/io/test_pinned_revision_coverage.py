@@ -46,7 +46,12 @@ def _repo_files_at(revision: str) -> set[str]:
 def test_pinned_revision_serves_every_packaged_checkpoint() -> None:
   """A checkpoint aminx ships must be fetchable at the pin, or the pin breaks that consumer."""
   packaged = _packaged_checkpoint_names()
-  assert packaged, "no packaged checkpoints found; this test would be vacuous"
+  if not packaged:
+    # A wheel install ships no checkpoints -- that is the premise of this whole module, not a
+    # broken fixture. There is nothing local to compare the pin against, so skip rather than
+    # fail. (An earlier version asserted non-empty here and would have hard-failed against
+    # the very artifact this project ships.)
+    pytest.skip("no packaged checkpoints (wheel install); nothing local to compare the pin to")
 
   at_pin = _repo_files_at(HF_REVISION)
   missing = sorted(packaged - at_pin)

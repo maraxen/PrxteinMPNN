@@ -6,6 +6,7 @@ import hashlib
 import io
 import logging
 import os
+import re
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
@@ -33,6 +34,8 @@ HF_REVISION = "25fb7f6e985724dee7471c3bc18522fe33b9228e"
 #: shape this exists to prevent.
 WEIGHTS_DIR_ENV = "AMINX_WEIGHTS_DIR"
 REVISION_ENV = "AMINX_WEIGHTS_REVISION"
+
+_COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
 
 log = logging.getLogger(__name__)
 
@@ -142,6 +145,17 @@ def _env_or_none(name: str) -> str | None:
   return value
 
 
+def normalise_checkpoint_filename(name: str) -> str:
+  """Return the on-disk filename for a checkpoint id.
+
+  Callers hold the BARE id (``"proteinmpnn_v_48_020"``) -- it is what ``--checkpoint-id`` and
+  every spec file carry. Normalising only inside :func:`load_weights` meant
+  :func:`weight_provenance` received the bare id and 404'd for a file that was sitting on
+  disk, so this lives where every entry point reaches it. Idempotent.
+  """
+  return name if name.endswith(".zst") else f"{name}.eqx.zst"
+
+
 def _reject_unsafe_filename(filename: str) -> None:
   """Reject a checkpoint name that would escape whatever directory it is joined to.
 
@@ -176,6 +190,7 @@ def _resolve_weight_path(filename: str) -> tuple[str, str]:
   silent.
   """
   _reject_unsafe_filename(filename)
+  filename = normalise_checkpoint_filename(filename)
   explicit_dir = _env_or_none(WEIGHTS_DIR_ENV)
   # Validated here rather than at the point of use: resolution short-circuits on the packaged
   # branch, so a blank AMINX_WEIGHTS_REVISION would otherwise go unchecked on exactly the path
@@ -222,20 +237,40 @@ def _hub_revision_from_path(path: str) -> str | None:
   parts = Path(path).parts
   if "snapshots" not in parts:
     return None
-  index = parts.index("snapshots") + 1
-  return parts[index] if index < len(parts) else None
+  # Search from the RIGHT. `list.index` finds the first match, and a cache root that itself
+  # contains a "snapshots" component (HF_HOME on shared scratch, say) would then yield the
+  # wrong element -- a confidently-wrong revision is worse than None, because it looks real.
+  index = len(parts) - 1 - parts[::-1].index("snapshots") + 1
+  if index >= len(parts):
+    return None
+  candidate = parts[index]
+  if not _COMMIT_SHA.fullmatch(candidate):
+    log.warning(
+      "cache path %r does not name a commit sha where one was expected (%r); recording the "
+      "revision as unknown rather than guessing",
+      path,
+      candidate,
+    )
+    return None
+  return candidate
 
 
 def weight_provenance(filename: str) -> WeightProvenance:
   """Identify the checkpoint bytes this process would load for ``filename``.
 
   Resolves through the same path as :func:`_load_weight_bytes`, so the record describes the
-  file that actually executes rather than a caller's guess at the resolution order.
+  file that actually executes **for the checkpoint-id route**.
+
+  It does NOT describe a run that supplied ``local_path`` / ``--model-local-path``, nor one
+  that resolved through ``checkpoint_registry_path`` (which reaches the loader as a
+  ``local_path``). Those routes bypass resolution by design; both log when taken.
   """
   source, path = _resolve_weight_path(filename)
   digest = hashlib.sha256(Path(path).read_bytes()).hexdigest()
   return WeightProvenance(
-    filename=filename,
+    # The NORMALISED name, so the record is unambiguous whether the caller passed a bare
+    # checkpoint id or a full filename.
+    filename=normalise_checkpoint_filename(filename),
     source=source,
     path=str(path),
     sha256=digest,
@@ -281,6 +316,15 @@ def load_weights(
     return eqx.combine(new_params, static)
 
   if local_path:
+    # ALWAYS announced, not only when AMINX_WEIGHTS_DIR is set. `checkpoint_registry_path`
+    # (host/prep.py) also arrives here as local_path, typically with no env var in play, so
+    # gating on the env var left the project's own registry route silent -- the exact failure
+    # class this work exists to close.
+    log.info(
+      "weights loaded from an explicit local_path=%r; weight_provenance() does NOT describe "
+      "this route, so recording which weights ran is the caller's responsibility here",
+      local_path,
+    )
     # Deliberately os.environ.get, not _env_or_none: this route does not USE the variable, so
     # a blank value has no wrong-weights consequence here and should not raise. It only means
     # there is no authoritative dir to warn about being overridden.
@@ -302,9 +346,7 @@ def load_weights(
         stream = io.BytesIO(dctx.decompress(f.read()))
         return eqx.tree_deserialise_leaves(stream, skeleton)
     return eqx.tree_deserialise_leaves(local_path, skeleton)
-  filename = checkpoint_id
-  if not filename.endswith(".zst"):
-    filename = f"{filename}.eqx.zst"
+  filename = normalise_checkpoint_filename(checkpoint_id)
 
   data = _load_weight_bytes(filename)
   dctx = zstd.ZstdDecompressor()

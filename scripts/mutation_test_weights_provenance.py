@@ -14,7 +14,13 @@ mutations ESCAPED a 7-test suite that looked complete:
 Both slipped through because the only test reaching that branch asserted
 ``source in {...}`` -- a membership check -- and re-derived its expected file through the same
 resolver it was testing. After ``tests/io/test_weight_provenance_packaged.py`` was added, all
-six mutations are caught.
+mutations are caught (8/8).
+
+SCOPE, so this is not cited as stronger evidence than it is: ``pyproject.toml``'s
+``pythonpath = ["src", ...]`` means pytest always imports from the SOURCE tree, where the
+packaged checkpoints exist. In the built wheel they do not, so the packaged branch is dead
+code there and the two mutations that only that branch reaches are unobservable in the shipped
+artifact. This measures the source checkout.
 
 Run:  uv run --no-sync python scripts/mutation_test_weights_provenance.py
 """
@@ -59,9 +65,19 @@ MUTATIONS: list[tuple[str, str, str]] = [
     '        return "hub", str(packaged)',
   ),
   (
-    "_hub_revision_from_path off-by-one",
+    "_hub_revision_from_path searches left-to-right again",
+    '  index = len(parts) - 1 - parts[::-1].index("snapshots") + 1',
     '  index = parts.index("snapshots") + 1',
-    '  index = parts.index("snapshots") - 1',
+  ),
+  (
+    "_hub_revision_from_path stops validating the commit sha",
+    "  if not _COMMIT_SHA.fullmatch(candidate):",
+    "  if False:",
+  ),
+  (
+    "checkpoint filename normalisation dropped",
+    "  filename = normalise_checkpoint_filename(filename)\n",
+    "",
   ),
   (
     "packaged branch ignores filename",

@@ -485,7 +485,10 @@ print(record.source, record.sha256, record.hub_revision)
 
 Store `sha256` next to the aminx version in any result whose numbers depend on the weights —
 the version alone does not identify them. `weight_provenance` shares one resolver with the
-loader, so the record always describes the file that actually executes.
+loader, so the record describes the file that actually executes **for the checkpoint-id
+route**. It does not cover a run that passed `local_path` / `--model-local-path`, or one that
+resolved through `checkpoint_registry_path` — those bypass resolution by design and log when
+they do, and recording their weights is the caller's job.
 
 ### Overriding the pin
 

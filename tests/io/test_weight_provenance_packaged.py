@@ -126,6 +126,42 @@ def test_set_but_blank_env_var_fails_closed(
     _resolve_weight_path(CHECKPOINT)
 
 
+def test_revision_is_read_from_the_rightmost_snapshots_component() -> None:
+  """A cache root that itself contains "snapshots" must not shift the read.
+
+  `list.index` finds the FIRST match, so a left-to-right search returned the wrong element for
+  any HF_HOME on a path like /scratch/snapshots/... -- yielding a provenance record that looked
+  real and was wrong, which is worse than recording nothing.
+  """
+  nested = (
+    "/scratch/snapshots/hf/models--maraxen--aminx/snapshots/"
+    "25fb7f6e985724dee7471c3bc18522fe33b9228e/proteinmpnn_v_48_020.eqx.zst"
+  )
+
+  assert weights_mod._hub_revision_from_path(nested) == (
+    "25fb7f6e985724dee7471c3bc18522fe33b9228e"
+  )
+
+
+def test_revision_that_is_not_a_commit_sha_is_recorded_as_unknown() -> None:
+  """Refuse to guess: an unrecognised component yields None, not a plausible-looking string."""
+  assert weights_mod._hub_revision_from_path("/a/snapshots/not-a-sha/x.eqx.zst") is None
+
+
+def test_bare_checkpoint_id_resolves_like_the_full_filename() -> None:
+  """Callers hold the BARE id -- it is what --checkpoint-id and every spec file carry.
+
+  Normalising only inside `load_weights` meant `weight_provenance` received the bare id and
+  404'd for a file sitting on disk.
+  """
+  bare = weight_provenance("proteinmpnn_v_48_020")
+  full = weight_provenance("proteinmpnn_v_48_020.eqx.zst")
+
+  assert bare.sha256 == full.sha256
+  assert bare.source == full.source
+  assert bare.filename == "proteinmpnn_v_48_020.eqx.zst", "the record should be unambiguous"
+
+
 def test_blank_revision_raises_even_when_resolution_would_not_reach_the_hub(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

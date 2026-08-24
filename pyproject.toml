@@ -214,6 +214,10 @@ pylint.max-args = 15
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+# Explicit package-data only. Left at its default (true), setuptools sources the file list
+# from `src/aminx.egg-info/SOURCES.txt` and sweeps in every tracked `model_params/*.eqx.zst`,
+# which took a25 to 88.8 MB against a24's 499,612 bytes.
+include-package-data = false
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -279,6 +283,13 @@ dev = [
 
 [tool.setuptools.package-data]
 aminx = ["py.typed"]
+
+# Weights are tracked in the source tree but must NOT ride along in the wheel. Modern
+# setuptools auto-includes them, which took a25 from 499,612 bytes (a24, zero weight files)
+# to 88.8 MB. `_load_weight_bytes` already falls back to `hf_hub_download` when the packaged
+# resource is absent, which is the path every release through a24 actually took.
+[tool.setuptools.exclude-package-data]
+aminx = ["model_params/*.eqx.zst"]
 
 [tool.uv]
 # Only resolve for platforms we actually target (including WSL which reports as linux)

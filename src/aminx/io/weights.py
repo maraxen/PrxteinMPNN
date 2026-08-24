@@ -121,6 +121,42 @@ class WeightProvenance:
   """Resolved snapshot commit when ``source == "hub"``. ``None`` if it could not be read."""
 
 
+def _env_or_none(name: str) -> str | None:
+  """Read an env var, treating set-but-blank as a configuration ERROR rather than as unset.
+
+  ``FOO=`` is almost always an unset variable interpolated into a shell, CI or Docker env.
+  Silently ignoring it would reproduce exactly the failure these settings exist to prevent --
+  a weight source that changes with no signal -- so it fails closed instead.
+  """
+  raw = os.environ.get(name)
+  if raw is None:
+    return None
+  value = raw.strip()
+  if not value:
+    msg = (
+      f"{name} is set but blank ({raw!r}). Refusing to guess: a blank value is almost always "
+      f"an unset variable interpolated into an environment, and silently ignoring it would "
+      f"change the weight source with no signal. Unset {name}, or give it a real value."
+    )
+    raise ValueError(msg)
+  return value
+
+
+def _reject_unsafe_filename(filename: str) -> None:
+  """Reject a checkpoint name that would escape whatever directory it is joined to.
+
+  ``Path("/pinned") / "/etc/passwd"`` is ``/etc/passwd`` under pathlib join semantics, and
+  ``checkpoint_id`` reaches here unmodified from the CLI and from shared spec files.
+  """
+  candidate = Path(filename)
+  if candidate.is_absolute() or ".." in candidate.parts:
+    msg = (
+      f"checkpoint filename {filename!r} must be a plain name relative to the weights "
+      f"directory; absolute paths and '..' are rejected because they escape it."
+    )
+    raise ValueError(msg)
+
+
 def _resolve_weight_path(filename: str) -> tuple[str, str]:
   """Return ``(source, path)`` for ``filename``: packaged resource first, then the Hub.
 
@@ -130,31 +166,47 @@ def _resolve_weight_path(filename: str) -> tuple[str, str]:
 
   Order: an authoritative ``AMINX_WEIGHTS_DIR`` (fails closed), then packaged resources, then
   the Hub at :data:`HF_REVISION`.
+
+  SCOPE, and it is narrower than it looks. This governs resolution from a ``checkpoint_id``.
+  It does NOT govern :func:`load_weights`/:func:`load_model`'s ``local_path`` argument --
+  exposed as ``--model-local-path`` and as ``RunSpecification.model_local_path`` -- which
+  opens the file it is given directly and by design. ``AMINX_WEIGHTS_DIR`` is therefore
+  authoritative for checkpoint-id resolution, not for every route by which weights can enter
+  the process; :func:`load_weights` warns when both are supplied so the override is never
+  silent.
   """
-  explicit_dir = os.environ.get(WEIGHTS_DIR_ENV)
+  _reject_unsafe_filename(filename)
+  explicit_dir = _env_or_none(WEIGHTS_DIR_ENV)
+  # Validated here rather than at the point of use: resolution short-circuits on the packaged
+  # branch, so a blank AMINX_WEIGHTS_REVISION would otherwise go unchecked on exactly the path
+  # most installs take, and only surface once something reached the Hub.
+  revision = _env_or_none(REVISION_ENV) or HF_REVISION
   if explicit_dir:
     candidate = Path(explicit_dir) / filename
     if not candidate.is_file():
       msg = (
-        f"{WEIGHTS_DIR_ENV}={explicit_dir!r} is set and is authoritative, but {filename!r} is "
-        f"not in it. Refusing to fall back to packaged resources or the Hub: a silent change "
-        f"of weight source is the failure this setting exists to prevent. Place the file "
-        f"there, or unset {WEIGHTS_DIR_ENV}."
+        f"{WEIGHTS_DIR_ENV}={explicit_dir!r} is set and is authoritative for checkpoint-id "
+        f"resolution, but {filename!r} is not in it. Refusing to fall back to packaged "
+        f"resources or the Hub: a silent change of weight source is the failure this setting "
+        f"exists to prevent. Place the file there, or unset {WEIGHTS_DIR_ENV}."
       )
       raise FileNotFoundError(msg)
     return "explicit_dir", str(candidate)
 
   try:
     resource_path = files("aminx.model_params").joinpath(filename)
+    # ``str()`` on a Traversable is only openable when it is backed by a real file. Check that
+    # here rather than returning a path the caller cannot read: a zip/egg import yields a
+    # Traversable whose ``is_file()`` is True but whose string form is not a filesystem path,
+    # and falling through to the Hub is recoverable where an unhandled read error is not.
     if resource_path.is_file():
-      return "packaged", str(resource_path)
-  except (TypeError, ModuleNotFoundError):
+      packaged = Path(str(resource_path))
+      if packaged.is_file():
+        return "packaged", str(packaged)
+  except (TypeError, ModuleNotFoundError, OSError):
     pass
 
-  revision = os.environ.get(REVISION_ENV, HF_REVISION)
-  log.info(
-    "Downloading %s from %s at %s (cached after first use)", filename, HF_REPO_ID, revision,
-  )
+  log.info("Resolving %s from %s at %s (cached after first use)", filename, HF_REPO_ID, revision)
   return "hub", hf_hub_download(repo_id=HF_REPO_ID, filename=filename, revision=revision)
 
 
@@ -226,6 +278,16 @@ def load_weights(
     return eqx.combine(new_params, static)
 
   if local_path:
+    if os.environ.get(WEIGHTS_DIR_ENV):
+      log.warning(
+        "local_path=%r overrides %s=%r. The env var is authoritative for CHECKPOINT-ID "
+        "resolution only; an explicit local_path bypasses it by design. Recording which "
+        "weights ran is the caller's responsibility on this route -- weight_provenance() "
+        "does not describe it.",
+        local_path,
+        WEIGHTS_DIR_ENV,
+        os.environ.get(WEIGHTS_DIR_ENV),
+      )
     with open(local_path, "rb") as f:
       header = f.read(4)
       f.seek(0)

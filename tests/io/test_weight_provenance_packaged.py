@@ -126,6 +126,50 @@ def test_set_but_blank_env_var_fails_closed(
     _resolve_weight_path(CHECKPOINT)
 
 
+def test_blank_revision_raises_even_when_resolution_would_not_reach_the_hub(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """The blank check runs before the branch is chosen, and that is the point.
+
+  The parametrized test above sets one variable at a time, so it never covers this: a run
+  that would resolve entirely from the authoritative directory still rejects a blank
+  revision. A value that only fails once something happens to reach the Hub is the failure
+  mode this replaces.
+  """
+  (tmp_path / CHECKPOINT).write_bytes(b"payload")
+  monkeypatch.setenv(WEIGHTS_DIR_ENV, str(tmp_path))
+  monkeypatch.setenv(REVISION_ENV, "")
+
+  with pytest.raises(ValueError, match="set but blank"):
+    _resolve_weight_path(CHECKPOINT)
+
+
+def test_packaged_lookup_failure_is_logged_not_silently_swallowed(
+  monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+) -> None:
+  """A local permission error must leave a breadcrumb, not look like a Hub outage.
+
+  On an air-gapped compute node the fall-through fails at the Hub, and without this log the
+  operator sees a connectivity error for what is actually a fixable local file mode.
+  """
+
+  def denied(_pkg: str) -> object:
+    raise PermissionError(13, "Permission denied")
+
+  monkeypatch.setattr(weights_mod, "files", denied)
+  monkeypatch.setattr(
+    weights_mod, "hf_hub_download", lambda **_kw: "/cache/snapshots/abc123/x.eqx.zst",
+  )
+
+  with caplog.at_level("DEBUG", logger="aminx.io.weights"):
+    source, _path = _resolve_weight_path(CHECKPOINT)
+
+  assert source == "hub"
+  assert any("packaged lookup failed" in record.getMessage() for record in caplog.records), (
+    "an OSError swallowed with no trace makes a local misconfiguration look like a Hub outage"
+  )
+
+
 @pytest.mark.parametrize(
   "unsafe",
   ["/etc/passwd", "../../../etc/passwd", "/tmp/evil.eqx.zst"],

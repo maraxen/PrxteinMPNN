@@ -507,7 +507,11 @@ The override is visible in `WeightProvenance.hub_revision`, which is read back f
 resolved cache path rather than from the variable — so an overridden run is still identifiable
 from its own record. Setting either variable to a **blank** value is an error, not a request
 for defaults: a blank value is almost always an unset variable interpolated into an
-environment, and honouring it would change the weight source with no signal.
+environment, and honouring it would change the weight source with no signal. Note this check
+runs *before* the resolution order is known, so a blank `AMINX_WEIGHTS_REVISION` raises even on
+a run that would have resolved from `AMINX_WEIGHTS_DIR` or packaged resources and never reached
+the Hub. That is deliberate: a value that only fails once something happens to reach the Hub is
+the failure mode this replaces.
 
 ## Development
 

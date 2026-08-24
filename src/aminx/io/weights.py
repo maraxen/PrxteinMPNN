@@ -203,8 +203,11 @@ def _resolve_weight_path(filename: str) -> tuple[str, str]:
       packaged = Path(str(resource_path))
       if packaged.is_file():
         return "packaged", str(packaged)
-  except (TypeError, ModuleNotFoundError, OSError):
-    pass
+  except (TypeError, ModuleNotFoundError, OSError) as exc:
+    # Logged, not swallowed. Falling through to the Hub is the right recovery when the Hub is
+    # reachable, but on an air-gapped compute node it turns a local, fixable PermissionError
+    # into an opaque "Hub unreachable" failure with no breadcrumb back to the real cause.
+    log.debug("packaged lookup failed for %s, falling through to the Hub: %r", filename, exc)
 
   log.info("Resolving %s from %s at %s (cached after first use)", filename, HF_REPO_ID, revision)
   return "hub", hf_hub_download(repo_id=HF_REPO_ID, filename=filename, revision=revision)
@@ -278,6 +281,9 @@ def load_weights(
     return eqx.combine(new_params, static)
 
   if local_path:
+    # Deliberately os.environ.get, not _env_or_none: this route does not USE the variable, so
+    # a blank value has no wrong-weights consequence here and should not raise. It only means
+    # there is no authoritative dir to warn about being overridden.
     if os.environ.get(WEIGHTS_DIR_ENV):
       log.warning(
         "local_path=%r overrides %s=%r. The env var is authoritative for CHECKPOINT-ID "

@@ -594,6 +594,13 @@ class InferencePlan(eqx.Module):
   components: InferenceComponents
   decode_fn: DecodeScoreFn | ARDecodeFn | STEDecodeFn
   packer: Any = None
+  # Concrete/Gumbel annealing for the STE decode. STEDecode.__call__ accepts these as
+  # CALL-TIME arguments with defaults, so a plan that does not forward them silently pins the
+  # schedule at (False, 1.0, 0.1) regardless of what the SamplingSpecification asked for.
+  # Static: they are Python scalars consumed as trace-time constants, not traced arrays.
+  use_concrete: bool = eqx.field(static=True, default=False)
+  concrete_tau_start: float = eqx.field(static=True, default=1.0)
+  concrete_tau_end: float = eqx.field(static=True, default=0.1)
 
   @property
   def stage_set(self) -> Any:
@@ -680,13 +687,32 @@ class InferencePlan(eqx.Module):
         "InferenceBundle contains no packer bundle data.",
       )
 
-    result = self.decode_fn(
-      key,
-      enc,
-      bundle,
-      config,
-      self.components.stage_set,
-    )
+    # Forward the annealing schedule ONLY to STEDecode: the other mode classes
+    # (Conditional/Unconditional/Autoregressive) do not accept these kwargs, and passing
+    # them unconditionally would be a TypeError on every non-STE decode.
+    # Imported locally, matching this module's existing convention (see the topology check
+    # around line 511) which keeps aminx.inference.decode out of plan.py's import cycle.
+    from aminx.inference.decode.ste import STEDecode
+
+    if isinstance(self.decode_fn, STEDecode):
+      result = self.decode_fn(
+        key,
+        enc,
+        bundle,
+        config,
+        self.components.stage_set,
+        use_concrete=self.use_concrete,
+        tau_start=self.concrete_tau_start,
+        tau_end=self.concrete_tau_end,
+      )
+    else:
+      result = self.decode_fn(
+        key,
+        enc,
+        bundle,
+        config,
+        self.components.stage_set,
+      )
     # Normalize: if driver returned raw logits, wrap as SampleResult
     if not isinstance(result, SampleResult):
       result = SampleResult(
@@ -991,7 +1017,18 @@ def make_inference_plan(
     stage_set=stage_set,
   )
 
-  return InferencePlan(model=model, components=components, decode_fn=decode_fn, packer=packer)
+  # The annealing knobs live on the FLAT SamplingSpecification (specs.py), not on
+  # run_spec.sampling, so read them off the spec with getattr -- ScoringSpecification and the
+  # other spec classes reach this function too and do not declare them.
+  return InferencePlan(
+    model=model,
+    components=components,
+    decode_fn=decode_fn,
+    packer=packer,
+    use_concrete=bool(getattr(spec, "use_concrete", False)),
+    concrete_tau_start=float(getattr(spec, "concrete_tau_start", 1.0)),
+    concrete_tau_end=float(getattr(spec, "concrete_tau_end", 0.1)),
+  )
 
 
 def plan_bucketed(

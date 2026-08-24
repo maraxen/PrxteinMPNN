@@ -457,6 +457,65 @@ Tree-Reweighted belief propagation (TRW) for global sequence design.
 - JAX + Equinox (GPU/TPU/CPU via extras)
 - `uv sync --extra cpu` for CPU-only; `--extra cuda` for GPU
 
+## Where model weights come from
+
+The built wheel ships **no** checkpoints, so the aminx version pin does not by itself
+determine which weights execute. Resolution order, and it stops at the first hit:
+
+1. **`AMINX_WEIGHTS_DIR`** — when set, this directory is authoritative and **fails closed**: a
+   checkpoint missing from it raises rather than quietly falling through to the Hub. Scope is
+   checkpoint-id resolution only; an explicit `local_path` / `--model-local-path` still
+   bypasses it by design, and logs a warning when it does.
+2. **Packaged resources** (`aminx/model_params/`) — present in a source checkout, absent from
+   the wheel.
+3. **Hugging Face Hub**, pinned to `HF_REVISION` in `aminx/io/weights.py`.
+
+Because the pin is a full commit SHA, a warm cache resolves with **no network request at
+all** — measured at ~0.7 ms against ~236 ms for the unpinned form, which issued a HEAD on
+every call. Pinning is faster *and* reproducible, not a tradeoff between them.
+
+### Recording which weights ran
+
+```python
+from aminx.io.weights import weight_provenance
+
+record = weight_provenance("proteinmpnn_v_48_020.eqx.zst")
+print(record.source, record.sha256, record.hub_revision)
+```
+
+Store `sha256` next to the aminx version in any result whose numbers depend on the weights —
+the version alone does not identify them. `weight_provenance` shares one resolver with the
+loader, so the record describes the file that actually executes **for the checkpoint-id
+route**. It does not cover a run that passed `local_path` / `--model-local-path`, or one that
+resolved through `checkpoint_registry_path` — those bypass resolution by design and log when
+they do, and recording their weights is the caller's job.
+
+### Overriding the pin
+
+Set `AMINX_WEIGHTS_REVISION` to reach a checkpoint newer than the pin, or to roll back:
+
+```bash
+export AMINX_WEIGHTS_REVISION=<commit-sha>
+```
+
+In a SLURM batch script, export it before the run line:
+
+```bash
+#SBATCH --job-name=aminx-score
+export AMINX_WEIGHTS_REVISION=25fb7f6e985724dee7471c3bc18522fe33b9228e
+uv run aminx run score --spec spec.json
+```
+
+The override is visible in `WeightProvenance.hub_revision`, which is read back from the
+resolved cache path rather than from the variable — so an overridden run is still identifiable
+from its own record. Setting either variable to a **blank** value is an error, not a request
+for defaults: a blank value is almost always an unset variable interpolated into an
+environment, and honouring it would change the weight source with no signal. Note this check
+runs *before* the resolution order is known, so a blank `AMINX_WEIGHTS_REVISION` raises even on
+a run that would have resolved from `AMINX_WEIGHTS_DIR` or packaged resources and never reached
+the Hub. That is deliberate: a value that only fails once something happens to reach the Hub is
+the failure mode this replaces.
+
 ## Development
 
 | Command | Purpose |

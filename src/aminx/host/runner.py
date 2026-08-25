@@ -917,6 +917,22 @@ def inspect(  # noqa: PLR0915
     pop_deprecated_spec_kwargs(kw)
     spec = InspectionSpecification(**kw)
 
+  # F005 guard [260826_aminx-invariant-audit]: runner.inspect cannot honour
+  # spec.state_position_map -- no code path in this body reads it (AST hit
+  # count 0; see findings.jsonl F005 evidence), so a caller-supplied map would
+  # be silently discarded and the output would be single-state while stamped
+  # as multistate. Raise loudly instead, mirroring the F002 guard at
+  # runner.sample (7460516a); score() honours the field via
+  # _score_fused_multistate and campaign verbs implement real state fusion.
+  if getattr(spec, "state_position_map", None) is not None:
+    msg = (
+      "inspect runner: spec.state_position_map is set but runner.inspect has no "
+      "cross-state fusion path -- the field would be silently discarded. Use "
+      "runner.score (which honours state_position_map via _score_fused_multistate) "
+      "or the campaign verbs for genuine multistate output."
+    )
+    raise NotImplementedError(msg)
+
   if spec.output_h5_path:
     msg = "inspect runner: HDF5 streaming output not yet implemented; omit --output-h5-path for in-memory results"
     raise NotImplementedError(msg)
@@ -1214,6 +1230,22 @@ def jacobian(
     kw = dict(kwargs)
     pop_deprecated_spec_kwargs(kw)
     spec = JacobianSpecification(**kw)
+
+  # F005 guard [260826_aminx-invariant-audit]: runner.jacobian cannot honour
+  # spec.state_position_map -- no code path in this body reads it (AST hit
+  # count 0; see findings.jsonl F005 evidence), so a caller-supplied map would
+  # be silently discarded and the output would be single-state while stamped
+  # as multistate. Raise loudly instead, mirroring the F002 guard at
+  # runner.sample (7460516a); score() honours the field via
+  # _score_fused_multistate and campaign verbs implement real state fusion.
+  if getattr(spec, "state_position_map", None) is not None:
+    msg = (
+      "jacobian runner: spec.state_position_map is set but runner.jacobian has "
+      "no cross-state fusion path -- the field would be silently discarded. Use "
+      "runner.score (which honours state_position_map via _score_fused_multistate) "
+      "or the campaign verbs for genuine multistate output."
+    )
+    raise NotImplementedError(msg)
 
   if spec.combine:
     msg = "jacobian runner: combine=True not yet implemented; use in-memory results"

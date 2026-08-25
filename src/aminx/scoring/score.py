@@ -37,13 +37,20 @@ def _nll_from_logits(
 
   Args:
     logits: Model output logits, shape (..., 21) where last axis is vocab.
-    seq_one_hot: One-hot encoded sequence, shape (..., 21).
+    seq_one_hot: One-hot encoded sequence, shape (..., 21). An integer sequence
+      of shape (...,) is ALSO accepted and one-hot encoded here -- debt #1427:
+      ``score_sequence`` passes the raw integer ``sequence``, and the previous
+      implicit broadcast of int (L,) against float (L, 21) broke under stricter
+      jnp broadcasting (asr test_trex_mpnn_integration regression).
     mask: Per-residue mask for scoring. If 2-D (S, L), uses first state's mask.
 
   Returns:
     Scalar NLL (negative log-likelihood), masked and averaged.
   """
   log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
+  if seq_one_hot.ndim == logits.ndim - 1:
+    # Integer sequence (no vocab axis): encode to one-hot on the 20-scored AAs.
+    seq_one_hot = jax.nn.one_hot(seq_one_hot, num_classes=logits.shape[-1])
   score = -(seq_one_hot[..., :20] * log_probability).sum(-1)
 
   # Use the first state's mask when batched (S, L); use full vector when 1-D (L,).

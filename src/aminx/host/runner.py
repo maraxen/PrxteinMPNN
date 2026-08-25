@@ -172,6 +172,30 @@ def sample(
     pop_deprecated_spec_kwargs(kw)
     spec = SamplingSpecification(**kw)
 
+  # F002/F003 guard [260826_aminx-invariant-audit]: runner.sample cannot honour
+  # multistate spec fields.  score() routes through _score_fused_multistate which
+  # performs real cross-state fusion; sample() has no such path (the internal
+  # _sample_batch kernel silently discards multi_state_strategy via `del` and never
+  # reads state_position_map).  Silently returning per-structure single-state output
+  # when the caller supplied multistate fields is a lie; raise loudly instead and
+  # direct callers to the campaign verbs that do implement multistate sampling.
+  _multistate_default = "arithmetic_mean"
+  if spec.state_position_map is not None or spec.multi_state_strategy != _multistate_default:
+    _bad_fields = []
+    if spec.state_position_map is not None:
+      _bad_fields.append(f"state_position_map (shape {getattr(spec.state_position_map, 'shape', type(spec.state_position_map))})")
+    if spec.multi_state_strategy != _multistate_default:
+      _bad_fields.append(f"multi_state_strategy={spec.multi_state_strategy!r}")
+    msg = (
+      f"runner.sample() does not implement multistate sampling; the following "
+      f"spec fields cannot be honoured: {', '.join(_bad_fields)}. "
+      f"Use `aminx campaign run` or the campaign worker verb to reach the "
+      f"multistate sampling path (aminx.sampling.multistate_poe."
+      f"sample_multistate_poe_campaign_row). "
+      f"runner.score() does honour these fields via _score_fused_multistate."
+    )
+    raise NotImplementedError(msg)
+
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
   # Construct inference plan once before routing to streaming or non-streaming path.

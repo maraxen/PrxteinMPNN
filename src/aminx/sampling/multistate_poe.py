@@ -313,6 +313,10 @@ def sample_multistate_poe_bead(
     raise ValueError(msg)
 
   seq_len = batched_ensemble.coordinates.shape[1]
+  # spec.batch_size == n_states and the check above confirms exactly one combined batch, so
+  # canonical_structure_ids IS the per-row identity for this batch with no offset needed --
+  # unlike kernel_dispatch.py's chunked case, there's only ever one chunk here.
+  canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
   # _prepare_fixed_controls returns a (num_states, L) array -- shaped for
   # kernel_dispatch.py's per-structure_idx SLICING (each independent call gets its own
   # 1D (L,) row). build_inference_bundle's fixed_mask/fixed_tokens are design-level, not
@@ -334,7 +338,7 @@ def sample_multistate_poe_bead(
   # positions would hit the ValueError below, correctly, rather than this function silently
   # picking an arbitrary one of several different real fixed-position sets.
   fixed_mask_per_structure, fixed_tokens_per_structure = _prepare_fixed_controls(
-    spec, batched_ensemble=batched_ensemble,
+    spec, batched_ensemble=batched_ensemble, batch_structure_ids=canonical_structure_ids,
   )
   if not bool(jnp.all(fixed_mask_per_structure == fixed_mask_per_structure[0])) or not bool(
     jnp.all(fixed_tokens_per_structure == fixed_tokens_per_structure[0]),
@@ -353,6 +357,8 @@ def sample_multistate_poe_bead(
     batched_ensemble=batched_ensemble,
     batch_size=n_states,
     seq_len=seq_len,
+    canonical_structure_ids=canonical_structure_ids,
+    batch_structure_ids=canonical_structure_ids,
   )
 
   state_weights = (

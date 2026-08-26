@@ -36,6 +36,12 @@ from aminx.types.configs import InferenceConfig
 
 _CHECKPOINT = "ligandmpnn_v_32_020_25"
 
+# See test_sc_differential_reveal_vs_no_reveal's docstring / finding FT3: measured 2.38e-07 on
+# CPU, 3.536e-04 on a CUDA backend (titanix) -- backend-dependent float32 reduction noise, not
+# a masking leak. Set with margin above the observed CUDA value, well below the real ~0.073
+# SC-reveal signal this same test also asserts.
+SC_VS_OFF_TOLERANCE = 1e-3
+
 
 def _small_ligand_model(*, use_sc: bool, key: jax.Array) -> PrxteinLigandMPNN:
     """Construct a tiny ligand model (no weights needed — random init)."""
@@ -180,7 +186,24 @@ def test_sc_differential_reveal_vs_no_reveal() -> None:
 
     Expected:
       max|logits_reveal - logits_no_reveal| > 1e-3  (SC is live when fixed)
-      max|logits_sc_no_reveal - logits_off_no_reveal| < 1e-5  (SC-on+no-reveal ≈ SC-off)
+      max|logits_sc_no_reveal - logits_off_no_reveal| < SC_VS_OFF_TOLERANCE (SC-on+no-reveal
+        ≈ SC-off)
+
+    ``SC_VS_OFF_TOLERANCE`` is backend-dependent, not a masking leak (260826_chain-selection-
+    vendor-superset-audit finding FT3). Print-level tracing confirmed the masking is
+    mathematically exact: SC-on's masked-out reveal path concatenates 12 extra
+    (ligand_mask=0) pseudo-atoms before the shared nearest-atom_context_num select (a90ad4f9),
+    giving a 16-slot array vs SC-off's un-padded 4-slot array -- but the per-atom feature
+    VALUES for the 4 real (unmasked) atoms are confirmed bit-close (float32-precision) between
+    the two configs, and DecoderLayer's masking is exact multiplicative zeroing before the
+    message sum (verified in source), so a masked slot contributes exactly 0.0 to the
+    aggregate. On CPU the measured max|Δ| is 2.38e-07 (matches this suite's own FT1 finding's
+    exact magnitude); on a CUDA backend (titanix) it was 3.536e-04 -- real, reproducible, and
+    consistent with float32 non-associative summation reordering across a 16-wide vs 4-wide
+    reduction, amplified through 2 encoder + 2 context cross-attention layers (unlike FT1's
+    single padded sum, small per-layer noise compounds through this network's depth). A real
+    masking leak would not shrink by three orders of magnitude between backends while the
+    underlying computation is unchanged.
     """
     inp = _synthetic_inputs(seq_len=8, ligand_atoms=4, n_states=2)
     seq_len = inp["seq_len"]
@@ -226,7 +249,7 @@ def test_sc_differential_reveal_vs_no_reveal() -> None:
     assert delta_reveal > 1e-3, (
         f"SC reveal should change logits by >1e-3; got max|Δ|={delta_reveal}"
     )
-    assert delta_sc_vs_off < 1e-5, (
+    assert delta_sc_vs_off < SC_VS_OFF_TOLERANCE, (
         f"SC-on with no reveal should ≈ SC-off; got max|Δ|={delta_sc_vs_off}"
     )
 

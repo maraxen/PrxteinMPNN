@@ -1,0 +1,39 @@
+{
+  "extraction_method": "grep + manual read of src/aminx/run/specs.py (RunSpecification base dataclass, lines ~190-330), src/aminx/host/runner.py, src/aminx/host/_sampling_helper.py, src/aminx/host/kernel_dispatch.py, src/aminx/host/prep.py, src/aminx/cli.py. NOT yet AST-derived programmatically — Phase 2 should reuse derive_seams.py's AST walker, filtered to this field family, for a reproducible/hashable seam list.",
+  "fields": [
+    {
+      "field": "chain_id",
+      "declared_at": "src/aminx/run/specs.py:257 (RunSpecification base)",
+      "vendor_alias": "parse_these_chains_only",
+      "consumed_at": [
+        "src/aminx/host/prep.py:96 (spec.chain_id read into prep dict)",
+        "src/aminx/cli.py:614, 1674-1675 (CLI flag forwarding + docstring pointer)"
+      ],
+      "reachability_status": "CONFIRMED reachable — consumed at prep/parsing stage, which is upstream of and shared by every runner surface (sample/score/jacobian/inspect all consume the same prepped structure). Not yet differential-probed to confirm the filter actually excludes non-selected chains from the parsed structure rather than being silently ignored downstream — Phase 2 AST + probe needed for a real ASSERTED-PASS."
+    },
+    {
+      "field": "fixed_mask",
+      "declared_at": "src/aminx/run/specs.py:321 (RunSpecification base) — inherited by all subclasses including SamplingSpecification, ScoreSpecification, InspectionSpecification, JacobianSpecification",
+      "vendor_alias": "fixed_residues / redesigned_residues (inverse)",
+      "consumed_at": [
+        "src/aminx/host/runner.py:949 — inspect()'s 'unconditional_logits' feature branch: fixed_mask=spec.fixed_mask passed directly to build_inference_bundle",
+        "src/aminx/host/_sampling_helper.py:343-365 — DIFFERENT wiring path: chain_mask = 1.0 - fixed_mask, then written into a ligand_context dict",
+        "src/aminx/host/kernel_dispatch.py:251,334,441,520 — chain_mask (derived, not fixed_mask directly) read ONLY inside `if ligand_context is not None` guards"
+      ],
+      "reachability_status": "OPEN QUESTION, not yet adjudicated. Two structurally different wiring mechanisms exist for the same nominal field: (a) inspect()'s unconditional_logits branch passes fixed_mask straight into build_inference_bundle; (b) sample()'s path derives chain_mask and threads it only into the ligand_context construction, gated behind ligand_context being non-None. Manual reading could not confirm whether chain_mask/fixed_mask actually gates WHICH residues get sampled vs held fixed during sample()'s autoregressive decode, or only affects a secondary ligand-exposure computation. inspect()'s 'conditional_logits' branch (runner.py:958+) and score()/jacobian() were not confirmed to read fixed_mask/chain_mask AT ALL in this pass (grep found exactly one 'fixed_mask=' assignment in the whole of runner.py). This is the single highest-priority item for Phase 2's differential bit-identity probe: set fixed_mask on a fixed vs varied subset of residues, sample, and check whether the 'fixed' positions actually stay literal to the input sequence in the output — the same technique F002/F003 used for multi_state_strategy."
+    },
+    {
+      "field": "tie_group_map / tied_positions / pass_mode",
+      "declared_at": "src/aminx/run/specs.py:312-314 (RunSpecification base)",
+      "vendor_alias": "symmetry_residues / symmetry_weights / homo_oligomer",
+      "consumed_at": "NOT YET TRACED — deferred to Phase 2 recon. Comment at specs.py:311 labels this the 'tied-position logit averaging' family, which is the right conceptual match for vendor's cross-chain symmetric tying, but reachability across sample/score/jacobian/inspect is unconfirmed.",
+      "reachability_status": "UNTRACED"
+    },
+    {
+      "field": "chains_to_design (vendor concept — chain-letter-level design/fix convenience)",
+      "declared_at": "NO DIRECT AMINX EQUIVALENT FOUND. The orphaned #1881 field chain_mask_fixed (branch worktree-sprint-260616-compose, commits 9a244ddf/50af782b/25e97a2b, never merged to main) is a raw residue-index array override, not a chain-letter selector — a caller still has to hand-build the index mapping themselves.",
+      "vendor_alias": "chains_to_design",
+      "reachability_status": "CANDIDATE REAL SUPERSET GAP — aminx has no chain-ID-level design/fix convenience anywhere in the RunSpecification family, even before considering cross-surface wiring. This is a genuine absent-in-aminx finding for Axis B, independent of and upstream of the Axis A wiring question above."
+    }
+  ]
+}

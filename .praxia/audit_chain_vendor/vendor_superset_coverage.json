@@ -1,0 +1,167 @@
+{
+  "vendor_run_py": "/tmp/claude/aminx-audit/ref_clone/run.py",
+  "vendor_commit": "26ec57ac976ade5379920dbd43c7f97a91cf82de",
+  "aminx_specs_py": "src/aminx/run/specs.py",
+  "vendor_flags_extracted_total": 49,
+  "aminx_fields_extracted_total": 124,
+  "chain_selection_flags_checked": 9,
+  "coverage": {
+    "present": [
+      {
+        "vendor_flag": "fixed_residues",
+        "vendor_help": "Provide fixed residues, A12 A13 A14 B2 B25",
+        "vendor_source_line": 742,
+        "category": "residue-level fix",
+        "expected_aminx_fields": [
+          "fixed_mask"
+        ],
+        "present_aminx_fields": [
+          "fixed_mask"
+        ],
+        "notes": "fixed_mask is the aminx equivalent; residue letters vs a boolean array is an ergonomics difference, not a coverage gap."
+      },
+      {
+        "vendor_flag": "fixed_residues_multi",
+        "vendor_help": "Path to json mapping of fixed residues for each pdb i.e., {'/path/to/pdb': 'A12 A13 A14 B2 B25'}",
+        "vendor_source_line": 748,
+        "category": "residue-level fix (batch)",
+        "expected_aminx_fields": [
+          "fixed_mask"
+        ],
+        "present_aminx_fields": [
+          "fixed_mask"
+        ],
+        "notes": "aminx's fixed_mask is per-call, not a json-mapped-by-pdb-path batch structure -- a real ergonomics gap for multi-structure batches, distinct from the single-structure case."
+      },
+      {
+        "vendor_flag": "redesigned_residues",
+        "vendor_help": "Provide to be redesigned residues, everything else will be fixed, A12 A13 A14 B2 B25",
+        "vendor_source_line": 755,
+        "category": "residue-level allowlist (inverse framing)",
+        "expected_aminx_fields": [
+          "fixed_mask"
+        ],
+        "present_aminx_fields": [
+          "fixed_mask"
+        ],
+        "notes": "Covered by fixed_mask's complement; no dedicated 'redesign-only-these' field, but semantically equivalent -- not a real gap."
+      },
+      {
+        "vendor_flag": "redesigned_residues_multi",
+        "vendor_help": "Path to json mapping of redesigned residues for each pdb i.e., {'/path/to/pdb': 'A12 A13 A14 B2 B25'}",
+        "vendor_source_line": 761,
+        "category": "residue-level allowlist (batch)",
+        "expected_aminx_fields": [
+          "fixed_mask"
+        ],
+        "present_aminx_fields": [
+          "fixed_mask"
+        ],
+        "notes": "Same batch-ergonomics gap as fixed_residues_multi."
+      },
+      {
+        "vendor_flag": "symmetry_residues",
+        "vendor_help": "Add list of lists for which residues need to be symmetric, e.g. 'A12,A13,A14|C2,C3|A5,B6'",
+        "vendor_source_line": 806,
+        "category": "cross-chain symmetric-tying",
+        "expected_aminx_fields": [
+          "tie_group_map",
+          "tied_positions"
+        ],
+        "present_aminx_fields": [
+          "tie_group_map",
+          "tied_positions"
+        ],
+        "notes": "Conceptual match via specs.py's 'tied-position logit averaging' family -- reachability across all 4 runner surfaces NOT YET traced (deferred from Phase 1 seed_findings.md)."
+      },
+      {
+        "vendor_flag": "parse_these_chains_only",
+        "vendor_help": "Provide chains letters for parsing backbones, 'A,B,C,F'",
+        "vendor_source_line": 892,
+        "category": "structure-level chain filter",
+        "expected_aminx_fields": [
+          "chain_id"
+        ],
+        "present_aminx_fields": [
+          "chain_id"
+        ],
+        "notes": "aminx's chain_id (RunSpecification base) is consumed at host/prep.py:96, upstream of all runner surfaces."
+      }
+    ],
+    "absent": [
+      {
+        "vendor_flag": "symmetry_weights",
+        "vendor_help": "Add weights that match symmetry_residues, e.g. '1.01,1.0,1.0|-1.0,2.0|2.0,2.3'",
+        "vendor_source_line": 812,
+        "category": "cross-chain symmetric-tying (per-tie-group weighting)",
+        "expected_aminx_fields": [],
+        "present_aminx_fields": [],
+        "notes": "No aminx field found for per-symmetry-group WEIGHT (as opposed to just which positions are tied) -- candidate real gap, needs confirmation once tie_group_map's actual semantics are traced."
+      },
+      {
+        "vendor_flag": "homo_oligomer",
+        "vendor_help": "Setting this to 1 will automatically set --symmetry_residues and --symmetry_weights to do homooligomer design with equal weighting.",
+        "vendor_source_line": 818,
+        "category": "cross-chain symmetric-tying (convenience preset)",
+        "expected_aminx_fields": [],
+        "present_aminx_fields": [],
+        "notes": "No aminx convenience preset found; would need to be hand-constructed via tie_group_map if that field supports the same shape at all."
+      },
+      {
+        "vendor_flag": "chains_to_design",
+        "vendor_help": "Specify which chains to redesign, all others will be kept fixed, 'A,B,C,F'",
+        "vendor_source_line": 885,
+        "category": "chain-level design/fix split",
+        "expected_aminx_fields": [],
+        "present_aminx_fields": [],
+        "notes": "No aminx field expresses this directly. chain_mask_fixed (orphaned PR #1881, never merged) is a raw residue-index array, not a chain-letter selector -- a caller still has to hand-build the mapping themselves."
+      }
+    ],
+    "unmapped_vendor_flag": [
+      "model_type",
+      "checkpoint_protein_mpnn",
+      "checkpoint_ligand_mpnn",
+      "checkpoint_per_residue_label_membrane_mpnn",
+      "checkpoint_global_label_membrane_mpnn",
+      "checkpoint_soluble_mpnn",
+      "fasta_seq_separation",
+      "verbose",
+      "pdb_path",
+      "pdb_path_multi",
+      "bias_AA",
+      "bias_AA_per_residue",
+      "bias_AA_per_residue_multi",
+      "omit_AA",
+      "omit_AA_per_residue",
+      "omit_AA_per_residue_multi",
+      "out_folder",
+      "file_ending",
+      "zero_indexed",
+      "seed",
+      "batch_size",
+      "number_of_batches",
+      "temperature",
+      "save_stats",
+      "ligand_mpnn_use_atom_context",
+      "ligand_mpnn_cutoff_for_score",
+      "ligand_mpnn_use_side_chain_context",
+      "transmembrane_buried",
+      "transmembrane_interface",
+      "global_transmembrane_label",
+      "parse_atoms_with_zero_occupancy",
+      "pack_side_chains",
+      "checkpoint_path_sc",
+      "number_of_packs_per_design",
+      "sc_num_denoising_steps",
+      "sc_num_samples",
+      "repack_everything",
+      "force_hetatm",
+      "packed_suffix",
+      "pack_with_ligand_context"
+    ]
+  },
+  "summary": {
+    "present": 6,
+    "absent": 3
+  }
+}

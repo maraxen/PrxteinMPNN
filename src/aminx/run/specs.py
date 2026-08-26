@@ -56,6 +56,8 @@ if TYPE_CHECKING:
   from aminx.utils.catjac import CombineCatJacPairFn
   from aminx.utils.decoding_order import DecodingOrderFn
 
+  from .batch_mapping import MappedBy
+
 
 # Type aliases for convenience
 ModelWeights = MODEL_WEIGHTS
@@ -318,7 +320,7 @@ class RunSpecification:
   state_position_map: ArrayLike | None = None
   structure_mapping: ArrayLike | None = None
   multi_state_temperature: float = 1.0
-  fixed_mask: ArrayLike | None = None
+  fixed_mask: ArrayLike | MappedBy[ArrayLike] | None = None
   sidechain_conditioning: bool = False
 
   run_spec: RunSpec = field(init=False, repr=False)
@@ -575,7 +577,7 @@ class SamplingSpecification(RunSpecification):
   use_unified_driver: bool = True
   bias: ArrayLike | None = None
   fixed_positions: ArrayLike | None = None
-  fixed_tokens: ArrayLike | None = None
+  fixed_tokens: ArrayLike | MappedBy[ArrayLike] | None = None
   iterations: int | None = None
   learning_rate: float | None = None
   use_concrete: bool = False

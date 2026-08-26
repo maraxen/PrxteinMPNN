@@ -20,6 +20,7 @@ from aminx.host.prep import prep_protein_stream_and_model
 from aminx.inference.bundle_builder import build_inference_bundle
 from aminx.inference.logits import make_stage_set
 from aminx.model import Aminx
+from aminx.run.batch_mapping import MappedBy
 from aminx.run.specs import SamplingSpecification
 from aminx.sampling.multistate_poe import sample_multistate_poe_bead, sample_states_fused
 
@@ -406,3 +407,86 @@ class TestSampleMultistatePoeBead:
     assert logits.shape[0] == 2
     assert logits.shape[-1] == 21
     assert bool(jnp.all(jnp.isfinite(logits)))
+
+  def test_mapped_by_fixed_mask_resolves_via_canonical_structure_ids(self):
+    """MappedBy is a feature of fixed_mask/fixed_tokens, not just of the independent-structures
+    sample() path -- this module's combined-bead batch resolves it too, keyed by canonical
+    structure id (same as kernel_dispatch.py), since one state == one spec.inputs entry here.
+    A uniform (identical per key) MappedBy must resolve and run cleanly through the real
+    pipeline, same as an equivalent plain array would.
+    """
+    max_length = 200
+    inputs = [f"{REPO_TESTS_DATA}/1ubq.pdb", f"{REPO_TESTS_DATA}/1mbn.pdb"]
+    uniform_mask = np.zeros((max_length,), dtype=np.float32)
+    uniform_mask[0] = 1.0
+    uniform_tokens = np.zeros((max_length,), dtype=np.int32)
+    spec = SamplingSpecification(
+      inputs=inputs,
+      batch_size=len(inputs),
+      max_length=max_length,
+      multi_state_strategy="product",
+      return_logits=True,
+      fixed_mask=MappedBy(by="path", mapping={"1ubq": uniform_mask, "1mbn": uniform_mask}),
+      fixed_tokens=MappedBy(by="path", mapping={"1ubq": uniform_tokens, "1mbn": uniform_tokens}),
+    )
+
+    synthetic_model = Aminx(
+      node_features=32,
+      edge_features=32,
+      hidden_features=32,
+      num_encoder_layers=1,
+      num_decoder_layers=1,
+      k_neighbors=8,
+      dropout_rate=0.0,
+      key=jax.random.PRNGKey(3),
+    )
+    synthetic_model = eqx.tree_inference(synthetic_model, value=True)
+
+    with patch("aminx.host.prep.load_model", return_value=synthetic_model):
+      sequences, logits = sample_multistate_poe_bead(
+        spec, jax.random.PRNGKey(0), n_samples=1,
+      )
+
+    assert sequences.shape[0] == 1
+    assert bool(jnp.all(jnp.isfinite(logits)))
+
+  def test_mapped_by_with_per_state_different_values_raises_the_existing_uniformity_error(self):
+    """A MappedBy resolving to genuinely DIFFERENT masks per state must still hit this
+    module's pre-existing "fixed positions must be design-level, identical across states"
+    guard -- proving MappedBy resolves through to real per-row values (not silently
+    collapsed/ignored), while confirming this module's own uniformity restriction still
+    applies on top of it.
+    """
+    max_length = 200
+    inputs = [f"{REPO_TESTS_DATA}/1ubq.pdb", f"{REPO_TESTS_DATA}/1mbn.pdb"]
+    mask_a = np.zeros((max_length,), dtype=np.float32)
+    mask_a[0] = 1.0
+    mask_b = np.zeros((max_length,), dtype=np.float32)
+    mask_b[1] = 1.0  # deliberately different position than mask_a
+    tokens = np.zeros((max_length,), dtype=np.int32)
+    spec = SamplingSpecification(
+      inputs=inputs,
+      batch_size=len(inputs),
+      max_length=max_length,
+      multi_state_strategy="product",
+      fixed_mask=MappedBy(by="path", mapping={"1ubq": mask_a, "1mbn": mask_b}),
+      fixed_tokens=MappedBy(by="path", mapping={"1ubq": tokens, "1mbn": tokens}),
+    )
+
+    synthetic_model = Aminx(
+      node_features=32,
+      edge_features=32,
+      hidden_features=32,
+      num_encoder_layers=1,
+      num_decoder_layers=1,
+      k_neighbors=8,
+      dropout_rate=0.0,
+      key=jax.random.PRNGKey(3),
+    )
+    synthetic_model = eqx.tree_inference(synthetic_model, value=True)
+
+    with (
+      patch("aminx.host.prep.load_model", return_value=synthetic_model),
+      pytest.raises(ValueError, match="design-level"),
+    ):
+      sample_multistate_poe_bead(spec, jax.random.PRNGKey(0), n_samples=1)

@@ -1,0 +1,82 @@
+{
+  "vendor_repo": "dauparas/LigandMPNN",
+  "pin_recorded_in_aminx_manifest": "3870631",
+  "pin_status": "STALE — unreachable in current upstream history (repo has only 15 commits total; SHA not found via `git log --all`). Likely upstream history rewrite/reset since aminx's tests/parity/parity_assets.json was authored.",
+  "substituted_commit": "26ec57ac976ade5379920dbd43c7f97a91cf82de",
+  "substitution_reason": "Only reachable commit; tip of the only branch. Includes 'make chains_to_design and parse_these_chains_only consistent' as a recent commit, so the chain-selection surface is current relative to this HEAD.",
+  "extraction_method": "grep + manual read of run.py argparse block (lines 682-989); NOT yet AST-parsed programmatically. Phase 2 should replace this manual extraction with an ast.parse walk over Call nodes matching argparser.add_argument for programmatic re-derivation and drift detection.",
+  "chain_selection_relevant_flags": [
+    {
+      "flag": "--chains_to_design",
+      "type": "str",
+      "default": "",
+      "help": "Specify which chains to redesign, all others will be kept fixed, 'A,B,C,F'",
+      "source_line": 886,
+      "category": "chain-level design/fix split"
+    },
+    {
+      "flag": "--parse_these_chains_only",
+      "type": "str",
+      "default": "",
+      "help": "Provide chains letters for parsing backbones, 'A,B,C,F'",
+      "source_line": 893,
+      "category": "structure-level chain filter (applied before any design-mask logic)"
+    },
+    {
+      "flag": "--fixed_residues",
+      "type": "str",
+      "default": "",
+      "help": "Provide fixed residues, A12 A13 A14 B2 B25",
+      "source_line": 743,
+      "category": "residue-level fix (single structure)"
+    },
+    {
+      "flag": "--fixed_residues_multi",
+      "type": "str",
+      "default": "",
+      "help": "Path to json mapping of fixed residues for each pdb",
+      "source_line": 749,
+      "category": "residue-level fix (batch)"
+    },
+    {
+      "flag": "--redesigned_residues",
+      "type": "str",
+      "default": "",
+      "help": "Provide to be redesigned residues, everything else will be fixed, A12 A13 A14 B2 B25",
+      "source_line": 756,
+      "category": "residue-level allowlist (inverse framing of fixed_residues)"
+    },
+    {
+      "flag": "--redesigned_residues_multi",
+      "type": "str",
+      "default": "",
+      "source_line": 762,
+      "category": "residue-level allowlist (batch)"
+    },
+    {
+      "flag": "--symmetry_residues",
+      "type": "str",
+      "default": "",
+      "help": "Add list of lists for which residues need to be symmetric, e.g. 'A12,A13,A14|C2,C3|A5,B6'",
+      "source_line": 807,
+      "category": "cross-chain symmetric-tying"
+    },
+    {
+      "flag": "--symmetry_weights",
+      "type": "str",
+      "default": "",
+      "help": "Add weights that match symmetry_residues",
+      "source_line": 813,
+      "category": "cross-chain symmetric-tying"
+    },
+    {
+      "flag": "--homo_oligomer",
+      "type": "int",
+      "default": 0,
+      "help": "Setting this to 1 will automatically set --symmetry_residues and --symmetry_weights to do homooligomer design with equal weighting.",
+      "source_line": 819,
+      "category": "cross-chain symmetric-tying (convenience preset)"
+    }
+  ],
+  "note": "Flags not chain-selection related (bias_AA*, omit_AA*, transmembrane_*, pack_side_chains family, model_type/checkpoint_* family) intentionally excluded from this seed — full flag list is at run.py:682-989 if a broader superset audit is wanted later."
+}

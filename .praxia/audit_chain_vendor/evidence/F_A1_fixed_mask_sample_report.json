@@ -1,0 +1,28 @@
+{
+  "probe": "F_A1_fixed_mask_sample_probe",
+  "verdict": "PASS -- sample() honors fixed_mask+fixed_tokens on the pure-protein path",
+  "forced_token_letter": "I",
+  "fixed_positions": [
+    0,
+    1,
+    2
+  ],
+  "seq_fixed_run": "IIIYVKFEDGTTLELEVEPSDTIEKLKEKIEEKTGIPPEEIVLIYKGKELEDDKTLADYNIKEGDTIELKLKKKGG",
+  "seq_unfixed_run": "MKIFVKFEDGTTLELEVEPSDTIAKLKEKIQEKTGIPPEEQVLIYKGKVLEDDKTLADYNIKEGDTIELKLKPKGG",
+  "fixed_positions_forced_correctly": [
+    true,
+    true,
+    true
+  ],
+  "fixed_positions_identical_across_runs (sanity: unconstrained run should usually differ)": [
+    false,
+    false,
+    true
+  ],
+  "raw_result_fixed_keys": [
+    "sequences",
+    "mask",
+    "schema_version",
+    "metadata"
+  ]
+}

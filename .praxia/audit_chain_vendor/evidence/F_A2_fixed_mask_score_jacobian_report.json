@@ -1,0 +1,55 @@
+{
+  "probe": "F_A2_fixed_mask_score_jacobian_probe",
+  "score": {
+    "output_key_used": "scores",
+    "masked_all_fixed": {
+      "shape": [
+        1,
+        1
+      ],
+      "mean": 0.6566057801246643,
+      "std": 0.0,
+      "sum": 0.6566057801246643
+    },
+    "masked_none_fixed": {
+      "shape": [
+        1,
+        1
+      ],
+      "mean": 0.6566057801246643,
+      "std": 0.0,
+      "sum": 0.6566057801246643
+    },
+    "bit_identical": true,
+    "verdict": "FAIL -- fixed_mask has NO measurable effect on score() output (structurally inert)"
+  },
+  "jacobian": {
+    "output_key_used": "categorical_jacobians",
+    "masked_all_fixed": {
+      "shape": [
+        1,
+        76,
+        21,
+        76,
+        21
+      ],
+      "mean": 0.0001608596503501758,
+      "std": 0.07922009378671646,
+      "sum": 409.7442932128906
+    },
+    "masked_none_fixed": {
+      "shape": [
+        1,
+        76,
+        21,
+        76,
+        21
+      ],
+      "mean": 0.0001608596503501758,
+      "std": 0.07922009378671646,
+      "sum": 409.7442932128906
+    },
+    "bit_identical": true,
+    "verdict": "FAIL -- fixed_mask has NO measurable effect on jacobian() output (structurally inert)"
+  }
+}

@@ -27,12 +27,13 @@ FORCED_TOKEN_LETTER = "I"  # Isoleucine
 FORCED_TOKEN_ID = MPNN_ALPHABET.index(FORCED_TOKEN_LETTER)
 
 
-def _native_sequence_from_result(result: dict) -> str:
+def _decoded_sequence_from_result(result: dict) -> str:
     seqs = result.get("sequences")
     if seqs is None:
         msg = f"no 'sequences' key in result; keys={list(result.keys())}"
         raise KeyError(msg)
-    return seqs[0] if isinstance(seqs, list) else seqs
+    token_ids = np.asarray(seqs).reshape(-1)
+    return "".join(MPNN_ALPHABET[int(t)] for t in token_ids)
 
 
 def main() -> None:
@@ -71,8 +72,8 @@ def main() -> None:
     result_fixed = sample(spec_with_fixed)
     result_unfixed = sample(spec_without_fixed)
 
-    seq_fixed = _native_sequence_from_result(result_fixed)
-    seq_unfixed = _native_sequence_from_result(result_unfixed)
+    seq_fixed = _decoded_sequence_from_result(result_fixed)
+    seq_unfixed = _decoded_sequence_from_result(result_unfixed)
 
     fixed_positions_forced_correctly = [seq_fixed[i] == FORCED_TOKEN_LETTER for i in fixed_positions]
 

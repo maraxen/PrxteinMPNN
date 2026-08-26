@@ -39,17 +39,27 @@ def test_score_raises_when_fixed_mask_has_fixed_positions():
         score(spec)
 
 
+def _assert_does_not_hit_fixed_mask_guard(callable_) -> None:
+    """No real PDB/model in this unit test, so the call may raise something else (missing
+    input file) past the guard, or -- with a placeholder path proxide can't categorize --
+    may simply return an empty result without raising at all. Either outcome is fine; only
+    our fixed_mask NotImplementedError is a failure here.
+    """
+    try:
+        callable_()
+    except NotImplementedError as exc:
+        assert "fixed_mask" not in str(exc)
+    except Exception:  # noqa: BLE001 - any other failure mode is out of scope for this guard test
+        pass
+
+
 def test_score_does_not_raise_the_fixed_mask_guard_when_fixed_mask_is_none():
     spec = ScoringSpecification(
         inputs=[_PLACEHOLDER_PDB],
         sequences_to_score=["A" * _N_RESIDUES],
         max_length=_N_RESIDUES,
     )
-    # No real PDB/model available in this unit test -- expect a DIFFERENT failure (missing
-    # input file) once past the guard, never our fixed_mask NotImplementedError.
-    with pytest.raises(Exception) as exc_info:  # noqa: PT011 - deliberately broad; asserting NOT our guard
-        score(spec)
-    assert "fixed_mask" not in str(exc_info.value)
+    _assert_does_not_hit_fixed_mask_guard(lambda: score(spec))
 
 
 def test_score_does_not_raise_the_fixed_mask_guard_when_fixed_mask_is_all_zero():
@@ -59,9 +69,7 @@ def test_score_does_not_raise_the_fixed_mask_guard_when_fixed_mask_is_all_zero()
         max_length=_N_RESIDUES,
         fixed_mask=np.zeros((_N_RESIDUES,), dtype=np.float32),
     )
-    with pytest.raises(Exception) as exc_info:  # noqa: PT011
-        score(spec)
-    assert "fixed_mask" not in str(exc_info.value)
+    _assert_does_not_hit_fixed_mask_guard(lambda: score(spec))
 
 
 def test_jacobian_raises_when_fixed_mask_has_fixed_positions():
@@ -81,6 +89,4 @@ def test_jacobian_does_not_raise_the_fixed_mask_guard_when_fixed_mask_is_none():
         inputs=[_PLACEHOLDER_PDB],
         max_length=_N_RESIDUES,
     )
-    with pytest.raises(Exception) as exc_info:  # noqa: PT011
-        jacobian(spec)
-    assert "fixed_mask" not in str(exc_info.value)
+    _assert_does_not_hit_fixed_mask_guard(lambda: jacobian(spec))

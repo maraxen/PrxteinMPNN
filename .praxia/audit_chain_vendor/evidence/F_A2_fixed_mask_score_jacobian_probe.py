@@ -19,7 +19,7 @@ import json
 import numpy as np
 
 from aminx.host.runner import jacobian, score
-from aminx.run.specs import JacobianSpecification, ScoreSpecification
+from aminx.run.specs import JacobianSpecification, ScoringSpecification
 
 PDB = "tests/data/1ubq.pdb"
 N_RESIDUES = 76
@@ -42,11 +42,11 @@ def main() -> None:
     report = {"probe": "F_A2_fixed_mask_score_jacobian_probe"}
 
     # --- score() ---
-    score_spec_masked = ScoreSpecification(
+    score_spec_masked = ScoringSpecification(
         inputs=[PDB], batch_size=1, random_seed=42, model=1, max_length=N_RESIDUES,
         fixed_mask=fixed_mask_all,
     )
-    score_spec_unmasked = ScoreSpecification(
+    score_spec_unmasked = ScoringSpecification(
         inputs=[PDB], batch_size=1, random_seed=42, model=1, max_length=N_RESIDUES,
         fixed_mask=fixed_mask_none,
     )

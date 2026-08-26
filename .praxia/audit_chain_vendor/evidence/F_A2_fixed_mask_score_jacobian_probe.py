@@ -23,6 +23,9 @@ from aminx.run.specs import JacobianSpecification, ScoringSpecification
 
 PDB = "tests/data/1ubq.pdb"
 N_RESIDUES = 76
+# Arbitrary valid 76-residue sequence (not required to be biologically exact -- this probe only
+# needs SOME fixed input sequence to check whether fixed_mask changes score()'s output at all).
+ARBITRARY_SEQUENCE = "MKIFVKFEDGTTLELEVEPSDTIAKLKEKIQEKTGIPPEEQVLIYKGKVLEDDKTLADYNIKEGDTIELKLKPKGG"
 
 
 def _arr_summary(x) -> dict:
@@ -44,11 +47,11 @@ def main() -> None:
     # --- score() ---
     score_spec_masked = ScoringSpecification(
         inputs=[PDB], batch_size=1, random_seed=42, model=1, max_length=N_RESIDUES,
-        fixed_mask=fixed_mask_all,
+        fixed_mask=fixed_mask_all, sequences_to_score=[ARBITRARY_SEQUENCE],
     )
     score_spec_unmasked = ScoringSpecification(
         inputs=[PDB], batch_size=1, random_seed=42, model=1, max_length=N_RESIDUES,
-        fixed_mask=fixed_mask_none,
+        fixed_mask=fixed_mask_none, sequences_to_score=[ARBITRARY_SEQUENCE],
     )
     result_score_masked = score(score_spec_masked)
     result_score_unmasked = score(score_spec_unmasked)

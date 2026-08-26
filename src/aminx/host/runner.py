@@ -490,6 +490,24 @@ def score(  # noqa: PLR0915
     msg = "score runner: HDF5 streaming output not yet implemented; omit --output-h5-path for in-memory results"
     raise NotImplementedError(msg)
 
+  # spec.fixed_mask -- audit 260826_chain-selection-vendor-superset-audit finding FA2.
+  # aminx.scoring.score.score_sequence has no fixed_mask/chain_mask parameter and never
+  # reads it; confirmed via a differential probe (fixed_mask=all-ones vs all-zeros on an
+  # identical sequences_to_score input produced bit-identical scores). Silently accepting
+  # and ignoring it would let a caller believe the returned NLL excludes or otherwise
+  # accounts for the positions they marked fixed, when it does not -- score() already
+  # deliberately scores every position under full context (see score_sequence's ar_mask
+  # comment), so there is no established semantics here to guess at silently.
+  if spec.fixed_mask is not None and bool(jnp.any(jnp.asarray(spec.fixed_mask))):
+    msg = (
+      "score runner: spec.fixed_mask has one or more fixed positions set, but "
+      "aminx.scoring.score.score_sequence has no parameter for it and never reads it. "
+      "runner.sample honours fixed_mask (via host/_sampling_helper.py's "
+      "_prepare_fixed_controls); this surface does not yet. Omit fixed_mask when calling "
+      "score(), or use runner.sample if you need fixed-position-aware behavior."
+    )
+    raise NotImplementedError(msg)
+
   from aminx.scoring.score import make_score_fn  # noqa: PLC0415
   from aminx.utils.aa_convert import string_to_protein_sequence  # noqa: PLC0415
 
@@ -1165,6 +1183,23 @@ def jacobian(
   if spec.jacobian_mode == "reverse" and spec.compute_apc:
     msg = "jacobian runner: compute_apc applies to categorical Jacobians only; use --no-compute-apc with reverse mode"
     raise ValueError(msg)
+
+  # spec.fixed_mask -- audit 260826_chain-selection-vendor-superset-audit finding FA3.
+  # Neither make_categorical_jacobian_fn nor make_reverse_jacobian_score_fn takes a
+  # fixed_mask/chain_mask parameter; confirmed via a differential probe (fixed_mask=
+  # all-ones vs all-zeros on an identical structure produced bit-identical
+  # categorical_jacobians). Unlike score() this is not obviously N/A-by-definition --
+  # excluding fixed positions from the sensitivity computation is a plausible real
+  # need -- so this is flagged loud rather than silently guessed at.
+  if spec.fixed_mask is not None and bool(jnp.any(jnp.asarray(spec.fixed_mask))):
+    msg = (
+      "jacobian runner: spec.fixed_mask has one or more fixed positions set, but "
+      "neither the categorical nor reverse Jacobian kernel has a parameter for it and "
+      "neither reads it. runner.sample honours fixed_mask (via "
+      "host/_sampling_helper.py's _prepare_fixed_controls); this surface does not yet. "
+      "Omit fixed_mask when calling jacobian()."
+    )
+    raise NotImplementedError(msg)
 
   import numpy as np  # noqa: PLC0415
   from xtrax.run import SinkSpec, ZarrStagingSink  # noqa: PLC0415

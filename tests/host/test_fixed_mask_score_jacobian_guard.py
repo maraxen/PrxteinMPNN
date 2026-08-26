@@ -1,0 +1,86 @@
+"""FA2/FA3 (audit 260826_chain-selection-vendor-superset-audit): score()/jacobian() must not
+silently ignore spec.fixed_mask.
+
+A differential probe (.praxia/audit_chain_vendor/evidence/F_A2_fixed_mask_score_jacobian_probe.py)
+confirmed runner.score() and runner.jacobian() produced bit-identical output regardless of
+fixed_mask -- the field was silently accepted and had zero effect. Neither surface has an
+established semantics for what fixed_mask should mean there (score() already scores every
+position under full context by design; jacobian's kernels have no fixed_mask parameter at all),
+so the fix makes the gap loud (NotImplementedError naming the field) rather than guessing at
+correctness-sensitive behavior in either kernel.
+
+The guard fires before any model/weights are loaded (spec construction only), so these tests
+need no real PDB/model fixture -- a placeholder input path is enough since the raise happens
+first.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from aminx.host.runner import jacobian, score
+from aminx.run.specs import JacobianSpecification, ScoringSpecification
+
+_PLACEHOLDER_PDB = "does/not/need/to/exist.pdb"
+_N_RESIDUES = 8
+
+
+def test_score_raises_when_fixed_mask_has_fixed_positions():
+    fixed_mask = np.zeros((_N_RESIDUES,), dtype=np.float32)
+    fixed_mask[0] = 1.0
+    spec = ScoringSpecification(
+        inputs=[_PLACEHOLDER_PDB],
+        sequences_to_score=["A" * _N_RESIDUES],
+        max_length=_N_RESIDUES,
+        fixed_mask=fixed_mask,
+    )
+    with pytest.raises(NotImplementedError, match="fixed_mask"):
+        score(spec)
+
+
+def test_score_does_not_raise_the_fixed_mask_guard_when_fixed_mask_is_none():
+    spec = ScoringSpecification(
+        inputs=[_PLACEHOLDER_PDB],
+        sequences_to_score=["A" * _N_RESIDUES],
+        max_length=_N_RESIDUES,
+    )
+    # No real PDB/model available in this unit test -- expect a DIFFERENT failure (missing
+    # input file) once past the guard, never our fixed_mask NotImplementedError.
+    with pytest.raises(Exception) as exc_info:  # noqa: PT011 - deliberately broad; asserting NOT our guard
+        score(spec)
+    assert "fixed_mask" not in str(exc_info.value)
+
+
+def test_score_does_not_raise_the_fixed_mask_guard_when_fixed_mask_is_all_zero():
+    spec = ScoringSpecification(
+        inputs=[_PLACEHOLDER_PDB],
+        sequences_to_score=["A" * _N_RESIDUES],
+        max_length=_N_RESIDUES,
+        fixed_mask=np.zeros((_N_RESIDUES,), dtype=np.float32),
+    )
+    with pytest.raises(Exception) as exc_info:  # noqa: PT011
+        score(spec)
+    assert "fixed_mask" not in str(exc_info.value)
+
+
+def test_jacobian_raises_when_fixed_mask_has_fixed_positions():
+    fixed_mask = np.zeros((_N_RESIDUES,), dtype=np.float32)
+    fixed_mask[0] = 1.0
+    spec = JacobianSpecification(
+        inputs=[_PLACEHOLDER_PDB],
+        max_length=_N_RESIDUES,
+        fixed_mask=fixed_mask,
+    )
+    with pytest.raises(NotImplementedError, match="fixed_mask"):
+        jacobian(spec)
+
+
+def test_jacobian_does_not_raise_the_fixed_mask_guard_when_fixed_mask_is_none():
+    spec = JacobianSpecification(
+        inputs=[_PLACEHOLDER_PDB],
+        max_length=_N_RESIDUES,
+    )
+    with pytest.raises(Exception) as exc_info:  # noqa: PT011
+        jacobian(spec)
+    assert "fixed_mask" not in str(exc_info.value)

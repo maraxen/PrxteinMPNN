@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 
 from aminx.host.runner import jacobian, score
+from aminx.run.batch_mapping import MappedBy
 from aminx.run.specs import JacobianSpecification, ScoringSpecification
 
 _PLACEHOLDER_PDB = "does/not/need/to/exist.pdb"
@@ -90,3 +91,27 @@ def test_jacobian_does_not_raise_the_fixed_mask_guard_when_fixed_mask_is_none():
         max_length=_N_RESIDUES,
     )
     _assert_does_not_hit_fixed_mask_guard(lambda: jacobian(spec))
+
+
+def test_score_raises_when_fixed_mask_is_a_mapped_by():
+    """A MappedBy fixed_mask must still hit the FA2 guard, not silently bypass it (G1 spec's
+    explicit interaction requirement between G1 and FA2/FA3).
+    """
+    spec = ScoringSpecification(
+        inputs=[_PLACEHOLDER_PDB],
+        sequences_to_score=["A" * _N_RESIDUES],
+        max_length=_N_RESIDUES,
+        fixed_mask=MappedBy(by="path", mapping={"exist": np.ones((_N_RESIDUES,))}),
+    )
+    with pytest.raises(NotImplementedError, match="fixed_mask"):
+        score(spec)
+
+
+def test_jacobian_raises_when_fixed_mask_is_a_mapped_by():
+    spec = JacobianSpecification(
+        inputs=[_PLACEHOLDER_PDB],
+        max_length=_N_RESIDUES,
+        fixed_mask=MappedBy(by="path", mapping={"exist": np.ones((_N_RESIDUES,))}),
+    )
+    with pytest.raises(NotImplementedError, match="fixed_mask"):
+        jacobian(spec)

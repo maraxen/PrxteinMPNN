@@ -176,6 +176,7 @@ def _sample_batch(
   fixed_mask_for_vmap, fixed_tokens_for_vmap = _prepare_fixed_controls(
     spec,
     batched_ensemble=batched_ensemble,
+    batch_structure_ids=batch_structure_ids,
   )
   ligand_context = _prepare_ligand_context(
     spec,

@@ -1,0 +1,20 @@
+{
+  "probe": "F_G2_chain_ids_batch_collision",
+  "arms": {
+    "heterogeneous_chain_count": {
+      "outcome": "ValueError",
+      "message": "pytree structure error: different lengths of list at key path\n    tree_map tree.chain_ids\nAt that key path, the prefix pytree tree_map tree has a subtree of type list of length 2, but the full pytree has a subtree of the same type but of length 1.",
+      "verdict": "CRASHES-LOUDLY (at least not silent)"
+    },
+    "same_count_different_letters": {
+      "batched_chain_ids": [
+        "A",
+        "B"
+      ],
+      "row0_expected_first_chain_letter": "A",
+      "row1_expected_first_chain_letter": "C",
+      "row1_resolved_first_chain_letter": "A",
+      "verdict": "SILENT-CORRUPTION-CONFIRMED"
+    }
+  }
+}

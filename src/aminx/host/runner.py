@@ -43,6 +43,7 @@ from aminx.host.streaming import (
   _sample_streaming,
 )
 from aminx.host.streaming_host import StreamingBatchHost
+from aminx.run.batch_mapping import MappedBy
 from aminx.run.specs import (
   InspectionSpecification,
   JacobianSpecification,
@@ -52,6 +53,20 @@ from aminx.run.specs import (
 )
 
 from .prep import prep_protein_stream_and_model
+
+
+def _fixed_mask_has_fixed_positions(fixed_mask: object) -> bool:
+  """True if ``fixed_mask`` declares any fixed position -- MappedBy is conservatively True.
+
+  A ``MappedBy`` can't be cheaply checked for "all zero" without the per-batch structure
+  identity resolution machinery this guard runs before (score/jacobian don't support
+  fixed_mask at all, so there is nothing to resolve against) -- treat any MappedBy as
+  "has fixed positions set" rather than trying to peek inside its mapping.
+  """
+  if isinstance(fixed_mask, MappedBy):
+    return True
+  return bool(jnp.any(jnp.asarray(fixed_mask)))
+
 
 logger = logging.getLogger(__name__)
 _batch_logger = logging.getLogger(__name__ + ".batch_plan")
@@ -498,7 +513,7 @@ def score(  # noqa: PLR0915
   # accounts for the positions they marked fixed, when it does not -- score() already
   # deliberately scores every position under full context (see score_sequence's ar_mask
   # comment), so there is no established semantics here to guess at silently.
-  if spec.fixed_mask is not None and bool(jnp.any(jnp.asarray(spec.fixed_mask))):
+  if spec.fixed_mask is not None and _fixed_mask_has_fixed_positions(spec.fixed_mask):
     msg = (
       "score runner: spec.fixed_mask has one or more fixed positions set, but "
       "aminx.scoring.score.score_sequence has no parameter for it and never reads it. "
@@ -1191,7 +1206,7 @@ def jacobian(
   # categorical_jacobians). Unlike score() this is not obviously N/A-by-definition --
   # excluding fixed positions from the sensitivity computation is a plausible real
   # need -- so this is flagged loud rather than silently guessed at.
-  if spec.fixed_mask is not None and bool(jnp.any(jnp.asarray(spec.fixed_mask))):
+  if spec.fixed_mask is not None and _fixed_mask_has_fixed_positions(spec.fixed_mask):
     msg = (
       "jacobian runner: spec.fixed_mask has one or more fixed positions set, but "
       "neither the categorical nor reverse Jacobian kernel has a parameter for it and "

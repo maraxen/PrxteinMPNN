@@ -101,6 +101,26 @@ permanent). Negative tests: missing-path raises `ValueError`; `by="chain_id"` ra
 
 ## G2 — `chains_to_design` (chain-letter design/fix selector)
 
+**STATUS UPDATE (implementation pass, 2026-08-26): BLOCKED on a verified foundation bug,
+not implemented this pass.** See finding `FG2` in `findings.jsonl` and
+`evidence/F_G2_chain_ids_batch_collision_probe.py`/`_report.json`. While scoping this
+section for implementation, a real differential probe (not a code-read) found that
+`proxide.ops.transforms.pad_and_collate_proteins` — the function `create_protein_dataset`
+uses to batch multiple structures — silently collapses `Protein.chain_ids` to structure 0's
+chain-letter vocabulary for every row in a batch when chain counts happen to match across
+structures (confirmed: two 2-chain structures with distinct letters {A,B} and {C,D} batched
+together both resolve as {A,B}; row 1's real chain 'C' silently reads back as 'A'). A batch
+with mismatched chain COUNTS crashes instead (at least loud). `chains_to_design` needs exactly
+this data (`chain_index` + `chain_ids` → per-residue chain letter) to work, so building it now
+would ship a silent wrong-answer feature — the same failure class this whole audit exists to
+catch (see FA2/FA3). This is NOT the same blocker as G3/G4 (which are blocked on untraced
+reachability); this is a verified data-corruption bug in an upstream dependency. Do not
+implement `chains_to_design` until either proxide fixes `pad_and_collate_proteins`'s chain_ids
+stacking, or aminx's own dataset wrapper re-derives true per-row chain_ids before collation —
+and until whichever fix lands is itself differential-probed the way `FA1` verified `fixed_mask`.
+The design below is preserved for when that prerequisite clears; it was not implemented this
+pass.
+
 **Gap**: vendor's `--chains_to_design "A,B"` lets a caller name chains by letter; everything
 else is fixed. aminx has no equivalent — the orphaned `chain_mask_fixed` (#1881) is
 residue-index-only.

@@ -343,9 +343,14 @@ def _prepare_ligand_context(
   # Compute chain_mask: 1=designable, 0=fixed.
   # Default is all-ones (all residues designable) unless overridden by fixed_mask.
   # Convention: fixed_mask 1=fixed, chain_mask 1=designable → complement.
-  if spec.run_spec.sampling.fixed_mask is not None:
+  declared_fixed_mask = _resolve_mapped_by_field(
+    spec.run_spec.sampling.fixed_mask,
+    batch_structure_ids=batch_structure_ids,
+    field_name="fixed_mask",
+  )
+  if declared_fixed_mask is not None:
     fixed_mask_np = _broadcast_per_structure(
-      spec.run_spec.sampling.fixed_mask,
+      declared_fixed_mask,
       batch_size=batch_size,
       expected_len=seq_len,
       dtype=jnp.float32,
@@ -608,10 +613,45 @@ def resolve_native_tokens(
   return aatype.copy()  # MPNN -- converted at the top of this function
 
 
+def _resolve_mapped_by_field(
+  value: object,
+  *,
+  batch_structure_ids: Sequence[str] | None,
+  field_name: str,
+) -> object:
+  """Resolve a possibly-``MappedBy`` sampling field for the CURRENT batch, or pass it through.
+
+  Raises if the value is a :class:`~aminx.run.batch_mapping.MappedBy` but this call site has
+  no per-batch structure identity to resolve against (e.g. ``multistate_poe.py``'s combined
+  PoE batch, where "structures" are states of one design, not independent inputs a JSON
+  mapping could sensibly key by) -- refusing loudly rather than resolving against the wrong
+  identity or silently ignoring the mapping.
+  """
+  from aminx.run.batch_mapping import MappedBy, resolve_mapped_by  # noqa: PLC0415
+
+  if not isinstance(value, MappedBy):
+    return value
+  if batch_structure_ids is None:
+    msg = (
+      f"{field_name} is a MappedBy(by={value.by!r}), but this call site has no per-batch "
+      f"structure identity to resolve it against (e.g. a multistate/PoE batch, where rows "
+      f"are states of one design, not independent structures a path-keyed mapping can "
+      f"address). Pass a plain array instead, or call sample() on independent structures."
+    )
+    raise ValueError(msg)
+  resolved = resolve_mapped_by(
+    value,
+    structure_ids=list(batch_structure_ids),
+    field_name=field_name,
+  )
+  return np.stack([np.asarray(v) for v in resolved], axis=0)
+
+
 def _prepare_fixed_controls(
   spec: SamplingSpecification,
   *,
   batched_ensemble: Protein,
+  batch_structure_ids: Sequence[str] | None = None,
 ) -> tuple[jax.Array, jax.Array]:
   from aminx.utils.aa_convert import MPNN_ALPHABET  # noqa: PLC0415
 
@@ -620,11 +660,23 @@ def _prepare_fixed_controls(
   fixed_mask_np = np.zeros((batch_size, seq_len), dtype=np.float32)
   fixed_tokens_np = np.zeros((batch_size, seq_len), dtype=np.int32)
 
-  if spec.run_spec.sampling.fixed_mask is not None:
-    fixed_mask_np = np.asarray(spec.run_spec.sampling.fixed_mask, dtype=np.float32)
+  declared_fixed_mask = _resolve_mapped_by_field(
+    spec.run_spec.sampling.fixed_mask,
+    batch_structure_ids=batch_structure_ids,
+    field_name="fixed_mask",
+  )
+  declared_fixed_tokens = _resolve_mapped_by_field(
+    spec.run_spec.sampling.fixed_tokens,
+    batch_structure_ids=batch_structure_ids,
+    field_name="fixed_tokens",
+  )
+
+  if declared_fixed_mask is not None:
+    fixed_mask_np = np.asarray(declared_fixed_mask, dtype=np.float32)
     if fixed_mask_np.ndim == 1:
       fixed_mask_np = np.broadcast_to(
-          fixed_mask_np[None, :], (batch_size, seq_len),
+        fixed_mask_np[None, :],
+        (batch_size, seq_len),
       ).copy()
     if fixed_mask_np.shape != (batch_size, seq_len):
       msg = f"fixed_mask must have shape ({batch_size}, {seq_len}), got {fixed_mask_np.shape}"
@@ -642,8 +694,8 @@ def _prepare_fixed_controls(
     # Union: combine fixed_positions with fixed_mask (if both are set)
     fixed_mask_np = np.maximum(fixed_mask_np, fixed_pos_mask)
 
-  if spec.run_spec.sampling.fixed_tokens is not None:
-    fixed_tok = np.asarray(spec.run_spec.sampling.fixed_tokens, dtype=np.int32)
+  if declared_fixed_tokens is not None:
+    fixed_tok = np.asarray(declared_fixed_tokens, dtype=np.int32)
     fixed_tokens_np = _broadcast_per_structure(
       fixed_tok,
       batch_size=batch_size,
@@ -661,7 +713,7 @@ def _prepare_fixed_controls(
   # A caller "fixing the catalytic triad" would get a dead Ala/Ala/Ala enzyme, with valid-shaped
   # output and no error. Refuse the ambiguity instead of resolving it to the most destructive
   # possible default.
-  if np.any(np.asarray(fixed_mask_np) > 0) and spec.run_spec.sampling.fixed_tokens is None:
+  if np.any(np.asarray(fixed_mask_np) > 0) and declared_fixed_tokens is None:
     n_fixed = int(np.count_nonzero(np.asarray(fixed_mask_np)[0]))
     msg = (
       f"fixed_mask/fixed_positions freeze {n_fixed} position(s) but fixed_tokens is None, which "
@@ -685,9 +737,9 @@ def _prepare_fixed_controls(
     msg = f"fixed_tokens must be in [0, {AMINO_ACID_VOCAB_SIZE - 1}] at masked positions."
     raise ValueError(msg)
 
-  if spec.run_spec.sampling.fixed_mask is not None:
+  if declared_fixed_mask is not None:
     fm_broadcast = _broadcast_per_structure(
-      np.asarray(spec.run_spec.sampling.fixed_mask, dtype=np.float32),
+      np.asarray(declared_fixed_mask, dtype=np.float32),
       batch_size=batch_size,
       expected_len=seq_len,
       dtype=jnp.float32,

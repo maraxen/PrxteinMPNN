@@ -9,6 +9,24 @@ question.
 
 ## G1 — generic batch input mapping ("json-mapped-by-X")
 
+**STATUS: IMPLEMENTED + MERGED (2026-08-26).** `src/aminx/run/batch_mapping.py`, wired into
+`_prepare_fixed_controls`/`_prepare_ligand_context` (`host/_sampling_helper.py`) via a new
+`batch_structure_ids` parameter, threaded from BOTH `kernel_dispatch.py::_sample_batch`
+(independent-structures path) AND `multistate_poe.py::sample_multistate_poe_bead` (combined-PoE
+path, keyed by `_canonical_structure_ids_for_spec(spec)` since `n_states == len(spec.inputs)`
+there and the whole bead is always one combined batch, offset 0). An earlier implementation
+pass refused `MappedBy` on the multistate path (no structure identity, it assumed) — corrected:
+MappedBy is a feature of `fixed_mask`/`fixed_tokens`, not of one call path, so it must not be
+refused on any surface that already resolves the field at all. `score()`/`jacobian()`'s FA2/FA3
+loud-refusal guards treat any `MappedBy` fixed_mask as "has fixed positions set" (conservative,
+correct given those surfaces don't resolve `fixed_mask` at all). Verified via
+`tests/host/test_mapped_by_fixed_mask.py` (real 2-structure `sample()` differential: distinct
+forced identity per structure) and `tests/sampling/test_multistate_poe.py`'s
+`test_mapped_by_*` tests (uniform MappedBy resolves cleanly on the PoE path; per-state-different
+MappedBy correctly hits the pre-existing design-level uniformity guard, proving real per-row
+resolution rather than silent collapse). Generic xtrax port scoped separately: see
+`260826_xtrax-generic-mapped-by-port.md`.
+
 **Gap**: `fixed_residues_multi`/`redesigned_residues_multi` (vendor) let a caller supply a
 per-structure value via a JSON object keyed by PDB path: `{"/path/to/pdb": "A12 A13 A14 B2
 B25"}`. aminx's `fixed_mask` is a single per-call value — no batch-keyed variant exists.
@@ -102,8 +120,11 @@ permanent). Negative tests: missing-path raises `ValueError`; `by="chain_id"` ra
 ## G2 — `chains_to_design` (chain-letter design/fix selector)
 
 **STATUS UPDATE (implementation pass, 2026-08-26): BLOCKED on a verified foundation bug,
-not implemented this pass.** See finding `FG2` in `findings.jsonl` and
-`evidence/F_G2_chain_ids_batch_collision_probe.py`/`_report.json`. While scoping this
+not implemented this pass.** See finding `FG2` in `findings.jsonl`,
+`evidence/F_G2_chain_ids_batch_collision_probe.py`/`_report.json`, and the full fix scoping in
+`260826_proxide-chain-ids-batch-collision-fix.md` (root cause pinned to
+`_stack_padded_proteins`'s generic `tree_map` treating `chain_ids` as a mappable container,
+with 3 ranked candidate fixes and acceptance criteria). While scoping this
 section for implementation, a real differential probe (not a code-read) found that
 `proxide.ops.transforms.pad_and_collate_proteins` — the function `create_protein_dataset`
 uses to batch multiple structures — silently collapses `Protein.chain_ids` to structure 0's
@@ -174,4 +195,6 @@ downstream project. G1's aminx-local implementation above is intentionally the *
 version needed now; do not block G1 on the xtrax port, and do not let the xtrax port silently
 expand G1's scope (e.g. implementing `by="chain_id"` "while we're in there").
 
-Filed as debt (see debt entry logged alongside this spec) rather than implemented here.
+Filed as debt (see debt entry logged alongside this spec) rather than implemented here. Full
+scoping (proposed home, shape, explicit scope guard, aminx-side migration plan) is in
+`260826_xtrax-generic-mapped-by-port.md`.

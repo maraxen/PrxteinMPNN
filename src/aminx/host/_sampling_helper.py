@@ -621,11 +621,13 @@ def _resolve_mapped_by_field(
 ) -> object:
   """Resolve a possibly-``MappedBy`` sampling field for the CURRENT batch, or pass it through.
 
-  Raises if the value is a :class:`~aminx.run.batch_mapping.MappedBy` but this call site has
-  no per-batch structure identity to resolve against (e.g. ``multistate_poe.py``'s combined
-  PoE batch, where "structures" are states of one design, not independent inputs a JSON
-  mapping could sensibly key by) -- refusing loudly rather than resolving against the wrong
-  identity or silently ignoring the mapping.
+  Every ``fixed_mask``/``fixed_tokens``-reading call site is expected to supply
+  ``batch_structure_ids`` -- MappedBy support is a feature of the field, not of one code path,
+  so ``sample()``'s independent-structures batching (``kernel_dispatch.py``) and the
+  multistate/PoE combined-bead path (``multistate_poe.py``, keyed by ``spec.inputs`` since one
+  state == one input structure there) both resolve it the same way. Raises only if a caller
+  genuinely has no per-batch structure identity to resolve against, which should not happen at
+  any current call site -- this is a defensive bug check, not an expected/normal outcome.
   """
   from aminx.run.batch_mapping import MappedBy, resolve_mapped_by  # noqa: PLC0415
 
@@ -634,9 +636,9 @@ def _resolve_mapped_by_field(
   if batch_structure_ids is None:
     msg = (
       f"{field_name} is a MappedBy(by={value.by!r}), but this call site has no per-batch "
-      f"structure identity to resolve it against (e.g. a multistate/PoE batch, where rows "
-      f"are states of one design, not independent structures a path-keyed mapping can "
-      f"address). Pass a plain array instead, or call sample() on independent structures."
+      f"structure identity to resolve it against. Every fixed_mask/fixed_tokens call site is "
+      f"expected to pass batch_structure_ids; this is a bug in the caller, not an expected "
+      f"restriction on MappedBy -- see _resolve_mapped_by_field's docstring."
     )
     raise ValueError(msg)
   resolved = resolve_mapped_by(

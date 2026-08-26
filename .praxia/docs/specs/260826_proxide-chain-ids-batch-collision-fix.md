@@ -1,11 +1,17 @@
 # Spec: fix proxide's batched `chain_ids` collision (unblocks G2)
 
-**Task:** 260826_chain-selection-vendor-superset-audit · **Status:** DRAFT, pending review ·
-**Scope:** proxide (external dependency, consumed by aminx via PyPI — no local editable
-checkout in this workspace as of this writing; `pyproject.toml` documents the
-`uv.toml`/`[sources]` override for live co-development against a sibling `../proxide` checkout
-if/when one exists). This spec is written to be actionable by whoever picks it up, in
-proxide's own repo, not implemented here.
+**Task:** 260826_chain-selection-vendor-superset-audit · **Status:** FIX A IMPLEMENTED, filed
+as [maraxen/proxide#38](https://github.com/maraxen/proxide/pull/38) (branch
+`fix/chain-ids-batch-collision`), CI green, mergeable, not yet merged as of this writing ·
+**Scope:** proxide (external dependency, consumed by aminx via PyPI). Implemented directly in
+a fresh clone of `maraxen/proxide` (same GitHub account as this repo) rather than only scoped,
+since the fix location (`ops/transforms.py::_stack_padded_proteins`) is pure Python and the
+account has write access.
+
+**Next step once merged**: bump aminx's `proxide>=0.1.0a9` pin in `pyproject.toml` to the
+release containing this fix, then re-run `evidence/F_G2_chain_ids_batch_collision_probe.py`
+against the new pin to confirm `row1_resolved_first_chain_letter` now matches
+`row1_expected_first_chain_letter` before treating G2 (`chains_to_design`) as unblocked.
 
 ## Why this exists
 

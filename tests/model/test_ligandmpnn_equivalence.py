@@ -146,6 +146,59 @@ def _combine_reference_tied_logits(
   return combined
 
 
+def _reference_ligand_atom_reorder(batch: LigandBatch, *, atom_context_num: int) -> np.ndarray:
+  """Replicate aminx's unconditional nearest-``atom_context_num``-by-Cb-distance reorder.
+
+  aminx's ``ProteinFeaturesLigand.__call__`` always distance-sorts (and, when the raw atom
+  count exceeds ``atom_context_num``, down-selects) the ligand-atom axis -- added in
+  ``a90ad4f9`` to fix a real GPU OOM (155 ligand atoms flowing into an O(M^2) ligand-ligand
+  edge computation pre-allocated ~20GiB and crashed real SLURM jobs on H200). The pinned
+  PyTorch reference only performs this reorder inside its own ``use_side_chains=True`` branch,
+  so for a ``use_side_chain_context=False`` comparison the two frameworks encode the SAME
+  ligand atoms in a DIFFERENT (but each internally deterministic) order. Recompute aminx's own
+  ordering here in plain NumPy so the reference's raw-order output can be permuted into the
+  same order before a row-by-row comparison -- see finding FT2,
+  ``.praxia/audit_chain_vendor/findings.jsonl``.
+
+  Returns the per-residue permutation, shape ``(L, k)`` where ``k = min(atom_context_num, M)``.
+  """
+  x = batch.x[0]  # (L, 4, 3): N, Ca, C, O
+  n_coord, ca_coord, c_coord = x[:, 0, :], x[:, 1, :], x[:, 2, :]
+  b = ca_coord - n_coord
+  c = c_coord - ca_coord
+  a = np.cross(b, c, axis=-1)
+  cb_coord = -0.58273431 * a + 0.56802827 * b - 0.54067466 * c + ca_coord
+
+  ligand_coords = batch.y[0]  # (L, M, 3)
+  ligand_mask = batch.y_m[0]  # (L, M)
+  mask = batch.mask[0]  # (L,)
+
+  cb_y_distances = np.sum((cb_coord[:, None, :] - ligand_coords) ** 2, axis=-1)
+  mask_y = mask[:, None] * ligand_mask
+  cb_y_distances_adjusted = cb_y_distances * mask_y + (1.0 - mask_y) * 10000.0
+  k_y = min(atom_context_num, ligand_coords.shape[1])
+  return np.argsort(cb_y_distances_adjusted, axis=-1, kind="stable")[:, :k_y]
+
+
+def _apply_ligand_atom_order(values: np.ndarray, order: np.ndarray) -> np.ndarray:
+  """Reorder ``values`` shaped ``(L, M, ...)`` along axis=1 using per-row ``order`` (L, k)."""
+  l_dim, k_dim = order.shape
+  trailing = values.shape[2:]
+  idx = order.reshape(l_dim, k_dim, *([1] * len(trailing)))
+  idx = np.broadcast_to(idx, (l_dim, k_dim, *trailing))
+  return np.take_along_axis(values, idx, axis=1)
+
+
+def _apply_ligand_atom_pair_order(values: np.ndarray, order: np.ndarray) -> np.ndarray:
+  """Reorder ``values`` shaped ``(L, M, M, ...)`` along BOTH ligand-atom axes."""
+  reordered = _apply_ligand_atom_order(values, order)
+  l_dim, k_dim = order.shape
+  trailing = values.shape[3:]
+  idx = order.reshape(l_dim, 1, k_dim, *([1] * len(trailing)))
+  idx = np.broadcast_to(idx, (l_dim, k_dim, k_dim, *trailing))
+  return np.take_along_axis(reordered, idx, axis=2)
+
+
 def _to_torch_feature_dict(
   batch: LigandBatch,
   torch_module: Any,
@@ -374,11 +427,25 @@ def test_ligand_feature_extraction_reference_parity(
   )
 
   assert np.array_equal(e_idx_pt.numpy()[0], np.asarray(e_idx_jax))
-  assert _pearson_correlation(v_pt.numpy()[0], np.asarray(v_jax)) > 0.85
+
+  # aminx unconditionally distance-sorts the ligand-atom axis (a90ad4f9); the reference only
+  # does so inside use_side_chains=True. Permute the reference's raw-order M-axis outputs into
+  # aminx's order before comparing -- see _reference_ligand_atom_reorder's docstring and
+  # finding FT2.
+  atom_order = _reference_ligand_atom_reorder(
+    ligand_batch,
+    atom_context_num=jax_model.features.atom_context_num,
+  )
+  v_pt_ordered = _apply_ligand_atom_order(v_pt.numpy()[0], atom_order)
+  y_nodes_pt_ordered = _apply_ligand_atom_order(y_nodes_pt.numpy()[0], atom_order)
+  y_edges_pt_ordered = _apply_ligand_atom_pair_order(y_edges_pt.numpy()[0], atom_order)
+  y_m_pt_ordered = _apply_ligand_atom_order(y_m_pt.numpy()[0], atom_order)
+
+  assert _pearson_correlation(v_pt_ordered, np.asarray(v_jax)) > 0.85
   assert _pearson_correlation(e_proj_pt.numpy()[0], np.asarray(e_jax)) > 0.995
-  np.testing.assert_allclose(y_nodes_pt.numpy()[0], np.asarray(y_nodes_jax), rtol=1e-5, atol=1e-5)
-  np.testing.assert_allclose(y_edges_pt.numpy()[0], np.asarray(y_edges_jax), rtol=1e-5, atol=1e-5)
-  np.testing.assert_allclose(y_m_pt.numpy()[0], np.asarray(y_m_jax), rtol=1e-6, atol=1e-6)
+  np.testing.assert_allclose(y_nodes_pt_ordered, np.asarray(y_nodes_jax), rtol=1e-5, atol=1e-5)
+  np.testing.assert_allclose(y_edges_pt_ordered, np.asarray(y_edges_jax), rtol=1e-5, atol=1e-5)
+  np.testing.assert_allclose(y_m_pt_ordered, np.asarray(y_m_jax), rtol=1e-6, atol=1e-6)
 
 
 def test_ligand_conditioning_context_reference_correlation(

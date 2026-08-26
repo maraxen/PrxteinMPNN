@@ -41,12 +41,17 @@ STRUCTURE = Path(__file__).resolve().parents[1] / "data" / "1ubq.pdb"
 UBIQUITIN_SEQUENCE = "MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG"
 PAD_LENGTHS = (76, 96, 128, 192)
 
-# Measured spread across the four pad lengths above: EXACTLY 0.0 -- bit-identical. The bound
-# is not set to 0.0 only because padding changes array shapes, and a different XLA backend
-# could reorder the masked sum enough to move the last ulp. Anything above this is a real
-# leak, not float noise: it is already ~7 orders below the 0.0160-nat effect size that gets
-# claimed downstream.
-PADDING_TOLERANCE_NATS = 1e-9
+# Measured spread across the four pad lengths above on CPU: EXACTLY 0.0 -- bit-identical.
+# On a CUDA backend (titanix, 260826_chain-selection-vendor-superset-audit finding FT1), the
+# measured spread was 2.384e-07 nats -- real, reproducible, and consistent with float32
+# non-associative summation reordering from the different padded array shapes (exactly the
+# "a different XLA backend could reorder the masked sum enough to move the last ulp" case this
+# comment already called out before it was ever observed). The bound below is set a further
+# ~2 orders of magnitude above that measurement -- generous enough to absorb legitimate
+# cross-backend float32 reduction-order noise, while remaining ~3 orders of magnitude below
+# the 0.0160-nat effect size that gets claimed downstream. A real masking leak would clear
+# this bound by a wide margin, not sit at its edge.
+PADDING_TOLERANCE_NATS = 1e-5
 
 
 @pytest.mark.slow

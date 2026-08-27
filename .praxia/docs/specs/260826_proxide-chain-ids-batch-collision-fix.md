@@ -1,17 +1,29 @@
 # Spec: fix proxide's batched `chain_ids` collision (unblocks G2)
 
-**Task:** 260826_chain-selection-vendor-superset-audit · **Status:** FIX A IMPLEMENTED, filed
-as [maraxen/proxide#38](https://github.com/maraxen/proxide/pull/38) (branch
-`fix/chain-ids-batch-collision`), CI green, mergeable, not yet merged as of this writing ·
+**Task:** 260826_chain-selection-vendor-superset-audit · **Status:** FIX A IMPLEMENTED AND
+MERGED — [maraxen/proxide#38](https://github.com/maraxen/proxide/pull/38) (branch
+`fix/chain-ids-batch-collision`) merged to `main` at `d50f0df4` (2026-08-27). Two follow-up
+commits landed on the same PR before merge, from an adversarial jury review
+(`260827_proxide-fix-jury-audit`, 3 independent reviewers, unanimous NEEDS_WORK on the
+original fix alone): `bb8fcb7` (reject a batched `Protein` in `write_pdb`/`write_mmcif`
+instead of corrupting output) and `2a5a13c` (resolve chain letters through `chain_index`
+instead of a flat atom-slot index — a separate, pre-existing bug found while auditing the
+writers). **Not yet released to PyPI** — `pyproject.toml`/`Cargo.toml` on `main` are at
+`0.1.0a16`, unreleased (no `v0.1.0a16` tag yet); a companion CI-caching PR
+([maraxen/proxide#39](https://github.com/maraxen/proxide/pull/39)) is expected to land before
+a release is cut. ·
 **Scope:** proxide (external dependency, consumed by aminx via PyPI). Implemented directly in
 a fresh clone of `maraxen/proxide` (same GitHub account as this repo) rather than only scoped,
 since the fix location (`ops/transforms.py::_stack_padded_proteins`) is pure Python and the
 account has write access.
 
-**Next step once merged**: bump aminx's `proxide>=0.1.0a9` pin in `pyproject.toml` to the
-release containing this fix, then re-run `evidence/F_G2_chain_ids_batch_collision_probe.py`
-against the new pin to confirm `row1_resolved_first_chain_letter` now matches
-`row1_expected_first_chain_letter` before treating G2 (`chains_to_design`) as unblocked.
+**Next step once released**: bump aminx's `proxide>=0.1.0a9` pin in `pyproject.toml` to the
+PyPI release containing this fix (`>=0.1.0a16` or later, once tagged/published), then re-run
+`evidence/F_G2_chain_ids_batch_collision_probe.py` against the new pin to confirm
+`row1_resolved_first_chain_letter` now matches `row1_expected_first_chain_letter` before
+treating G2 (`chains_to_design`) as unblocked. Merged-to-main is not sufficient on its own —
+aminx depends on proxide via PyPI, not a git ref, so the fix has no effect on aminx until a
+release is tagged and published.
 
 ## Why this exists
 

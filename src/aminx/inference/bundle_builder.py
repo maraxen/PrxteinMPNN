@@ -29,6 +29,30 @@ from aminx.utils.autoregression import (
 )
 
 
+class ConditioningLengthError(ValueError):
+  """Base: user-supplied conditioning array length disagrees with chain geometry.
+
+  F004 (task_id `260826_aminx-invariant-audit`): conditioning tensors are
+  consumed jointly with the padded-chain geometry; mismatches raise here at
+  the bundle boundary naming both lengths -- never broadcast or truncated.
+  """
+
+
+class BiasLengthError(ConditioningLengthError):
+  """Raised when a user-supplied per-position bias length disagrees with the chain geometry."""
+
+
+class StatePositionMapLengthError(ConditioningLengthError):
+  """Raised when a user-supplied state_position_map width disagrees with the chain geometry.
+
+  ``_realign_states_to_reference`` documents its map as shape ``(S, L)`` -- the
+  same L axis as the logits it gathers. A map whose reference-frame width
+  differs from the bundle's padded chain length silently desynchronizes every
+  jointly-consumed tensor downstream (bias, tie_group_map, fixed_mask); it
+  raises here instead.
+  """
+
+
 def _scale_packer_bundle(packer: PackerBundle, num_states: int) -> PackerBundle:
   """Scale packer bundle to S-state conformation dimension by prepending and broadcasting S axis.
 
@@ -167,8 +191,19 @@ def build_inference_bundle(
     # aminx.utils.align.build_state_position_map when states have genuinely
     # different native lengths/numbering.
     state_position_map = jnp.broadcast_to(jnp.arange(seq_len)[None, :], (num_states, seq_len))
-  elif state_position_map.ndim == 1:
-    state_position_map = jnp.broadcast_to(state_position_map[None, :], (num_states, seq_len))
+  elif state_position_map is not None:
+    if state_position_map.ndim == 1:
+      state_position_map = jnp.broadcast_to(state_position_map[None, :], (num_states, seq_len))
+    if state_position_map.shape[-1] != seq_len:
+      # F004: a reference-frame width different from the padded chain length
+      # would desynchronize every tensor consumed jointly with the realigned
+      # logits (bias, tie groups, fixed masks). Loud at the boundary instead.
+      raise StatePositionMapLengthError(
+        f"user-supplied state_position_map has reference-frame width "
+        f"{state_position_map.shape[-1]} but the chain geometry has length "
+        f"{seq_len}. The map is documented as shape (S, L) against the same L "
+        f"axis as the bundle; recompute it for max_length={seq_len}.",
+      )
 
   # 2b. Wave schedule (W0.3).
   #
@@ -265,6 +300,22 @@ def build_inference_bundle(
       )
   else:
     sequence_oh = jnp.zeros((seq_len, 21))
+
+  # F004 (task_id `260826_aminx-invariant-audit`): a USER-supplied bias carries the
+  # user's contract and must match the chain geometry (``sequence_oh`` /
+  # ``fixed_mask`` source, length ``seq_len``) exactly. Mismatches raise here,
+  # naming both lengths -- never broadcast, never truncated. The synthesized
+  # default below carries the library's contract and is keyed to the same
+  # ``seq_len`` geometry source.
+  if bias is not None:
+    bias_len = bias.shape[0]
+    if bias_len != seq_len:
+      raise BiasLengthError(
+        f"user-supplied bias has length {bias_len} along its leading axis but the "
+        f"chain geometry (sequence_oh/fixed_mask source) has length {seq_len}. "
+        f"Bias is consumed jointly with that geometry; supply a bias of shape "
+        f"({seq_len},) or ({seq_len}, 21). No broadcast or truncation is applied.",
+      )
 
   cond = ConditioningBundle(
     fixed_mask=fixed_mask if fixed_mask is not None else jnp.zeros(seq_len),

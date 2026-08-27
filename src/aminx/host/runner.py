@@ -172,6 +172,30 @@ def sample(
     pop_deprecated_spec_kwargs(kw)
     spec = SamplingSpecification(**kw)
 
+  # F002/F003 guard [260826_aminx-invariant-audit]: runner.sample cannot honour
+  # multistate spec fields.  score() routes through _score_fused_multistate which
+  # performs real cross-state fusion; sample() has no such path (the internal
+  # _sample_batch kernel silently discards multi_state_strategy via `del` and never
+  # reads state_position_map).  Silently returning per-structure single-state output
+  # when the caller supplied multistate fields is a lie; raise loudly instead and
+  # direct callers to the campaign verbs that do implement multistate sampling.
+  _multistate_default = "arithmetic_mean"
+  if spec.state_position_map is not None or spec.multi_state_strategy != _multistate_default:
+    _bad_fields = []
+    if spec.state_position_map is not None:
+      _bad_fields.append(f"state_position_map (shape {getattr(spec.state_position_map, 'shape', type(spec.state_position_map))})")
+    if spec.multi_state_strategy != _multistate_default:
+      _bad_fields.append(f"multi_state_strategy={spec.multi_state_strategy!r}")
+    msg = (
+      f"runner.sample() does not implement multistate sampling; the following "
+      f"spec fields cannot be honoured: {', '.join(_bad_fields)}. "
+      f"Use `aminx campaign run` or the campaign worker verb to reach the "
+      f"multistate sampling path (aminx.sampling.multistate_poe."
+      f"sample_multistate_poe_campaign_row). "
+      f"runner.score() does honour these fields via _score_fused_multistate."
+    )
+    raise NotImplementedError(msg)
+
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
   # Construct inference plan once before routing to streaming or non-streaming path.
@@ -893,6 +917,22 @@ def inspect(  # noqa: PLR0915
     pop_deprecated_spec_kwargs(kw)
     spec = InspectionSpecification(**kw)
 
+  # F005 guard [260826_aminx-invariant-audit]: runner.inspect cannot honour
+  # spec.state_position_map -- no code path in this body reads it (AST hit
+  # count 0; see findings.jsonl F005 evidence), so a caller-supplied map would
+  # be silently discarded and the output would be single-state while stamped
+  # as multistate. Raise loudly instead, mirroring the F002 guard at
+  # runner.sample (7460516a); score() honours the field via
+  # _score_fused_multistate and campaign verbs implement real state fusion.
+  if getattr(spec, "state_position_map", None) is not None:
+    msg = (
+      "inspect runner: spec.state_position_map is set but runner.inspect has no "
+      "cross-state fusion path -- the field would be silently discarded. Use "
+      "runner.score (which honours state_position_map via _score_fused_multistate) "
+      "or the campaign verbs for genuine multistate output."
+    )
+    raise NotImplementedError(msg)
+
   if spec.output_h5_path:
     msg = "inspect runner: HDF5 streaming output not yet implemented; omit --output-h5-path for in-memory results"
     raise NotImplementedError(msg)
@@ -1190,6 +1230,22 @@ def jacobian(
     kw = dict(kwargs)
     pop_deprecated_spec_kwargs(kw)
     spec = JacobianSpecification(**kw)
+
+  # F005 guard [260826_aminx-invariant-audit]: runner.jacobian cannot honour
+  # spec.state_position_map -- no code path in this body reads it (AST hit
+  # count 0; see findings.jsonl F005 evidence), so a caller-supplied map would
+  # be silently discarded and the output would be single-state while stamped
+  # as multistate. Raise loudly instead, mirroring the F002 guard at
+  # runner.sample (7460516a); score() honours the field via
+  # _score_fused_multistate and campaign verbs implement real state fusion.
+  if getattr(spec, "state_position_map", None) is not None:
+    msg = (
+      "jacobian runner: spec.state_position_map is set but runner.jacobian has "
+      "no cross-state fusion path -- the field would be silently discarded. Use "
+      "runner.score (which honours state_position_map via _score_fused_multistate) "
+      "or the campaign verbs for genuine multistate output."
+    )
+    raise NotImplementedError(msg)
 
   if spec.combine:
     msg = "jacobian runner: combine=True not yet implemented; use in-memory results"

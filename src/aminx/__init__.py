@@ -23,7 +23,16 @@ from .runtime import configure_multiprocessing
 from .sampling import make_conditional_logits_fn, make_sample_sequences, sample
 from .scoring import make_score_fn, score
 
-__version__ = "0.1.0"
+try:
+  from importlib.metadata import version as _meta_version, PackageNotFoundError as _PkgNFE
+
+  __version__ = _meta_version("aminx")
+except _PkgNFE:
+  # Build-time fallback: package metadata not yet installed (e.g. editable install
+  # race or direct source import before `pip install`).  The release tooling writes
+  # the canonical version into pyproject.toml; callers that need the authoritative
+  # string should always prefer `importlib.metadata.version("aminx")` directly.
+  __version__ = "0.1.0"
 __author__ = "Marielle Russo"
 __description__ = "Aminx: A functional interface for ProteinMPNN"
 __license__ = "MIT"

@@ -299,8 +299,28 @@ class AutoregressiveDecode(eqx.Module):
         logits = _realign_states_to_reference(logits, cond.state_position_map)
 
         # Fuse per-position logits across states with and without bias
-        # For stored logits: bias-free
-        zeros_bias = jnp.zeros_like(cond.bias)  # (L, 21)
+        # For stored logits: bias-free.
+        # F004 (task_id `260826_aminx-invariant-audit`): bias is consumed JOINTLY
+        # with the logits here, so its length must come from the SAME geometry
+        # source as the logits -- the post-realign reference frame, which can be
+        # narrower than ``cond.bias``'s padded-chain length whenever
+        # state_position_map is narrower than seq_len. Keying these defaults to
+        # ``cond.bias`` verbatim crashed with a vmap size mismatch whenever the
+        # two disagreed (bundle_builder keyed the synthesized default to padded
+        # geometry while this site consumed realigned geometry). When the
+        # lengths already agree (max_length == chain length) nothing below moves
+        # a byte: both branches reduce to the pre-fix arrays exactly.
+        cond_bias = cond.bias
+        if cond_bias.shape[-2] != logits.shape[-2]:
+          # Gather bias into the reference frame through the map's canonical row
+          # (state 0 defines the reference numbering); gap positions (-1) get
+          # zero bias -- the additive neutral element for a logit bias.
+          spm_row = cond.state_position_map[0]
+          is_valid = spm_row != -1
+          safe_indices = jnp.where(is_valid, spm_row, 0)
+          gathered = cond_bias[safe_indices]
+          cond_bias = jnp.where(is_valid[:, None], gathered, 0.0)
+        zeros_bias = jnp.zeros_like(cond_bias)
         if stage_set.ar_logit_transform is not None:
           stored_logits = jax.vmap(
             stage_set.ar_logit_transform,
@@ -311,7 +331,7 @@ class AutoregressiveDecode(eqx.Module):
             stage_set.ar_logit_transform,
             in_axes=(1, 0),
             out_axes=0,
-          )(logits, cond.bias)  # (L, 21)
+          )(logits, cond_bias)  # (L, 21)
         else:
           stored_logits = stage_set.logit_transform(
             logits,
@@ -319,7 +339,7 @@ class AutoregressiveDecode(eqx.Module):
           )
           sampling_logits = stage_set.logit_transform(
             logits,
-            bias=cond.bias,
+            bias=cond_bias,
           )
 
         # Per-group logit averaging (tied positions within each group slot).

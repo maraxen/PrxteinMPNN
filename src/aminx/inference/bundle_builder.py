@@ -81,7 +81,6 @@ def build_inference_bundle(
   bias: jax.Array | None = None,
   fixed_mask: jax.Array | None = None,
   fixed_tokens: jax.Array | None = None,
-  correct_fixed_self_visibility: bool = True,
   tie_group_map: jax.Array | None = None,
   state_position_map: jax.Array | None = None,
   state_weights: jax.Array | None = None,
@@ -286,47 +285,6 @@ def build_inference_bundle(
       ar_mask = jnp.broadcast_to(ar_mask_2d[None, ...], (num_states, seq_len, seq_len))
   elif ar_mask.ndim == 2:
     ar_mask = jnp.broadcast_to(ar_mask[None, ...], (num_states, seq_len, seq_len))
-
-  # ---------------------------------------------------------------------------
-  # SELF-VISIBILITY AT TEACHER-FORCED POSITIONS
-  # ---------------------------------------------------------------------------
-  # Every ar_mask constructor in this library sets the diagonal: `generate_ar_mask`'s
-  # untied branch is `row_indices >= col_indices` (non-strict), and
-  # `generate_wave_ar_mask` returns `earlier_wave | (same_wave & same_group)`, which is
-  # trivially true when i == j. Only `full_context_ar_mask` is diagonal-free.
-  #
-  # A set diagonal is CORRECT for a designable position. `decoder.py` gathers ar_mask into
-  # `attention_mask` and uses it to gate the SEQUENCE edge features, and a residue is always
-  # among its own KNN neighbours -- so `ar_mask[i, i] == 1` lets position i read its own slot.
-  # For a position that has not been drawn yet, that slot holds a placeholder token, which is
-  # exactly the intended sampling behaviour and must be preserved.
-  #
-  # It is WRONG for a FIXED position. `sample_autoregressive` bakes `fixed_tokens` into
-  # `init_sequence` before the wave scan begins, so a fixed position's slot holds its TRUE
-  # identity from the start. Its own forward pass then reads that identity through the
-  # diagonal alone, independent of decoding order -- the model is handed the answer to the
-  # question it is being asked, and the contamination propagates to designable neighbours
-  # through the decoder layers. This is the same defect class `scoring/score.py` carried
-  # until it moved to `full_context_ar_mask`; there it was measured at +0.036243 nats on
-  # 1LVB chain A (paired over 8 seeds, t = 41.3), always in the over-confident direction.
-  #
-  # The correction below is deliberately SURGICAL rather than a whole-diagonal zero:
-  #   * it removes self-visibility exactly where the slot is teacher-forced,
-  #   * it preserves the placeholder self-view at every designable position,
-  #   * it leaves the off-diagonal causal structure bit-identical, and
-  #   * it is an exact no-op when nothing is fixed, so callers that fix no positions see
-  #     byte-identical behaviour to before this change.
-  # Zeroing the entire diagonal would instead silently change the sampling semantics at
-  # designable positions, and `full_context_ar_mask` is not a substitute either: it is
-  # non-causal (full context minus self), which is right for scoring a known sequence and
-  # wrong for an autoregressive decode.
-  if correct_fixed_self_visibility and fixed_mask is not None:
-    _fm = jnp.asarray(fixed_mask)
-    _fm = jnp.broadcast_to(_fm[None, :], (num_states, seq_len)) if _fm.ndim == 1 else _fm
-    _self = jnp.eye(seq_len, dtype=ar_mask.dtype)[None, :, :] * _fm[:, :, None].astype(
-      ar_mask.dtype
-    )
-    ar_mask = ar_mask * (1 - _self)
 
   # Handle sequence: can be token indices or already one-hot
   if sequence is not None:

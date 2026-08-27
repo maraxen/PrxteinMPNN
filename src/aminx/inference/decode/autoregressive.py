@@ -41,6 +41,18 @@ from aminx.types.stages import StageSet
 # Type alias for decoding order function
 DecodingOrderFn = Callable[[WaveScheduleBundle], Any]
 
+#: Sentinel token for a position that has not been drawn yet.
+#:
+#: Deliberately NOT 0. ``MPNN_ALPHABET`` is ``"ACDEFGHIKLMNPQRSTVWYX"``, so index 0 is
+#: alanine and index 20 is the unknown token X -- neither expresses "no draw yet".
+#: ``jax.nn.one_hot(-1, 21)`` is the all-zero vector, so a -1 slot contributes no sequence
+#: signal to the decoder, exactly as the reference does with ``h_S = torch.zeros_like(h_V)``.
+#: Using a distinct negative value also makes "undrawn" recoverable from a stored
+#: mid-decode sequence, which index 0 could not express.
+#:
+#: Any position still holding this value after a completed decode was never scheduled.
+UNDRAWN_TOKEN = -1
+
 
 def _fuse_one_group(
   logits: jnp.ndarray,
@@ -195,7 +207,21 @@ class AutoregressiveDecode(eqx.Module):
     n_waves, max_groups_per_wave = wave.group_ids.shape
 
     # 1. Materialize init sequence from metadata with actual length L
-    init_sequence = jnp.zeros((L,), dtype=self.wave_carry.dtype)
+    # UNDRAWN SENTINEL. Not 0: `MPNN_ALPHABET` is "ACDEFGHIKLMNPQRSTVWYX", so index 0 is
+    # ALANINE (the unknown token X is index 20), and `model/decoder.py:124` embeds it as
+    # `one_hot_sequence @ w_s_weight` -- a real, nonzero row of a pretrained matrix. A
+    # zero-initialized slot therefore asserted "alanine here", not "nothing here".
+    #
+    # `jax.nn.one_hot(-1, 21)` is the all-zero vector, so -1 reproduces the reference's
+    # construction exactly (`h_S = torch.zeros_like(h_V)`, LigandMPNN model_utils.py:252):
+    # an undrawn position contributes no sequence signal at all.
+    #
+    # This is defence in depth rather than the primary fix. A self-excluding causal
+    # ar_mask already makes undrawn slots unreachable -- a position cannot see itself, and
+    # every position that decodes later is masked out for everyone earlier. The sentinel
+    # additionally makes "not yet drawn" distinguishable from "alanine" in any sequence
+    # that is stored or inspected mid-decode, which index 0 could not express.
+    init_sequence = jnp.full((L,), UNDRAWN_TOKEN, dtype=self.wave_carry.dtype)
 
     # Initialize with fixed positions
     init_sequence = jnp.where(

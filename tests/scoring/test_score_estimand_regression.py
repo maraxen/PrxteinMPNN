@@ -54,21 +54,37 @@ def test_full_context_ar_mask_has_zero_diagonal() -> None:
   assert np.all(off_diagonal == 1), "every position must see every OTHER position"
 
 
-def test_generate_ar_mask_diagonal_is_inclusive_under_every_permutation() -> None:
-  """Pin the trap itself, so the reason score.py stopped using it stays visible.
+def test_generate_ar_mask_is_self_excluding_under_every_permutation() -> None:
+  """INVERTED 2026-08-27. This test previously pinned the opposite, and it did its job.
 
-  This is deliberate for sampling (a position's own slot holds an undrawn placeholder) and
-  wrong for teacher-forced scoring. Asserting it here means a future change to
-  ``generate_ar_mask`` surfaces as a failure in a file that explains the consequence.
+  It used to assert ``generate_ar_mask`` was self-INCLUSIVE, to keep visible the reason
+  score.py stopped using it, and instructed that if the behaviour ever changed, every
+  teacher-forced caller should be revisited. That change has now happened and the callers
+  were revisited, so the assertion is inverted rather than deleted.
+
+  What changed: the "undrawn placeholder" rationale for the set diagonal was false --
+  undrawn slots held token 0, which is ALANINE, embedded as a real nonzero vector -- and
+  both LigandMPNN (``1 - torch.triu(ones)``) and ColabDesign (``jnp.tri(L, k=-1)``)
+  self-exclude. ``generate_ar_mask`` now matches them.
+
+  WHAT DID NOT CHANGE, and is the point of keeping this test here: score.py must still use
+  :func:`full_context_ar_mask`. Its reason is now solely NON-CAUSALITY -- scoring a known
+  sequence wants full context minus self, not a causal prefix -- and no longer has anything
+  to do with the diagonal. Do not "simplify" score.py onto ``generate_ar_mask`` on the
+  grounds that the diagonal is fixed; that would silently make scoring order-dependent
+  again, which is the defect DEFECT 1 in this file exists to prevent.
   """
   key = jax.random.PRNGKey(0)
   for i in range(5):
     order = jax.random.permutation(jax.random.fold_in(key, i), 8)
     mask = np.asarray(generate_ar_mask(order))
-    assert np.all(np.diag(mask) == 1), (
-      "generate_ar_mask is self-INCLUSIVE by construction; if this ever changes, "
-      "revisit every teacher-forced caller"
+    assert np.all(np.diag(mask) == 0), (
+      "generate_ar_mask must be self-excluding; if this ever changes back, revisit every "
+      "teacher-forced caller"
     )
+    # Non-degeneracy: an all-zero mask satisfies the diagonal check while removing all
+    # context, a separate and worse defect class.
+    assert mask.sum() > 0
 
 
 def test_score_path_default_mask_is_order_free_and_self_excluding() -> None:
@@ -89,11 +105,21 @@ def test_score_path_default_mask_is_order_free_and_self_excluding() -> None:
   mask_b = np.asarray(full_context_ar_mask(length))
   assert np.array_equal(mask_a, mask_b)
 
-  # And it differs from what the old default would have produced, in the diagonal.
-  legacy = np.asarray(generate_ar_mask(order_a))
-  assert not np.array_equal(legacy, mask_a)
-  assert np.all(np.diag(legacy) == 1)
+  # And it still differs from what the old default would have produced -- but as of
+  # 2026-08-27 the difference is CAUSALITY, not the diagonal. Both masks are now
+  # self-excluding; only `full_context_ar_mask` is order-free and non-causal, which is
+  # exactly why the score path must keep using it.
+  causal = np.asarray(generate_ar_mask(order_a))
+  assert not np.array_equal(causal, mask_a)
+  assert np.all(np.diag(causal) == 0), "the causal mask is self-excluding too now"
   assert np.all(np.diag(mask_a) == 0)
+  # The causal mask IS order-dependent; the score path's default is not. This is the
+  # property that made the score key-dependent at backbone_noise=0.
+  causal_b = np.asarray(generate_ar_mask(order_b))
+  assert not np.array_equal(causal, causal_b), (
+    "generate_ar_mask must remain order-dependent -- if it stopped being so, this test no "
+    "longer demonstrates why the score path needs an order-free default"
+  )
 
 
 # --------------------------------------------------------------------------------------

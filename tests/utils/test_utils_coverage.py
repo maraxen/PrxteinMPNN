@@ -342,8 +342,16 @@ class TestAutoregression(chex.TestCase):
 
         # Verify shape
         chex.assert_shape(mask, (5, 5))
-        # Diagonal should be all 1
-        assert jnp.all(jnp.diag(mask))
+        # Diagonal must be all 0: no position reads its own slot. Changed 2026-08-27 --
+        # this previously asserted a set diagonal, matching the old non-strict
+        # `row_indices >= col_indices`. Both reference implementations self-exclude
+        # (LigandMPNN `1 - torch.triu(ones)`, ColabDesign `jnp.tri(L, k=-1)`), and the
+        # "harmless placeholder" rationale for the old behaviour was false: undrawn slots
+        # held token 0, which is ALANINE, embedded as a real nonzero vector.
+        assert not jnp.any(jnp.diag(mask))
+        # Non-degeneracy: an all-zero mask would also satisfy the line above while
+        # removing every position's context.
+        assert mask.sum() > 0
         chex.assert_tree_all_finite(mask)
 
     @chex.variants(with_jit=True, without_jit=True)
@@ -356,8 +364,11 @@ class TestAutoregression(chex.TestCase):
         mask = ar_mask_fn(decoding_order, tie_group_map=tie_group_map)
 
         chex.assert_shape(mask, (4, 4))
-        # Diagonal should be all 1
-        assert jnp.all(jnp.diag(mask))
+        # Diagonal must be all 0 on the tied branch too (see the untied case above for
+        # why). Tie semantics themselves are unchanged: same-group positions remain
+        # mutually visible, which the dedicated tie tests still assert.
+        assert not jnp.any(jnp.diag(mask))
+        assert mask.sum() > 0
         chex.assert_tree_all_finite(mask)
 
     @chex.variants(with_jit=True, without_jit=True)

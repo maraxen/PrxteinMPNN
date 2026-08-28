@@ -61,7 +61,28 @@ def _nll_from_logits(
       dims (logits' shape minus the last two axes).
 
   """
-  one_hot = jax.nn.one_hot(sequences_idx, logits.shape[-1])
+  # An out-of-range index (notably UNDRAWN_TOKEN = -1, which `SampleResult.sequence` may
+  # carry at positions a partial wave schedule never covered) one-hots to the ZERO vector,
+  # so its `-sum(one_hot * log_probs)` is exactly 0.0. That is not a neutral value here: it
+  # is the best possible per-position NLL, so an undecided position would score as a free
+  # perfect match and bias `average_cross_state_scores` TOWARD the candidate carrying it.
+  # Silent, and in the dangerous direction -- hence a hard failure rather than a clamp.
+  #
+  # Not reachable from any in-library schedule constructor today (all produce full-length
+  # orders), so this guards a future caller rather than a live defect.
+  n_classes = logits.shape[-1]
+  if not isinstance(sequences_idx, jax.core.Tracer):
+    idx = jnp.asarray(sequences_idx)
+    if bool(jnp.any((idx < 0) | (idx >= n_classes))):
+      msg = (
+        f"sequences_idx contains out-of-range token indices (valid range [0, {n_classes})). "
+        "A -1 here is almost certainly UNDRAWN_TOKEN from a position the wave schedule "
+        "never covered; one-hot would silently score it 0.0 NLL -- a free perfect match. "
+        "Trim or fill undecided positions before scoring."
+      )
+      raise ValueError(msg)
+
+  one_hot = jax.nn.one_hot(sequences_idx, n_classes)
   log_probs = jax.nn.log_softmax(logits, axis=-1)
   nll_per_position = -jnp.sum(one_hot * log_probs, axis=-1)
   return jnp.mean(nll_per_position, axis=-1)

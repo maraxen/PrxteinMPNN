@@ -47,6 +47,61 @@
 
 ### Bug Fixes
 
+- **Every autoregressive mask set its diagonal, so each position read its own slot — and
+  that slot asserted ALANINE, not "undrawn". Numerical output of every AR sampling run
+  changes.**
+  ([`src/aminx/utils/autoregression.py`](src/aminx/utils/autoregression.py),
+  [`src/aminx/inference/decode/autoregressive.py`](src/aminx/inference/decode/autoregressive.py))
+
+  `generate_ar_mask`'s untied branch was `row_indices >= col_indices` — non-strict — and
+  `generate_wave_ar_mask` returns `earlier_wave | (same_wave & same_group)`, trivially true
+  when `i == j`. Both therefore set `ar_mask[i, i] = 1`. The decoder gathers this mask into
+  `attention_mask` to gate the *sequence* edge features (`model/decoder.py:144-146`), and a
+  residue is always among its own KNN neighbours (self-distance 0 is the global minimum), so
+  the diagonal is a live self-loop, not an inert one.
+
+  The rationale for keeping it was that a not-yet-drawn position's own slot holds a harmless
+  placeholder. That premise was false twice over. First, `decode/autoregressive.py`
+  initialized undrawn slots to token index **0**, and `MPNN_ALPHABET` is
+  `"ACDEFGHIKLMNPQRSTVWYX"` — index 0 is **alanine**, while the unknown token `X` is index 20
+  — and `model/decoder.py:124` embeds it as `one_hot_sequence @ w_s_weight`, a real nonzero
+  row of a pretrained matrix. Each position was being told "I am alanine" about itself at the
+  exact step it decided its own identity. Second, the placeholder only exists at the wave a
+  position is drawn: `_decode_one_step` rebuilds from the encoder output every wave with no
+  carried hidden state, so from the following wave onward the slot holds a real token.
+
+  Both reference implementations disagree with what we were doing, verified against primary
+  source: stock LigandMPNN builds `1 - torch.triu(torch.ones(L, L))` at
+  `model_utils.py:227-231` and four further call sites (`torch.triu` defaults to
+  `diagonal=0`, so this is strictly lower-triangular), and ColabDesign builds
+  `jnp.tri(L, k=-1)` at `colabdesign/mpnn/utils.py:19-26`. Both are self-excluding under any
+  permutation.
+
+  Our own parity suite never caught it: `tests/parity/test_full_model_parity.py:90-95`
+  hand-builds its `ar_mask` with a **strict** comparison and passes it explicitly, so the
+  `ar_mask is None` branch never runs and `generate_ar_mask` — the function the production
+  sampling path calls — was never invoked there at all.
+
+  Both constructors are now self-excluding, and the undrawn sentinel is `-1`
+  (`UNDRAWN_TOKEN`), whose one-hot is the zero vector, reproducing the reference's
+  `h_S = torch.zeros_like(h_V)`. Self-exclusion alone already makes undrawn slots
+  unreachable, so the sentinel is defence in depth — and it makes "not yet drawn"
+  distinguishable from "alanine" in a stored or mid-decode sequence, which index 0 could not
+  express.
+
+  **Impact.** Measured on TEV protease with a fixed 25-residue active-site shell: mean JSD
+  **0.0296** over designable positions between the old and new masks, with an
+  alanine-specific probability shift of **−0.0049** against a mean of 0.0016 across the other
+  twenty tokens. The score path is unaffected (it already used the diagonal-free
+  `full_context_ar_mask`). There is no opt-out: the old behaviour was not a configuration.
+
+  **Deliberately NOT changed**, both flagged for separate work: same-tie-group positions
+  remain mutually visible (whether that matches the reference's *tied* decoding is unverified,
+  and it is not the diagonal); and `generate_ar_mask` consumes a **rank** array
+  (`rank[i]` = step of position `i`) while the parity fixture treats the same argument as an
+  **order** array (`order[k]` = position at step `k`) — a live convention inconsistency that
+  is invisible for uniform random permutations and is now pinned by a test.
+
 - **`SamplingSpecification` had no `weight_profile`/`fixed_group` fields, so any manifest
   row carrying them in its nested `sampling_spec` hard-crashed real sampling**
   ([`src/aminx/run/specs.py`](src/aminx/run/specs.py))

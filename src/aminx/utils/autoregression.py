@@ -145,24 +145,45 @@ def generate_ar_mask(
   tie_group_map: jnp.ndarray | None = None,
   num_groups: int | None = None,
 ) -> AutoRegressiveMask:
-  """Get the autoregressive mask for the given decoding order.
+  """Get the self-excluding autoregressive mask for the given decoding order.
 
-  **The diagonal is 1: every position SEES ITSELF.** The untied branch is
-  ``(row_indices >= col_indices)`` -- non-strict -- so this holds under every permutation.
-  That is deliberate for a *sampling* decode, where a position's own slot holds a
-  placeholder token that has not been drawn yet, but it is wrong for anything that
-  teacher-forces a known sequence: the decoder gathers ``ar_mask`` into ``attention_mask``
-  and uses it to gate the *sequence* edge features (``model/decoder.py:144-146``), and a
-  residue is always among its own KNN neighbours -- so with a real sequence in hand, the
-  model is handed the answer to the question it is being asked.
+  **The diagonal is 0: no position ever reads its own slot.** This matches both
+  independent reference implementations, verified against primary source:
 
-  ``scoring/score.py`` did exactly that until it was switched to
-  :func:`full_context_ar_mask`; the measured cost was +0.036243 nats on 1LVB chain A
-  (paired over 8 seeds, t = 41.3), always in the over-confident direction.
+  * stock LigandMPNN (``dauparas/LigandMPNN``, ``model_utils.py:227-231`` and four further
+    call sites) builds ``1 - torch.triu(torch.ones(L, L))``. ``torch.triu`` defaults to
+    ``diagonal=0``, so this is strictly lower-triangular, and conjugating it by a
+    permutation matrix preserves the zero diagonal for any decoding order.
+  * ColabDesign (``colabdesign/mpnn/utils.py:19-26``) builds ``jnp.tri(L, k=-1)`` and
+    permutes it by ``order.argsort()``.
 
-  If you need a self-excluding causal mask (what the reference builds everywhere, as
-  ``1 - triu(ones)``), zero the diagonal explicitly. If you need full context minus self,
-  use :func:`full_context_ar_mask`.
+  Until 2026-08-27 the untied branch here was ``(row_indices >= col_indices)`` --
+  non-strict -- so the diagonal was 1 and every position read its own slot. The rationale
+  given was that a not-yet-drawn position's slot holds an inert placeholder. That premise
+  did not hold: ``inference/decode/autoregressive.py`` initialized undrawn slots to token
+  index 0, and ``MPNN_ALPHABET`` is ``"ACDEFGHIKLMNPQRSTVWYX"``, so index 0 is ALANINE
+  (the unknown token X is index 20). ``model/decoder.py:124`` embeds it as
+  ``one_hot_sequence @ w_s_weight`` -- a real, nonzero row of a pretrained matrix. Since
+  the decoder gathers this mask into ``attention_mask`` to gate the *sequence* edge
+  features (``model/decoder.py:144-146``) and a residue is always among its own KNN
+  neighbours (self-distance 0 is the global minimum), each position was being fed the
+  assertion "I am alanine" about itself at the exact step it decided its own identity.
+  Measured downstream: mean JSD 0.0296 over designable positions, with an
+  alanine-specific probability shift of -0.0049 against a mean of 0.0016 across the other
+  twenty tokens.
+
+  The undrawn sentinel is now ``-1``, whose one-hot is the zero vector -- matching the
+  reference's ``h_S = torch.zeros_like(h_V)``. Self-exclusion alone already makes undrawn
+  slots unreachable (a causal mask hides them from every other position), so the sentinel
+  is defence in depth, and it makes "not yet drawn" distinguishable from "alanine" in
+  stored sequences.
+
+  Tie semantics are deliberately UNCHANGED: same-tie-group positions remain mutually
+  visible. Whether that matches the reference's tied decoding is a separate, open
+  question -- it is not the diagonal, and it is not settled here.
+
+  For full context minus self (non-causal; correct for scoring a known sequence, wrong for
+  an autoregressive decode) use :func:`full_context_ar_mask`.
   """
   N = decoding_order.shape[0]
 
@@ -196,7 +217,12 @@ def generate_ar_mask(
     same_chain = (chain_idx[:, None] == chain_idx[None, :]).astype(jnp.int32)
     ar_mask = ar_mask * same_chain
 
-  return ar_mask
+  # Self-exclusion, applied once for BOTH branches. For the untied branch this is exactly
+  # equivalent to making the comparison strict -- `decoding_order` is a permutation, so
+  # `decoding_order[i] == decoding_order[j]` only when i == j -- and it leaves the tied
+  # branch's same-group mutual visibility untouched, which is the deliberate scope
+  # boundary described in the docstring.
+  return ar_mask * (1 - jnp.eye(N, dtype=ar_mask.dtype))
 
 
 @jax.jit
@@ -265,7 +291,14 @@ def generate_wave_ar_mask(
   earlier_wave = position_wave_index[:, None] > position_wave_index[None, :]
   same_group = tie_group_map[:, None] == tie_group_map[None, :]
 
-  return (earlier_wave | (same_wave & same_group)).astype(jnp.float32)
+  mask = (earlier_wave | (same_wave & same_group)).astype(jnp.float32)
+  # Self-exclusion, matching :func:`generate_ar_mask` and both reference implementations.
+  # `same_wave & same_group` is trivially true on the diagonal, so without this every
+  # position read its own slot -- see generate_ar_mask's docstring for why that is wrong
+  # and what it measured. Only the diagonal is removed: same-wave/same-group mutual
+  # visibility (and the same-wave/different-group invisibility that gives this schedule
+  # its Jacobi independence) are both preserved exactly.
+  return mask * (1 - jnp.eye(seq_len, dtype=mask.dtype))
 
 
 def full_context_ar_mask(seq_len: int) -> jnp.ndarray:

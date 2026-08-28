@@ -74,17 +74,22 @@ def test_resolve_tie_groups_explicit():
 @pytest.mark.parametrize(
     "decoding_order, expected_mask",
     [
+        # Diagonals are 0 as of 2026-08-27: no position reads its own slot. Each expected
+        # matrix below is its previous value with the diagonal zeroed and nothing else
+        # touched. Note the argument is a RANK array -- `decoding_order[i]` is the step at
+        # which position i decodes -- so for [2, 0, 1] position 0 decodes last and sees
+        # both others.
         (
             jnp.array([0, 1, 2]),
-            jnp.array([[1, 0, 0], [1, 1, 0], [1, 1, 1]]),
+            jnp.array([[0, 0, 0], [1, 0, 0], [1, 1, 0]]),
         ),
         (
             jnp.array([2, 0, 1]),
-            jnp.array([[1, 1, 1], [0, 1, 0], [0, 1, 1]]),
+            jnp.array([[0, 1, 1], [0, 0, 0], [0, 1, 0]]),
         ),
         (
             jnp.array([1, 2, 0]),
-            jnp.array([[1, 0, 1], [1, 1, 1], [0, 0, 1]]),
+            jnp.array([[0, 0, 1], [1, 0, 1], [0, 0, 0]]),
         ),
     ],
 )
@@ -138,7 +143,9 @@ def test_generate_wave_ar_mask_partial_schedule_does_not_leak_omitted_positions(
   chex.assert_trees_all_equal(mask[0, 3:6], jnp.zeros(3))
   chex.assert_trees_all_equal(mask[1, 3:6], jnp.zeros(3))
   # Real positions still see each other exactly as a normal sequential schedule would.
-  chex.assert_trees_all_equal(mask[:3, :3], jnp.tril(jnp.ones((3, 3))))
+  # k=-1: STRICTLY lower-triangular, since as of 2026-08-27 no position reads its own slot.
+  # The leak this test guards is unrelated to the diagonal and is unaffected by that change.
+  chex.assert_trees_all_equal(mask[:3, :3], jnp.tril(jnp.ones((3, 3)), k=-1))
 
 
 def test_generate_wave_ar_mask_padding_tolerant():

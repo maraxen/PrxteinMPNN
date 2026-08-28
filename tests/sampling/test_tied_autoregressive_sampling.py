@@ -383,8 +383,12 @@ class TestTiedAutoregressiveSampling:
     assert ar_mask[2, 3] == 1, "Tied positions 2,3 should attend"
     assert ar_mask[3, 2] == 1, "Tied positions 3,2 should attend"
 
-    # All positions should attend to themselves
-    assert jnp.all(jnp.diag(ar_mask) == 1)
+    # No position attends to itself (2026-08-27): both reference implementations
+    # self-exclude, and the "undrawn placeholder" rationale for the old set diagonal was
+    # false -- undrawn slots held token 0, which is ALANINE. Tie visibility above is
+    # unchanged and still asserted.
+    assert jnp.all(jnp.diag(ar_mask) == 0)
+    assert ar_mask.sum() > 0, "mask is all-zero -- that removes all context"
 
 
 class TestStraightThroughWithTiedPositions:

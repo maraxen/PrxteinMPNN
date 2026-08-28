@@ -21,7 +21,33 @@ if TYPE_CHECKING:
 
 
 class SampleResult(eqx.Module):
-  """Result of an autoregressive sampling run."""
+  """Result of an autoregressive sampling run.
+
+  ``sequence`` MAY CONTAIN ``UNDRAWN_TOKEN`` (-1), at any position the wave schedule never
+  covered. Treat it as data, not as a residue index.
+
+  Two constructions can leave a position undecided, and both are supported features rather
+  than error states:
+
+  * a **partial wave schedule** -- a caller that schedules only the positions it needs and
+    leaves the rest permanently undecided (see
+    ``generate_wave_ar_mask``'s docstring and
+    ``tests/utils/test_autoregression.py::test_generate_wave_ar_mask_partial_schedule_does_not_leak_omitted_positions``);
+  * **bucket padding** -- ``tiling/pad.py`` extends the wave axis without adding group
+    coverage for the padded tail, so padded positions are never scheduled.
+
+  Before 2026-08-27 those positions came back as token 0, which is ALANINE -- indistinguishable
+  from a real, deliberately-sampled alanine. -1 is the honest value, and callers must handle
+  it rather than have a plausible lie handed to them.
+
+  CONSUMER CONTRACT. One-hot it (``jax.nn.one_hot(-1, 21)`` is the all-zero vector, so an
+  undecided position contributes no sequence signal) or test it explicitly. Do NOT use it as
+  an array index without checking: -1 silently wraps to the last element, and a cast to an
+  unsigned dtype turns it into a large positive value (uint8 -> 255). If your code requires a
+  fully-decoded sequence, say so with an explicit check rather than assuming -- every
+  in-library schedule constructor produces a full-length order today, so the assumption holds
+  by accident of current callers, not by contract.
+  """
 
   sequence: Int[Array, L]
   logits: Float[Array, "L 21"]

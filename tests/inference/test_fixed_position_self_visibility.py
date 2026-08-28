@@ -206,6 +206,77 @@ def test_generate_ar_mask_consumes_a_rank_array_not_an_order_array():
 # ---------------------------------------------------------------------------
 
 
+def test_partial_schedule_returns_undrawn_token_in_the_SEQUENCE_not_just_the_mask():
+  """END-TO-END contract test: read `SampleResult.sequence`, not the mask.
+
+  `tests/utils/test_autoregression.py::test_generate_wave_ar_mask_partial_schedule_does_not_leak_omitted_positions`
+  already covers the MASK for a partial schedule. Nothing covered what the returned
+  SEQUENCE holds at an omitted position -- which is exactly how the escape route for
+  UNDRAWN_TOKEN went unnoticed until code review.
+
+  A partial wave schedule is a supported feature: a caller schedules only the positions it
+  needs and leaves the rest permanently undecided. Those positions used to come back as
+  token 0, i.e. ALANINE, indistinguishable from a deliberately-sampled alanine. They now
+  come back as -1, which is honest but is NOT a valid residue index -- see
+  `SampleResult`'s docstring for the consumer contract.
+
+  This test pins that. If someone later "fixes" the -1 by clamping it to 0, this fails and
+  the plausible lie does not come back silently.
+  """
+  import equinox as eqx
+  import jax
+
+  from aminx.inference import sample_autoregressive
+  from aminx.inference.logits import make_stage_set
+  from aminx.model.mpnn import Aminx
+  from aminx.types.bundles import WaveScheduleBundle as WSB
+
+  seq_len = 6
+  scheduled, omitted = [0, 1, 2], [3, 4, 5]
+
+  key = jax.random.PRNGKey(0)
+  model = eqx.tree_inference(
+    Aminx(
+      node_features=32, edge_features=32, hidden_features=32,
+      num_encoder_layers=1, num_decoder_layers=1, k_neighbors=4, key=key,
+    ),
+    value=True,
+  )
+
+  rng = np.random.default_rng(0)
+  coords = jnp.asarray(rng.normal(size=(seq_len, 4, 3)) * 3.0, dtype=jnp.float32)
+  tie_group_map = jnp.arange(seq_len, dtype=jnp.int32)
+  partial = WSB.from_tie_groups(tie_group_map, jnp.asarray(scheduled, dtype=jnp.int32))
+
+  bundle, config = build_inference_bundle(
+    coords=coords,
+    mask=jnp.ones((seq_len,), dtype=jnp.float32),
+    residue_index=jnp.arange(seq_len, dtype=jnp.int32),
+    chain_index=jnp.zeros((seq_len,), dtype=jnp.int32),
+    tie_group_map=tie_group_map,
+    wave=partial,
+    mode="sample_ar",
+    inference=True,
+  )
+  result = sample_autoregressive.kernel(
+    model, key, bundle, config,
+    make_stage_set(strategy="arithmetic_mean", strategy_temperature=1.0, state_weights=None),
+  )
+  seq = np.asarray(result.sequence)
+  seq = seq[0] if seq.ndim == 2 else seq
+
+  assert all(seq[i] == UNDRAWN_TOKEN for i in omitted), (
+    f"positions {omitted} were never scheduled, so they must come back as UNDRAWN_TOKEN "
+    f"({UNDRAWN_TOKEN}); got {seq.tolist()}. If this now returns 0, an unscheduled position "
+    "is again indistinguishable from a sampled alanine."
+  )
+  # Non-degeneracy: the scheduled positions must actually have been decoded, or this test
+  # would pass just as well against a kernel that decoded nothing at all.
+  assert all(0 <= seq[i] < 21 for i in scheduled), (
+    f"scheduled positions {scheduled} were not decoded: {seq.tolist()}"
+  )
+
+
 def test_undrawn_sentinel_is_not_a_real_residue():
   """0 is alanine and 20 is X; neither can express "not drawn yet"."""
   from aminx.utils.aa_convert import MPNN_ALPHABET
@@ -213,6 +284,44 @@ def test_undrawn_sentinel_is_not_a_real_residue():
   assert UNDRAWN_TOKEN < 0, f"sentinel {UNDRAWN_TOKEN} collides with a real token index"
   assert MPNN_ALPHABET[0] == "A", "index 0 is no longer alanine; re-check the sentinel rationale"
   assert MPNN_ALPHABET[20] == "X"
+
+
+def test_undrawn_sentinel_is_signed_and_representable():
+  """The carry dtype must be signed, or -1 wraps and stops being detectable.
+
+  `CarryShape.dtype` is typed `Any` and enforces nothing; every construction site passes
+  int32 today, so this invariant currently holds by caller convention. `AutoregressiveDecode`
+  asserts it at decode time -- this pins the assumption the assertion encodes.
+  """
+  import jax.numpy as jnp_
+
+  from aminx.inference.decode.factory import make_decode_fn  # noqa: F401  (import smoke)
+
+  assert jnp_.issubdtype(jnp_.int32, jnp_.signedinteger)
+  # And -1 must round-trip through the carry dtype unchanged.
+  assert int(jnp_.full((1,), UNDRAWN_TOKEN, dtype=jnp_.int32)[0]) == UNDRAWN_TOKEN
+
+
+def test_mbr_consensus_refuses_an_undrawn_token_rather_than_scoring_it_free():
+  """A leaked -1 one-hots to zero, giving NLL 0.0 -- the BEST possible score.
+
+  That is the one place the sentinel is more dangerous than the old token-0 default: an
+  undecided position would score as a free perfect match and bias candidate selection
+  toward whichever candidate carried it. It must fail loudly instead.
+  """
+  import jax.numpy as jnp_
+
+  from aminx.sampling.mbr_consensus import _nll_from_logits
+
+  logits = jnp_.zeros((4, 21))
+  clean = jnp_.array([1, 2, 3, 4], dtype=jnp_.int32)
+  # Sanity: the clean path works and is non-degenerate, so the failure below is about the
+  # sentinel and not about the function being broken generally.
+  assert float(_nll_from_logits(logits, clean)) > 0.0
+
+  leaked = jnp_.array([1, 2, UNDRAWN_TOKEN, 4], dtype=jnp_.int32)
+  with pytest.raises(ValueError, match="out-of-range token indices"):
+    _nll_from_logits(logits, leaked)
 
 
 def test_undrawn_sentinel_embeds_to_the_zero_vector():

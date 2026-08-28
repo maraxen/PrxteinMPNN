@@ -221,6 +221,20 @@ class AutoregressiveDecode(eqx.Module):
     # every position that decodes later is masked out for everyone earlier. The sentinel
     # additionally makes "not yet drawn" distinguishable from "alanine" in any sequence
     # that is stored or inspected mid-decode, which index 0 could not express.
+    # UNDRAWN_TOKEN is negative, so the carry dtype must be signed. `CarryShape.dtype` is
+    # typed `Any` and enforces nothing; every construction site passes jnp.int32 today
+    # (`decode/factory.py`), so this asserts an invariant that currently holds by caller
+    # convention rather than by type. Under an unsigned dtype -1 would wrap to a large
+    # positive value -- `jax.nn.one_hot` would still yield the zero vector (it zeroes ANY
+    # out-of-range index), so the embedding stays correct, but every `seq < 0` check
+    # downstream would silently stop detecting undecided positions.
+    if not jnp.issubdtype(self.wave_carry.dtype, jnp.signedinteger):
+      msg = (
+        f"wave_carry dtype {self.wave_carry.dtype} is not a signed integer type, so "
+        f"UNDRAWN_TOKEN ({UNDRAWN_TOKEN}) cannot be represented. Undecided positions would "
+        "wrap to a large positive value and stop being detectable by a negativity check."
+      )
+      raise TypeError(msg)
     init_sequence = jnp.full((L,), UNDRAWN_TOKEN, dtype=self.wave_carry.dtype)
 
     # Initialize with fixed positions

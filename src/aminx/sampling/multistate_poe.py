@@ -47,7 +47,7 @@ import jax.numpy as jnp
 import numpy as np
 from xtrax.run import SinkSpec, ZarrStagingSink
 from xtrax.tiling import BatchPlanner
-from xtrax.tiling import SafeMap as _XtraxSafeMap
+from xtrax.tiling import ChunkedMap as _XtraxSafeMap
 from xtrax.tiling import Vmap as _XtraxVmap
 from xtrax.tiling.estimators import lowered_memory_estimate
 

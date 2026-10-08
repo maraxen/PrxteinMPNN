@@ -21,7 +21,7 @@ row: ``ProteinEBMModel.energy()``/``.score()`` take coords/aatype/``t``/mask
 logit-typed slots to ``Any`` (losing their contract value) or bolting on a
 special case the existing tests/callers never anticipated. The *pattern* that
 machinery uses -- ``AxisSpec`` + ``BatchPlanner`` + a strategy-name dispatch
-over ``Vmap``/``SafeMap``/``Scan`` (mirroring
+over ``Vmap``/``ChunkedMap``/``Scan`` (mirroring
 ``host/kernel_dispatch.py::_dispatch_axis``) -- is genuinely generic and is
 exactly what this module reuses; the *instances* (axis registry, dispatch
 entry points) are new and disjoint, keeping the EBM path isolated from the
@@ -59,7 +59,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
-from xtrax.tiling import AxisDecision, AxisSpec, BatchPlanner, SafeMap, Scan, Vmap
+from xtrax.tiling import AxisDecision, AxisSpec, BatchPlanner, ChunkedMap, Scan, Vmap
 
 from aminx.ebm.contracts import Energy
 from aminx.utils.safe_map import safe_map
@@ -119,12 +119,12 @@ def plan_axis(
       cardinality: The real element count for this call (e.g. number of
           decoys actually being scored).
       default_batch_size: Override the axis template's default batch-size
-          threshold (BatchPlanner's Vmap-vs-SafeMap cutoff). ``None`` keeps
+          threshold (BatchPlanner's Vmap-vs-ChunkedMap cutoff). ``None`` keeps
           the template's default.
 
   Returns:
       The single :class:`~xtrax.tiling.AxisDecision` BatchPlanner produced
-      for this axis (``.strategy`` is a ``Vmap``/``SafeMap`` instance per
+      for this axis (``.strategy`` is a ``Vmap``/``ChunkedMap`` instance per
       BatchPlanner's cardinality-vs-batch-size rule).
 
   Raises:
@@ -167,7 +167,7 @@ def dispatch_axis[T, U](
   function's own signature meaningfully typed.
 
   ``strategy`` is deliberately typed as plain ``object``, not the narrower
-  ``Vmap | SafeMap | Scan``: ``AxisDecision.strategy``'s declared type is
+  ``Vmap | ChunkedMap | Scan``: ``AxisDecision.strategy``'s declared type is
   xtrax's full sealed ``AxisStrategy`` union (which also includes
   ``DedupGather``/``Bucket`` -- neither importable from the public
   ``xtrax.tiling`` surface this file is restricted to), so a narrower
@@ -176,7 +176,7 @@ def dispatch_axis[T, U](
   narrowing; anything outside E4's scope falls through to the ``TypeError``.
 
   Args:
-      strategy: An xtrax ``Vmap``/``SafeMap``/``Scan`` instance, as returned
+      strategy: An xtrax ``Vmap``/``ChunkedMap``/``Scan`` instance, as returned
           by ``plan_axis(...).strategy``.
       body: Per-element function, ``body(x) -> y``. For ``Scan`` this is
           wrapped as a carry-passthrough transition (no real carry threading
@@ -196,7 +196,7 @@ def dispatch_axis[T, U](
   """
   if isinstance(strategy, Vmap):
     return jax.vmap(body)(xs)
-  if isinstance(strategy, SafeMap):
+  if isinstance(strategy, ChunkedMap):
     return safe_map(body, xs, batch_size=strategy.batch_size)
   if isinstance(strategy, Scan):
 
@@ -208,7 +208,7 @@ def dispatch_axis[T, U](
     return ys
   msg = (
     f"aminx.ebm.plan.dispatch_axis: unsupported strategy {type(strategy).__name__} "
-    "for E4's wiring scope (Vmap/SafeMap/Scan only)."
+    "for E4's wiring scope (Vmap/ChunkedMap/Scan only)."
   )
   raise TypeError(msg)
 

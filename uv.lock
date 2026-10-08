@@ -53,7 +53,7 @@ wheels = [
 
 [[package]]
 name = "aminx"
-version = "0.1.0a20"
+version = "0.1.0a24"
 source = { editable = "." }
 dependencies = [
     { name = "array-record", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -202,7 +202,7 @@ requires-dist = [
     { name = "ty", marker = "extra == 'dev'" },
     { name = "ty", marker = "extra == 'tests'" },
     { name = "typer", specifier = ">=0.12.0" },
-    { name = "xtrax", extras = ["io"], specifier = "==0.4.0a5" },
+    { name = "xtrax", extras = ["io"], specifier = "==0.4.0a12" },
     { name = "zstandard", specifier = ">=0.21.0" },
 ]
 provides-extras = ["benchmark", "docs", "tests", "dev", "foldcomp", "cpu", "cuda12"]
@@ -2882,18 +2882,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pytest-asyncio"
-version = "1.4.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pytest", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/43/7c/d36d04db312ecf4298932ef77e6e4a9e8ad017906e24e34f0b0c361a2473/pytest_asyncio-1.4.0.tar.gz", hash = "sha256:c6c0d2259945122819f171a32ecea2c349ead889ee28176caaf492143424be42", size = 58514, upload-time = "2026-05-26T09:56:04.083Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/e2/08a497ef684b88559c9cc5f4ad53a37e7b99e727094a86d6ea32536d5d3c/pytest_asyncio-1.4.0-py3-none-any.whl", hash = "sha256:933ca923a23075a87fb7070c0ec272a6848489824d887c85c812670932835aa1", size = 16930, upload-time = "2026-05-26T09:56:02.576Z" },
-]
-
-[[package]]
 name = "pytest-cov"
 version = "7.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3920,21 +3908,19 @@ wheels = [
 
 [[package]]
 name = "xtrax"
-version = "0.4.0a5"
+version = "0.4.0a12"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "equinox", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "grain", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "jax", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "jaxlib", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "numpy", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "optax", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "orbax-checkpoint", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "pytest-asyncio", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fb/2a/db1f77d3b68d68fd171ecfc7096a12b82bce5b38c2c91bbde9abbb94b7ab/xtrax-0.4.0a5.tar.gz", hash = "sha256:b1a36258836b10049b3637c110cb03b20412b974bfab93026bb7a81ffce3d8cf", size = 998632, upload-time = "2026-07-08T14:35:48.63Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/67/86/f9f041137fffb538b5e021ccb8b124c3c89399968ea42e34a6fb02627f30/xtrax-0.4.0a12.tar.gz", hash = "sha256:54a65a7b46fc1edcff16f17310d992487b322044c57aba7cc38f3235546c0a95", size = 2969496, upload-time = "2026-10-01T21:04:12.572Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c0/c1/5569fb8debe16da08b90f0e52c4f6167a78b27957c9dd12312fb01e8024c/xtrax-0.4.0a5-py3-none-any.whl", hash = "sha256:8206480b54f82c933175f0c24cf6b82fcf32a369b4094f0a90e518496788aa20", size = 125561, upload-time = "2026-07-08T14:35:47.135Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/22/c95f6673df560533063b92daefa2ed68b889320040de872173d330e6fedc/xtrax-0.4.0a12-py3-none-any.whl", hash = "sha256:50e861d26d8e8684bc5c8bc91f551e4c960dcfbbcae7940ffbf4221aea74dc29", size = 497925, upload-time = "2026-10-01T21:04:10.722Z" },
 ]
 
 [package.optional-dependencies]

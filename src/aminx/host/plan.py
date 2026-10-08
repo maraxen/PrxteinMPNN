@@ -14,7 +14,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-from xtrax.tiling import AxisDecision, BatchPlan, BatchPlanner, MemoryBudget, SafeMap
+from xtrax.tiling import AxisDecision, BatchPlan, BatchPlanner, MemoryBudget, ChunkedMap
 from xtrax.tiling import BudgetInfeasibleError as _XtraxBudgetInfeasibleError
 
 from aminx.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
@@ -60,12 +60,12 @@ class PlanBudgetInfeasibleError(TilingError):
 
 
 # Axes with variable element shapes across the batch: jax.vmap is structurally
-# invalid on these (ragged/variable shapes), so they must always use SafeMap.
+# invalid on these (ragged/variable shapes), so they must always use ChunkedMap.
 # Passed to xtrax.tiling.BatchPlanner as heterogeneous_axes (rejects Scan on
 # these in Phase 0) AND used by _plan_with_joint_budget below to pre-fix these
-# axes to SafeMap before calling xtrax's engine -- xtrax's joint-budget mode
+# axes to ChunkedMap before calling xtrax's engine -- xtrax's joint-budget mode
 # has no equivalent of aminx's old Phase 1 (force non-carry/dedup heterogeneous
-# axes to SafeMap unconditionally, before the budget loop runs); confirmed
+# axes to ChunkedMap unconditionally, before the budget loop runs); confirmed
 # empirically (2026-07-06) that without this fix, xtrax's engine assigns Vmap
 # to a heterogeneous axis whenever the joint estimate already fits budget.
 _HETEROGENEOUS_AXIS_NAMES = frozenset({"n_states", "n_structures"})
@@ -82,7 +82,7 @@ def _plan_with_joint_budget(
   """Plan axes under a joint memory budget via xtrax.tiling.BatchPlanner.
 
   Thin wrapper around xtrax's joint-budget mode (EPIC #1541 T-PLANNER.2) that
-  additionally pre-fixes heterogeneous axes to SafeMap before delegating —
+  additionally pre-fixes heterogeneous axes to ChunkedMap before delegating —
   see _HETEROGENEOUS_AXIS_NAMES above for why this is necessary. The fixed
   decisions are folded into the estimator closure (so xtrax's greedy
   demotion loop sees the correct joint memory estimate at every step) and
@@ -112,7 +112,7 @@ def _plan_with_joint_budget(
           "(aminx wrapper, EPIC #1541 T-PLANNER.2 -- xtrax's joint-budget "
           "mode has no automatic heterogeneous-axis guard)"
         ),
-        strategy=SafeMap(batch_size=ax.default_batch_size),
+        strategy=ChunkedMap(batch_size=ax.default_batch_size),
       )
     else:
       remaining_axes.append(ax)
@@ -198,7 +198,7 @@ def _sampling_activation_bytes_per_element(seq_len: int) -> float:
   ``make_sampling_planner`` -- previously hardcoded to ``1.0`` (a dimensionless
   placeholder, off by ~7-8 orders of magnitude from a real device memory budget for
   a realistic samples/temperatures/noises composition), which made the joint-budget
-  Vmap-vs-SafeMap demotion check for those three axes practically inert regardless of
+  Vmap-vs-ChunkedMap demotion check for those three axes practically inert regardless of
   real activation size (found investigating the E11e heterogeneous-batch benchmark
   session, 2026-07-23; git-blame traces the ``1.0`` to the 2026-07-06 joint-budget
   migration, commit 35dc18b8, inherited unreviewed from the pre-migration local
@@ -242,7 +242,7 @@ def make_sampling_planner(
       (``spec.samples_chunk_size``/``spec.num_samples``, resolved via
       ``resolve_target_samples``) are two independently-settable fields with
       no cross-validation -- passing this override closes that gap at the
-      source: the planner's Vmap/SafeMap decision is verified against the
+      source: the planner's Vmap/ChunkedMap decision is verified against the
       array size that's actually dispatched, not a stale, disconnected
       proxy for it. Without this override, a plan that decides Vmap because
       the small default ``samples_batch_size`` (16) fit the memory budget

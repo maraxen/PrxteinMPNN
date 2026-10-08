@@ -27,7 +27,7 @@ import equinox as eqx
 import jax
 from jaxtyping import PRNGKeyArray
 from xtrax.tiling import AxisSpec, BatchPlanner, MemoryBudget
-from xtrax.tiling import SafeMap as XtraxSafeMap
+from xtrax.tiling import ChunkedMap as XtraxSafeMap
 from xtrax.tiling import Vmap as XtraxVmap
 
 from aminx.inference.bundle_builder import build_inference_bundle

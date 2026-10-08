@@ -1,7 +1,7 @@
 """Tests for ``aminx.ebm.plan``: xtrax tiling composition wiring (backlog node E4).
 
 Covers the axis-dispatch wiring (``plan_axis``/``dispatch_axis``, one case each
-for the Vmap and SafeMap branches of ``BatchPlanner``'s own
+for the Vmap and ChunkedMap branches of ``BatchPlanner``'s own
 cardinality-vs-batch-size rule) and the two ``EnergyFusionFn`` primitives
 (``difference_fuse``, ``mean_fuse``) on toy energy arrays. End-to-end coverage
 of the three dispatch entry points built on top of this module lives in
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import jax.numpy as jnp
 import pytest
-from xtrax.tiling.strategy import Bucket, SafeMap, Vmap
+from xtrax.tiling.strategy import Bucket, ChunkedMap, Vmap
 
 from aminx.ebm.plan import (
   EBMAxisNames,
@@ -30,9 +30,9 @@ class TestPlanAxis:
     assert isinstance(decision.strategy, Vmap)
 
   def test_large_divisible_cardinality_selects_safemap(self) -> None:
-    """cardinality > default_batch_size and divisible -> SafeMap (BatchPlanner Rule 4)."""
+    """cardinality > default_batch_size and divisible -> ChunkedMap (BatchPlanner Rule 4)."""
     decision = plan_axis(EBMAxisNames.N_DECOYS, cardinality=8, default_batch_size=4)
-    assert isinstance(decision.strategy, SafeMap)
+    assert isinstance(decision.strategy, ChunkedMap)
     assert decision.strategy.batch_size == 4
 
   def test_unknown_axis_name_raises(self) -> None:
@@ -40,11 +40,11 @@ class TestPlanAxis:
       plan_axis("not_a_real_axis", cardinality=1)
 
   def test_default_batch_size_override_changes_decision(self) -> None:
-    """Overriding default_batch_size actually changes Vmap vs SafeMap selection."""
+    """Overriding default_batch_size actually changes Vmap vs ChunkedMap selection."""
     vmap_decision = plan_axis(EBMAxisNames.N_MUTANTS, cardinality=4, default_batch_size=8)
     safemap_decision = plan_axis(EBMAxisNames.N_MUTANTS, cardinality=4, default_batch_size=2)
     assert isinstance(vmap_decision.strategy, Vmap)
-    assert isinstance(safemap_decision.strategy, SafeMap)
+    assert isinstance(safemap_decision.strategy, ChunkedMap)
 
 
 class TestDispatchAxis:
@@ -59,7 +59,7 @@ class TestDispatchAxis:
   def test_safemap_dispatch_matches_direct_computation(self) -> None:
     xs = jnp.arange(8.0)
     decision = plan_axis(EBMAxisNames.N_MUTANTS, cardinality=8, default_batch_size=4)
-    assert isinstance(decision.strategy, SafeMap)
+    assert isinstance(decision.strategy, ChunkedMap)
 
     result = dispatch_axis(decision.strategy, lambda x: x * x, xs)
     assert jnp.allclose(result, xs * xs)

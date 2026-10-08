@@ -28,7 +28,7 @@ if TYPE_CHECKING:
   # Type-check-only: satisfies ty without a runtime top-level xtrax import
   # (the actual imports below stay lazy/function-local, matching this file's
   # existing circular-import-avoidance convention for aminx.tiling.iterator).
-  from xtrax.tiling import SafeMap as XtraxSafeMap
+  from xtrax.tiling import ChunkedMap as XtraxSafeMap
   from xtrax.tiling import Scan as XtraxScan
   from xtrax.tiling import Vmap as XtraxVmap
 
@@ -126,7 +126,7 @@ def _strategy_to_xtrax(strategy: AxisStrategy) -> XtraxVmap | XtraxSafeMap | Xtr
   xtrax.tiling.dispatch.make_axis_dispatch without this translation. See
   tests/tiling/test_t2_4_xtrax_dispatch_compat.py for the empirical finding.
   """
-  from xtrax.tiling import SafeMap as _XtraxSafeMap
+  from xtrax.tiling import ChunkedMap as _XtraxSafeMap
   from xtrax.tiling import Scan as _XtraxScan
   from xtrax.tiling import Vmap as _XtraxVmap
 

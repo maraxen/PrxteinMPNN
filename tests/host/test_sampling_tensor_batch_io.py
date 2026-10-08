@@ -18,16 +18,16 @@ from aminx.host.output_sinks import (
 from aminx.inference.sample_autoregressive import SampleResult
 from aminx.run.specs import SamplingSpecification
 from aminx.utils.data_structures import Protein
-from xtrax.tiling import SafeMap
+from xtrax.tiling import ChunkedMap
 
 
 def _patch_decision_for(monkeypatch) -> None:
-    """Stub aminx.host.kernel_dispatch.decision_for to always resolve to SafeMap.
+    """Stub aminx.host.kernel_dispatch.decision_for to always resolve to ChunkedMap.
 
     decision_for is a free function (not a BatchPlan method) since EPIC #1541
     T-PLANNER.2 -- a bare MagicMock() standing in for make_sampling_planner's
     return value no longer auto-succeeds the way plan.decision_for(name) used
-    to. SafeMap (not Vmap) specifically: these tests patch _safe_map itself to
+    to. ChunkedMap (not Vmap) specifically: these tests patch _safe_map itself to
     short-circuit deep execution (see _mock_safe_map below) -- Vmap's
     _dispatch_axis branch calls jax.vmap directly and bypasses that mock
     entirely, reaching real body execution and failing on fixture gaps
@@ -35,7 +35,7 @@ def _patch_decision_for(monkeypatch) -> None:
     """
     monkeypatch.setattr(
         "aminx.host.kernel_dispatch.decision_for",
-        lambda plan, name: MagicMock(strategy=SafeMap(batch_size=1)),
+        lambda plan, name: MagicMock(strategy=ChunkedMap(batch_size=1)),
     )
 
 

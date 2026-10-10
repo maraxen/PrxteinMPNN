@@ -75,7 +75,7 @@ def build_cells(potts_root: Path) -> dict[str, list[dict[str, Any]]]:
     bucket = _bucket_for(length)
     variants = _variants(native, rng, PROTONPOTTS_V6.size)
     names = [[PROTONPOTTS_V6.symbols[t] for t in row] for row in variants]
-    scoring.append({"id": f"{name}__main", "pdb_path": str(pdb), "bucket": bucket, "labels": labels, "variants": names, "length": length, "expect_sig": [len(names), None]})
+    scoring.append({"id": f"{name}__main", "pdb_path": str(pdb), "bucket": bucket, "labels": labels, "variants": names, "length": length, "expect_sig": [len(names) + 1, None]})
     sampler.append({"id": f"{name}__s{BENCH_SEED}", "bucket": bucket, "pdb_file": str(pdb), "designed": None,
                     "temperature": float(np.float32(0.1)), "bias": None, "uniforms": None, "noise": None, "seed": BENCH_SEED,
                     "length": length, "expect_sig": [length, length * PROTONPOTTS_V6.size]})

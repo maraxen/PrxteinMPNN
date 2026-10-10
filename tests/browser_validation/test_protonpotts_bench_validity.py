@@ -49,6 +49,12 @@ def test_none_expectation_needs_positive_value() -> None:
   assert not bench._sig_matches([20, 0], [20, None])
 
 
+def test_scoring_expectation_counts_the_native_row() -> None:
+  """energies[0] is the native row: 19 variants -> 20 energies. Measured on the smoke run (every rep recorded [20, L])."""
+  assert bench._sig_matches([20, 130], [19 + 1, None])
+  assert not bench._sig_matches([20, 130], [19, None])  # the pre-fix expectation: would have rejected all 4 scoring cells
+
+
 def _payload(threads_effective: int = 4, isolated: bool = True, measured: float = 250.0) -> dict:
   return {"cells": [_sampler_cell()], "planted_ms": 250.0, "ctrl_measured_ms": measured, "num_threads_effective": threads_effective,
           "cross_origin_isolated": isolated, "warmup": 1, "session_create_ms": {"256": 1.0}}

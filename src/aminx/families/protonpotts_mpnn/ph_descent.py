@@ -41,8 +41,9 @@ only the real members, since padded axes are restricted to index 0 (a zero-proba
 the axis size, which would also change the normalisation of the sampled distribution).
 
 Not ported (refused with ``NotImplementedError`` at the top of :func:`block_descent` where a knob exists):
-``global_weight``, ``adjacent_repeat_weight``, ``self_weight != 1``, ``zscale_mode != "block"``, and
-``sweep_order != "position"``. ``PHDesignConfig`` has no ``repetitive_window_gate_types`` field, so the
+``global_weight``, ``adjacent_repeat_weight``, ``self_weight != 1``, and ``zscale_mode != "block"``. The visit
+order ``sweep_order`` (``"position"``, ``"knn"``, ``"energy"``) is applied by ``ph_design`` before this function
+is called, so ``plan_designable`` arrives already in visit order.``PHDesignConfig`` has no ``repetitive_window_gate_types`` field, so the
 upstream gate is absent and the window term is active whenever its weight is non-zero and a parent set is
 given, which is upstream's behaviour when the gate is empty. Trajectory recording (``_record``) is not
 ported; the result carries no trajectory.
@@ -99,6 +100,11 @@ def rep_class_mask(parents: Sequence[str]) -> np.ndarray:
   return mask
 
 
+# Visit orders ported from upstream ``_block_descent``. The order itself is computed by ``ph_design`` before the
+# block table is built; ``block_descent`` only checks that the knob is one of these.
+SWEEP_ORDERS = ("position", "knn", "energy")
+
+
 def _check_supported(config: PHDesignConfig) -> None:
   """Refuse upstream knobs this port does not implement, naming each one."""
   checks = (
@@ -110,8 +116,8 @@ def _check_supported(config: PHDesignConfig) -> None:
     (config.self_weight != 1.0, "self_weight != 1.0 (self/pair reweighting of the stability term)"),
     (config.zscale_mode != "block", f"zscale_mode={config.zscale_mode!r} (only 'block' is ported)"),
     (
-      config.sweep_order != "position",
-      f"sweep_order={config.sweep_order!r} (only 'position' is ported)",
+      config.sweep_order not in SWEEP_ORDERS,
+      f"sweep_order={config.sweep_order!r} (only {', '.join(map(repr, SWEEP_ORDERS))} are ported)",
     ),
   )
   for unsupported, what in checks:

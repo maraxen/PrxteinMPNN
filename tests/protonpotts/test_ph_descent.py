@@ -422,7 +422,7 @@ def test_short_block_matches_explicit_padding():
     ("adjacent_repeat_weight", 0.2),
     ("self_weight", 0.9),
     ("zscale_mode", "single_mutation"),
-    ("sweep_order", "knn"),
+    # sweep_order knn / energy are ported (#2621 phase 1); an unknown value is refused in test_ph_sweep_order.py.
   ],
 )
 def test_unsupported_knobs_are_refused(knob, value):

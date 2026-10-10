@@ -44,6 +44,7 @@ from aminx.families.protonpotts_mpnn.ph_plan import (
   Pin,
   Plan,
   block_table,
+  knn_rank,
   plan_centre_free,
   plan_from_center_types,
   plan_from_explicit_centers,
@@ -198,6 +199,73 @@ def _sample_uniforms(
   return jax.random.uniform(jax.random.fold_in(key, sample), (need,), dtype=dtype)
 
 
+def _centre_energy_rank(
+  table: np.ndarray,
+  e_idx: np.ndarray,
+  pins: Sequence[Pin],
+  seq: np.ndarray,
+  neigh: Sequence[int],
+) -> list[int]:
+  """Designable positions by |contribution to the centres' selective gap|, descending. Port of upstream
+  ``_centre_energy_rank`` (``potts_mpnn_ph.py`` 2141-2177).
+
+  ``table`` is the MERGED pair table (``[L, K, V, V]``, slot 0 the self field) and ``seq`` the seed with every
+  centre already at its protonated token. For a designable ``j`` and a centre ``c`` the two pair terms that link
+  them are the outgoing edge ``c -> j`` (``table[c, k, a_c, a_j]`` with ``e_idx[c, k] == j``) and the incoming
+  edge ``j -> c`` (``table[j, k, a_j, a_c]`` with ``e_idx[j, k] == c``). Their contribution to ``c``'s gap is
+  ``[term at prot] - mean_d [term at dep_d]``, summed over centres in absolute value. Scores use Python floats
+  (float64) as upstream does. Ties break on ascending position.
+  """
+  table = np.asarray(table)
+  e_idx = np.asarray(e_idx)
+  seq = np.asarray(seq)
+  score = {int(j): 0.0 for j in neigh}
+  for pin in pins:
+    c, prot = int(pin.position), int(pin.prot_idx)
+    deps = [int(d) for d in pin.dep_idxs]
+    # Outgoing c -> j: upstream's pe = etab[:, 1:], so kNN slot t of centre c is table slot t + 1. Last occurrence wins.
+    slot_of = {int(j): t for t, j in enumerate(e_idx[c, 1:].tolist())}
+    for j in score:
+      sj = int(seq[j])
+      e_p = e_d = 0.0
+      if j in slot_of:
+        row = table[c, slot_of[j] + 1]                          # [a_c, a_j]
+        e_p += float(row[prot, sj])
+        e_d += sum(float(row[d, sj]) for d in deps) / max(len(deps), 1)
+      # Incoming j -> c: the slot at which c appears in j's row (absolute slot, >= 1). Last occurrence wins.
+      inc_slots = [k for k in range(1, e_idx.shape[1]) if int(e_idx[j, k]) == c]
+      if inc_slots:
+        row = table[j, inc_slots[-1], sj, :]                    # [a_j, a_c]
+        e_p += float(row[prot])
+        e_d += sum(float(row[d]) for d in deps) / max(len(deps), 1)
+      score[j] += abs(e_p - e_d)
+  return sorted(score, key=lambda j: (-score[j], j))
+
+
+def _visit_order(
+  config: PHDesignConfig,
+  plan: Plan,
+  table: jnp.ndarray,
+  e_idx_np: np.ndarray,
+  native: np.ndarray,
+) -> tuple[int, ...]:
+  """Visit order of the designable positions for block descent, computed once on the seed (pins set).
+
+  ``position`` keeps ``plan.designable`` (ascending index). ``knn`` and ``energy`` reproduce upstream's
+  ``_block_descent`` reordering, which happens before the z-scales and the block table are built.
+  """
+  if config.sweep_order == "position":
+    return tuple(plan.designable)
+  if config.sweep_order == "knn":
+    return tuple(knn_rank(e_idx_np, plan.designable, plan.pins))
+  if config.sweep_order == "energy":
+    seed = force_pins(native, plan.pins)
+    return tuple(
+      _centre_energy_rank(np.asarray(table), e_idx_np, plan.pins, seed, plan.designable),
+    )
+  raise NotImplementedError(f"sweep_order={config.sweep_order!r} is not ported")
+
+
 def _draw_length(config: PHDesignConfig, n_designable: int) -> int:
   """Uniforms the optimiser requires: ``block_max_rounds * N`` for block descent, ``cv_max * N`` for greedy."""
   rounds = config.block_max_rounds if config.method == "block_descent" else config.cv_max
@@ -237,7 +305,8 @@ def _run_optimiser(
       uniforms=draws_u,
       cdf_order=cdf_order,
     )
-  blocks, block_valid = block_table(e_idx_np, plan.designable, config.block_size)
+  visit = _visit_order(config, plan, table, e_idx_np, native)
+  blocks, block_valid = block_table(e_idx_np, visit, config.block_size)
   depth = max((len(p.dep_idxs) for p in plan.pins), default=1)
   pin_dep = np.zeros((len(plan.pins), depth), dtype=np.int32)
   pin_dep_valid = np.zeros((len(plan.pins), depth), dtype=bool)
@@ -248,7 +317,7 @@ def _run_optimiser(
     table,
     e_idx,
     native_j,
-    designable_j,
+    jnp.asarray(visit, dtype=jnp.int32),
     jnp.asarray(blocks),
     jnp.asarray(block_valid),
     jnp.asarray([p.position for p in plan.pins], dtype=jnp.int32),

@@ -77,14 +77,18 @@ async function main() {
   for (const cell of cells.cells) {
     const rec = {
       id: cell.id, ok: false, error: null, l_total: null, tokens: null, energies: null,
-      wall_ms_all: [],
+      wall_ms_all: [], warmup_ms_all: [], rep_sig_all: [],
     };
     try {
       const pdbText = new TextDecoder().decode(await fetchBytes(`./${cell.pdb}`));
       for (let k = 0; k < warmup + reps; k += 1) {
         const full = await timed(() => scorers[cell.bucket].score(pdbText, cell.labels, cell.variants));
-        if (k < warmup) continue;
+        if (k < warmup) {
+          rec.warmup_ms_all.push(full.ms);
+          continue;
+        }
         rec.wall_ms_all.push(full.ms);
+        rec.rep_sig_all.push([full.value.energies.length, full.value.lTotal]);
         if (k === warmup) {
           const { energies, tokens, lTotal } = full.value;
           rec.l_total = lTotal;

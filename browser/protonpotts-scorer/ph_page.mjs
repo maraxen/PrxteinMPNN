@@ -64,15 +64,19 @@ async function main() {
 
   const results = [];
   for (const cell of cells.cells) {
-    const rec = { id: cell.id, ok: false, error: null, designs: null, wall_ms: null, wall_ms_all: [] };
+    const rec = { id: cell.id, ok: false, error: null, designs: null, wall_ms: null, wall_ms_all: [], warmup_ms_all: [], rep_sig_all: [] };
     try {
       const pdbText = new TextDecoder().decode(await fetchBytes(`./${cell.pdb}`));
       const uniforms = cell.uniforms ? cell.uniforms.map((u) => Float32Array.from(u)) : null;
       let designs = null;
       for (let k = 0; k < warmup + reps; k += 1) {
         const run = await timed(() => designers[cell.bucket].design(pdbText, cell.labels, cell.config, uniforms));
-        if (k < warmup) continue;
+        if (k < warmup) {
+          rec.warmup_ms_all.push(run.ms);
+          continue;
+        }
         rec.wall_ms_all.push(run.ms);
+        rec.rep_sig_all.push(run.value.map((d) => d.sequence.length));
         if (k === warmup) {
           designs = run.value;
           rec.wall_ms = run.ms;

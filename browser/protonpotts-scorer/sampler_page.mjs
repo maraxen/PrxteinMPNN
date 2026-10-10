@@ -56,7 +56,7 @@ async function main() {
 
   const results = [];
   for (const cell of cells.cells) {
-    const rec = { id: cell.id, ok: false, error: null, wall_ms: null, wall_ms_all: [] };
+    const rec = { id: cell.id, ok: false, error: null, wall_ms: null, wall_ms_all: [], warmup_ms_all: [], rep_sig_all: [] };
     try {
       const pdbText = new TextDecoder().decode(await fetchBytes(`./${cell.pdb}`));
       const options = { seed: cell.seed ?? 0, temperature: Array.isArray(cell.temperature) ? Float32Array.from(cell.temperature) : cell.temperature };
@@ -69,8 +69,12 @@ async function main() {
       let out = null;
       for (let k = 0; k < warmup + reps; k += 1) {
         const run = await timed(() => samplers[cell.bucket].sample(pdbText, null, options));
-        if (k < warmup) continue;
+        if (k < warmup) {
+          rec.warmup_ms_all.push(run.ms);
+          continue;
+        }
         rec.wall_ms_all.push(run.ms);
+        rec.rep_sig_all.push([run.value.sequence.length, run.value.logProbs.length]);
         if (k === warmup) {
           out = run.value;
           rec.wall_ms = run.ms;

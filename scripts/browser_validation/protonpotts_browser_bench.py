@@ -5,7 +5,7 @@ task_id 261009_protonpotts-onnx, backlog #2625 (item 2). Sidecar: protonpotts_br
 Arms (cells fixed here, before any run; all four graded structures 1EL1, 1BVC, 1OLR, 6m0j):
   scoring  : the four `__main` cells of the scoring parity gate (PDB text -> inputs -> table -> chunked energy graph).
   ph       : cases hpg_t0 and h_t005 on each structure (PhDesigner.design, samples_per_site=2, as the X7c gate).
-  sampler  : seed 21, temperature float32(0.1), no bias, no designed mask (ProtonPottsSampler.sample, 30-token decode loop).
+  sampler  : seed 21, temperature float32(0.1), no bias, no designed mask (ProtonPottsSampler.sample, L-position decode loop over the 30-token vocabulary).
 Each cell runs one warm-up and `reps` measured repetitions at 1 and at 4 ORT threads. A planted delay is timed once per page load through the
 same wrapper as the real calls; nothing is publishable unless the page sees it. NO performance direction is pre-registered: the graded
 pass/fail is measurement validity, the timings are result fields. This bench grades no output CORRECTNESS (X7c/X8c/X6c do), but it does require
@@ -75,20 +75,21 @@ def build_cells(potts_root: Path) -> dict[str, list[dict[str, Any]]]:
     bucket = _bucket_for(length)
     variants = _variants(native, rng, PROTONPOTTS_V6.size)
     names = [[PROTONPOTTS_V6.symbols[t] for t in row] for row in variants]
-    scoring.append({"id": f"{name}__main", "pdb_path": str(pdb), "bucket": bucket, "labels": labels, "variants": names, "length": length})
+    scoring.append({"id": f"{name}__main", "pdb_path": str(pdb), "bucket": bucket, "labels": labels, "variants": names, "length": length, "expect_sig": [len(names), None]})
     sampler.append({"id": f"{name}__s{BENCH_SEED}", "bucket": bucket, "pdb_file": str(pdb), "designed": None,
                     "temperature": float(np.float32(0.1)), "bias": None, "uniforms": None, "noise": None, "seed": BENCH_SEED,
-                    "length": length})
+                    "length": length, "expect_sig": [length, length * PROTONPOTTS_V6.size]})
     binder_chain = [k[0] for k in kept_residues(pdb)][-1]
     for case, types, temperature in CASES:
-      if case not in PH_CASES:
-        continue
+      # Draw for EVERY case, in X7c's order, then filter: the stream per cell must equal the one the X7c gate graded.
       uniforms = ([ph_rng.uniform(size=BLOCK_ROUNDS * MAX_MUTATIONS).astype(np.float32).tolist() for _ in range(SAMPLES)]
                   if temperature > 0 else None)
+      if case not in PH_CASES:
+        continue
       ph.append({"id": f"{name}__{case}", "bucket": bucket, "pdb_path": str(pdb), "labels": None, "length": length,
                  "config": {"binderChain": binder_chain, "centerTypes": list(types), "temperature": temperature,
                             "samplesPerSite": SAMPLES, "maxMutations": MAX_MUTATIONS, "blockMaxRounds": BLOCK_ROUNDS},
-                 "uniforms": uniforms})
+                 "uniforms": uniforms, "expect_sig": [length] * SAMPLES})
   return {"scoring": scoring, "ph": ph, "sampler": sampler}
 
 
@@ -99,32 +100,46 @@ def _patch_cells_json(site: Path, reps: int, warmup: int, planted_ms: float) -> 
   path.write_text(json.dumps(data))
 
 
-def _complete(arm: str, cell: dict[str, Any], reps: int) -> bool:
-  """A cell counts only if it returned every repetition AND a non-empty result."""
+def _sig_matches(sig: Any, expect: list[Any]) -> bool:  # noqa: ANN401
+  """One repetition's recorded output shape equals the expected one; a None expectation only requires a positive value."""
+  if not isinstance(sig, list) or len(sig) != len(expect):
+    return False
+  return all((isinstance(g, (int, float)) and g > 0) if e is None else g == e for g, e in zip(sig, expect, strict=True))
+
+
+def _complete(arm: str, cell: dict[str, Any], reps: int, expect: list[Any]) -> bool:
+  """A cell counts only if EVERY repetition returned AND recorded the expected output shape, and the kept result is present."""
   if not cell.get("ok") or len(cell.get("wall_ms_all") or []) != reps:
     return False
+  sigs = cell.get("rep_sig_all") or []
+  if len(sigs) != reps or not all(_sig_matches(g, expect) for g in sigs):
+    return False
   if arm == "scoring":
-    return cell.get("energies") is not None and int(cell.get("l_total") or 0) > 0
+    return cell.get("energies") is not None
   if arm == "ph":
     designs = cell.get("designs") or []
     return len(designs) == SAMPLES and all(len(d.get("sequence") or []) > 0 for d in designs)
   return len(cell.get("sequence") or []) > 0 and len(cell.get("log_probs") or []) > 0
 
 
-def _summarize(arm: str, run: dict[str, Any], payload: dict[str, Any], n_cells: int, reps: int) -> None:
+def _summarize(arm: str, run: dict[str, Any], payload: dict[str, Any], expects: dict[str, list[Any]], reps: int) -> None:
   cells = payload.get("cells", [])
-  ok_cells = [c for c in cells if _complete(arm, c, reps)]
+  ok_cells = [c for c in cells if _complete(arm, c, reps, expects.get(str(c.get("id")), []))]
   walls = [w for c in ok_cells for w in c["wall_ms_all"]]
   planted = float(payload.get("planted_ms", 0.0))
   measured = float(payload.get("ctrl_measured_ms", -1.0))
+  effective = int(payload.get("num_threads_effective", -1))
+  isolated = bool(payload.get("cross_origin_isolated"))
   run.update(
-    cross_origin_isolated=bool(payload.get("cross_origin_isolated")),
+    cross_origin_isolated=isolated,
     num_threads_after_init=int(payload.get("num_threads_after_init", -1)),
-    num_threads_effective=int(payload.get("num_threads_effective", -1)),
+    num_threads_effective=effective,
+    isolation_ok=bool(isolated and effective == int(run.get("threads_requested", -2))),
+    warmup=int(payload.get("warmup", 0)),
     ctrl_measured_ms=measured,
     ctrl_ratio=(measured / planted) if planted > 0 else -1.0,
     ctrl_in_window=bool(planted > 0 and CTRL_LO * planted <= measured <= planted + CTRL_SLACK_MS),
-    cells_total=n_cells,
+    cells_total=len(expects),
     cells_complete=len(ok_cells),
     n_walls=len(walls),
     median_ms=float(statistics.median(walls)) if walls else -1.0,
@@ -132,8 +147,21 @@ def _summarize(arm: str, run: dict[str, Any], payload: dict[str, Any], n_cells: 
     max_ms=float(max(walls)) if walls else -1.0,
     session_create_ms={k: float(v) for k, v in payload.get("session_create_ms", {}).items()},
     per_cell_median_ms={c["id"]: float(statistics.median(c["wall_ms_all"])) for c in ok_cells},
-    failed_cells=[{"id": c.get("id"), "error": str(c.get("error"))[:300]} for c in cells if not _complete(arm, c, reps)],
+    per_cell_warmup_ms={c["id"]: [float(w) for w in c.get("warmup_ms_all") or []] for c in ok_cells},
+    failed_cells=[{"id": c.get("id"), "error": str(c.get("error"))[:300]} for c in cells
+                  if not _complete(arm, c, reps, expects.get(str(c.get("id")), []))],
   )
+
+
+def _decide(result: dict[str, Any]) -> str:
+  """The pre-registered outcome ladder (first match wins: incomplete, timer_blind, pass)."""
+  if (
+    not result["bench_ok"] or result["arms_total"] < 3 or result["cells_total"] < 6 or result["reps"] < 3
+    or result["warmup"] < 1 or not result["isolation_ok"] or not result["shape_ok"]
+    or not result["git_clean"] or result["failure"]
+  ):
+    return "incomplete"
+  return "pass" if result["ctrl_in_window"] else "timer_blind"
 
 
 def main(argv: list[str] | None = None) -> int:  # noqa: C901, PLR0915
@@ -163,7 +191,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901, PLR0915
     "scoring_manifest_sha256": args.scoring_manifest_sha256, "ph_manifest_sha256": args.ph_manifest_sha256,
     "decoder_manifest_sha256": args.decoder_manifest_sha256,
     "onnxruntime_web_version": "", "playwright_version": "", "node_version": "",
-    "reps": args.reps, "warmup": args.warmup, "planted_ms": args.planted_ms,
+    "reps": args.reps, "warmup": args.warmup, "planted_ms": args.planted_ms, "isolation_ok": False, "shape_ok": False,
     "arms_total": 0, "cells_total": 0, "bench_ok": False, "ctrl_measured_ms": -1.0, "ctrl_in_window": False,
     "threads_requested": list(THREADS), "arms": [], "failure": "",
   }
@@ -214,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901, PLR0915
             run["harness_error"] = str(harness.get("harnessError"))[:800]
             continue
           run["harness_ok"] = True
-          _summarize(arm, run, harness["result"], len(cells[arm]), args.reps)
+          _summarize(arm, run, harness["result"], {str(c["id"]): c["expect_sig"] for c in cells[arm]}, args.reps)
           logger.info("%s threads %d (effective %d, isolated %s): median %.0f ms over %d/%d complete cells | session %s | control %.1f ms",
                       arm, threads, run["num_threads_effective"], run["cross_origin_isolated"], run["median_ms"],
                       run["cells_complete"], run["cells_total"], run["session_create_ms"], run["ctrl_measured_ms"])
@@ -226,6 +254,8 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901, PLR0915
     result["bench_ok"] = len(result["arms"]) == len(ARMS) and all(
       len(e["runs"]) == len(THREADS) for e in result["arms"]) and all(
       r["harness_ok"] and r.get("cells_complete") == r.get("cells_total") for r in all_runs)
+    result["isolation_ok"] = bool(all_runs) and all(r.get("isolation_ok") for r in all_runs)
+    result["shape_ok"] = bool(all_runs) and all(r.get("cells_complete") == r.get("cells_total") for r in all_runs)
     result["ctrl_in_window"] = bool(all_runs) and all(r.get("ctrl_in_window") for r in all_runs)
     measured = [r["ctrl_measured_ms"] for r in all_runs if "ctrl_measured_ms" in r]
     result["ctrl_measured_ms"] = float(min(measured)) if measured else -1.0
@@ -233,13 +263,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901, PLR0915
     logger.exception("browser bench failed")
     result["failure"] = f"{type(exc).__name__}: {exc}"[:4000]
 
-  result["outcome"] = (
-    "incomplete"
-    if not result["bench_ok"] or result["arms_total"] < 3 or result["cells_total"] < 6 or result["reps"] < 3
-    or not result["git_clean"] or result["failure"]
-    else "timer_blind" if not result["ctrl_in_window"]
-    else "pass"
-  )
+  result["outcome"] = _decide(result)
   result["elapsed_s"] = time.perf_counter() - t0
   emit(result, args.out)
   logger.info("outcome=%s", result["outcome"])

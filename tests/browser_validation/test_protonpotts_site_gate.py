@@ -137,6 +137,20 @@ def test_roll_uniforms_changes_the_stream() -> None:
   assert rolled != uniforms
 
 
+def test_roll_flat_changes_a_single_stream() -> None:
+  """Sampler cells carry ONE flat stream; roll_uniforms on it was a no-op (run 40a3e57a, sampler control silent)."""
+  stream = [1.0, 2.0, 3.0]
+  assert gate.roll_flat(stream) == [3.0, 1.0, 2.0]
+  assert gate.roll_uniforms(stream) == stream  # the trap: per-element roll of scalars changes nothing
+
+
+def test_planted_sampler_cell_really_changes_its_stream() -> None:
+  cells = [{"id": "1EL1__bias_temp", "uniforms": [0.1, 0.2, 0.3], "noise": [0.0, 0.0, 0.0]}]
+  planted = gate.planted_cell("sampler", cells, ["A"])
+  assert planted is not None and planted["uniforms"] != cells[0]["uniforms"]
+  assert cells[0]["uniforms"] == [0.1, 0.2, 0.3]
+
+
 def test_planted_cell_is_suffixed_and_perturbed() -> None:
   cells = [{"id": "x__hpg_t0", "bucket": 128, "pdb": "data/x.pdb", "labels": None, "config": {}, "uniforms": None},
            {"id": "x__h_t005", "bucket": 128, "pdb": "data/x.pdb", "labels": None, "config": {}, "uniforms": [[1.0, 2.0]]}]

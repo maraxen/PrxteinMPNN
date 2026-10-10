@@ -169,6 +169,15 @@ def roll_uniforms(uniforms: list[list[float]]) -> list[list[float]]:
   return [np.roll(np.asarray(u, dtype=np.float32), 1).tolist() for u in uniforms]
 
 
+def roll_flat(uniforms: list[float]) -> list[float]:
+  """One flat uniform stream rolled by one position, in float32 (the sampler cells carry ONE stream of length L, not one per sample).
+
+  Run 40a3e57a used roll_uniforms here, which on a flat list rolls each scalar by itself -- a no-op -- so the sampler PLANTED control
+  could not fire (outcome instrument_unverified). This is the fix; the outcome criteria are unchanged.
+  """
+  return np.roll(np.asarray(uniforms, dtype=np.float32), 1).tolist()
+
+
 def _pdb_rel(arm: str, cell: dict[str, Any]) -> str:
   return f"pdbs/{arm}_{Path(cell['pdb']).name}"
 
@@ -211,7 +220,7 @@ def planted_cell(arm: str, cells: list[dict[str, Any]], symbols: list[str]) -> d
     base = next((c for c in cells if "bias_temp" in str(c["id"]) and c.get("uniforms") is not None), None)
     if base is None:
       return None
-    changed = {"uniforms": roll_uniforms(base["uniforms"])}
+    changed = {"uniforms": roll_flat(base["uniforms"])}
   return {**base, **changed, "id": f"{base['id']}{PLANTED}", "planted_of": base["id"]}
 
 

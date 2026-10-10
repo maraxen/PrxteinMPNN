@@ -1,9 +1,14 @@
-name: Deploy browser ProteinMPNN demo
+name: Deploy browser demos (ProteinMPNN + ProtonPotts)
 
 # Manual dispatch ONLY. Publishing model weights (when
-# AMINX_MODELS_RELEASE_TAG is set) is a deliberate act, not something a push
-# to main should trigger silently -- see the redistribution-rights note on
-# the "Fetch released model weights" step below.
+# AMINX_MODELS_RELEASE_TAG or AMINX_PROTONPOTTS_MODELS_RELEASE_TAG is set) is a
+# deliberate act, not something a push to main should trigger silently -- see
+# the redistribution-rights notes on the "Fetch released" steps below.
+#
+# One workflow deploys both sub-sites: the ProteinMPNN demo at the site root and
+# the ProtonPotts demo at /protonpotts/. Both come out of ONE build invocation
+# (tools/build_site.py), so the allow-lists and the import rewrites are checked
+# together and a refusal publishes nothing.
 on:
   workflow_dispatch:
 
@@ -25,11 +30,8 @@ jobs:
       # No node, no npm, no install step: the page loads site/*.mjs and
       # site/*.js as written, so assembling the site is a copy with an
       # allow-list (tools/build_site.py). python3 is already on the runner.
-      - name: Verify the site allow-list matches the tree
+      - name: Verify the site allow-lists match the tree
         run: python3 tools/build_site.py --check
-
-      - name: Build the site (no model weights yet)
-        run: python3 tools/build_site.py --out dist
 
       # 🔴 WEIGHTS REDISTRIBUTION IS A DELIBERATE, OPT-IN ACT. ProteinMPNN's
       # checkpoint license must be confirmed to cover public redistribution
@@ -45,11 +47,60 @@ jobs:
           mkdir -p models
           gh release download "${{ vars.AMINX_MODELS_RELEASE_TAG }}" \
             -p 'p07_sample_L*.onnx' -D models/
-          # Rebuild WITH the fetched weights; --models-dir only ever copies
+          # The build below passes --models-dir models; it only ever copies
           # the two exact filenames tools/build_site.py allow-lists
           # (p07_sample_L128.onnx / p07_sample_L256.onnx), never a stray
           # *.onnx.data.
-          python3 tools/build_site.py --out dist --models-dir models
+
+      # 🔴 PROTONPOTTS WEIGHTS: the same redistribution rule as above, and in
+      # addition the ProtonPottsMPNN checkpoint license must be confirmed to
+      # cover public redistribution BEFORE AMINX_PROTONPOTTS_MODELS_RELEASE_TAG
+      # is set. Three tarballs are expected on that release, one per kind:
+      # protonpotts-scoring.tar, protonpotts-ph.tar, protonpotts-decoder.tar.
+      # Each is extracted into pp_models/<kind>/, where tools/build_site.py
+      # reads its MANIFEST.json and copies only the files that manifest names.
+      - name: Fetch released ProtonPotts weights
+        if: ${{ vars.AMINX_PROTONPOTTS_MODELS_RELEASE_TAG != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PP_TAG: ${{ vars.AMINX_PROTONPOTTS_MODELS_RELEASE_TAG }}
+        run: |
+          mkdir -p pp_downloads
+          for kind in scoring ph decoder; do
+            asset="protonpotts-${kind}.tar"
+            dest="pp_models/${kind}"
+            mkdir -p "$dest"
+            gh release download "$PP_TAG" -p "$asset" -D pp_downloads/
+            # --no-same-owner: the archive is ours, but extract it as the
+            # runner user regardless of what it recorded.
+            tar -xf "pp_downloads/$asset" -C "$dest" --no-same-owner
+            if [ ! -f "$dest/MANIFEST.json" ]; then
+              echo "::error::$asset did not contain $dest/MANIFEST.json after extraction"
+              exit 1
+            fi
+          done
+
+      # ONE build. Each flag appears only when its weights were fetched above:
+      # --models-dir for the ProteinMPNN tag, and the three --protonpotts-*-dir
+      # flags together for the ProtonPotts tag. With neither tag set, this is the
+      # bare build and the pages report missing models at runtime, as before.
+      - name: Build the site
+        env:
+          MPNN_FETCHED: ${{ vars.AMINX_MODELS_RELEASE_TAG != '' }}
+          PP_FETCHED: ${{ vars.AMINX_PROTONPOTTS_MODELS_RELEASE_TAG != '' }}
+        run: |
+          args=(--out dist)
+          if [ "$MPNN_FETCHED" = "true" ]; then
+            args+=(--models-dir models)
+          fi
+          if [ "$PP_FETCHED" = "true" ]; then
+            args+=(
+              --protonpotts-scoring-dir pp_models/scoring
+              --protonpotts-ph-dir pp_models/ph
+              --protonpotts-decoder-dir pp_models/decoder
+            )
+          fi
+          python3 tools/build_site.py "${args[@]}"
 
       # No release tag configured: point the built site at a remote model
       # base instead of shipping weights inline (e.g. a release asset URL,
@@ -75,6 +126,30 @@ jobs:
           PY
         env:
           AMINX_MODEL_BASE_URL: ${{ vars.AMINX_MODEL_BASE_URL }}
+
+      # The ProtonPotts analogue of the step above, for the built
+      # dist/protonpotts/config.js. Gated on its own remote base and on NO
+      # ProtonPotts release tag, for the same reason: a locally bundled weight
+      # set must not be pointed away from.
+      - name: Point the built ProtonPotts site at a remote model base
+        if: ${{ vars.AMINX_PROTONPOTTS_MODELS_RELEASE_TAG == '' && vars.AMINX_PROTONPOTTS_MODEL_BASE_URL != '' }}
+        run: |
+          python3 - "$AMINX_PROTONPOTTS_MODEL_BASE_URL" <<'PY'
+          import sys
+          from pathlib import Path
+          base_url = sys.argv[1]
+          path = Path("dist/protonpotts/config.js")
+          text = path.read_text(encoding="utf-8")
+          rewritten = text.replace(
+              'export const MODEL_BASE = "./models";',
+              f'export const MODEL_BASE = {base_url!r};',
+          )
+          if rewritten == text:
+              raise SystemExit("dist/protonpotts/config.js did not contain the expected MODEL_BASE line")
+          path.write_text(rewritten, encoding="utf-8")
+          PY
+        env:
+          AMINX_PROTONPOTTS_MODEL_BASE_URL: ${{ vars.AMINX_PROTONPOTTS_MODEL_BASE_URL }}
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

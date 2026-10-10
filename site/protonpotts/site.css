@@ -1,0 +1,172 @@
+/* ProtonPottsMPNN page. Light by default; dark when the OS asks for it. */
+
+:root {
+  --bg: #f7f7f5;
+  --panel: #ffffff;
+  --text: #1d1f23;
+  --muted: #5d636e;
+  --border: #d8dbe0;
+  --accent: #2f5fb3;
+  --accent-text: #ffffff;
+  --ok: #1e7a3c;
+  --error: #b42318;
+  --code-bg: #eef0f3;
+  --radius: 8px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141519;
+    --panel: #1c1e24;
+    --text: #e6e8ec;
+    --muted: #9aa1ad;
+    --border: #343843;
+    --accent: #7aa2ec;
+    --accent-text: #0d1220;
+    --ok: #5fcf85;
+    --error: #ff8a80;
+    --code-bg: #262932;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #141519;
+  --panel: #1c1e24;
+  --text: #e6e8ec;
+  --muted: #9aa1ad;
+  --border: #343843;
+  --accent: #7aa2ec;
+  --accent-text: #0d1220;
+  --ok: #5fcf85;
+  --error: #ff8a80;
+  --code-bg: #262932;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.app-header { padding: 20px 16px 8px; max-width: 980px; margin: 0 auto; }
+.app-header h1 { margin: 0 0 6px; font-size: 1.5rem; }
+.app-header-tagline { color: var(--muted); font-weight: 400; font-size: 1rem; }
+.app-header-credit { margin: 0; color: var(--muted); font-size: 0.9rem; }
+a { color: var(--accent); }
+
+.app-layout {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 8px 16px 32px;
+  display: grid;
+  gap: 16px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.panel h2 { margin: 0 0 8px; font-size: 1.1rem; }
+
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.field label { font-weight: 600; font-size: 0.92rem; }
+.field-note { margin: 4px 0 8px; color: var(--muted); font-size: 0.85rem; }
+
+input[type="text"],
+input[type="number"],
+input[type="file"],
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  width: 100%;
+  max-width: 100%;
+}
+textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85rem; resize: vertical; }
+
+.grid-fields {
+  display: grid;
+  gap: 0 16px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 12px; }
+
+button {
+  font: inherit;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+  border-radius: 6px;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.45; cursor: default; }
+button:not(:disabled):hover { filter: brightness(1.08); }
+#score-download, #design-download, #sample-download {
+  background: transparent;
+  color: var(--accent);
+}
+
+.status-line {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--muted);
+}
+.status-ok { color: var(--ok); }
+.status-error { color: var(--error); }
+
+.output { min-height: 0; overflow-x: auto; }
+.output-error { color: var(--error); white-space: pre-wrap; font-family: ui-monospace, Menlo, monospace; font-size: 0.85rem; }
+.result-note { color: var(--muted); font-size: 0.85rem; margin: 8px 0 0; }
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.results-table th,
+.results-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.results-table td { word-break: break-all; font-variant-numeric: tabular-nums; }
+.results-table th { color: var(--muted); font-weight: 600; }
+
+.sequence-block {
+  background: var(--code-bg);
+  border-radius: 6px;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  margin: 0;
+}
+
+code {
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 0.9em;
+}
+
+@media (max-width: 520px) {
+  .app-header h1 { font-size: 1.3rem; }
+  .actions button { flex: 1 1 auto; }
+}

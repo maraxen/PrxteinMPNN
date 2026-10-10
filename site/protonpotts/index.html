@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ProtonPottsMPNN &middot; runs in your browser</title>
+<link rel="stylesheet" href="./site.css" />
+
+<!--
+  Optional: cross-origin isolation via a service worker.
+
+  Multithreaded wasm needs COOP/COEP response headers. GitHub Pages cannot set custom response headers, so a
+  deployment there runs single-threaded (numThreads: 1) unless it fronts the page with something that can set them,
+  or vendors coi-serviceworker (https://github.com/gzuidhof/coi-serviceworker) and registers it before any other
+  script runs. Neither is wired up here; the page works either way, it is just faster with isolation. To enable it,
+  vendor coi-serviceworker.min.js next to this file and add, as the FIRST script in <head>:
+    <script src="./coi-serviceworker.min.js"></script>
+-->
+</head>
+<body>
+<header class="app-header">
+  <h1>ProtonPottsMPNN <span class="app-header-tagline">&middot; runs entirely in your browser</span></h1>
+  <p class="app-header-credit">
+    Protonation-aware ProteinMPNN variant of the aminx port. Inference uses
+    <a href="https://onnxruntime.ai/docs/tutorials/web/" target="_blank" rel="noopener">onnxruntime-web</a> (wasm),
+    with no server round-trip. Only the methods validated in the browser are offered: scoring, pH block-descent design
+    and sequence sampling.
+  </p>
+</header>
+
+<main class="app-layout">
+  <section class="panel" aria-labelledby="structure-title">
+    <h2 id="structure-title">Structure</h2>
+    <div class="field">
+      <label for="pdb-file">Upload a .pdb file</label>
+      <input id="pdb-file" type="file" accept=".pdb,.ent" />
+    </div>
+    <div class="field">
+      <label for="pdb-text">...or paste PDB text</label>
+      <textarea id="pdb-text" rows="5" spellcheck="false" placeholder="ATOM      1  N   MET A   1 ..."></textarea>
+    </div>
+    <div class="field">
+      <label for="labels">Protonation labels (optional, scoring and pH design)</label>
+      <input id="labels" type="text" placeholder="e.g. HIS-P,,ASP-P  (one per loaded residue; empty = none)" />
+      <p class="field-note">Comma-separated, one entry per residue the parser loads, in file order. An empty entry means no label.</p>
+    </div>
+    <p class="field-note" id="threads-note">threads: &mdash;</p>
+  </section>
+
+  <p id="status-line" class="status-line" role="status" aria-live="polite">Starting...</p>
+
+  <section class="panel" aria-labelledby="score-title">
+    <h2 id="score-title">1. Score variants</h2>
+    <p class="field-note">One variant per line: <code>name: tokens</code> or just <code>tokens</code>. Tokens are separated
+      by commas or spaces. Without separators, each character is one residue. Tokens are one-letter codes or protonation
+      tokens (HIS-P, HIS-S, HIS-A, ASP-P, ASP-D, ASP-A, GLU-P, GLU-D, GLU-A). Each row must have one token per kept
+      residue. The native sequence is always row 0.</p>
+    <div class="field">
+      <label for="score-variants">Variants</label>
+      <textarea id="score-variants" rows="4" spellcheck="false" placeholder="mut1: A,C,D,...&#10;mut2: ..."></textarea>
+    </div>
+    <div class="actions">
+      <button id="score-run" type="button">Score</button>
+      <button id="score-download" type="button" disabled>Download JSON</button>
+    </div>
+    <div id="score-out" class="output" aria-live="polite"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="design-title">
+    <h2 id="design-title">2. pH design (block descent)</h2>
+    <div class="grid-fields">
+      <div class="field">
+        <label for="design-binder">Binder chain</label>
+        <input id="design-binder" type="text" maxlength="2" placeholder="A" />
+      </div>
+      <div class="field">
+        <label for="design-temperature">Temperature</label>
+        <input id="design-temperature" type="number" min="0" step="0.01" value="0.05" />
+      </div>
+      <div class="field">
+        <label for="design-samples">Samples per site</label>
+        <input id="design-samples" type="number" min="1" max="16" step="1" value="2" />
+      </div>
+      <div class="field">
+        <label for="design-max-mutations">Max mutations</label>
+        <input id="design-max-mutations" type="number" min="1" step="1" value="20" />
+      </div>
+      <div class="field">
+        <label for="design-seed">Seed</label>
+        <input id="design-seed" type="number" min="0" step="1" value="0" />
+      </div>
+    </div>
+    <div class="actions">
+      <button id="design-run" type="button">Design</button>
+      <button id="design-download" type="button" disabled>Download JSON</button>
+    </div>
+    <div id="design-out" class="output" aria-live="polite"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="sample-title">
+    <h2 id="sample-title">3. Sample a sequence</h2>
+    <div class="grid-fields">
+      <div class="field">
+        <label for="sample-seed">Seed</label>
+        <input id="sample-seed" type="number" min="0" step="1" value="0" />
+      </div>
+      <div class="field">
+        <label for="sample-temperature">Temperature</label>
+        <input id="sample-temperature" type="number" min="0.001" step="0.01" value="0.1" />
+      </div>
+    </div>
+    <div class="actions">
+      <button id="sample-run" type="button">Sample</button>
+      <button id="sample-download" type="button" disabled>Download JSON</button>
+    </div>
+    <div id="sample-out" class="output" aria-live="polite"></div>
+  </section>
+</main>
+
+<script type="module" src="./app.mjs"></script>
+</body>
+</html>

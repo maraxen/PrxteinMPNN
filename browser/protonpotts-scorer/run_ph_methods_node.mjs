@@ -48,7 +48,9 @@ try {
     graphs,
   });
   // The replay: one entry per sample, each {uniforms, randints, perms} exactly as the Python record wrote it (float64 values kept).
-  const designs = await designer.design(job.pdb, job.labels, job.config, job.replay);
+  // design(pdbText, labels, config, uniforms, replay): the 4th argument is block_descent's per-sample uniforms; the replay is the 5th.
+  // (Passing it 4th left replay null, so the smoke run drew the seeded fallback stream and every T > 0 case disagreed.)
+  const designs = await designer.design(job.pdb, job.labels, job.config, null, job.replay);
   record.designs = designs.map((d) => ({
     sequence: Array.from(d.sequence),
     sample: d.sample,

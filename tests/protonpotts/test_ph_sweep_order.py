@@ -81,14 +81,21 @@ def test_position_order_is_unchanged() -> None:
 
 
 @pytest.mark.parametrize(("knob", "value"), [
-  ("global_weight", 0.1),
-  ("adjacent_repeat_weight", 0.2),
-  ("self_weight", 0.9),
   ("zscale_mode", "single_mutation"),
 ])
 def test_other_unsupported_knobs_still_refused(knob: str, value: object) -> None:
   with pytest.raises(NotImplementedError, match=knob):
     _check_supported(PHDesignConfig(**{knob: value}))
+
+
+# global_weight / adjacent_repeat_weight / self_weight are ported (#2621, graded by protonpotts_ph_objective_knobs run 590fa4dc).
+@pytest.mark.parametrize(("knob", "value"), [
+  ("global_weight", 0.1),
+  ("adjacent_repeat_weight", 0.2),
+  ("self_weight", 0.9),
+])
+def test_ported_objective_knobs_are_accepted(knob: str, value: object) -> None:
+  _check_supported(PHDesignConfig(**{knob: value}))
 
 
 @pytest.mark.parametrize("order", ["position", "knn", "energy"])

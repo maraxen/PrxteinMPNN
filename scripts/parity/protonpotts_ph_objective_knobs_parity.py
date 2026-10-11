@@ -157,6 +157,20 @@ def check_call(cell: Cell, other: Cell, call: dict, config: PHDesignConfig, *, f
   return verdict
 
 
+def f32_upstream_drift(cell: Cell, other: Cell, call: dict, verdict: dict) -> bool:
+  """Amendment 1: an f32 call whose ONLY failing check is tokens_ok, where aminx f32 tokens equal upstream f64 tokens exactly and
+  upstream's own f32 tokens differ from its f64 tokens -- upstream f32 drift, reported separately and never counted as a pass."""
+  checks = ("plan_ok", "draws_ok", "zscales_ok", "scores_ok", "order_ok")
+  if verdict["ok"] or verdict["tokens_ok"] or not all(verdict[k] for k in checks):
+    return False
+  index = call["index"]
+  plan, _blocks, result, _visit, _s_in = run_call(cell, call, config_for(PHDesignConfig(), call))
+  aminx_f32 = np.asarray(result.seq)
+  up_f32 = _to_aminx(cell.arrays[f"c{index}_S_out"])
+  up_f64 = _to_aminx(other.arrays[f"c{index}_S_out"])
+  return bool(np.array_equal(aminx_f32, up_f64) and not np.array_equal(up_f32, up_f64))
+
+
 def control_config(base: PHDesignConfig, call: dict, name: str) -> tuple[PHDesignConfig, bool] | None:
   """The (configuration, shift) a control runs on this call, or None if the control does not apply to it."""
   config = config_for(base, call)
@@ -192,7 +206,7 @@ def main() -> int:
   cell_names = CELLS[:1] if args.smoke else CELLS
 
   per_call: dict[str, dict] = {}
-  counts = {"ok": 0, "plan": 0, "tokens": 0, "draws": 0, "zscales": 0, "scores": 0}
+  counts = {"ok": 0, "plan": 0, "tokens": 0, "draws": 0, "zscales": 0, "scores": 0, "drift": 0}
   worst_z = worst_e = worst_g = 0.0
   rejected = dict.fromkeys(CONTROLS, False)
   applied = dict.fromkeys(CONTROLS, 0)
@@ -203,6 +217,8 @@ def main() -> int:
       calls = cell.block_calls()[:3] if args.smoke else cell.block_calls()
       for call in calls:
         verdict = check_call(cell, other, call, config_for(base, call), f32=precision == "f32")
+        verdict["f32_upstream_drift"] = precision == "f32" and f32_upstream_drift(cell, other, call, verdict)
+        counts["drift"] += verdict["f32_upstream_drift"]
         per_call[f"{cell_name}/{precision}/{call['label']}/{call['index']}"] = verdict
         counts["ok"] += verdict["ok"]
         counts["plan"] += verdict["plan_ok"]
@@ -243,11 +259,13 @@ def main() -> int:
   if args.smoke:
     clean = "smoke"
   else:
-    clean = "pass" if counts["ok"] == n_calls == N_CALLS_EXPECTED and dump_flags_pass else "fail"
+    # Amendment 1: upstream f32 drift calls complete the count but are never passes.
+    clean = "pass" if counts["ok"] + counts["drift"] == n_calls == N_CALLS_EXPECTED and dump_flags_pass else "fail"
   results = {
     "clean": clean, "n_cells": len(cell_names), "n_calls": n_calls, "n_calls_ok": int(counts["ok"]),
     "n_plans_ok": int(counts["plan"]), "n_zscales_ok": int(counts["zscales"]), "n_tokens_exact": int(counts["tokens"]),
-    "n_draws_ok": int(counts["draws"]), "n_scores_ok": int(counts["scores"]), "dump_flags_pass": bool(dump_flags_pass),
+    "n_draws_ok": int(counts["draws"]), "n_scores_ok": int(counts["scores"]), "n_f32_upstream_drift": int(counts["drift"]),
+    "dump_flags_pass": bool(dump_flags_pass),
     "worst_zscale_rel_f64": worst_z, "worst_energy_rel_f64": worst_e, "worst_global_rel_f64": worst_g,
     "n_listed": len(mutants), "n_failed": sum(v == "failed" for v in mutants.values()), "mutants": mutants,
     "undetected": sorted(k for k, v in mutants.items() if v == "passed"), "per_call": per_call,

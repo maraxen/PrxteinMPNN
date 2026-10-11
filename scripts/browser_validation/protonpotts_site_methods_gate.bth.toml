@@ -19,6 +19,15 @@ Every field the harness page returns per design (sequence, sample, method, label
 counts, events with their probabilities, argmin traces, replay_exhausted, visitOrder) is compared as exact float32/int/bool equality;
 fields that only describe the run (wall time, user agent) are excluded and listed in the record.
 
+AMENDMENT 1 (261011, before any run of this gate, disclosed): the deployed worker (site/protonpotts/worker.mjs ~L205-221) returns per
+design only sequence, symbols, sample, method, label, designable, pins, final_potts_energy, selective_energy, selective_energies and
+n_draws; it does not return the harness pages' diagnostic fields (events with probabilities, argmin traces, replay_exhausted,
+visitOrder). Those are therefore NOT compared and are listed in excluded_fields as not returned by the site; every field the site DOES
+return is compared exactly (float32 bits for the energies; symbols checked as the vocabulary rendering of sequence), and any harness
+field neither compared nor listed fails the run. The site is not modified to emit diagnostics (that would change the deployed product
+to suit the test). The ORDER control is therefore read on the returned fields (sequence and energies), and must mismatch on at least
+one design of the chosen job. Nothing else changes.
+
 Thread settings, each paired with the harness page at the same thread count:
   PAGES -- site served WITHOUT COOP/COEP (GitHub Pages; the localfold condition) at 1 thread; must report crossOriginIsolated = false
            and 1 effective thread.

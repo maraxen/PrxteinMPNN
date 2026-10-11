@@ -1,12 +1,14 @@
-"""Synthetic-input checks of the X11b methods gate: the outcome ladder, the comparator, fragility, and the planted controls.
+"""Synthetic-input checks of the X11b methods gate: the outcome ladder, the comparator, the probability bound, and the planted controls.
 
-Every negative here must be caught: a sequence or pin change, an energy past the 1e-4 bar, a fragile pick that is not exempt, a control transform
-that changes nothing or mutates its input. The JAX and Node arms are not exercised here (remote only).
+Every negative here must be caught: a sequence or pin change, an energy past the 1e-4 bar, an aligned-pick discrepancy past PROB_BOUND, a
+divergence the measured discrepancy does not explain, an exemption that reaches a plan field, a control transform that changes nothing or
+mutates its input. The JAX and Node arms are not exercised here (remote only).
 """
 
 from __future__ import annotations
 
 import copy
+from types import SimpleNamespace
 from typing import NamedTuple
 
 import numpy as np
@@ -31,7 +33,9 @@ def _design(**over: object) -> dict:
     "n_draws": 6,
     "final_potts_energy": -10.0,
     "selective_energy": 0.5,
-    "choices": [2, 3, 1],
+    "choices": [0, 0, 0],
+    "probs": [[0.5, 0.5], [0.5, 0.5], [0.5, 0.5]],
+    "uniforms": [0.1, 0.5, 0.9],
     "first_fragile": None,
   }
   base.update(over)
@@ -90,12 +94,15 @@ def test_zero_cases_is_fail_not_pass() -> None:
   assert gate._decide(result) == "fail"
 
 
-# ---- comparator -------------------------------------------------------------------------------------------------------------------------------
+# ---- comparator: plan, energies, sequence -----------------------------------------------------------------------------------------------------
 
 
 def test_identical_designs_pass() -> None:
   out = gate.compare_designs([_design()], [_design()])
-  assert out == {"pass": True, "fragile": 0, "mismatches": []}
+  assert out["pass"] is True
+  assert out["fragile"] == 0
+  assert out["mismatches"] == []
+  assert out["max_discrepancy"] == 0.0
 
 
 def test_energy_at_the_bar_passes_and_past_it_fails() -> None:
@@ -152,57 +159,151 @@ def test_count_mismatch_fails() -> None:
   assert not gate.compare_designs([], [])["pass"]
 
 
-def test_fragile_exemption_applies_when_first_difference_is_at_or_after_first_fragile() -> None:
-  ref = _design(sequence=[1, 2, 3, 4], choices=[2, 3, 1], first_fragile=1)
-  js = _design(sequence=[1, 2, 3, 9], choices=[2, 3, 5], n_draws=99, final_potts_energy=123.0)  # first difference at 2 >= 1
+# ---- explained divergence (amendment 261010) --------------------------------------------------------------------------------------------------
+
+
+def test_divergence_explained_by_measured_discrepancy_is_exempt() -> None:
+  # Pick 1: the reference u = 0.5 sits exactly on a cumulative boundary (boundary distance 0). JS draws from a distribution 1e-4 away, so the
+  # measured discrepancy (1e-4) covers the boundary distance (0): the first difference is exempt, reported as fragile, and the design passes.
+  ref = _design(uniforms=[0.1, 0.5, 0.9])
+  js = _design(sequence=[1, 2, 3, 9], choices=[0, 1, 0], probs=[[0.5, 0.5], [0.5 + 1e-4, 0.5 - 1e-4], [0.5, 0.5]],
+               n_draws=99, final_potts_energy=123.0)  # fmt: skip
   out = gate.compare_designs([js], [ref])
-  assert out == {"pass": True, "fragile": 1, "mismatches": []}
+  assert out["pass"]
+  assert out["fragile"] == 1
+  assert out["mismatches"] == []
+  assert out["max_discrepancy"] == 0.0  # the only aligned pick (pick 0) is identical
 
 
-def test_fragile_exemption_applies_at_exactly_the_fragile_pick() -> None:
-  ref = _design(choices=[2, 3, 1], first_fragile=2)
-  js = _design(sequence=[1, 2, 3, 9], choices=[2, 3, 5])
-  assert gate.compare_designs([js], [ref])["fragile"] == 1
+def test_divergence_exactly_on_the_boundary_is_exempt_with_zero_discrepancy() -> None:
+  ref = _design(uniforms=[0.1, 0.5, 0.9])
+  js = _design(sequence=[1, 2, 3, 9], choices=[0, 1, 0])  # identical probs: discrepancy 0 >= boundary distance 0
+  out = gate.compare_designs([js], [ref])
+  assert out["pass"]
+  assert out["fragile"] == 1
 
 
-def test_fragile_exemption_does_not_apply_before_the_fragile_pick() -> None:
-  ref = _design(choices=[2, 3, 1], first_fragile=2)
-  js = _design(sequence=[1, 9, 3, 4], choices=[2, 5, 1])  # first difference at 1 < 2
+def test_divergence_larger_than_the_boundary_distance_fails_naming_the_sequence() -> None:
+  # Pick 1: u = 0.2 is 0.3 of the mass from the nearest boundary (0.5); a 1e-4 discrepancy does not explain a different bin.
+  ref = _design(uniforms=[0.1, 0.2, 0.9])
+  js = _design(sequence=[1, 2, 3, 9], choices=[0, 1, 0], probs=[[0.5, 0.5], [0.5 + 1e-4, 0.5 - 1e-4], [0.5, 0.5]])
   out = gate.compare_designs([js], [ref])
   assert not out["pass"]
   assert out["fragile"] == 0
+  assert [m["field"] for m in out["mismatches"]] == ["sequence"]
+  assert out["mismatches"][0]["first_pick_difference"] == 1
 
 
-def test_fragile_exemption_does_not_apply_without_a_fragile_pick() -> None:
-  ref = _design(choices=[2, 3, 1], first_fragile=None)
-  js = _design(sequence=[1, 2, 3, 9], choices=[2, 3, 5])
-  assert not gate.compare_designs([js], [ref])["pass"]
+def test_aligned_discrepancy_past_the_bound_fails_even_when_sequences_agree() -> None:
+  js = _design(probs=[[0.5 + 2e-3, 0.5 - 2e-3], [0.5, 0.5], [0.5, 0.5]])  # pick 0 is aligned: 2e-3 > 1e-3
+  for exempt in (True, False):
+    out = gate.compare_designs([js], [_design()], exempt_fragile=exempt)
+    assert not out["pass"]
+    assert [m["field"] for m in out["mismatches"]] == ["prob_bound"]
+    assert out["mismatches"][0]["max_discrepancy"] == pytest.approx(2e-3)
+    assert out["max_discrepancy"] == pytest.approx(2e-3)
 
 
-def test_exemption_can_be_disabled_for_controls() -> None:
-  ref = _design(choices=[2, 3, 1], first_fragile=0)
-  js = _design(sequence=[1, 2, 3, 9], choices=[2, 3, 5])
+def test_aligned_discrepancy_within_the_bound_passes() -> None:
+  js = _design(probs=[[0.5 + 5e-4, 0.5 - 5e-4], [0.5, 0.5], [0.5, 0.5]])
+  out = gate.compare_designs([js], [_design()])
+  assert out["pass"]
+  assert out["max_discrepancy"] == pytest.approx(5e-4)
+
+
+def test_prob_bound_covers_only_the_aligned_picks_before_a_divergence() -> None:
+  # Pick 1 diverges. Its own discrepancy is not an aligned pick, so it is judged only through the explained-divergence rule (and fails here).
+  ref = _design(uniforms=[0.1, 0.2, 0.9])
+  js = _design(sequence=[1, 2, 3, 9], choices=[0, 1, 0], probs=[[0.5, 0.5], [0.5 + 5e-3, 0.5 - 5e-3], [0.5, 0.5]])
+  out = gate.compare_designs([js], [ref])
+  assert [m["field"] for m in out["mismatches"]] == ["sequence"]
+  assert out["max_discrepancy"] == pytest.approx(0.0)
+
+
+def test_exemption_disabled_fails_an_explained_divergence() -> None:
+  ref = _design(uniforms=[0.1, 0.5, 0.9])
+  js = _design(sequence=[1, 2, 3, 9], choices=[0, 1, 0], probs=[[0.5, 0.5], [0.5 + 1e-4, 0.5 - 1e-4], [0.5, 0.5]])
   assert gate.compare_designs([js], [ref])["pass"]
   out = gate.compare_designs([js], [ref], exempt_fragile=False)
   assert not out["pass"]
   assert out["fragile"] == 0
+  assert [m["field"] for m in out["mismatches"]] == ["sequence"]
 
 
-def test_fragile_exemption_never_excuses_a_plan_field() -> None:
-  ref = _design(choices=[2, 3, 1], first_fragile=0)
-  js = _design(sequence=[1, 2, 3, 9], choices=[2, 3, 5], pins=[[1, 8, 5]])
+def test_exemption_never_excuses_a_plan_field() -> None:
+  ref = _design(uniforms=[0.1, 0.5, 0.9])
+  js = _design(sequence=[1, 2, 3, 9], choices=[0, 1, 0], pins=[[1, 8, 5]], probs=[[0.5, 0.5], [0.5 + 1e-4, 0.5 - 1e-4], [0.5, 0.5]])
   out = gate.compare_designs([js], [ref])
   assert not out["pass"]
+  assert out["fragile"] == 1  # the sequence difference is explained...
+  assert [m["field"] for m in out["mismatches"]] == ["pins"]  # ...but the pin mismatch is not
+
+
+def test_exempt_design_skips_its_energies_and_draws_but_not_the_plan() -> None:
+  ref = _design(uniforms=[0.1, 0.5, 0.9], final_potts_energy=-1.0)
+  js = _design(sequence=[1, 2, 3, 9], choices=[0, 1, 0], final_potts_energy=5.0, n_draws=99,
+               probs=[[0.5, 0.5], [0.5 + 1e-4, 0.5 - 1e-4], [0.5, 0.5]])  # fmt: skip
+  out = gate.compare_designs([js], [ref])
+  assert out["pass"]
   assert out["fragile"] == 1
+
+
+def test_without_probs_there_is_no_explanation_and_no_bound() -> None:
+  ref = _design(choices=[0, 0, 0], uniforms=[], probs=[])
+  js = _design(sequence=[1, 2, 3, 9], choices=[0, 1, 0], probs=[])
+  out = gate.compare_designs([js], [ref])
+  assert not out["pass"]
+  assert out["max_discrepancy"] == 0.0
+
+
+# ---- cumulative discrepancy and boundary distance ---------------------------------------------------------------------------------------------
+
+
+def test_cum_discrepancy_of_identical_probs_is_zero() -> None:
+  assert gate.cum_discrepancy([0.2, 0.3, 0.5], [0.2, 0.3, 0.5], None) == 0.0
+
+
+def test_cum_discrepancy_of_a_shifted_distribution_matches_the_hand_value() -> None:
+  # cum_js = [0.6, 1.0], cum_ref = [0.5, 1.0]: gaps 0.1 and 0.0
+  assert gate.cum_discrepancy([0.6, 0.4], [0.5, 0.5], None) == pytest.approx(0.1)
+
+
+def test_cum_discrepancy_normalises_each_total() -> None:
+  # totals 2 and 4: cum_js / 2 = [0.5, 1.0], cum_ref / 4 = [0.25, 1.0] -> gap 0.25
+  assert gate.cum_discrepancy([1.0, 1.0], [1.0, 3.0], None) == pytest.approx(0.25)
+
+
+def test_boundary_distance_hand_case() -> None:
+  # cum = [0.2, 0.5, 1.0], u = 0.45: |cum - 0.45| = [0.25, 0.05, 0.55] -> 0.05 of the total 1
+  assert gate.boundary_distance([0.2, 0.3, 0.5], 0.45, None) == pytest.approx(0.05)
+  # unnormalised: cum = [1, 2], total 2, u = 0.4 -> target 0.8, |1 - 0.8| = 0.2, relative to 2 -> 0.1
+  assert gate.boundary_distance([1.0, 1.0], 0.4, None) == pytest.approx(0.1)
+
+
+def test_cdf_order_is_honoured() -> None:
+  p_js = [0.6, 0.3, 0.1]
+  p_ref = [0.1, 0.6, 0.3]
+  # identity: cum_js = [0.6, 0.9, 1.0], cum_ref = [0.1, 0.7, 1.0] -> max gap 0.5
+  assert gate.cum_discrepancy(p_js, p_ref, None) == pytest.approx(0.5)
+  # order [1, 0, 2]: cum_js = [0.3, 0.9, 1.0], cum_ref = [0.6, 0.7, 1.0] -> max gap 0.3
+  assert gate.cum_discrepancy(p_js, p_ref, np.array([1, 0, 2])) == pytest.approx(0.3)
+  # the boundary distance of u = 0.65 is 0.05 under both orders (nearest cumulative 0.7 identity, 0.6 and 0.7 under [1, 0, 2])
+  assert gate.boundary_distance(p_ref, 0.65, None) == pytest.approx(0.05)
+  assert gate.boundary_distance(p_ref, 0.65, np.array([1, 0, 2])) == pytest.approx(0.05)
+
+
+def test_cum_discrepancy_rejects_different_lengths() -> None:
+  with pytest.raises(ValueError, match="differ in length"):
+    gate.cum_discrepancy([0.5, 0.5], [0.3, 0.3, 0.4], None)
+
+
+# ---- ordering and fragility (reporting helpers) -----------------------------------------------------------------------------------------------
 
 
 def test_first_pick_difference_handles_short_streams() -> None:
   assert gate.first_pick_difference([1, 2, 3], [1, 2, 3]) is None
   assert gate.first_pick_difference([1, 2, 3], [1, 9, 3]) == 1
   assert gate.first_pick_difference([1, 2], [1, 2, 3]) == 2
-
-
-# ---- fragility --------------------------------------------------------------------------------------------------------------------------------
 
 
 def test_pick_on_a_boundary_is_fragile() -> None:
@@ -303,17 +404,32 @@ def test_tokens_control_flags_a_rolled_reference_against_the_original_js_stream(
   assert not gate.compare_designs(js, rolled_ref, exempt_fragile=False)["pass"]
 
 
-# ---- normalisation ----------------------------------------------------------------------------------------------------------------------------
+# ---- reference and JS normalisation -----------------------------------------------------------------------------------------------------------
 
 
-def test_normalize_js_maps_pin_fields_and_choices() -> None:
+def test_normalize_js_maps_pin_fields_choices_probs_and_uniforms() -> None:
   raw = {
     "sample": 1, "sequence": [1, 2], "designable": [0, 1], "label": "",
     "pins": [{"position": 3, "protIdx": 7, "depIdxs": [4], "resId": 9, "type": "HIS-P"}],
     "n_draws": 2, "final_potts_energy": -1.0, "selective_energy": 0.25,
-    "events": [{"uniform": 0.3, "choice": 5}, {"uniform": 0.9, "choice": 6}],
+    "events": [{"uniform": 0.3, "choice": 5, "probs": [0.1, 0.9]}, {"uniform": 0.9, "choice": 6, "probs": [0.4, 0.6]}],
   }  # fmt: skip
   got = gate.normalize_js(raw)
   assert got["pins"] == [[3, 7, 9]]
   assert got["choices"] == [5, 6]
+  assert got["probs"] == [[0.1, 0.9], [0.4, 0.6]]
+  assert got["uniforms"] == [0.3, 0.9]
   assert got["sample"] == 1
+
+
+def test_ref_dict_carries_probs_and_uniforms() -> None:
+  design = SimpleNamespace(
+    sample=0, sequence=np.array([1, 2]), designable=np.array([0, 1]), label="",
+    pins=[SimpleNamespace(position=1, prot_idx=7, res_id=5)], n_draws=2,
+    final_potts_energy=-1.0, selective_energy=0.25,
+  )  # fmt: skip
+  events = [_Event(np.array([0.5, 0.5]), 0.25, 0), _Event(np.array([0.2, 0.8]), 0.5, 1)]
+  ref = gate._ref_dict(design, events, np.array([0, 1]))
+  assert ref["probs"] == [[0.5, 0.5], [0.2, 0.8]]
+  assert ref["uniforms"] == [0.25, 0.5]
+  assert ref["choices"] == [0, 1]

@@ -62,7 +62,7 @@ try {
     selective_energy: d.selectiveEnergy,
     selective_energies: d.selectiveEnergies,
     n_draws: d.nDraws,
-    events: (d.events || []).map((e) => ({ uniform: e.uniform, choice: e.choice })),
+    events: (d.events || []).map((e) => ({ uniform: e.uniform, choice: e.choice, probs: e.probs })),
   }));
   record.ok = true;
 } catch (err) {

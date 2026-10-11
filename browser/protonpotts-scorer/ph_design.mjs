@@ -572,7 +572,7 @@ export class Draws {
     while (position < n && cumulative[position] < target) position += 1;
     position = Math.min(position, n - 1);
     const choice = order[position];
-    this.events.push({ uniform: u, choice });
+    this.events.push({ uniform: u, choice, probs: Array.from(probs) });
     return choice;
   }
 }
@@ -733,7 +733,7 @@ async function gibbsOptimize(ctx, cfg, start, free, draws) {
       const token = cdf[index];
       if (token !== seq[pos]) changedAny = true;
       seq[pos] = token;
-      draws.events.push({ uniform: uniforms[k], choice: token });
+      draws.events.push({ uniform: uniforms[k], choice: token, probs: Array.from(probs) });
     }
     if (!changedAny) break;
   }

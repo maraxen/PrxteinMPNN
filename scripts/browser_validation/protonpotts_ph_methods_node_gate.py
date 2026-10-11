@@ -41,7 +41,8 @@ from scripts.browser_validation.protonpotts_score_gate import _verify_artifacts 
 
 logger = logging.getLogger("protonpotts_ph_methods_node_gate")
 
-FRAGILE_MARGIN = 1.0e-5  # of the total mass, the pre-registered margin
+FRAGILE_MARGIN = 1.0e-5  # of the total mass; reporting only (is_fragile_pick), no longer an exemption (amendment 261010)
+PROB_BOUND = 1.0e-3  # max cumulative-probability discrepancy on every aligned pick (amendment 261010)
 SAMPLES = 2
 CENTER_TYPES = ("HIS-P",)
 SEED_BASE = 1000
@@ -105,35 +106,79 @@ def first_pick_difference(js_choices: list[int], ref_choices: list[int]) -> int 
   return None if len(js_choices) == len(ref_choices) else n
 
 
-def compare_designs(js: list[dict[str, Any]], ref: list[dict[str, Any]], *, exempt_fragile: bool = True) -> dict[str, Any]:
+def _cumulative(probs: Any, cdf_order: np.ndarray | None) -> np.ndarray:  # noqa: ANN401
+  """Cumulative sum in float64 of ``probs`` taken in ``cdf_order`` (None = identity)."""
+  p = np.asarray(probs, dtype=np.float64)
+  order = np.arange(p.shape[0]) if cdf_order is None else np.asarray(cdf_order)
+  return np.cumsum(p[order])
+
+
+def cum_discrepancy(p_js: Any, p_ref: Any, cdf_order: np.ndarray | None) -> float:  # noqa: ANN401
+  """max_j |cum_js[j]/tot_js - cum_ref[j]/tot_ref|: the largest gap between the two normalised cumulative distributions."""
+  cum_js = _cumulative(p_js, cdf_order)
+  cum_ref = _cumulative(p_ref, cdf_order)
+  if cum_js.shape != cum_ref.shape:
+    msg = f"probability vectors differ in length: {cum_js.shape[0]} vs {cum_ref.shape[0]}"
+    raise ValueError(msg)
+  return float(np.max(np.abs(cum_js / cum_js[-1] - cum_ref / cum_ref[-1])))
+
+
+def boundary_distance(p_ref: Any, u: float, cdf_order: np.ndarray | None) -> float:  # noqa: ANN401
+  """min_j |cum_ref[j] - u*tot| / tot: how far the reference's uniform sits from its nearest cumulative boundary, relative to the total."""
+  cum = _cumulative(p_ref, cdf_order)
+  total = float(cum[-1])
+  return float(np.min(np.abs(cum - float(u) * total)) / total)
+
+
+def _explains_divergence(js_probs: list[Any], ref_probs: list[Any], ref_uniforms: list[float], k: int | None, cdf_order: np.ndarray | None) -> bool:
+  """At the first differing pick k, the measured discrepancy covers the reference's boundary distance (amendment 261010)."""
+  if k is None or not (k < len(js_probs) and k < len(ref_probs) and k < len(ref_uniforms)):
+    return False
+  return cum_discrepancy(js_probs[k], ref_probs[k], cdf_order) >= boundary_distance(ref_probs[k], ref_uniforms[k], cdf_order)
+
+
+def compare_designs(js: list[dict[str, Any]], ref: list[dict[str, Any]], *, exempt_fragile: bool = True, cdf_order: np.ndarray | None = None) -> dict[str, Any]:
   """Grade JS designs against reference designs, paired in order (both sorted by final energy).
 
-  Exact: designable, pins (position, prot token, residue number), label. A sequence mismatch is fragile-exempt only when ``exempt_fragile`` and the
-  reference's first fragile pick is at or before the first differing pick; an exempt design skips its sequence, n_draws and energies (they follow
-  from the sequence) but never its plan fields. Energies: ``_rel`` (max|d|/max(1,|ref|)) <= ENERGY_BAR.
+  Plan fields: designable, pins (position, prot token, residue number), label -- always exact, never exempt.
+  Probability bound (every design, every aligned pick): the picks both streams made with identical prior choices (before the first differing
+  pick k, or all picks when the choices agree) must have cum_discrepancy <= PROB_BOUND; otherwise a ``prob_bound`` mismatch.
+  Explained divergence: a sequence mismatch is exempt only when ``exempt_fragile`` and, at k, the measured discrepancy covers the reference's
+  boundary distance. An exempt design skips its sequence, n_draws and energies (they follow from the sequence) but not its plan fields.
+  Energies: ``_rel`` (max|d|/max(1,|ref|)) <= ENERGY_BAR. ``max_discrepancy`` is the largest aligned discrepancy over all designs.
   """
   if len(js) != len(ref) or not ref:
-    return {"pass": False, "fragile": 0, "mismatches": [{"index": None, "field": "count", "js": len(js), "ref": len(ref)}]}
+    return {"pass": False, "fragile": 0, "max_discrepancy": 0.0,
+            "mismatches": [{"index": None, "field": "count", "js": len(js), "ref": len(ref)}]}  # fmt: skip
   mismatches: list[dict[str, Any]] = []
   fragile = 0
+  max_disc = 0.0
   for k, (j, r) in enumerate(zip(js, ref, strict=True)):
     plan_bad = [name for name in ("designable", "pins", "label") if _plan_field(j, name) != _plan_field(r, name)]
     if plan_bad:
       mismatches.append({"index": k, "field": ",".join(plan_bad)})
+    js_probs, ref_probs = list(j.get("probs", [])), list(r.get("probs", []))
+    ref_uniforms = list(r.get("uniforms", []))
+    js_choices, ref_choices = j.get("choices", []), r.get("choices", [])
+    diff = first_pick_difference(js_choices, ref_choices)
+    n_aligned = diff if diff is not None else min(len(js_choices), len(ref_choices))
+    n_aligned = min(n_aligned, len(js_probs), len(ref_probs))
+    disc = max((cum_discrepancy(js_probs[i], ref_probs[i], cdf_order) for i in range(n_aligned)), default=0.0)
+    max_disc = max(max_disc, disc)
+    if disc > PROB_BOUND:
+      mismatches.append({"index": k, "field": "prob_bound", "max_discrepancy": disc})
     if j["sequence"] != r["sequence"]:
-      diff = first_pick_difference(j.get("choices", []), r.get("choices", []))
-      first = r.get("first_fragile")
-      if exempt_fragile and first is not None and diff is not None and diff >= first:
+      if exempt_fragile and _explains_divergence(js_probs, ref_probs, ref_uniforms, diff, cdf_order):
         fragile += 1
         continue
-      mismatches.append({"index": k, "field": "sequence", "first_pick_difference": diff, "first_fragile": first})
+      mismatches.append({"index": k, "field": "sequence", "first_pick_difference": diff, "first_fragile": r.get("first_fragile")})
       continue
     if int(j["n_draws"]) != int(r["n_draws"]):
       mismatches.append({"index": k, "field": "n_draws", "js": int(j["n_draws"]), "ref": int(r["n_draws"])})
     for name in ("final_potts_energy", "selective_energy"):
       if _rel(r[name], j[name]) > ENERGY_BAR:
         mismatches.append({"index": k, "field": name, "js": float(j[name]), "ref": float(r[name])})
-  return {"pass": not mismatches, "fragile": fragile, "mismatches": mismatches}
+  return {"pass": not mismatches, "fragile": fragile, "max_discrepancy": max_disc, "mismatches": mismatches}
 
 
 def _plan_field(design: dict[str, Any], name: str) -> Any:  # noqa: ANN401
@@ -221,6 +266,8 @@ def normalize_js(design: dict[str, Any]) -> dict[str, Any]:
     "final_potts_energy": float(design["final_potts_energy"]),
     "selective_energy": float(design["selective_energy"]),
     "choices": [int(e["choice"]) for e in (design.get("events") or [])],
+    "probs": [[float(x) for x in e["probs"]] for e in (design.get("events") or [])],
+    "uniforms": [float(e["uniform"]) for e in (design.get("events") or [])],
   }
 
 
@@ -304,6 +351,8 @@ def _ref_dict(design: Any, events: list[Any], cdf_order: np.ndarray) -> dict[str
     "final_potts_energy": float(design.final_potts_energy),
     "selective_energy": float(design.selective_energy),
     "choices": [int(e.choice) for e in events],
+    "probs": [np.asarray(e.probs, dtype=np.float64).tolist() for e in events],
+    "uniforms": [float(e.uniform) for e in events],
     "first_fragile": first_fragile_index(events, cdf_order),
   }
 
@@ -412,13 +461,13 @@ def _evaluate_controls(row: dict[str, Any], controls: dict[str, dict[str, Any]],
     if run["raised"] is not None:
       flagged = True
     else:
-      flagged = not compare_designs(js_designs, run["designs"], exempt_fragile=False)["pass"]
+      flagged = not compare_designs(js_designs, run["designs"], exempt_fragile=False, cdf_order=ctx["cdf_order"])["pass"]
     row.setdefault("controls", {})[name] = {"applies": True, "raised": run["raised"], "flagged": bool(flagged)}
     controls[name]["flagged"] = controls[name]["flagged"] or bool(flagged)
     controls[name]["applies"] = True
   energy_ref = ctx["ref"]
   perturbed = _energies_under(ctx["bad_model"], ctx["args_t"], [r["sequence"] for r in energy_ref])
-  flagged = not compare_designs(js_designs, energy_control_reference(energy_ref, perturbed), exempt_fragile=False)["pass"]
+  flagged = not compare_designs(js_designs, energy_control_reference(energy_ref, perturbed), exempt_fragile=False, cdf_order=ctx["cdf_order"])["pass"]
   row.setdefault("controls", {})["energy"] = {"applies": True, "raised": None, "flagged": bool(flagged)}
   controls["energy"]["flagged"] = controls["energy"]["flagged"] or bool(flagged)
   controls["energy"]["applies"] = True
@@ -532,8 +581,9 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901, PLR0912, PLR0915
           continue
         js = [normalize_js(d) for d in node["designs"]]
         row["ran"] = True
-        graded = compare_designs(js, ref, exempt_fragile=True)
+        graded = compare_designs(js, ref, exempt_fragile=True, cdf_order=cdf_order)
         row.update(n_designs=len(js), n_fragile_designs=graded["fragile"], passed=bool(graded["pass"]),
+                   max_discrepancy=graded["max_discrepancy"],
                    mismatches=graded["mismatches"][:20],
                    first_fragile=[r["first_fragile"] for r in ref])  # fmt: skip
         result["n_fragile_designs"] += int(graded["fragile"])

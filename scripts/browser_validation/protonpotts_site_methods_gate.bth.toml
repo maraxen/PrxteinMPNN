@@ -1,0 +1,119 @@
+[metadata]
+title = "X12 deployed-site gate: the built ProtonPotts site reproduces the graded X11c (pH host-loop methods) and X7d (sweep_order) harness pages bitwise, Pages and COI conditions"
+created = "261011"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = """
+The deployable ProtonPotts site (site/protonpotts/ assembled by tools/build_site.py, lib modules copied with the import rewrite, weights
+sha256-checked, ORT from the jsDelivr CDN pinned at onnxruntime-web@1.30.0), served from a SUBPATH (/aminx/protonpotts/) and driven in
+headless Chromium through its own programmatic hook window.__PP_RUN__ with the FULL design config and, where applicable, the recorded
+replay passed through params (worker.mjs forwards params.replay as design()'s fifth argument), produces outputs BITWISE IDENTICAL to the
+two graded harness pages on the same jobs:
+  METHODS -- browser/protonpotts-scorer/ph_methods_page.mjs (X11c): converged_mcmc, converged_mcmc_combined, two_phase, gibbs on the
+             X11c cells and cases (HIS-P, two samples, production defaults), with draw replays recorded by X11b's record_case at a NEW
+             seed offset 400000 (disjoint from 0, 100000, 200000 and X11c's 300000);
+  SWEEP   -- browser/protonpotts-scorer/ph_sweep_page.mjs (X7d): block_descent with sweepOrder knn and energy on the X7d cells and cases
+             (centre types HIS-P ASP-P GLU-P, two samples), uniforms seeded from SEED 5031 (not X7d's 4031).
+Every field the harness page returns per design (sequence, sample, method, label, designable, pins, energies, selective energies, draw
+counts, events with their probabilities, argmin traces, replay_exhausted, visitOrder) is compared as exact float32/int/bool equality;
+fields that only describe the run (wall time, user agent) are excluded and listed in the record.
+
+Thread settings, each paired with the harness page at the same thread count:
+  PAGES -- site served WITHOUT COOP/COEP (GitHub Pages; the localfold condition) at 1 thread; must report crossOriginIsolated = false
+           and 1 effective thread.
+  COI   -- site served WITH COOP/COEP at 4 threads; must report crossOriginIsolated = true and 4 effective threads.
+The harness pages run as graded (COOP/COEP) at 1 and 4 threads.
+
+Why this licenses "validated as deployed": the harness pages, and every lib module the site bundles, are asserted byte-identical (git
+blob hash) to those at the commits of the graded X11c and X7d runs cited in the record (X11c re-run at the sweep-port commit; X7d graded
+run); exact equality with a graded page on the same inputs carries that page's validation over to the deployed path.
+
+Controls (each must fire, or the run is instrument_unverified):
+  PLANTED -- per path and thread setting, one job sent to the deployed hook with a planted difference (METHODS: every replay uniform list
+             rolled by one; SWEEP: uniforms rolled by one on a T > 0 case) must make the SAME exact comparator report a mismatch against
+             the harness output for the unperturbed job.
+  ORDER   -- per thread setting, one SWEEP job sent to the deployed hook with sweepOrder "position" must mismatch the knn / energy harness
+             output (shows the deployed worker forwards sweepOrder rather than dropping it).
+  INTEGRITY -- a second staged copy of the site with one byte flipped in one pH graph: the deployed hook must return ok = false with an
+             error naming that file.
+  ENVIRONMENT -- the PAGES and COI isolation/thread reports above, and the deployed page's ORT version 1.30.0.
+
+Preemption safety (scheduling only): each (path, arm, thread setting, cell, case) unit runs in its own process with its own timeout and
+persists its payload plus a completion stamp keyed by the sha256 of its inputs (job incl. replay, site tree digest, manifest digests,
+harness page and module digests); a rerun reuses only matching units and records them.
+
+PREDICTION, stated before the run so it can be wrong: bitwise equality on every job at both settings, all controls fire. Risks: (a) the
+CDN unreachable (error, not a disagreement); (b) the site's worker builds a config differently from the harness page (a default it
+injects, a field it renames, e.g. sweepOrder or centerTypes) -- a named mismatch, the failure this gate exists to catch; (c) 6m0j
+gibbs units exceeding the per-unit timeout (an incomplete run, outcome error).
+"""
+stage_name = "validation"
+novel = true
+# No [reproduction]: novel. Mirrors protonpotts_site_gate (X10) for the paths X10 does not cover.
+
+[controls]
+positive_outcome = ["pass"]
+negative_outcome = ["error", "instrument_unverified", "fail"]
+
+# Declaration ORDER is load-bearing: bathos takes the FIRST matching branch.
+
+[outcomes.error]
+condition = "artifacts_verified = false OR harness_pages_match_graded = false OR site_built = false OR all_units_complete = false"
+decision = "A manifest, the harness-page / module blob check, the site build, or at least one unit did not complete. Cite nothing."
+reasoning = "A partial run must not borrow the authority of a complete one; a drifted harness page would break the transitive argument."
+is_residual = true
+
+[outcomes.instrument_unverified]
+condition = "all_units_complete = true AND NOT (planted_detected = true AND order_detected = true AND integrity_refused = true AND environment_ok = true)"
+decision = "A planted difference or the dropped-sweepOrder control was not flagged, the tampered graph was not refused, or the PAGES/COI reports were wrong. Passes are not evidence."
+reasoning = "Exact equality is only meaningful if the comparator sees a one-draw change and the run tested the conditions it claims."
+is_residual = true
+
+[outcomes.fail]
+condition = "all_units_complete = true AND planted_detected = true AND order_detected = true AND integrity_refused = true AND environment_ok = true AND all_exact = false"
+decision = "At least one job differs between the deployed site and the graded harness page; the record names path, arm, thread setting, cell, case and field."
+reasoning = "Same modules, same graphs, same ORT version: a difference localises to the deployed worker's plumbing or the CDN build."
+is_residual = true
+
+[outcomes.pass]
+condition = "all_units_complete = true AND planted_detected = true AND order_detected = true AND integrity_refused = true AND environment_ok = true AND all_exact = true"
+decision = "The built site reproduces the graded X11c and X7d harness pages bitwise on every job, at 1 thread without isolation (GitHub Pages / localfold condition) and 4 threads with isolation, from a subpath. The four pH host-loop methods and sweep_order knn/energy are validated as deployed."
+reasoning = "Licenses 'validated as deployed' for these jobs in Chromium only; nothing about other browsers, WebGPU, speed, or the form UI beyond the hook."
+is_residual = false
+
+[result_schema]
+scoring_manifest_sha256 = "str"
+ph_manifest_sha256 = "str"
+artifacts_verified = "bool"
+harness_pages_match_graded = "bool"
+graded_runs = "dict"
+site_built = "bool"
+site_tree_sha256 = "str"
+ort_version_deployed = "str"
+onnxruntime_web_version = "str"
+node_version = "str"
+git_hash = "str"
+git_clean = "bool"
+units = "list"
+units_reused = "list"
+excluded_fields = "list"
+all_units_complete = "bool"
+planted_detected = "bool"
+order_detected = "bool"
+integrity_refused = "bool"
+environment_ok = "bool"
+all_exact = "bool"
+error = "str"
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true }
+
+[data]
+checkpoint = "ProtonPottsMPNN v6 epoch-0125, sha256 a39872250c0b8eb4c0b4cb6472a6edad0d6f6134a50c28b611386e83c592fe7b"
+artifacts = "X6a 40b4318e (scoring 7b2087dc...9243), X7a d5918c26 (ph 131a65cb...6fe7319)"
+graded_pages = "X11c (ph_methods_page.mjs; re-run at the sweep-port commit) and X7d (ph_sweep_page.mjs); run ids recorded in graded_runs"
+tolerances = "exact: float32 bit equality and integer/bool equality, every returned field except the listed run-description fields; METHODS seed offset 400000, SWEEP SEED 5031"
+
+[provenance]
+note = "Pre-registered before protonpotts_site_methods_gate.py exists and before the deployed site has produced any output for these methods or sweep orders."

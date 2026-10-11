@@ -863,6 +863,22 @@ def score(  # noqa: PLR0915
     )
     raise ValueError(msg)
 
+  # Backbone noise (debt #2509). Only the averaged-feature path applies spec.backbone_noise
+  # (host/averaging.py encodes at each level). The plain per-structure path (its encode-once and
+  # per-candidate branches) and the fused multi-state path never forward a noise level to the
+  # scorer, and they return one score set per (structure, candidate) with no noise-level axis.
+  # Returning those noise-free scores for a spec that asked for noise would be silent, so refuse.
+  noise_levels = tuple(float(level) for level in (spec.backbone_noise or (0.0,)))
+  if not spec.average_node_features and any(level != 0.0 for level in noise_levels):
+    msg = (
+      f"score runner: spec.backbone_noise={noise_levels} is nonzero, but the plain score path "
+      "(and the fused multi-state path) never applies backbone noise and has no noise-level "
+      "axis in its result, so the scores would be noise-free without warning. Set "
+      "average_node_features=True to score with backbone noise applied, or set backbone_noise "
+      "to 0."
+    )
+    raise ValueError(msg)
+
   from aminx.scoring.score import make_score_fn, make_score_split_fns  # noqa: PLC0415
   from aminx.utils.aa_convert import string_to_protein_sequence  # noqa: PLC0415
 

@@ -147,7 +147,9 @@ def check_call(cell: Cell, other: Cell, call: dict, config: PHDesignConfig, *, f
   verdict["scores_ok"] = bool(verdict["scores_ok"] and g_ok)  # energy, selectivity gap and g
   # Informational, not graded: the aminx masks come from S_in (the pre-pin seed), upstream's from the structure's residue names.
   verdict["seed_is_native"] = bool(np.array_equal(s_in, cell.native))
-  verdict["order_ok"] = [int(v) for v in visit] == [int(v) for v in call["visit_order"]] if "visit_order" in call else True
+  # sweep_order "position" runs no ranker, so the dump records visit_order as null: nothing to compare (the plan check covers it).
+  recorded_order = call.get("visit_order")
+  verdict["order_ok"] = [int(v) for v in visit] == [int(v) for v in recorded_order] if recorded_order is not None else True
   verdict["ok"] = bool(
     verdict["plan_ok"] and verdict["tokens_ok"] and verdict["draws_ok"] and verdict["zscales_ok"]
     and verdict["scores_ok"] and verdict["order_ok"]

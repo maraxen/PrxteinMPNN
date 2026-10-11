@@ -11,6 +11,10 @@ Reused by import from ``protonpotts_ph_block_parity``: ``Cell``, ``CELLS``, ``UP
 ``derive_plan``, ``compare_call``. Copied: ``run_call`` (the block wave's version hard-wires ``plan.designable`` as the sweep
 order; this one feeds ``_visit_order``'s output to both ``block_table`` and ``block_descent``).
 
+AMENDMENT (261011, ``protonpotts_ph_knobs_parity.bth.toml``): f32 calls' final-energy and selectivity-gap bands are
+``10 x max(upstream f32-f64 spread, aminx f32-f64 spread of the same sequence)``, never below 1e-6 relative; see
+``amended_f32_scores``. f64 calls and the block wave are unchanged.
+
 Run where aminx is importable::
 
     bth run --project-slug aminx -- uv run --no-sync python \\
@@ -44,11 +48,15 @@ from aminx.families.protonpotts_mpnn.ph_plan import block_table, valid_token_mas
 # Sibling wave: the block-descent parity script in this directory (on sys.path because this file runs as a script).
 from protonpotts_ph_block_parity import (  # noqa: E402
   CELLS,
+  F32_FACTOR,
+  F32_MIN_REL,
   UPSTREAM_CDF_ORDER,
   Cell,
+  _close,
   _to_aminx,
   compare_call,
   derive_plan,
+  scores,
 )
 
 logger = logging.getLogger("protonpotts_ph_knobs_parity")
@@ -122,13 +130,53 @@ def run_call(cell: Cell, call: dict, config: PHDesignConfig, *, shift_uniforms: 
   return plan, blocks, result, visit
 
 
+def amended_f32_scores(cell: Cell, other: Cell, call: dict, plan, seq: np.ndarray) -> dict:
+  """Amendment 261011: the f32 score band is 10 x max(upstream f32-f64 spread, aminx f32-f64 spread of the same sequence).
+
+  ``cell`` is the f32 cell, ``other`` the f64 cell. The aminx f64 score is ``scores(other, plan, seq)`` (same plan, same
+  sequence, f64 table). The floor is never below ``F32_MIN_REL`` relative to the target scale.
+  """
+  index = call["index"]
+  design = cell.designs[index]
+  upstream = other.designs[index]
+  want_h = design["final_potts_energy"]
+  want_s = design["selective_energy"]
+  up_floor_h = abs(want_h - upstream["final_potts_energy"])
+  up_floor_s = abs((want_s or 0.0) - (upstream["selective_energy"] or 0.0))
+  energy, gap = scores(cell, plan, seq)
+  energy64, gap64 = scores(other, plan, seq)
+  aminx_floor_h = abs(energy - energy64)
+  aminx_floor_s = abs(gap - gap64)
+  scale_h = max(1.0, abs(want_h))
+  scale_s = max(1.0, abs(want_s or 0.0))
+  energy_band = max(F32_FACTOR * max(up_floor_h, aminx_floor_h), F32_MIN_REL * scale_h)
+  gap_band = max(F32_FACTOR * max(up_floor_s, aminx_floor_s), F32_MIN_REL * scale_s)
+  scores_ok = _close(energy, want_h, energy_band) and _close(gap, want_s, gap_band)
+  return {
+    "scores_ok": bool(scores_ok),
+    "energy_band": float(energy_band),
+    "gap_band": float(gap_band),
+    "gap_abs_diff": float(abs(gap - want_s)),
+    "aminx_gap_floor": float(aminx_floor_s),
+  }
+
+
 def check_call(cell: Cell, other: Cell, call: dict, config: PHDesignConfig, *, f32: bool, shift: bool = False) -> dict:
-  """One call through the shipped path, compared with upstream: the visit order first, then ``compare_call``."""
+  """One call through the shipped path, compared with upstream: the visit order first, then ``compare_call``.
+
+  f32 calls take the amended score band (``amended_f32_scores``) in place of ``compare_call``'s score verdict; f64 calls
+  keep ``compare_call``'s verdict. Controls go through here too, so they are graded identically.
+  """
   plan, blocks, result, visit = run_call(cell, call, config, shift_uniforms=shift)
   verdict = compare_call(cell, other, call, (plan, blocks, result), f32=f32)
+  if f32:
+    verdict.update(amended_f32_scores(cell, other, call, plan, np.asarray(result.seq)))
   order_ok = [int(v) for v in visit] == [int(v) for v in call["visit_order"]]
   verdict["order_ok"] = order_ok
-  verdict["ok"] = bool(verdict["ok"] and order_ok)
+  verdict["ok"] = bool(
+    verdict["plan_ok"] and verdict["tokens_ok"] and verdict["draws_ok"] and verdict["zscales_ok"]
+    and verdict["scores_ok"] and order_ok
+  )  # fmt: skip
   return verdict
 
 

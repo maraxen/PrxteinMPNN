@@ -3150,11 +3150,10 @@ note = "aminx-only AND inert, which is why upstream and kind are separate marker
 
 [[row]]
 ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__adjacent_repeat_weight"
-targets = []
-equivalence = "exclusion"
-reason = "deferred:2621"
-parity_test_ids = []
-note = "adjacent_repeat_weight: ported in PHDesignConfig (default 0.0) but not exposed as an option (upstream potts_mpnn_ph.py:156)."
+targets = ["adjacent_repeat_weight"]
+equivalence = "identical"
+parity_test_ids = ["tests/knob_semantics/test_protonpotts_search_knobs.py::test_knob_semantics_adjacent_repeat_weight"]
+note = "adjacent_repeat_weight: exposed; non-default values are refused by block_descent (NotImplementedError) until ported (#2621). Default 0.0 (upstream potts_mpnn_ph.py:156)."
 
 [[row]]
 ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__backend"
@@ -3253,11 +3252,10 @@ note = "forbidden_tokens: identical meaning and default (HIS-A, ASP-A, GLU-A, UN
 
 [[row]]
 ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__global_weight"
-targets = []
-equivalence = "exclusion"
-reason = "deferred:2621"
-parity_test_ids = []
-note = "global_weight: ported in PHDesignConfig (default 0.0) but not exposed as an option (upstream potts_mpnn_ph.py:145)."
+targets = ["global_weight"]
+equivalence = "identical"
+parity_test_ids = ["tests/knob_semantics/test_protonpotts_search_knobs.py::test_knob_semantics_global_weight"]
+note = "global_weight: exposed; non-default values are refused by block_descent (NotImplementedError) until ported (#2621). Default 0.0 (upstream potts_mpnn_ph.py:145)."
 
 [[row]]
 ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__infill_scope"
@@ -3420,19 +3418,17 @@ note = "selective_source: supported and graded on PHDesignConfig / ph_methods.de
 
 [[row]]
 ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__self_weight"
-targets = []
-equivalence = "exclusion"
-reason = "deferred:2621"
-parity_test_ids = []
-note = "self_weight: ported in PHDesignConfig (default 1.0) but not exposed as an option (upstream potts_mpnn_ph.py:173)."
+targets = ["self_weight"]
+equivalence = "identical"
+parity_test_ids = ["tests/knob_semantics/test_protonpotts_search_knobs.py::test_knob_semantics_self_weight"]
+note = "self_weight: exposed; non-default values are refused by block_descent (NotImplementedError) until ported (#2621). Default 1.0 (upstream potts_mpnn_ph.py:173)."
 
 [[row]]
 ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__sweep_order"
-targets = []
-equivalence = "exclusion"
-reason = "deferred:2621"
-parity_test_ids = []
-note = "sweep_order: ported in PHDesignConfig (default 'position') but not exposed as an option (upstream potts_mpnn_ph.py:227)."
+targets = ["sweep_order"]
+equivalence = "identical"
+parity_test_ids = ["tests/knob_semantics/test_protonpotts_search_knobs.py::test_knob_semantics_sweep_order"]
+note = "sweep_order: ported (knn/energy, #2621 phase 1); exposed as an option, default 'position' (upstream potts_mpnn_ph.py:227)."
 
 [[row]]
 ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__temperature"
@@ -3459,11 +3455,10 @@ note = "two_phase_frac: supported and graded on PHDesignConfig / ph_methods.desi
 
 [[row]]
 ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__zscale_mode"
-targets = []
-equivalence = "exclusion"
-reason = "deferred:2621"
-parity_test_ids = []
-note = "zscale_mode: ported in PHDesignConfig (default 'block') but not exposed as an option (upstream potts_mpnn_ph.py:152)."
+targets = ["zscale_mode"]
+equivalence = "identical"
+parity_test_ids = ["tests/knob_semantics/test_protonpotts_search_knobs.py::test_knob_semantics_zscale_mode"]
+note = "zscale_mode: exposed; non-default values are refused by block_descent (NotImplementedError) until ported (#2621). Default 'block' (upstream potts_mpnn_ph.py:152)."
 
 [[row]]
 ref = "protonpotts_potts_mpnn_ph_PottsMPNNPHEngine_run_ph_redesign__atom_array"

@@ -222,3 +222,16 @@ def test_options_derive_the_backend_from_the_method(method: str, backend: str) -
   config = config_from_options(ProtonPottsOptions(binder_chain="A", design_method=method, center_types=("HIS-P",)))
   assert config.backend == backend
   assert (config.selective_source, config.selective, config.placement_by, config.two_phase_frac) == ("potts", True, "scan_potts", 0.5)
+
+
+# Block-descent knob refusals at the options boundary (debt #2621). The per-knob mapping and counterfactual tests
+# (test_knob_semantics_<field>) live in tests/knob_semantics/test_protonpotts_search_knobs.py, the file the knob gate collects.
+
+
+def test_unknown_block_descent_knob_values_rejected_at_options_construction() -> None:
+  with pytest.raises(ValueError, match="sweep_order"):
+    ProtonPottsOptions(sweep_order="bogus")
+  with pytest.raises(ValueError, match="zscale_mode"):
+    ProtonPottsOptions(zscale_mode="bogus")
+  with pytest.raises(ValueError, match="self_weight"):
+    ProtonPottsOptions(self_weight=-0.1)

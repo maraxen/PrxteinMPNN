@@ -26,10 +26,11 @@ import pytest
 from aminx.families.potts_mpnn.model import PottsMPNN
 from aminx.families.protonpotts_mpnn import ProtonPottsDriver
 from aminx.families.protonpotts_mpnn.energy import protonpotts_table
-from aminx.families.protonpotts_mpnn.ph_config import PHDesignConfig
-from aminx.families.protonpotts_mpnn.ph_descent import rep_class_mask
+from aminx.families.protonpotts_mpnn.ph_config import PHDesignConfig, config_from_options
+from aminx.families.protonpotts_mpnn.ph_descent import _check_supported, rep_class_mask
 from aminx.families.protonpotts_mpnn.ph_methods import UNK_INDEX, DecoderField, design_methods
 from aminx.families.protonpotts_mpnn.ph_potentials import candidate_energies
+from aminx.families.protonpotts_mpnn.ph_design import _plan_for, _visit_order
 from aminx.families.protonpotts_mpnn.ph_plan import neighbour_mask
 from aminx.families.protonpotts_mpnn.vocab import PROTONPOTTS_V6, token_index
 from aminx.host.family_driver import FAMILY_DRIVERS
@@ -574,3 +575,75 @@ def test_methods_two_phase_frac(registered: ProtonPottsDriver, tmp_path: Path, m
   assert not np.array_equal(small.sequence, full.sequence)
   with pytest.raises(ValueError, match="two_phase_frac"):
     _mcmc_config(method="two_phase", two_phase_frac=0.0)
+
+
+# --- block-descent knobs that map straight onto PHDesignConfig (debt #2621) ----------------------
+
+
+def test_knob_semantics_sweep_order(registered: ProtonPottsDriver, tmp_path: Path, model_path: Path) -> None:
+  # Regime: block descent, 32 residues, one HIS-P centre, neighbour_k 0 so every other binder residue is designable.
+  # _visit_order fixes the visit order once on the seed: "position" is ascending index, "knn" ranks by closest coupling
+  # to the centre, "energy" by each residue's share of the centre's selective gap. The counterfactual is that the
+  # orders differ on this chain, so the knob changes which residue block descent commits first.
+  assert ProtonPottsOptions().sweep_order == "position"
+  model, args, table, e_idx, native, binder, res_id = _structure(registered, _chain_pdb(tmp_path, 32), model_path)
+  del model, args
+  e_idx_np = np.asarray(e_idx, dtype=np.int32)
+  native_np = np.asarray(native, dtype=np.int32)
+
+  def visit(sweep: str) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    config = config_from_options(_long_options(neighbour_k=0, sweep_order=sweep))
+    assert config.sweep_order == sweep  # options -> config mapping
+    _check_supported(config)  # ported: accepted, not refused
+    plan = _plan_for(table, e_idx_np, native_np, binder, res_id, config)
+    assert plan is not None
+    return _visit_order(config, plan, table, e_idx_np, native_np), plan.designable
+
+  position, designable = visit("position")
+  assert len(designable) >= 3
+  assert position == designable  # "position" is the plan's ascending order
+  assert visit("position")[0] == position  # the default run repeats itself
+
+  knn, _ = visit("knn")
+  energy, _ = visit("energy")
+  # Both are permutations of the designable set, not truncations or refusals.
+  assert sorted(knn) == sorted(designable)
+  assert sorted(energy) == sorted(designable)
+  # Counterfactual: a non-default order changes the visit order on this chain.
+  assert knn != position or energy != position
+
+
+def test_knob_semantics_global_weight() -> None:
+  """global_weight is unported: the mapping holds and block_descent refuses non-default values (#2621)."""
+  assert ProtonPottsOptions().global_weight == 0.0
+  config = config_from_options(ProtonPottsOptions(binder_chain="A", global_weight=0.1))
+  assert config.global_weight == 0.1
+  with pytest.raises(NotImplementedError, match="global_weight"):
+    _check_supported(config)
+
+
+def test_knob_semantics_zscale_mode() -> None:
+  """zscale_mode is unported: the mapping holds and block_descent refuses non-'block' values (#2621)."""
+  assert ProtonPottsOptions().zscale_mode == "block"
+  config = config_from_options(ProtonPottsOptions(binder_chain="A", zscale_mode="single_mutation"))
+  assert config.zscale_mode == "single_mutation"
+  with pytest.raises(NotImplementedError, match="zscale_mode"):
+    _check_supported(config)
+
+
+def test_knob_semantics_adjacent_repeat_weight() -> None:
+  """adjacent_repeat_weight is unported: the mapping holds and block_descent refuses non-zero values (#2621)."""
+  assert ProtonPottsOptions().adjacent_repeat_weight == 0.0
+  config = config_from_options(ProtonPottsOptions(binder_chain="A", adjacent_repeat_weight=0.2))
+  assert config.adjacent_repeat_weight == 0.2
+  with pytest.raises(NotImplementedError, match="adjacent_repeat_weight"):
+    _check_supported(config)
+
+
+def test_knob_semantics_self_weight() -> None:
+  """self_weight is unported: the mapping holds and block_descent refuses values other than 1.0 (#2621)."""
+  assert ProtonPottsOptions().self_weight == 1.0
+  config = config_from_options(ProtonPottsOptions(binder_chain="A", self_weight=0.9))
+  assert config.self_weight == 0.9
+  with pytest.raises(NotImplementedError, match="self_weight"):
+    _check_supported(config)

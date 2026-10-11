@@ -10,8 +10,8 @@ methods of ``ph_methods``: ``autoregressive``, ``converged_mcmc``, ``converged_m
 mirror upstream ``__post_init__``: ``autoregressive`` and ``mpnn_sample`` require ``backend='mpnn'``, ``gibbs`` requires ``'potts'``, and
 ``selective_source='decoder'`` is for ``autoregressive`` only. What is not ported is refused at construction, naming the debt item that tracks it:
 
-- debt #2621: the unported block-descent knobs (``global_weight``, ``adjacent_repeat_weight``, ``self_weight != 1``, ``zscale_mode='single_mutation'``,
-  ``sweep_order`` knn/energy). ``record_trajectory`` (default on) is accepted and ignored by every method: the per-step energy trajectory was never ported.
+- debt #2621: ``sweep_order`` (knn/energy ported) and ``global_weight``, ``adjacent_repeat_weight``, ``self_weight``, ``zscale_mode`` are exposed
+  on ``ProtonPottsOptions``; ``block_descent`` refuses any non-default value of the four unported ones (``NotImplementedError``). ``record_trajectory`` (default on) is accepted and ignored by every method: the per-step energy trajectory was never ported.
 - debt #2616: ``placement_by='random'``, multi-centre enumeration and ``seed_source='inverse'``.
 - ``backend='mpnn'``, ``placement_by='scan_mpnn'`` and ``selective=False`` are graded only with the new methods; ``block_descent`` and
   ``greedy_energy_block`` refuse them.
@@ -203,7 +203,8 @@ def config_from_options(options: ProtonPottsOptions) -> PHDesignConfig:
   ``None`` (binder_chain) and an empty ``dep_map`` mean the config default. Fields absent from
   ``ProtonPottsOptions`` (e.g. ``seed_source``, ``placement_by``) keep their production defaults.
 
-  The decoder-backed knobs (``backend``, ``selective_source``, ``selective``, ``placement_by``, ``two_phase_frac``) are NOT options fields: adding
+  The block-descent knobs (``sweep_order``, ``global_weight``, ``zscale_mode``, ``adjacent_repeat_weight``, ``self_weight``; debt #2621) are options
+  fields and map straight through. The decoder-backed knobs (``backend``, ``selective_source``, ``selective``, ``placement_by``, ``two_phase_frac``) are NOT options fields: adding
   fields to ``run/options.py`` would stale the closure of every ledger row that loads it (eight Potts and LASEr rows, debt #2621). They are set
   on :class:`PHDesignConfig` directly (Python API, ``ph_methods.design_methods``). Through the options the backend follows the method as upstream
   requires it: ``mpnn_sample`` and ``autoregressive`` use the decoder (``'mpnn'``), everything else the Potts energies.
@@ -239,4 +240,9 @@ def config_from_options(options: ProtonPottsOptions) -> PHDesignConfig:
     cv_patience=options.cv_patience,
     cv_max=options.cv_max,
     record_trajectory=options.record_trajectory,
+    sweep_order=options.sweep_order,
+    global_weight=options.global_weight,
+    zscale_mode=options.zscale_mode,
+    adjacent_repeat_weight=options.adjacent_repeat_weight,
+    self_weight=options.self_weight,
   )

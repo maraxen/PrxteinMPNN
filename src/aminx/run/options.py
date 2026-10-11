@@ -84,6 +84,13 @@ class ProtonPottsOptions:
   cv_patience: int = 3
   cv_max: int = 50
   record_trajectory: bool = True
+  # Block-descent knobs (debt 2621). ``sweep_order`` knn/energy are ported; the other four are
+  # exposed but block_descent refuses any non-default value with NotImplementedError until ported.
+  sweep_order: str = "position"
+  global_weight: float = 0.0
+  zscale_mode: str = "block"
+  adjacent_repeat_weight: float = 0.0
+  self_weight: float = 1.0
 
   def __post_init__(self) -> None:
     dep = self.dep_map.items() if isinstance(self.dep_map, Mapping) else self.dep_map
@@ -93,6 +100,17 @@ class ProtonPottsOptions:
       "explicit_centers",
       tuple((int(r), str(t)) for r, t in self.explicit_centers),
     )
+    # Mirrors PHDesignConfig.__post_init__ so a bad value fails at options construction too.
+    if self.sweep_order not in ("position", "knn", "energy"):
+      raise ValueError(
+        f"Unknown sweep_order {self.sweep_order!r}. Use 'position', 'knn' or 'energy'.",
+      )
+    if self.zscale_mode not in ("single_mutation", "block"):
+      raise ValueError(
+        f"Unknown zscale_mode {self.zscale_mode!r}. Use 'single_mutation' or 'block'.",
+      )
+    if self.self_weight < 0:
+      raise ValueError(f"self_weight must be >= 0 (got {self.self_weight}).")
 
 
 @dataclass(frozen=True)

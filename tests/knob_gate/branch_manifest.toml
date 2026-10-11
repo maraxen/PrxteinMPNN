@@ -230,7 +230,7 @@ slug = "potts_ddg_megascale"
 #                        (see #2370) -- it can mean the control is inert OR
 #                        that one defect swamps both. Resolve #2417 first.
 
-# P10 protonpotts_parity (spec 261007 section 50). 89 rows: every negative control of the eleven ProtonPottsMPNN waves, named
+# P10 protonpotts_parity (spec 261007 section 50). 93 rows: every negative control of the twelve ProtonPottsMPNN waves, named
 # <wave>.<control>. Each must report 'failed'. The ids are the --mutants string launch_wave.sh passes, by exact equality.
 
 [[branch]]
@@ -1030,6 +1030,42 @@ id = "ph_methods.nudged_4x_band"
 stage = "P10"
 fixture = "protonpotts_dumps"
 mutant = "ph_methods.nudged_4x_band"
+[branch.vehicle]
+kind = "sidecar"
+slug = "protonpotts_parity"
+
+[[branch]]
+id = "ph_knobs.position_knn"
+stage = "P10"
+fixture = "protonpotts_dumps"
+mutant = "ph_knobs.position_knn"
+[branch.vehicle]
+kind = "sidecar"
+slug = "protonpotts_parity"
+
+[[branch]]
+id = "ph_knobs.position_energy"
+stage = "P10"
+fixture = "protonpotts_dumps"
+mutant = "ph_knobs.position_energy"
+[branch.vehicle]
+kind = "sidecar"
+slug = "protonpotts_parity"
+
+[[branch]]
+id = "ph_knobs.swapped"
+stage = "P10"
+fixture = "protonpotts_dumps"
+mutant = "ph_knobs.swapped"
+[branch.vehicle]
+kind = "sidecar"
+slug = "protonpotts_parity"
+
+[[branch]]
+id = "ph_knobs.shifted"
+stage = "P10"
+fixture = "protonpotts_dumps"
+mutant = "ph_knobs.shifted"
 [branch.vehicle]
 kind = "sidecar"
 slug = "protonpotts_parity"

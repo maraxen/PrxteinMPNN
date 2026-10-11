@@ -126,6 +126,10 @@ H_S_labelled = { type = "float", doc = "Potts Hamiltonian at the labelled sequen
 field_contrasts = { type = "dict[str, float]", doc = "Single-site field P-vs-D contrasts at positions holding the parent residue. THE TOLERANCE SCALE -- see §29.3; the smallest of these governs" }
 etab_bit_identical = { type = "bool", doc = "Negative control; must be true" }
 oracle_sha256 = { type = "str", doc = "sha256 of oracle_f32.npz" }
+coverage_full = { type = "bool", doc = "True when n_covered == 9 (all v6 protonation indices 21-29 covered)" }
+positive_control_fired = { type = "bool", doc = "True when positive_control_H_S_delta > 0" }
+field_non_degenerate = { type = "bool", doc = "True when min(field_contrasts) > 0" }
+artifact_written = { type = "bool", doc = "True when oracle_f32.npz exists at the output path" }
 
 [result_schema.provenance]
 checkpoint = { type = "str", doc = "Path to the v6 ProtonPottsMPNN checkpoint" }

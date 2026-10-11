@@ -68,3 +68,21 @@ corrected oracle to 7.105427e-15 absolute while 1072 of 39424 elements exceeded
 pure rtol=1e-9, with failing |ref| median 2.482464e-09 and min exactly 0.0
 against a passing median of 1.892931e-02.
 """
+
+[result_schema]
+# Keys emitted by scripts/parity/laser_layers_tolerance.py: measured dict at L106-117,
+# band added in main() at L152. Integer counters initialised at L69-76;
+# RTOL_F64 L41, PROPOSED_ATOL L42, CONTROL_REJECT_FLOOR L44.
+band = { type = "str", doc = "pass / inconclusive / fail, from _band() (L121)" }
+keys_compared = { type = "int", doc = "Oracle keys compared (L106)" }
+elements_total = { type = "int", doc = "Total reference elements compared (L107)" }
+elements_exactly_zero = { type = "int", doc = "Reference elements exactly 0.0 (L108)" }
+elements_near_zero = { type = "int", doc = "Reference elements with small nonzero |ref| (L109)" }
+identity_control_rejected = { type = "int", doc = "Oracle compared to itself, rejected elements; must be 0 (L110)" }
+perturb_control_rejected = { type = "int", doc = "Elements rejected under the 1e-6 relative perturbation (L111)" }
+perturb_control_rejected_frac = { type = "float", doc = "perturb_control_rejected / elements_total (L112)" }
+roundoff_rejected_pure_rtol = { type = "int", doc = "Round-off elements rejected by pure rtol (L113)" }
+roundoff_rejected_mixed = { type = "int", doc = "Round-off elements rejected by the proposed rtol+atol bound (L114)" }
+rtol = { type = "float", doc = "Pure relative tolerance under test, 1e-9 (L115)" }
+proposed_atol = { type = "float", doc = "Proposed absolute tolerance, 1e-12 (L116)" }
+first_key_with_exact_zero = { type = "str", doc = "First oracle key containing an exactly-zero reference (L117)" }

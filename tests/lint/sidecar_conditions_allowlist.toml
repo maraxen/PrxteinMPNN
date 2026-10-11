@@ -9,9 +9,6 @@
 "scripts/benchmarks/bench_dedup_hetero.py.bth.toml" = "prose conditions (\"at K=16, N=32\", \"at all K\", \"any K\"); per-cell values live under top-level cells[] which is not declared in [result_schema] (schema uses a non-bathos fields=[...] list)"
 "scripts/benchmarks/sprint23_capability_analysis.py.bth.toml" = "prose conditions (\"dedup + mixed-length data\", \"complete data\"); emitted keys (report_path, hardware_targets_covered, capabilities_covered) do not carry per-target completeness; schema is JSON-schema style, not bathos flat types"
 "scripts/recapture/pottsmpnn_to_eqx.bth.toml" = "prose conditions; script emits none of the declared [result_schema] keys (h_shape, j_shape, w_shape, k_neighbors, checkpoint_bytes, wt_seq_len), and scale/deserialization checks have no emitted key"
-"scripts/protonpotts/dump_protonpotts_oracles.bth.toml" = "conditions reference coverage_full, positive_control_fired, field_non_degenerate, artifact_written, none of which are in [result_schema] (emitted: n_covered, positive_control_H_S_delta, field_contrasts, etab_bit_identical, oracle_sha256)"
-"scripts/parity/laser_layers_tolerance.bth.toml" = "conditions use band = '...' but the sidecar declares no [result_schema] at all"
+"scripts/benchmarks/bench_temperature_array.py.bth.toml" = "prose conditions (\"at M=4\", \"at any M\", \"at all M\"); bare M is not a schema key and speedup_vs_colabdesign_sequential is not declared at top level (only speedup_vs_colabdesign inside cells.item). Parses since the 261011 structural fix; condition text is pre-registered and not changed here"
 
 [unparseable]
-"scripts/benchmarks/bench_temperature_array.py.bth.toml" = "TOML duplicate table: result_schema.cells.item declared twice (line 43)"
-"scripts/validate/poe_energy_sanity.bth.toml" = "TOML syntax: expected '=' after a key (line 22)"

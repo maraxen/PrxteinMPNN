@@ -438,3 +438,162 @@ def test_ref_dict_carries_probs_and_uniforms() -> None:
   assert ref["probs"] == [[0.5, 0.5], [0.2, 0.8]]
   assert ref["uniforms"] == [0.25, 0.5]
   assert ref["choices"] == [0, 1]
+
+
+# ---- T = 0 argmin ties and replay exhaustion (amendment 3) -----------------------------------------------------------------------------------
+
+
+def _tie_pair(margin_at_1: float, *, js_over: dict | None = None) -> tuple[dict, dict]:
+  """A T = 0 design pair whose argmin traces first differ at pick 1 (JS 8, reference 6); the reference margin at pick 1 is ``margin_at_1``."""
+  ref = _design(sequence=[1, 2, 3, 4], argmins=[5, 6, 7], argmin_margins=[np.inf, margin_at_1, np.inf],
+                probs=[], choices=[], uniforms=[])  # fmt: skip
+  js = _design(sequence=[1, 2, 3, 9], argmins=[5, 8, 7], probs=[], choices=[], uniforms=[], **(js_over or {}))
+  return js, ref
+
+
+def test_tie_at_the_first_argmin_divergence_is_exempt_when_margin_is_within_tie_margin() -> None:
+  assert gate.TIE_MARGIN == 2.5e-4  # amendment 3
+  for margin in (1e-4, 2.5e-4, 0.0):  # exact tie (0.0) included
+    js, ref = _tie_pair(margin)
+    out = gate.compare_designs([js], [ref])
+    assert out["pass"], margin
+    assert out["fragile"] == 1
+    assert out["mismatches"] == []
+
+
+def test_tie_with_margin_above_tie_margin_fails_naming_the_sequence() -> None:
+  js, ref = _tie_pair(1.0e-3)
+  out = gate.compare_designs([js], [ref])
+  assert not out["pass"]
+  assert out["fragile"] == 0
+  assert [m["field"] for m in out["mismatches"]] == ["sequence"]
+  assert out["mismatches"][0]["argmin_divergence"] == 1
+
+
+def test_tie_exemption_disabled_fails_an_explained_tie() -> None:
+  js, ref = _tie_pair(1e-4)
+  assert gate.compare_designs([js], [ref])["pass"]
+  out = gate.compare_designs([js], [ref], exempt_fragile=False)
+  assert not out["pass"]
+  assert [m["field"] for m in out["mismatches"]] == ["sequence"]
+
+
+def test_tie_never_excuses_a_plan_field() -> None:
+  js, ref = _tie_pair(1e-4, js_over={"pins": [[1, 8, 5]]})
+  out = gate.compare_designs([js], [ref])
+  assert not out["pass"]
+  assert out["fragile"] == 1  # the tie explains the sequence...
+  assert [m["field"] for m in out["mismatches"]] == ["pins"]  # ...never the plan
+
+
+def test_replay_exhausted_without_explanation_fails_naming_replay_exhausted() -> None:
+  # JS ran past the reference's trace: identical over the common length, so no tie explains it (strict rule).
+  ref = _design(sequence=[1, 2, 3, 4], argmins=[5, 6, 7], argmin_margins=[1.0, 1.0, 1.0], probs=[], choices=[], uniforms=[])
+  js = _design(sequence=None, replay_exhausted=True, argmins=[5, 6, 7, 8], probs=[], choices=[], uniforms=[])
+  out = gate.compare_designs([js], [ref])
+  assert not out["pass"]
+  assert out["fragile"] == 0
+  assert [m["field"] for m in out["mismatches"]] == ["replay_exhausted"]
+
+
+def test_replay_exhausted_with_a_tie_explanation_is_fragile() -> None:
+  ref = _design(sequence=[1, 2, 3, 4], argmins=[5, 6, 7], argmin_margins=[np.inf, 1e-4, np.inf], probs=[], choices=[], uniforms=[])
+  js = _design(sequence=None, replay_exhausted=True, argmins=[5, 8, 7, 3], probs=[], choices=[], uniforms=[])
+  out = gate.compare_designs([js], [ref])
+  assert out["pass"]
+  assert out["fragile"] == 1
+  assert out["mismatches"] == []
+
+
+def test_replay_exhausted_with_a_tie_is_not_exempt_when_exemption_disabled() -> None:
+  ref = _design(sequence=[1, 2, 3, 4], argmins=[5, 6, 7], argmin_margins=[np.inf, 1e-4, np.inf], probs=[], choices=[], uniforms=[])
+  js = _design(sequence=None, replay_exhausted=True, argmins=[5, 8, 7], probs=[], choices=[], uniforms=[])
+  out = gate.compare_designs([js], [ref], exempt_fragile=False)
+  assert [m["field"] for m in out["mismatches"]] == ["replay_exhausted"]
+
+
+def test_argmin_divergence_is_located_within_the_common_length_only() -> None:
+  assert gate.argmin_divergence([5, 8, 7], [5, 6, 7]) == 1
+  assert gate.argmin_divergence([5, 6], [5, 6, 7]) is None  # a shorter JS trace with an identical prefix: no location
+  assert gate.argmin_divergence([5, 6, 7, 8], [5, 6, 7]) is None  # a longer JS trace: no tie explains an excess pick
+  assert gate.argmin_divergence([], []) is None
+
+
+def test_argmin_rule_does_not_apply_to_a_design_without_argmin_margins() -> None:
+  # A T > 0 reference carries no argmin trace, so a sequence difference there is never tie-explained. u = 0.25 is 0.25 of the mass from the
+  # nearest boundary of [0.5, 0.5]; the 0.2 discrepancy does not cover it, so the probability rule does not explain it either.
+  ref = _design(uniforms=[0.1, 0.25, 0.9])
+  js = _design(sequence=[1, 2, 3, 9], argmins=[5, 8], choices=[0, 1, 0], probs=[[0.5, 0.5], [0.5 + 0.2, 0.5 - 0.2], [0.5, 0.5]])
+  out = gate.compare_designs([js], [ref])
+  assert not out["pass"]
+
+
+def test_pairing_is_by_sample_not_by_order() -> None:
+  ref = [
+    _design(sample=0, sequence=[1, 2, 3, 4], final_potts_energy=-10.0),
+    _design(sample=1, sequence=[9, 9, 9, 9], final_potts_energy=-5.0),
+  ]
+  js = [  # the JS list is ordered differently (energies that tie or reorder on the other side)
+    _design(sample=1, sequence=[9, 9, 9, 9], final_potts_energy=-5.0),
+    _design(sample=0, sequence=[1, 2, 3, 4], final_potts_energy=-10.0),
+  ]
+  pairs = gate.pair_designs(js, ref)
+  assert [(int(j["sample"]), int(r["sample"])) for j, r in pairs] == [(1, 1), (0, 0)]
+  assert gate.compare_designs(js, ref)["pass"]
+
+
+def test_pairing_falls_back_to_order_when_samples_are_ambiguous() -> None:
+  ref = [_design(sample=0), _design(sample=0)]
+  js = [_design(sample=0), _design(sample=0)]
+  assert [(j is js[i], r is ref[i]) for i, (j, r) in enumerate(gate.pair_designs(js, ref))] == [(True, True), (True, True)]
+
+
+def test_normalize_js_keeps_a_replay_exhausted_design_without_sequence_or_energies() -> None:
+  raw = {
+    "sample": 1, "replay_exhausted": True, "sequence": None, "designable": [4], "pins": [], "label": "",
+    "n_draws": 3, "final_potts_energy": None, "selective_energy": None, "argmins": [4, 5], "events": [],
+  }  # fmt: skip
+  got = gate.normalize_js(raw)
+  assert got["replay_exhausted"] is True
+  assert got["sequence"] is None
+  assert got["final_potts_energy"] is None
+  assert got["selective_energy"] is None
+  assert got["argmins"] == [4, 5]
+
+
+def test_ref_dict_carries_the_argmin_trace_and_its_margins() -> None:
+  design = SimpleNamespace(
+    sample=0, sequence=np.array([1, 2]), designable=np.array([0, 1]), label="",
+    pins=[], n_draws=0, final_potts_energy=-1.0, selective_energy=0.0,
+  )  # fmt: skip
+  trace = [{"choice": 3, "margin": 2e-4}, {"choice": 1, "margin": 0.5}]
+  ref = gate._ref_dict(design, [], np.array([0, 1]), trace)
+  assert ref["argmins"] == [3, 1]
+  assert ref["argmin_margins"] == [2e-4, 0.5]
+  assert gate._ref_dict(design, [], np.array([0, 1]))["argmins"] == []
+
+
+def test_trace_argmins_records_margins_at_zero_temperature_and_restores_pick(monkeypatch: pytest.MonkeyPatch) -> None:
+  import sys  # noqa: PLC0415
+  import types  # noqa: PLC0415
+
+  def original(score: np.ndarray, temperature: float, draws: object) -> int:  # noqa: ARG001
+    return int(np.argmin(score)) if temperature <= 0 else 99
+
+  leaf = types.ModuleType("aminx.families.protonpotts_mpnn.ph_methods")
+  leaf.pick = original  # type: ignore[attr-defined]
+  parent = types.ModuleType("aminx.families.protonpotts_mpnn")
+  parent.ph_methods = leaf  # type: ignore[attr-defined]
+  families = types.ModuleType("aminx.families")
+  families.protonpotts_mpnn = parent  # type: ignore[attr-defined]
+  root = types.ModuleType("aminx")
+  root.families = families  # type: ignore[attr-defined]
+  for name, mod in {"aminx": root, "aminx.families": families, "aminx.families.protonpotts_mpnn": parent,
+                    "aminx.families.protonpotts_mpnn.ph_methods": leaf}.items():  # fmt: skip
+    monkeypatch.setitem(sys.modules, name, mod)
+  sink: list[dict] = []
+  with gate.trace_argmins(sink):
+    assert leaf.pick(np.array([0.5, 0.2, 0.2001, np.inf]), 0.0, None) == 1  # type: ignore[attr-defined]
+    assert leaf.pick(np.array([0.1, 0.9]), 0.05, None) == 99  # type: ignore[attr-defined]
+  assert leaf.pick is original  # type: ignore[attr-defined]
+  assert sink == [{"choice": 1, "margin": pytest.approx(1.0e-4, abs=1e-9)}]

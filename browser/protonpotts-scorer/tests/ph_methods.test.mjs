@@ -79,3 +79,19 @@ test("pick at T <= 0 returns the FIRST argmin on ties and draws nothing", () => 
 test("pick at T > 0 with no uniforms left throws (negative control: the draw is really consumed)", () => {
   assert.throws(() => pick(Float32Array.of(0, 1), 0.05, new Draws({ uniforms: [] })), DrawsError);
 });
+
+test("pick at T <= 0 pushes the chosen token to draws.argmins and not to events (X11b amendment 3)", () => {
+  const draws = new Draws({ uniforms: [] });
+  assert.equal(pick(Float32Array.of(3, 1, 1, 2), 0, draws), 1);
+  assert.equal(pick(Float32Array.of(0, 5), 0, draws), 0);
+  assert.deepEqual(draws.argmins, [1, 0]);
+  assert.equal(draws.events.length, 0); // nDraws unchanged: argmin picks are not draws
+  assert.deepEqual(draws.takeUniforms(0), []);
+});
+
+test("pick at T > 0 leaves argmins untouched", () => {
+  const draws = new Draws({ uniforms: [0.5] });
+  pick(Float32Array.of(0, 1), 0.05, draws);
+  assert.deepEqual(draws.argmins, []);
+  assert.equal(draws.events.length, 1);
+});

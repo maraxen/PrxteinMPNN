@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +44,7 @@ logger = logging.getLogger("protonpotts_ph_methods_node_gate")
 
 FRAGILE_MARGIN = 1.0e-5  # of the total mass; reporting only (is_fragile_pick), no longer an exemption (amendment 261010)
 PROB_BOUND = 5.0e-3  # max cumulative-probability discrepancy on every aligned pick (amendment 2; 1e-3 in 0bd45441)
+TIE_MARGIN = 2.5e-4  # T = 0 argmin ties: a first argmin divergence whose reference margin is <= this is explained (amendment 3)
 SAMPLES = 2
 CENTER_TYPES = ("HIS-P",)
 SEED_BASE = 1000
@@ -106,6 +108,27 @@ def first_pick_difference(js_choices: list[int], ref_choices: list[int]) -> int 
   return None if len(js_choices) == len(ref_choices) else n
 
 
+def argmin_divergence(js_argmins: list[int], ref_argmins: list[int]) -> int | None:
+  """First index within the COMMON length where the two T = 0 argmin traces differ; None when identical over it (amendment 3).
+
+  A JS trace longer than the reference is not located past the reference's end: identical argmins imply identical convergence decisions, so
+  an excess JS trace with an identical prefix has no tie explanation and is reported as None.
+  """
+  for k in range(min(len(js_argmins), len(ref_argmins))):
+    if int(js_argmins[k]) != int(ref_argmins[k]):
+      return k
+  return None
+
+
+def _argmin_explains(js: dict[str, Any], ref: dict[str, Any], *, exempt_fragile: bool) -> bool:
+  """A T = 0 divergence at pick k is explained when the reference margin at k is <= TIE_MARGIN (amendment 3). Never for plan fields."""
+  if not exempt_fragile:
+    return False
+  margins = list(ref.get("argmin_margins") or [])
+  k = argmin_divergence(list(js.get("argmins") or []), list(ref.get("argmins") or []))
+  return k is not None and k < len(margins) and float(margins[k]) <= TIE_MARGIN
+
+
 def _cumulative(probs: Any, cdf_order: np.ndarray | None) -> np.ndarray:  # noqa: ANN401
   """Cumulative sum in float64 of ``probs`` taken in ``cdf_order`` (None = identity)."""
   p = np.asarray(probs, dtype=np.float64)
@@ -137,14 +160,30 @@ def _explains_divergence(js_probs: list[Any], ref_probs: list[Any], ref_uniforms
   return cum_discrepancy(js_probs[k], ref_probs[k], cdf_order) >= boundary_distance(ref_probs[k], ref_uniforms[k], cdf_order)
 
 
+def pair_designs(js: list[dict[str, Any]], ref: list[dict[str, Any]]) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+  """Pair JS designs with reference designs by ``sample`` index (amendment 3), falling back to order when samples are absent or ambiguous.
+
+  Pairing by sample is safer than order: a JS design that is replay-exhausted has no energy to sort by, and a near-tie in energy may order two
+  designs differently on the two sides. The order fallback is used only when both sides carry a unique sample set that matches exactly.
+  """
+  if all("sample" in d for d in js) and all("sample" in d for d in ref):
+    by_sample = {int(r["sample"]): r for r in ref}
+    if len(by_sample) == len(ref) and sorted(int(j["sample"]) for j in js) == sorted(by_sample):
+      return [(j, by_sample[int(j["sample"])]) for j in js]
+  return list(zip(js, ref, strict=True))
+
+
 def compare_designs(js: list[dict[str, Any]], ref: list[dict[str, Any]], *, exempt_fragile: bool = True, cdf_order: np.ndarray | None = None) -> dict[str, Any]:
-  """Grade JS designs against reference designs, paired in order (both sorted by final energy).
+  """Grade JS designs against reference designs, paired by sample (see pair_designs).
 
   Plan fields: designable, pins (position, prot token, residue number), label -- always exact, never exempt.
   Probability bound (every design, every aligned pick): the picks both streams made with identical prior choices (before the first differing
   pick k, or all picks when the choices agree) must have cum_discrepancy <= PROB_BOUND; otherwise a ``prob_bound`` mismatch.
   Explained divergence: a sequence mismatch is exempt only when ``exempt_fragile`` and, at k, the measured discrepancy covers the reference's
   boundary distance. An exempt design skips its sequence, n_draws and energies (they follow from the sequence) but not its plan fields.
+  T = 0 (amendment 3): a sequence mismatch, or a replay-exhausted JS design, is exempt only when the T = 0 argmin trace first differs at an index
+  k within the common length whose reference margin is <= TIE_MARGIN (``_argmin_explains``), under the same exempt_fragile switch. A
+  replay-exhausted design with no explanation is a mismatch named ``replay_exhausted``. Probability rules are unchanged (T > 0).
   Energies: ``_rel`` (max|d|/max(1,|ref|)) <= ENERGY_BAR. ``max_discrepancy`` is the largest aligned discrepancy over all designs.
   """
   if len(js) != len(ref) or not ref:
@@ -153,7 +192,7 @@ def compare_designs(js: list[dict[str, Any]], ref: list[dict[str, Any]], *, exem
   mismatches: list[dict[str, Any]] = []
   fragile = 0
   max_disc = 0.0
-  for k, (j, r) in enumerate(zip(js, ref, strict=True)):
+  for k, (j, r) in enumerate(pair_designs(js, ref)):
     plan_bad = [name for name in ("designable", "pins", "label") if _plan_field(j, name) != _plan_field(r, name)]
     if plan_bad:
       mismatches.append({"index": k, "field": ",".join(plan_bad)})
@@ -167,11 +206,20 @@ def compare_designs(js: list[dict[str, Any]], ref: list[dict[str, Any]], *, exem
     max_disc = max(max_disc, disc)
     if disc > PROB_BOUND:
       mismatches.append({"index": k, "field": "prob_bound", "max_discrepancy": disc})
-    if j["sequence"] != r["sequence"]:
-      if exempt_fragile and _explains_divergence(js_probs, ref_probs, ref_uniforms, diff, cdf_order):
+    if j.get("replay_exhausted") is True:
+      if _argmin_explains(j, r, exempt_fragile=exempt_fragile):
         fragile += 1
         continue
-      mismatches.append({"index": k, "field": "sequence", "first_pick_difference": diff, "first_fragile": r.get("first_fragile")})
+      mismatches.append({"index": k, "field": "replay_exhausted",
+                         "argmin_divergence": argmin_divergence(j.get("argmins", []), r.get("argmins", []))})
+      continue
+    if j["sequence"] != r["sequence"]:
+      tie = _argmin_explains(j, r, exempt_fragile=exempt_fragile)
+      if exempt_fragile and (_explains_divergence(js_probs, ref_probs, ref_uniforms, diff, cdf_order) or tie):
+        fragile += 1
+        continue
+      mismatches.append({"index": k, "field": "sequence", "first_pick_difference": diff, "first_fragile": r.get("first_fragile"),
+                         "argmin_divergence": argmin_divergence(j.get("argmins", []), r.get("argmins", []))})
       continue
     if int(j["n_draws"]) != int(r["n_draws"]):
       mismatches.append({"index": k, "field": "n_draws", "js": int(j["n_draws"]), "ref": int(r["n_draws"])})
@@ -256,15 +304,19 @@ def inputs_sha256(payload: dict[str, Any]) -> str:
 
 
 def normalize_js(design: dict[str, Any]) -> dict[str, Any]:
+  """A JS design as the comparator reads it. A replay-exhausted design (amendment 3) has no sequence or energies: they stay None."""
+  seq, fin, sel = design.get("sequence"), design.get("final_potts_energy"), design.get("selective_energy")
   return {
     "sample": int(design["sample"]),
-    "sequence": [int(x) for x in design["sequence"]],
+    "replay_exhausted": design.get("replay_exhausted") is True,
+    "sequence": None if seq is None else [int(x) for x in seq],
     "designable": [int(x) for x in design["designable"]],
     "pins": [[int(p["position"]), int(p["protIdx"]), int(p["resId"])] for p in design["pins"]],
     "label": design["label"],
     "n_draws": int(design["n_draws"]),
-    "final_potts_energy": float(design["final_potts_energy"]),
-    "selective_energy": float(design["selective_energy"]),
+    "final_potts_energy": None if fin is None else float(fin),
+    "selective_energy": None if sel is None else float(sel),
+    "argmins": [int(x) for x in (design.get("argmins") or [])],
     "choices": [int(e["choice"]) for e in (design.get("events") or [])],
     "probs": [[float(x) for x in e["probs"]] for e in (design.get("events") or [])],
     "uniforms": [float(e["uniform"]) for e in (design.get("events") or [])],
@@ -290,8 +342,36 @@ def _replay_entry(draws: Any) -> dict[str, Any]:  # noqa: ANN401
   }  # fmt: skip
 
 
+@contextmanager
+def trace_argmins(sink: list[dict[str, Any]]):  # noqa: ANN201
+  """Wrap ``ph_methods.pick`` for the duration of a recording run (amendment 3).
+
+  ``converge`` and ``two_phase`` call ``pick`` through the module global, so replacing the module attribute intercepts every call. At
+  ``temperature <= 0`` each call appends ``{"choice", "margin"}`` to ``sink``: margin = second-smallest minus smallest finite score in float64
+  (``inf`` when fewer than two finite scores). The original is restored in ``finally``, before the reference run.
+  """
+  from aminx.families.protonpotts_mpnn import ph_methods  # noqa: PLC0415
+
+  original = ph_methods.pick
+
+  def traced(score: np.ndarray, temp: float, draws: Any) -> int:  # noqa: ANN401
+    token = original(score, temp, draws)
+    if temp <= 0:
+      finite = np.sort(np.asarray(score, dtype=np.float64)[np.isfinite(score)])
+      margin = float(finite[1] - finite[0]) if finite.size >= 2 else float("inf")
+      sink.append({"choice": int(token), "margin": margin})
+    return token
+
+  ph_methods.pick = traced
+  try:
+    yield sink
+  finally:
+    ph_methods.pick = original
+
+
 def record_case(table: Any, e_idx: Any, native: np.ndarray, binder_mask: np.ndarray, res_id: np.ndarray, config: Any, seed: int) -> dict[str, Any]:  # noqa: ANN401
-  """RECORD: run the Python method functions with seeded Draws, mirroring design_methods' dispatch. Returns the replay and the picks per sample.
+  """RECORD: run the Python method functions with seeded Draws, mirroring design_methods' dispatch. Returns the replay, the picks and the
+  T = 0 argmin trace (``argmins[sample]``, see trace_argmins) per sample.
 
   gibbs: ONE Draws(seed) shared by the rows, each row run in turn (the same stream design_methods consumes). Its events are attributed per row
   by slicing the shared event list; the one record is replicated to ``samples_per_site`` entries (design_methods reads replay[0]).
@@ -316,22 +396,25 @@ def record_case(table: Any, e_idx: Any, native: np.ndarray, binder_mask: np.ndar
       seqs.append(np.asarray(gibbs(ctx, config, native.reshape(1, length), binder_mask, draws)[0], dtype=np.int32))
       events.append(list(draws.events[start:]))
     record = _replay_entry(draws)
-    return {"replay": [record] * n, "events": events, "sequences": seqs}
+    return {"replay": [record] * n, "events": events, "sequences": seqs, "argmins": [[] for _ in range(n)]}
   plan = plan_for_methods(ctx, native, binder_mask, res_id, np.asarray(e_idx, dtype=np.int32), config)
   if plan is None or not plan.designable:
     msg = "no designable placement for the record"
     raise RuntimeError(msg)
-  replay, events, seqs = [], [], []
+  replay, events, seqs, argmins = [], [], [], []
   for sample in range(n):
     draws = Draws(seed=seed + sample, cdf_order=ctx.cdf_order)
-    if config.method == "two_phase":
-      result = two_phase(ctx, config, plan.pins, plan.designable, native, draws)
-    else:
-      result = converge(ctx, config, plan.pins, plan.designable, native, draws)
+    trace: list[dict[str, Any]] = []
+    with trace_argmins(trace):
+      if config.method == "two_phase":
+        result = two_phase(ctx, config, plan.pins, plan.designable, native, draws)
+      else:
+        result = converge(ctx, config, plan.pins, plan.designable, native, draws)
     replay.append(_replay_entry(draws))
     events.append(list(draws.events))
     seqs.append(np.asarray(result.sequence, dtype=np.int32))
-  return {"replay": replay, "events": events, "sequences": seqs}
+    argmins.append(trace)
+  return {"replay": replay, "events": events, "sequences": seqs, "argmins": argmins}
 
 
 def reference_designs(table: Any, e_idx: Any, native: np.ndarray, binder_mask: np.ndarray, res_id: np.ndarray, config: Any, replay: list[dict[str, Any]]) -> list[Any]:  # noqa: ANN401
@@ -340,7 +423,8 @@ def reference_designs(table: Any, e_idx: Any, native: np.ndarray, binder_mask: n
   return design_methods(None, None, table, e_idx, native, binder_mask, res_id, config, replay=replay)
 
 
-def _ref_dict(design: Any, events: list[Any], cdf_order: np.ndarray) -> dict[str, Any]:  # noqa: ANN401
+def _ref_dict(design: Any, events: list[Any], cdf_order: np.ndarray, argmin_trace: list[dict[str, Any]] | None = None) -> dict[str, Any]:  # noqa: ANN401
+  trace = argmin_trace or []
   return {
     "sample": int(design.sample),
     "sequence": [int(x) for x in design.sequence],
@@ -354,6 +438,8 @@ def _ref_dict(design: Any, events: list[Any], cdf_order: np.ndarray) -> dict[str
     "probs": [np.asarray(e.probs, dtype=np.float64).tolist() for e in events],
     "uniforms": [float(e.uniform) for e in events],
     "first_fragile": first_fragile_index(events, cdf_order),
+    "argmins": [int(a["choice"]) for a in trace],  # T = 0 argmin trace (amendment 3); [] for T > 0
+    "argmin_margins": [float(a["margin"]) for a in trace],
   }
 
 
@@ -555,7 +641,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901, PLR0912, PLR0915
         rec = record_case(table, e_idx, native, binder_mask, res_id, config, seed)
         cdf_order = _cdf_order_array()
         ref_raw = reference_designs(table, e_idx, native, binder_mask, res_id, config, rec["replay"])
-        ref = [_ref_dict(d, rec["events"][int(d.sample)], cdf_order) for d in ref_raw]
+        ref = [_ref_dict(d, rec["events"][int(d.sample)], cdf_order, rec["argmins"][int(d.sample)]) for d in ref_raw]
         ref_by_sample = {r["sample"]: r for r in ref}
         consistent = len(ref) == SAMPLES and all(
           s in ref_by_sample and ref_by_sample[s]["sequence"] == rec["sequences"][s].tolist() for s in range(SAMPLES))
@@ -584,6 +670,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901, PLR0912, PLR0915
         row["ran"] = True
         graded = compare_designs(js, ref, exempt_fragile=True, cdf_order=cdf_order)
         row.update(n_designs=len(js), n_fragile_designs=graded["fragile"], passed=bool(graded["pass"]),
+                   n_replay_exhausted=sum(bool(d["replay_exhausted"]) for d in js),
                    max_discrepancy=graded["max_discrepancy"],
                    mismatches=graded["mismatches"][:20],
                    first_fragile=[r["first_fragile"] for r in ref])  # fmt: skip

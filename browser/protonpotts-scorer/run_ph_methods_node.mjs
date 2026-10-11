@@ -7,8 +7,9 @@
 //          --ph-models <dir> --job <job.json> --out <result.json>
 // job.json: {"pdb": "<PDB text>", "labels": null, "bucket": <int>, "config": {...camelCase PhDesigner config...},
 //            "replay": [{"uniforms": [...], "randints": [...], "perms": [[...], ...]}, ...]  (one entry per sample)}
-// result.json: {"ok": bool, "error": str|null, "num_threads": int, "designs": [{sequence, sample, method, label, designable, pins,
-//               final_potts_energy, selective_energy, selective_energies, n_draws, events: [{uniform, choice}]}] | null}
+// result.json: {"ok": bool, "error": str|null, "num_threads": int, "designs": [{sequence|null, sample, replay_exhausted, argmins: [int],
+//               method, label, designable, pins, final_potts_energy|null, selective_energy|null, selective_energies|null, n_draws,
+//               events: [{uniform, choice, probs}]}] | null}
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -52,15 +53,18 @@ try {
   // (Passing it 4th left replay null, so the smoke run drew the seeded fallback stream and every T > 0 case disagreed.)
   const designs = await designer.design(job.pdb, job.labels, job.config, null, job.replay);
   record.designs = designs.map((d) => ({
-    sequence: Array.from(d.sequence),
+    // replay_exhausted designs (X11b amendment 3) carry no sequence or energies: sequence is null, the trace and draws so far are kept.
+    sequence: d.sequence === null ? null : Array.from(d.sequence),
     sample: d.sample,
+    replay_exhausted: d.replayExhausted === true,
+    argmins: (d.argmins || []).slice(),
     method: d.method,
     label: d.label,
     designable: d.designable,
     pins: d.pins.map((p) => ({ position: p.position, protIdx: p.protIdx, depIdxs: p.depIdxs, resId: p.resId, type: p.protonationType })),
-    final_potts_energy: d.finalPottsEnergy,
-    selective_energy: d.selectiveEnergy,
-    selective_energies: d.selectiveEnergies,
+    final_potts_energy: d.finalPottsEnergy ?? null,
+    selective_energy: d.selectiveEnergy ?? null,
+    selective_energies: d.selectiveEnergies ?? null,
     n_draws: d.nDraws,
     events: (d.events || []).map((e) => ({ uniform: e.uniform, choice: e.choice, probs: e.probs })),
   }));

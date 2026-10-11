@@ -365,6 +365,7 @@ export class PhDesigner {
     };
 
     const designs = [];
+    const exhausted = [];
     if (method === "gibbs") {
       const free = [];
       for (let i = 0; i < B; i += 1) if (binder[i]) free.push(i);
@@ -373,10 +374,19 @@ export class PhDesigner {
       const rowEvents = [];
       for (let s = 0; s < n; s += 1) {
         const first = draws.events.length;
-        outs.push(await gibbsOptimize(ctx, cfg, seq, free, draws));
+        try {
+          outs.push(await gibbsOptimize(ctx, cfg, seq, free, draws));
+        } catch (err) {
+          if (!(err instanceof DrawsError)) throw err;
+          outs.push(null); // replay exhausted in this row: recorded as a divergence, not a crash
+        }
         rowEvents.push(draws.events.slice(first)); // this row's draws only, so a mismatch is located within its own row
       }
       for (let s = 0; s < n; s += 1) {
+        if (outs[s] === null) {
+          exhausted.push({ sample: s, method, replayExhausted: true, argmins: [], events: rowEvents[s], nDraws: draws.events.length, sequence: null, pins: [], designable: free, label: "" });
+          continue;
+        }
         // nDraws is the whole call's draw count (Python finish(..., len(draws.events)) after every row), events are the row's own.
         designs.push(await this._finishMethod(table, eIdxIn, outs[s], [], free, "", rowEvents[s], s, method, L, draws.events.length));
       }
@@ -394,18 +404,27 @@ export class PhDesigner {
       if (!plan || plan.designable.length === 0) return [];
       for (let sample = 0; sample < n; sample += 1) {
         const draws = drawsFor(sample);
-        const out = method === "two_phase"
-          ? await twoPhase(ctx, cfg, plan.pins, plan.designable, seq, draws)
-          : await converge(ctx, cfg, plan.pins, plan.designable, seq, draws, { method });
-        designs.push(await this._finishMethod(table, eIdxIn, out, plan.pins, plan.designable, plan.label, draws.events, sample, method, L));
+        let out;
+        try {
+          out = method === "two_phase"
+            ? await twoPhase(ctx, cfg, plan.pins, plan.designable, seq, draws)
+            : await converge(ctx, cfg, plan.pins, plan.designable, seq, draws, { method });
+        } catch (err) {
+          if (!(err instanceof DrawsError)) throw err;
+          // replay exhausted: no sequence, but the argmin trace and draws so far are kept for the gate's divergence check
+          exhausted.push({ sample, method, replayExhausted: true, argmins: draws.argmins.slice(), events: draws.events.slice(), nDraws: draws.events.length, sequence: null, pins: plan.pins, designable: plan.designable, label: plan.label });
+          continue;
+        }
+        designs.push(await this._finishMethod(table, eIdxIn, out, plan.pins, plan.designable, plan.label, draws.events, sample, method, L, undefined, draws.argmins.slice()));
       }
     }
-    // stable sort by final energy, as design_methods (designs.sort(key=final_potts_energy))
-    return designs.map((d, i) => [d, i]).sort((a, b) => a[0].finalPottsEnergy - b[0].finalPottsEnergy || a[1] - b[1]).map(([d]) => d);
+    // stable sort by final energy, as design_methods (designs.sort(key=final_potts_energy)); replay-exhausted designs follow, in sample order
+    const sorted = designs.map((d, i) => [d, i]).sort((a, b) => a[0].finalPottsEnergy - b[0].finalPottsEnergy || a[1] - b[1]).map(([d]) => d);
+    return [...sorted, ...exhausted];
   }
 
   /** Final energy (energy graph, as _score) and centre gaps (Python-float _gap over field_L rows) of one method design. */
-  async _finishMethod(table, eIdxIn, seqFull, pins, designable, label, events, sample, method, length, nDraws = events.length) {
+  async _finishMethod(table, eIdxIn, seqFull, pins, designable, label, events, sample, method, length, nDraws = events.length, argmins = []) {
     const rows = this.scoringEntry.graphs.energy.input_shapes[3][0];
     const seqs = new Int32Array(rows * this.bucket);
     seqs.set(seqFull.subarray(0, this.bucket), 0);
@@ -430,6 +449,8 @@ export class PhDesigner {
       selectiveEnergies: gaps,
       nDraws,
       events: events.slice(),
+      argmins,
+      replayExhausted: false,
     };
   }
 }
@@ -502,6 +523,7 @@ export class Draws {
     this.used = { uniform: 0, randint: 0, perm: 0 };
     this.cdfOrder = cdfOrder; // aminx index of the j-th upstream token; null = identity order
     this.events = [];
+    this.argmins = []; // X11b amendment 3: the chosen token of every T <= 0 pick (not a draw; events and nDraws are unchanged)
   }
 
   _next(kind, fresh) {
@@ -607,6 +629,7 @@ export function pick(score, temperature, draws) {
   if (temperature <= 0) {
     let best = 0;
     for (let i = 1; i < score.length; i += 1) if (score[i] < score[best]) best = i;
+    if (draws) draws.argmins.push(best);
     return best;
   }
   return draws.pickProbs(softmaxProbs(score, temperature));

@@ -16,6 +16,32 @@ const outputs = { score: el("score-out"), design: el("design-out"), sample: el("
 const downloads = { score: el("score-download"), design: el("design-download"), sample: el("sample-download") };
 const LABELS = { score: "Scoring", design: "pH design", sample: "Sampling" };
 
+// Method-specific inputs. Keys match DEFAULT_CONFIG in ph_design.mjs.
+const CV_METHODS = ["converged_mcmc", "converged_mcmc_combined", "two_phase"];
+const METHOD_NOTES = {
+  block_descent: "block_descent: validated in Chromium and as deployed (X7c, X10). Browser-drawn uniforms are not the validated stream.",
+  converged_mcmc: "converged_mcmc: validated under Node against aminx on replayed draws (X11b, in progress). Browser runs use seeded draws, not the validated stream.",
+  converged_mcmc_combined: "converged_mcmc_combined: validated under Node against aminx on replayed draws (X11b, in progress). Browser runs use seeded draws, not the validated stream.",
+  two_phase: "two_phase: validated under Node against aminx on replayed draws (X11b, in progress). Browser runs use seeded draws, not the validated stream.",
+  gibbs: "gibbs: validated under Node against aminx on replayed draws (X11b, in progress). Browser runs use seeded draws, not the validated stream.",
+};
+const designMethod = el("design-method");
+const designMethodNote = el("design-method-note");
+
+function refreshDesignMethod() {
+  const method = designMethod.value;
+  const show = (id, on) => {
+    el(id).style.display = on ? "" : "none";
+  };
+  show("design-cv-patience-wrap", CV_METHODS.includes(method));
+  show("design-cv-max-wrap", CV_METHODS.includes(method));
+  show("design-combined-wrap", method === "converged_mcmc_combined");
+  show("design-two-phase-wrap", method === "two_phase");
+  designMethodNote.textContent = METHOD_NOTES[method] || "";
+}
+designMethod.addEventListener("change", refreshDesignMethod);
+refreshDesignMethod();
+
 const state = {
   fileText: null, // text of the uploaded file; takes precedence over the pasted text while set
   results: { score: null, design: null, sample: null },
@@ -174,16 +200,30 @@ function collectParams(kind) {
     if (!binderChain) throw new Error("Binder chain is required: the chain whose residues are designed, e.g. A.");
     const temperature = numberField(el("design-temperature"), "Temperature");
     if (temperature < 0) throw new Error("Temperature must be zero or positive.");
+    const method = el("design-method").value;
+    // Defaults mirror DEFAULT_CONFIG in ph_design.mjs; the worker merges whatever is sent over it. Only the fields the
+    // chosen method reads are sent, so the config never carries a knob that method ignores.
+    const config = {
+      binderChain,
+      method,
+      temperature,
+      samplesPerSite: Math.trunc(numberField(el("design-samples"), "Samples per site")),
+      maxMutations: Math.trunc(numberField(el("design-max-mutations"), "Max mutations")),
+    };
+    if (CV_METHODS.includes(method)) {
+      config.cvPatience = Math.trunc(numberField(el("design-cv-patience"), "cvPatience"));
+      config.cvMax = Math.trunc(numberField(el("design-cv-max"), "cvMax"));
+    }
+    if (method === "converged_mcmc_combined") {
+      config.combinedLambda = numberField(el("design-combined-lambda"), "combinedLambda");
+    }
+    if (method === "two_phase") {
+      config.twoPhaseFrac = numberField(el("design-two-phase-frac"), "twoPhaseFrac");
+    }
     return {
       labels,
       seed: Math.trunc(numberField(el("design-seed"), "Seed")),
-      // Defaults mirror DEFAULT_CONFIG in ph_design.mjs; the worker merges whatever is sent over it.
-      config: {
-        binderChain,
-        temperature,
-        samplesPerSite: Math.trunc(numberField(el("design-samples"), "Samples per site")),
-        maxMutations: Math.trunc(numberField(el("design-max-mutations"), "Max mutations")),
-      },
+      config,
     };
   }
   if (kind === "sample") {

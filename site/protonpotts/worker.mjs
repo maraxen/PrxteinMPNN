@@ -20,8 +20,10 @@
 // ignored, and without cross-origin isolation it falls back to 1. Every reply therefore carries `env` with the effective
 // count ORT reports, so the caller sees what actually ran. Sessions are cached per (kind, modelBase, bucket, numThreads).
 //
-// Uniforms: design() takes injected uniforms (the replay contract). When params.uniforms is absent, this worker
-// draws them with seededStreams (mulberry32 + Box-Muller, decoder_sampler.mjs), seeded by params.seed + sample index.
+// Uniforms: design() takes injected uniforms (the replay contract). For block_descent, when params.uniforms is absent,
+// this worker draws them with seededStreams (mulberry32 + Box-Muller, decoder_sampler.mjs), seeded by params.seed +
+// sample index. The other pH methods (converged_mcmc, converged_mcmc_combined, two_phase, gibbs) get uniforms null and
+// params.replay (null if absent); with no replay they draw from a stream seeded by params.seed (config.seed).
 // Browser-generated streams are NOT the validated stream; the bit-exact validation passes uniforms explicitly.
 // The same caveat applies to "sample" when no uniforms are given: decoder_sampler.mjs seeds its own streams.
 import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.wasm.min.mjs";
@@ -172,22 +174,30 @@ async function runScore({ modelBase, numThreads, pdbText, params }) {
 async function runDesign({ modelBase, numThreads, pdbText, params }) {
   const labels = normalizeLabels(params.labels);
   const { bucket, lTotal } = probeBucket(pdbText, labels, params.bucket);
-  const config = params.config || {};
+  const config = { ...(params.config || {}) };
+  // The seed reaches the designer through config.seed (the pH host-loop methods draw from it when no replay is given).
+  if (params.seed !== undefined && params.seed !== null) config.seed = params.seed;
   const merged = { ...DEFAULT_CONFIG, ...config };
+  const method = merged.method ?? "block_descent";
   const designer = await getDesigner(modelBase, bucket, numThreads);
 
+  // Block-descent uniforms are browser-drawn (or passed in) as before. The other methods take no uniforms: their draws
+  // come from `replay` (null here, so a seeded stream seeded by config.seed), never from the block-descent stream.
   let uniforms = null;
-  if (params.uniforms) {
-    uniforms = params.uniforms.map((u) => Float32Array.from(u));
-  } else if (merged.temperature > 0) {
-    // One stream of blockMaxRounds * maxMutations per sample: the length the validated gates (X7b/X7c) inject.
-    const seed = params.seed ?? 0;
-    const length = merged.blockMaxRounds * merged.maxMutations;
-    uniforms = Array.from({ length: merged.samplesPerSite }, (_, s) => seededStreams(seed + s, length).uniforms);
+  if (method === "block_descent") {
+    if (params.uniforms) {
+      uniforms = params.uniforms.map((u) => Float32Array.from(u));
+    } else if (merged.temperature > 0) {
+      // One stream of blockMaxRounds * maxMutations per sample: the length the validated gates (X7b/X7c) inject.
+      const seed = params.seed ?? 0;
+      const length = merged.blockMaxRounds * merged.maxMutations;
+      uniforms = Array.from({ length: merged.samplesPerSite }, (_, s) => seededStreams(seed + s, length).uniforms);
+    }
   }
-  // Same call as ph_page.mjs: design(pdbText, labels, cell.config, uniforms). The config is passed unmerged; the
+  const replay = params.replay ?? null;
+  // Same call as ph_page.mjs: design(pdbText, labels, cell.config, uniforms, replay). The config is passed unmerged; the
   // designer merges it over DEFAULT_CONFIG itself.
-  const designs = await designer.design(pdbText, labels, config, uniforms);
+  const designs = await designer.design(pdbText, labels, config, uniforms, replay);
   return {
     bucket,
     l_total: lTotal,

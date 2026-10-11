@@ -4,11 +4,29 @@ A static, bundler-free page that runs three validated ProtonPottsMPNN methods cl
 with the arithmetic done by the browser modules in `browser/protonpotts-scorer/`:
 
 - **Score**: energies of the native sequence and any variant rows (one structure, one Potts energy per row).
-- **pH design**: block-descent design over protonation states (`PhDesigner`), returning designs sorted by final energy.
+- **pH design**: protonation-state design over `PhDesigner`, returning designs sorted by final energy. Five methods, chosen
+  in the page's Method selector (see below).
 - **Sample**: one sequence from the decoder (`ProtonPottsSampler`), with its per-position log-probabilities.
 
-Nothing else is offered. Only these three methods are validated bit-exact in the browser; other ProtonPotts paths are
-not exposed here.
+Other ProtonPotts paths (for example the `autoregressive` pH method, which needs the decoder field, and non-selective
+planning) are not exposed here.
+
+## pH design methods and validation status
+
+| Method | Browser inputs | Validation status |
+| :--- | :--- | :--- |
+| `block_descent` (default) | binder chain, temperature, samples per site, max mutations, seed | Validated in Chromium and as deployed (X7c, X10). Its uniforms are browser-drawn unless supplied, so they are not the validated stream. |
+| `converged_mcmc` | + cvPatience, cvMax | Validated under Node against aminx on replayed draws (X11b, in progress). Not validated in the browser. |
+| `converged_mcmc_combined` | + cvPatience, cvMax, combinedLambda | Validated under Node against aminx on replayed draws (X11b, in progress). Not validated in the browser. |
+| `two_phase` | + cvPatience, cvMax, twoPhaseFrac | Validated under Node against aminx on replayed draws (X11b, in progress). Not validated in the browser. |
+| `gibbs` | none beyond the common inputs | Validated under Node against aminx on replayed draws (X11b, in progress). Not validated in the browser. |
+
+Be clear about what this means. The four newer methods have been checked against aminx in Node on replayed draws, and
+that check is still in progress (X11b). None of them has been run in Chromium or as deployed. Block descent is the only
+method whose browser output has been checked against the validated stream.
+
+The Seed input is used by every method. Browser-drawn runs are reproducible for a given seed, but **they are not the
+validated stream**, for any method (see "Uniforms and seeds").
 
 ## Files
 
@@ -63,15 +81,18 @@ Session creation is the expensive step, so the worker caches sessions per (metho
 - **Score variants**: one per line, `name: tokens` or just `tokens`. Tokens are separated by commas or spaces, or,
   with no separators, read one character per residue. Each token is a one-letter code or a v6 protonation token.
   Each row must have one token per kept residue. Row 0 is always the native sequence.
-- **pH design**: binder chain, temperature, samples per site, max mutations, seed. Defaults mirror `DEFAULT_CONFIG`
-  in `ph_design.mjs`.
+- **pH design**: method, binder chain, temperature, samples per site, max mutations, seed, and the method's own knobs
+  (cvPatience and cvMax for the converged and two-phase methods, combinedLambda for the combined method, twoPhaseFrac
+  for two_phase). Defaults mirror `DEFAULT_CONFIG` in `ph_design.mjs`. Only the knobs the chosen method reads are sent.
 - **Sample**: seed and temperature (default 0.1).
 
 ## Uniforms and seeds
 
-The validated pH design replays uniforms that the host generated and passed in. The page does not do that: when no
-uniforms are supplied, the worker draws them from a seeded generator (`seededStreams`), so runs are reproducible
-in the browser but are **not** the validated stream. The same applies to sampling without explicit uniforms.
+The validated pH design replays uniforms that the host generated and passed in. The page does not do that. For
+`block_descent`, when no uniforms are supplied, the worker draws them from a seeded generator (`seededStreams`). For the
+other four methods the worker passes no uniforms and no replay, so the designer draws from a stream seeded by the Seed
+input (`config.seed`). In both cases runs are reproducible in the browser but are **not** the validated stream. The same
+applies to sampling without explicit uniforms.
 
 ## Building for deployment
 

@@ -23,8 +23,9 @@
   <p class="app-header-credit">
     Protonation-aware ProteinMPNN variant of the aminx port. Inference uses
     <a href="https://onnxruntime.ai/docs/tutorials/web/" target="_blank" rel="noopener">onnxruntime-web</a> (wasm),
-    with no server round-trip. Only the methods validated in the browser are offered: scoring, pH block-descent design
-    and sequence sampling.
+    with no server round-trip. Scoring, pH design and sequence sampling are offered. Block-descent design is validated
+    in Chromium and as deployed; the other four pH design methods are validated under Node against aminx on replayed
+    draws only. See the README for the status of each.
   </p>
 </header>
 
@@ -67,11 +68,21 @@
   </section>
 
   <section class="panel" aria-labelledby="design-title">
-    <h2 id="design-title">2. pH design (block descent)</h2>
+    <h2 id="design-title">2. pH design</h2>
     <div class="grid-fields">
       <div class="field">
         <label for="design-binder">Binder chain</label>
         <input id="design-binder" type="text" maxlength="2" placeholder="A" />
+      </div>
+      <div class="field">
+        <label for="design-method">Method</label>
+        <select id="design-method">
+          <option value="block_descent" selected>block_descent (validated in Chromium and as deployed)</option>
+          <option value="converged_mcmc">converged_mcmc (Node-validated on replayed draws)</option>
+          <option value="converged_mcmc_combined">converged_mcmc_combined (Node-validated on replayed draws)</option>
+          <option value="two_phase">two_phase (Node-validated on replayed draws)</option>
+          <option value="gibbs">gibbs (Node-validated on replayed draws)</option>
+        </select>
       </div>
       <div class="field">
         <label for="design-temperature">Temperature</label>
@@ -88,8 +99,26 @@
       <div class="field">
         <label for="design-seed">Seed</label>
         <input id="design-seed" type="number" min="0" step="1" value="0" />
+        <p class="field-note">Used by every method. For block_descent it seeds the browser-drawn uniforms.</p>
+      </div>
+      <div class="field" id="design-cv-patience-wrap">
+        <label for="design-cv-patience">cvPatience</label>
+        <input id="design-cv-patience" type="number" min="1" step="1" value="3" />
+      </div>
+      <div class="field" id="design-cv-max-wrap">
+        <label for="design-cv-max">cvMax</label>
+        <input id="design-cv-max" type="number" min="1" step="1" value="50" />
+      </div>
+      <div class="field" id="design-combined-wrap">
+        <label for="design-combined-lambda">combinedLambda</label>
+        <input id="design-combined-lambda" type="number" min="0" step="0.01" value="0.3" />
+      </div>
+      <div class="field" id="design-two-phase-wrap">
+        <label for="design-two-phase-frac">twoPhaseFrac</label>
+        <input id="design-two-phase-frac" type="number" min="0.01" max="1" step="0.01" value="0.5" />
       </div>
     </div>
+    <p class="field-note" id="design-method-note"></p>
     <div class="actions">
       <button id="design-run" type="button">Design</button>
       <button id="design-download" type="button" disabled>Download JSON</button>

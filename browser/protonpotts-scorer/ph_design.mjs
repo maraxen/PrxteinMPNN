@@ -14,6 +14,8 @@ import {
   DEFAULT_DEP_MAP,
   PhPlanError,
   blockTable,
+  energyRank,
+  knnRank,
   planFromCenterTypes,
   planFromExplicitCenters,
   validTokenMask,
@@ -26,6 +28,8 @@ const THREE_OF = {
   L: "LEU", K: "LYS", M: "MET", F: "PHE", P: "PRO", S: "SER", T: "THR", W: "TRP", Y: "TYR", V: "VAL",
 };
 const f32 = Math.fround;
+
+export const SWEEP_ORDERS = Object.freeze(["position", "knn", "energy"]);
 
 export const DEFAULT_CONFIG = Object.freeze({
   binderChain: null,
@@ -49,6 +53,7 @@ export const DEFAULT_CONFIG = Object.freeze({
   cvPatience: 3,
   cvMax: 50,
   placementBy: "scan_potts",
+  sweepOrder: "position",
 });
 
 /** Parent three-letter residue of a token index (X has none): HIS-P is HIS, K is LYS. */
@@ -129,6 +134,9 @@ export class PhDesigner {
     const vocab = VOCABULARY.length;
     if (cfg.blockSize !== this.manifest.block_size) throw new PhPlanError(`block_size ${cfg.blockSize}: this export has ${this.manifest.block_size}`);
     if (!cfg.binderChain) throw new PhPlanError("binderChain is required for pH design");
+    if (!SWEEP_ORDERS.includes(cfg.sweepOrder)) {
+      throw new PhPlanError(`unknown sweepOrder ${JSON.stringify(cfg.sweepOrder)}; use one of ${SWEEP_ORDERS.join(", ")}`);
+    }
     const sampling = cfg.temperature > 0;
     if (sampling && (!uniforms || uniforms.length !== cfg.samplesPerSite)) {
       throw new PhPlanError(`temperature > 0 needs one uniform array per sample (${cfg.samplesPerSite})`);
@@ -159,8 +167,6 @@ export class PhDesigner {
     if (!plan || plan.designable.length === 0) return [];
 
     const P = plan.pins.length;
-    const { blocks, valid } = blockTable(eIdx, slots, plan.designable, cfg.blockSize);
-    const nBlocks = plan.designable.length;
     const depth = this.manifest.depth;
     const pinPositions = Int32Array.from(plan.pins.map((p) => p.position));
     const pinProt = Int32Array.from(plan.pins.map((p) => p.protIdx));
@@ -182,6 +188,19 @@ export class PhDesigner {
       });
       return out;
     };
+    // Visit order (aminx ph_design._visit_order): position keeps plan.designable; knn and energy reorder it once, on the pinned seed,
+    // before the z-scales and the block table are built. plan.designable itself (the reported `designable`) is never reordered.
+    let visit = plan.designable;
+    if (cfg.sweepOrder === "knn") {
+      visit = knnRank(eIdx, slots, plan.designable, plan.pins);
+    } else if (cfg.sweepOrder === "energy") {
+      if (table.dims && (table.dims.length !== 4 || table.dims[0] !== B || table.dims[1] !== slots || table.dims[2] !== vocab || table.dims[3] !== vocab)) {
+        throw new PhPlanError(`merged table dims [${table.dims}] are not [${B}, ${slots}, ${vocab}, ${vocab}]`);
+      }
+      visit = energyRank(table.data, eIdx, slots, vocab, plan.pins, pinned(seq), plan.designable);
+    }
+    const { blocks, valid } = blockTable(eIdx, slots, visit, cfg.blockSize);
+    const nBlocks = visit.length;
     const tableIn = { data: table.data };
     const common = {
       table: tableIn,
@@ -248,13 +267,13 @@ export class PhDesigner {
         }
         rounds += 1;
       }
-      designs.push(await this._score(table, eIdx, work, plan, sample, draws, L));
+      designs.push(await this._score(table, eIdx, work, plan, sample, draws, L, visit));
     }
     // stable sort by final energy (ties keep plan-then-sample order)
     return designs.map((d, i) => [d, i]).sort((a, b) => a[0].finalPottsEnergy - b[0].finalPottsEnergy || a[1] - b[1]).map(([d]) => d);
   }
 
-  async _score(table, eIdx, work, plan, sample, draws, length) {
+  async _score(table, eIdx, work, plan, sample, draws, length, visit = null) {
     const rows = this.scoringEntry.graphs.energy.input_shapes[3][0];
     const seqs = new Int32Array(rows * this.bucket);
     seqs.set(work.subarray(0, this.bucket), 0);
@@ -292,6 +311,7 @@ export class PhDesigner {
       selectiveEnergy: gaps.reduce((a, b) => a + b, 0),
       selectiveEnergies: gaps,
       nDraws: draws,
+      ...(visit ? { visitOrder: Array.from(visit) } : {}),
     };
   }
 

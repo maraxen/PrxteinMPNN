@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>aminx ProtonPottsMPNN pH sweep_order — browser harness</title>
+  </head>
+  <body>
+    <!-- Headless harness page. No UI: scripts/browser_validation/protonpotts_ph_sweep_gate.py drives it through
+         browser/layer_c/run_p07.mjs, which reads window.__PARITY_RESULT__ / __PARITY_DONE__ / __PARITY_ERROR__. -->
+    <p>Running the ProtonPottsMPNN browser pH design loop (sweepOrder). Results land on
+      <code>window.__PARITY_RESULT__</code>.</p>
+    <script type="module" src="./ph_sweep_page.mjs"></script>
+  </body>
+</html>

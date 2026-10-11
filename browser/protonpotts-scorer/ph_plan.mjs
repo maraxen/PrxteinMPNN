@@ -70,6 +70,49 @@ export function knnRank(eIdx, slots, designable, pins) {
   return [...best.keys()].sort((a, b) => best.get(a) - best.get(b) || a - b);
 }
 
+/**
+ * Designable positions by |contribution to the centres' selective gap|, descending (aminx ph_design._centre_energy_rank, a port of
+ * upstream _centre_energy_rank). `table` is the merged pair table, a flat Float32Array laid out [L, slots, V, V] row-major (slot 0 = self
+ * field; index ((i * slots + k) * V + a) * V + b), `seq` the seed with every centre at its protonated token. Outgoing edge c -> j uses the
+ * LAST kNN slot t of c with eIdx[c][1 + t] == j and table slot t + 1; incoming edge j -> c uses the LAST slot k >= 1 of j with
+ * eIdx[j][k] == c. Deps are averaged sum / max(len, 1); e_p and e_d accumulate outgoing THEN incoming; scores sum |e_p - e_d| over the pins in
+ * pin order in float64 (JS numbers). Sorted by (-score, position).
+ */
+export function energyRank(table, eIdx, slots, vocab, pins, seq, designable) {
+  const at = (i, k, a, b) => table[((i * slots + k) * vocab + a) * vocab + b];
+  const score = new Map(designable.map((j) => [j, 0]));
+  for (const pin of pins) {
+    const c = pin.position;
+    const prot = pin.protIdx;
+    const deps = pin.depIdxs;
+    const nDeps = Math.max(deps.length, 1);
+    const slotOf = new Map();
+    for (let t = 0; t < slots - 1; t += 1) slotOf.set(eIdx[c * slots + 1 + t], t);
+    for (const j of score.keys()) {
+      const sj = seq[j];
+      let eP = 0;
+      let eD = 0;
+      if (slotOf.has(j)) {
+        const k = slotOf.get(j) + 1;
+        eP += at(c, k, prot, sj);
+        let sum = 0;
+        for (const d of deps) sum += at(c, k, d, sj);
+        eD += sum / nDeps;
+      }
+      let incoming = -1;
+      for (let k = 1; k < slots; k += 1) if (eIdx[j * slots + k] === c) incoming = k;
+      if (incoming >= 0) {
+        eP += at(j, incoming, sj, prot);
+        let sum = 0;
+        for (const d of deps) sum += at(j, incoming, sj, d);
+        eD += sum / nDeps;
+      }
+      score.set(j, score.get(j) + Math.abs(eP - eD));
+    }
+  }
+  return [...score.keys()].sort((a, b) => score.get(b) - score.get(a) || a - b);
+}
+
 /** Block for position p: p plus its nearest designable partners, at most blockSize (upstream _block_partners). */
 export function blockPartners(nbrRow, p, designableSet, blockSize) {
   const block = [p];

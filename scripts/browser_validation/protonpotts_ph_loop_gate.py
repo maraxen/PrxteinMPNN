@@ -54,6 +54,26 @@ def _design(table, e_idx, native, binder, res_id, config, uniforms):  # noqa: AN
                           uniforms=uniforms if config.temperature > 0 else None)
 
 
+def same_designs(js_designs: list[dict[str, Any]], ref_designs: list[Any]) -> dict[str, Any]:
+  """The X7b comparator (exact sequences, designable, pins, label, draws; energies <= ENERGY_BAR), factored out of main unchanged for X7d."""
+  row: dict[str, Any] = {"n_js": len(js_designs), "n_ref": len(ref_designs)}
+  ok = len(js_designs) == len(ref_designs) > 0
+  worst = 0.0
+  sequences = designable = pins = draws = True
+  for js, ref in zip(js_designs, ref_designs, strict=False):
+    sequences &= bool(np.array_equal(np.asarray(js["sequence"]), ref.sequence))
+    designable &= list(js["designable"]) == [int(d) for d in ref.designable]
+    pins &= [(p["position"], p["protIdx"], p["resId"]) for p in js["pins"]] == [
+      (p.position, p.prot_idx, p.res_id) for p in ref.pins] and js["label"] == ref.label
+    draws &= int(js["n_draws"]) == int(ref.n_draws)
+    worst = max(worst, _rel(ref.final_potts_energy, js["final_potts_energy"]),
+                _rel(ref.selective_energy, js["selective_energy"]))
+  row.update(sequences_exact=bool(sequences), designable_equal=bool(designable), pins_equal=bool(pins),
+             draws_equal=bool(draws), worst_energy_rel=worst)
+  row["passed"] = bool(ok and sequences and designable and pins and draws and worst <= ENERGY_BAR)
+  return row
+
+
 def main(argv: list[str] | None = None) -> int:  # noqa: C901, PLR0912, PLR0915
   parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
   parser.add_argument("--out", type=Path, required=True)
@@ -153,31 +173,13 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901, PLR0912, PLR0915
     result["num_threads"] = int(node.get("num_threads") or 0)
     got = {r["id"]: r for r in node["results"]}
 
-    def same(js_designs: list[dict[str, Any]], ref_designs: list[Any]) -> dict[str, Any]:
-      row: dict[str, Any] = {"n_js": len(js_designs), "n_ref": len(ref_designs)}
-      ok = len(js_designs) == len(ref_designs) > 0
-      worst = 0.0
-      sequences = designable = pins = draws = True
-      for js, ref in zip(js_designs, ref_designs, strict=False):
-        sequences &= bool(np.array_equal(np.asarray(js["sequence"]), ref.sequence))
-        designable &= list(js["designable"]) == [int(d) for d in ref.designable]
-        pins &= [(p["position"], p["protIdx"], p["resId"]) for p in js["pins"]] == [
-          (p.position, p.prot_idx, p.res_id) for p in ref.pins] and js["label"] == ref.label
-        draws &= int(js["n_draws"]) == int(ref.n_draws)
-        worst = max(worst, _rel(ref.final_potts_energy, js["final_potts_energy"]),
-                    _rel(ref.selective_energy, js["selective_energy"]))
-      row.update(sequences_exact=bool(sequences), designable_equal=bool(designable), pins_equal=bool(pins),
-                 draws_equal=bool(draws), worst_energy_rel=worst)
-      row["passed"] = bool(ok and sequences and designable and pins and draws and worst <= ENERGY_BAR)
-      return row
-
     tok_hits = tok_n = 0
     for cid, ref in refs.items():
       g = got.get(cid, {"ok": False, "error": "missing", "designs": None})
       if not g["ok"]:
         result["cases"].append({"id": cid, "ran": False, "passed": False, "error": (g.get("error") or "")[:2000]})
         continue
-      row = {"id": cid, "ran": True, **same(g["designs"], ref)}
+      row = {"id": cid, "ran": True, **same_designs(g["designs"], ref)}
       result["cases"].append(row)
       if cid in rolled:
         tok_n += 1

@@ -54,6 +54,20 @@ the exploratory basis for the bound and is NOT cited as a pass. The confirmatory
   * everything else -- cells, cases, the explained-divergence rule, energy bars, controls, outcome ladder -- is unchanged.
 A held-out case that exceeds 5e-3, or diverges unexplained, fails the gate.
 
+AMENDMENT 3 (261011), after held-out run 63cdd52a recorded ERROR and before any further graded run (disclosed): 19/20 held-out cases passed
+with every control firing and a maximum discrepancy of 1.18e-3 (within 5e-3); the twentieth (1EL1 mcmc_t0, T = 0) failed because the JS
+converge loop ran past the 98 recorded randints, i.e. its trajectory diverged. T = 0 makes no draws, so amendment 1's rule cannot apply.
+An exploratory, uncited diagnostic of the reference trajectory found an EXACT argmin tie (margin 0.0) and margins of 6.1e-5 and 1.5e-4 on
+scores of magnitude ~0.77 -- inside the f32 score noise the T > 0 cases imply (cumulative discrepancy ~1e-3 at T = 0.05, i.e. score
+differences ~5e-5) -- so the first-argmin rule can resolve the same tie differently in ORT f32 and JAX f32. Rule added for T = 0:
+  * Both sides record their argmin trace: the JS the chosen token of every T = 0 pick (not a draw: n_draws is unchanged); the reference
+    the chosen token and the margin (second-smallest minus smallest finite score) of every pick.
+  * A JS replay that runs out (a Draws error) is recorded as a divergence, not a crash: the case ran, its designs are incomplete.
+  * A T = 0 design whose argmin trace first differs at pick k (including a JS trace that continues past the reference's end) is exempt on
+    sequence and what follows only when the reference margin at pick k is <= 2.5e-4 (TIE_MARGIN; set from the exploratory maximum 1.5e-4
+    above, disclosed). Exempt designs are reported as fragile, never as passes. Plan fields are never exempt.
+  * The confirmatory run uses held-out draws again: --seed-offset 200000. Bounds of amendment 2 are unchanged.
+
 Controls (each must make the SAME comparator fail on at least one design of the cases it applies to): TOKENS -- JS designs vs the reference
 replayed with every uniform list rolled by one (T > 0 cases); RANDINT -- vs the reference with the randint list rolled by one (mcmc,
 combined, two_phase); PERM -- vs the reference with every gibbs permutation reversed (gibbs); ENERGY -- JS final energies vs the reference

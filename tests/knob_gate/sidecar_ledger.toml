@@ -129,11 +129,13 @@ bth_run_id = "9ea86255-f653-4cb3-a327-d4b063210b37"
 bth_run_id = "492fdd39-0639-4bb5-ae6b-9144d1c969f3"
 
 [sidecar.protonpotts_parity]
-# REWRITTEN 261011 at 6311e481 (re-wave of PR #211: the ph_knobs fold, sweep_order and the options.py knob exposure staled every row).
-# Combined vehicle REVISION 261011: 12 waves (ph_knobs folded), 93 controls, all 'failed'; 12 waves clean.
-# Cool-tier record: completed, outcome pass, git_dirty False. verify_wave.py with all nine full ids at 6311e481:
+# REWRITTEN 261011 at 2cf0acb9 (#2621: the ph_objective_knobs port touched protonpotts_mpnn/ph_* and scripts/parity,
+# which staled this row only; stale_rows.py: 1 of 9, the other eight stay fresh at 6311e481).
+# Combined vehicle REVISION 261011: 13 waves (ph_objective_knobs folded), 98 controls, all 'failed'; 13 waves rc 0.
+# Cool-tier record: completed, outcome pass, git_dirty False. verify_wave.py with all nine full ids at 2cf0acb9:
 # would grade ALL NINE, 135/135 conditions PASS, would NOT grade (none).
-bth_run_id = "5dee158c-11a7-42c8-9385-0bd07be0a63f"
+# Previous row 5dee158c (6311e481, 12 waves / 93 controls) stays on record.
+bth_run_id = "931ab51a-d675-4a11-a6d7-3dd8bec8da7c"
 
 # NOT YET LISTED: nothing. All seven manifest vehicle slugs now carry a verified
 # row, so check_branch_coverage should leave instrument_invalid.

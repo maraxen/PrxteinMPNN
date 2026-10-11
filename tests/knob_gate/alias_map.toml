@@ -3153,7 +3153,7 @@ ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__adjacent_repeat_weight"
 targets = ["adjacent_repeat_weight"]
 equivalence = "identical"
 parity_test_ids = ["tests/knob_semantics/test_protonpotts_search_knobs.py::test_knob_semantics_adjacent_repeat_weight"]
-note = "adjacent_repeat_weight: exposed; non-default values are refused by block_descent (NotImplementedError) until ported (#2621). Default 0.0 (upstream potts_mpnn_ph.py:156)."
+note = "adjacent_repeat_weight: ported in block_descent and graded by the protonpotts_ph_objective_knobs wave (#2621; wave pending, ledger row not yet updated). Default 0.0 (upstream potts_mpnn_ph.py:156)."
 
 [[row]]
 ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__backend"
@@ -3255,7 +3255,7 @@ ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__global_weight"
 targets = ["global_weight"]
 equivalence = "identical"
 parity_test_ids = ["tests/knob_semantics/test_protonpotts_search_knobs.py::test_knob_semantics_global_weight"]
-note = "global_weight: exposed; non-default values are refused by block_descent (NotImplementedError) until ported (#2621). Default 0.0 (upstream potts_mpnn_ph.py:145)."
+note = "global_weight: ported in block_descent and graded by the protonpotts_ph_objective_knobs wave (#2621; wave pending, ledger row not yet updated). Default 0.0 (upstream potts_mpnn_ph.py:145)."
 
 [[row]]
 ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__infill_scope"
@@ -3421,7 +3421,7 @@ ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__self_weight"
 targets = ["self_weight"]
 equivalence = "identical"
 parity_test_ids = ["tests/knob_semantics/test_protonpotts_search_knobs.py::test_knob_semantics_self_weight"]
-note = "self_weight: exposed; non-default values are refused by block_descent (NotImplementedError) until ported (#2621). Default 1.0 (upstream potts_mpnn_ph.py:173)."
+note = "self_weight: ported in block_descent and graded by the protonpotts_ph_objective_knobs wave (#2621; wave pending, ledger row not yet updated). Default 1.0 (upstream potts_mpnn_ph.py:173)."
 
 [[row]]
 ref = "protonpotts_potts_mpnn_ph_PHDesignCriteria__sweep_order"

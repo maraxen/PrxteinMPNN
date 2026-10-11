@@ -7,6 +7,7 @@ Nothing here re-derives the edge formulas used by the module.
 
 from __future__ import annotations
 
+import dataclasses
 import itertools
 from typing import NamedTuple
 
@@ -18,15 +19,18 @@ import pytest
 from aminx.families.potts_mpnn.etab import potts_energy
 from aminx.families.protonpotts_mpnn.ph_config import PHDesignConfig
 from aminx.families.protonpotts_mpnn.ph_descent import (
+  GlobalMasks,
   block_descent,
   block_objective,
   block_zscales,
+  global_masks,
   rep_class_mask,
   select_joint,
+  stability_table,
 )
 from aminx.families.protonpotts_mpnn.ph_plan import block_table, valid_token_mask
 from aminx.families.protonpotts_mpnn.ph_potentials import candidate_energies_at
-from aminx.families.protonpotts_mpnn.vocab import token_index
+from aminx.families.protonpotts_mpnn.vocab import canonical_letter, token_index
 
 V = 30
 LENGTH = 14
@@ -415,21 +419,204 @@ def test_short_block_matches_explicit_padding():
   np.testing.assert_allclose(np.asarray(narrow.zscales), np.asarray(wide.zscales), rtol=1e-6)
 
 
-@pytest.mark.parametrize(
-  ("knob", "value"),
-  [
-    ("global_weight", 0.1),
-    ("adjacent_repeat_weight", 0.2),
-    ("self_weight", 0.9),
-    ("zscale_mode", "single_mutation"),
-    # sweep_order knn / energy are ported (#2621 phase 1); an unknown value is refused in test_ph_sweep_order.py.
-  ],
-)
-def test_unsupported_knobs_are_refused(knob, value):
+def test_zscale_mode_is_still_refused():
+  # global_weight, adjacent_repeat_weight and self_weight are ported (#2621); zscale_mode != "block" is not.
+  # sweep_order knn / energy are ported (#2621 phase 1); an unknown value is refused in test_ph_sweep_order.py.
   p = _problem(10)
-  cfg = PHDesignConfig(**{knob: value, "block_size": 3})
-  with pytest.raises(NotImplementedError, match=knob):
+  cfg = PHDesignConfig(zscale_mode="single_mutation", block_size=3)
+  with pytest.raises(NotImplementedError, match="zscale_mode"):
     _run(p, config=cfg)
+
+
+# --- the three objective knobs (#2621): block_objective against independent full-objective oracles ---------------------
+
+_CLASS_TOKENS = {
+  "his": ("H", "HIS-P", "HIS-S", "HIS-A"),
+  "asp": ("D", "ASP-P", "ASP-D", "ASP-A"),
+  "glu": ("E", "GLU-P", "GLU-D", "GLU-A"),
+}
+
+
+def _with(p: _Problem, **config_kwargs) -> _Problem:
+  return p._replace(config=dataclasses.replace(p.config, **config_kwargs))
+
+
+def _knob_problem(seed: int, **config_kwargs) -> tuple[_Problem, GlobalMasks]:
+  """Designable positions start at Ala (never a titratable class); three other positions hold native His / Asp / Glu."""
+  p = _problem(seed, block_size=2)
+  other = np.setdiff1d(np.arange(LENGTH), np.concatenate([p.designable, p.pin_pos]))
+  seq0 = p.seq0.copy()
+  seq0[p.designable] = token_index("A")
+  seq0[other[:3]] = [token_index("H"), token_index("D"), token_index("E")]
+  p = _with(p._replace(seq0=seq0), **config_kwargs)
+  masks = global_masks(jnp.asarray(seq0), jnp.ones(LENGTH, dtype=bool))
+  # Independent of the module: the native residue's parent decides the class.
+  for name in ("his", "asp", "glu"):
+    want = np.isin(seq0, [token_index(t) for t in _CLASS_TOKENS[name]])
+    assert np.array_equal(np.asarray(getattr(masks, name)), want)
+  return p, masks
+
+
+def _g_oracle(p: _Problem, seq: np.ndarray) -> float:
+  """H(His/Asp/Glu positions -> protonated) - H(Asp/Glu -> deprotonated, His -> HIS-S), the full energies from potts_energy."""
+  native = p.seq0
+  cls = {name: np.isin(native, [token_index(t) for t in _CLASS_TOKENS[name]]) for name in _CLASS_TOKENS}
+  sp, sd = seq.copy(), seq.copy()
+  sp[cls["his"]], sp[cls["asp"]], sp[cls["glu"]] = token_index("HIS-P"), token_index("ASP-P"), token_index("GLU-P")
+  sd[cls["his"]], sd[cls["asp"]], sd[cls["glu"]] = token_index("HIS-S"), token_index("ASP-D"), token_index("GLU-D")
+  h = _energy_batch(p, np.stack([sp, sd]))
+  return float(h[0] - h[1])
+
+
+def _adjacent_oracle(p: _Problem, seq: np.ndarray) -> float:
+  """Count of sequence-adjacent (residue number differs by 1) position pairs on the same canonical amino acid."""
+  total = 0.0
+  for i in range(LENGTH):
+    for j in range(i + 1, LENGTH):
+      if abs(int(p.residue[i]) - int(p.residue[j])) == 1:
+        total += float(canonical_letter(int(seq[i])) == canonical_letter(int(seq[j])))
+  return total
+
+
+def _block_joint(p: _Problem, row: int, sub_valid: np.ndarray, **kwargs) -> np.ndarray:
+  return np.asarray(
+    block_objective(
+      jnp.asarray(p.table), jnp.asarray(p.e_idx), jnp.asarray(p.seq0), jnp.asarray(p.blocks[row]),
+      jnp.asarray(p.block_valid[row]), jnp.asarray(p.pin_pos), jnp.asarray(p.pin_prot), jnp.asarray(p.pin_dep),
+      jnp.asarray(p.pin_dep_valid), jnp.asarray(sub_valid), jnp.asarray(p.rep_mask), jnp.asarray(p.residue),
+      config=p.config, **kwargs,
+    ),
+  )  # fmt: skip
+
+
+def _enumerate_block(p: _Problem, row: int):
+  tokens = np.array([token_index(t) for t in ("K", "A", "HIS-P", "ASP-D", "G")])
+  sub_valid = np.zeros(V, dtype=bool)
+  sub_valid[tokens] = True
+  members = p.blocks[row][np.flatnonzero(p.block_valid[row])]
+  combos = np.array(list(itertools.product(tokens, repeat=members.size)), dtype=np.int32)
+  seqs = np.repeat(p.seq0[None], combos.shape[0], axis=0)
+  seqs[:, members] = combos
+  return sub_valid, members, seqs, _flat_index(p.block_valid[row], combos, V)
+
+
+def _unary_g_sum(p: _Problem, members: np.ndarray, seqs: np.ndarray) -> np.ndarray:
+  """Per assignment: the sum over members of g(seq0 with that member changed) - g(seq0), the unary form the engine uses."""
+  base_g = _g_oracle(p, p.seq0)
+  out = np.zeros(seqs.shape[0])
+  for n, seq in enumerate(seqs):
+    for m in members:
+      single = p.seq0.copy()
+      single[m] = seq[m]
+      out[n] += _g_oracle(p, single) - base_g
+  return out
+
+
+@pytest.mark.parametrize("seed", [0, 1])
+def test_global_weight_adds_the_weighted_unary_g_difference(seed):
+  p, masks = _knob_problem(seed, global_weight=0.7)
+  live = False
+  for row in range(p.designable.size):
+    sub_valid, members, seqs, idx = _enumerate_block(p, row)
+    base = _block_joint(p, row, sub_valid, wh=0.8, wsel=0.35, wglob=0.0, glob_masks=masks)
+    with_g = _block_joint(p, row, sub_valid, wh=0.8, wsel=0.35, wglob=0.7, glob_masks=masks)
+    expect = _unary_g_sum(p, members, seqs)
+    delta = (with_g - base)[idx]
+    np.testing.assert_allclose(delta - delta[0], 0.7 * (expect - expect[0]), atol=2e-2)
+    live |= bool(np.ptp(expect) > 0)
+  assert live  # the term moves at least one block
+
+
+def test_global_weight_sign_positive_minimises_g():
+  p, masks = _knob_problem(2, global_weight=1.0)
+  row = int(np.argmax(p.block_valid.sum(axis=1)))
+  sub_valid, members, seqs, idx = _enumerate_block(p, row)
+  unary_sum = _unary_g_sum(p, members, seqs)
+  assert np.ptp(unary_sum) > 0
+  rest = _block_joint(p, row, sub_valid, wh=0.0, wsel=0.0, wglob=0.0, glob_masks=masks)
+  for sign in (1.0, -1.0):
+    joint = _block_joint(p, row, sub_valid, wh=0.0, wsel=0.0, wglob=sign, glob_masks=masks)
+    chosen = int(np.argmin((joint - rest)[idx]))
+    best = unary_sum.min() if sign > 0 else unary_sum.max()  # positive weight: lowest g; negative: highest
+    assert unary_sum[chosen] == pytest.approx(best, abs=1e-2)
+
+
+def test_global_weight_needs_the_binder_mask():
+  p, _masks = _knob_problem(0, global_weight=0.5)
+  with pytest.raises(ValueError, match="binder_mask"):
+    _run(p)
+  with pytest.raises(ValueError, match="glob_masks"):
+    _block_joint(p, 0, p.valid, wh=1.0, wsel=1.0, wglob=0.5)
+
+
+def test_global_zscale_is_one_without_the_masks_and_positive_with_them():
+  p, masks = _knob_problem(3)
+  args = (
+    jnp.asarray(p.table), jnp.asarray(p.e_idx), jnp.asarray(p.seq0), jnp.asarray(p.blocks), jnp.asarray(p.block_valid),
+    jnp.asarray(p.pin_pos), jnp.asarray(p.pin_prot), jnp.asarray(p.pin_dep), jnp.asarray(p.pin_dep_valid), jnp.asarray(p.valid),
+  )  # fmt: skip
+  without = np.asarray(block_zscales(*args))
+  live = np.asarray(block_zscales(*args, glob_masks=masks))
+  assert without[2] == 1.0
+  assert live[2] > 0.0
+  assert live[2] != 1.0
+  np.testing.assert_allclose(live[:2], without[:2], rtol=1e-6)
+
+
+@pytest.mark.parametrize("seed", [0, 1])
+def test_adjacent_repeat_weight_charges_adjacent_same_canonical_pairs(seed):
+  p, _ = _knob_problem(seed, adjacent_repeat_weight=0.9)
+  off_p = _with(p, adjacent_repeat_weight=0.0)
+  live = False
+  for row in range(p.designable.size):
+    sub_valid, _members, seqs, idx = _enumerate_block(p, row)
+    delta = (_block_joint(p, row, sub_valid, wh=0.8, wsel=0.35) - _block_joint(off_p, row, sub_valid, wh=0.8, wsel=0.35))[idx]
+    count = np.array([_adjacent_oracle(p, s) for s in seqs])
+    np.testing.assert_allclose(delta - delta[0], 0.9 * (count - count[0]), atol=1e-4)
+    live |= bool(np.ptp(count) > 0)
+  assert live  # at least one block can create or break an adjacent repeat
+
+
+def test_adjacent_repeat_weight_large_leaves_no_adjacent_repeat_among_designable_positions():
+  p = _problem(4, block_size=2)
+  seq = np.asarray(_run(p, config=dataclasses.replace(p.config, adjacent_repeat_weight=50.0)).seq)
+  designable = {int(x) for x in p.designable}
+  for i in range(LENGTH - 1):
+    if i in designable and i + 1 in designable:
+      assert canonical_letter(int(seq[i])) != canonical_letter(int(seq[i + 1]))
+
+
+@pytest.mark.parametrize("weight", [0.0, 2.5])
+def test_self_weight_rescales_the_slot_zero_field_of_the_stability_term_only(weight):
+  p, _ = _knob_problem(1, self_weight=weight)
+  p_one = _with(p, self_weight=1.0)
+  wh = 0.8
+  # Independent oracle: the full Potts energy on a table whose slot-0 field is scaled; the selective term stays on the true table.
+  scaled = p.table.copy()
+  scaled[:, 0] *= weight
+  for row in range(p.designable.size):
+    sub_valid, _members, seqs, idx = _enumerate_block(p, row)
+    energy_diff = _energy_batch(p._replace(table=scaled), seqs) - _energy_batch(p, seqs)
+    delta = (_block_joint(p, row, sub_valid, wh=wh, wsel=0.0) - _block_joint(p_one, row, sub_valid, wh=wh, wsel=0.0))[idx]
+    np.testing.assert_allclose(delta - delta[0], wh * (energy_diff - energy_diff[0]), atol=5e-3)
+
+
+def test_self_weight_one_is_an_exact_noop():
+  p = _problem(5, block_size=2)
+  explicit = _run(p, config=dataclasses.replace(p.config, self_weight=1.0))
+  default = _run(p)
+  assert np.array_equal(np.asarray(explicit.seq), np.asarray(default.seq))
+  assert np.array_equal(np.asarray(explicit.zscales), np.asarray(default.zscales))
+  table = jnp.asarray(p.table)
+  assert stability_table(table, 1.0) is table
+
+
+def test_self_weight_changes_the_frozen_sdh_and_not_the_selective_scale():
+  p = _problem(5, block_size=2)
+  default = _run(p)
+  weighted = _run(p, config=dataclasses.replace(p.config, self_weight=4.0))
+  assert float(weighted.zscales[0]) != float(default.zscales[0])
+  assert float(weighted.zscales[1]) == pytest.approx(float(default.zscales[1]), rel=1e-6)
 
 
 def test_rep_class_mask_selects_parent_residue_tokens():

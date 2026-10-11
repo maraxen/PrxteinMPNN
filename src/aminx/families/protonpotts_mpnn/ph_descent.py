@@ -40,8 +40,22 @@ per-block variance, floored at ``1e-6``, and ``1.0`` when no block contributes. 
 only the real members, since padded axes are restricted to index 0 (a zero-probability alternative to changing
 the axis size, which would also change the normalisation of the sampled distribution).
 
+The three objective knobs of debt #2621 are ported (graded by the ``protonpotts_ph_objective_knobs`` wave; wave pending):
+
+- ``global_weight`` (upstream ``combined_unary`` 2273-2284, ``_global_protonation_dH`` 2666-2696, ``_block_zscales`` 2114-2119):
+  adds ``(global_weight / sdGlob) * (g(S with p=a) - g(S))`` to the unary of member ``p``, with
+  ``g = H(binder His/Asp/Glu -> protonated) - H(binder Asp/Glu -> deprotonated, His -> HIS-S)`` of the WORKING sequence (the
+  residue classes are the NATIVE sequence's, chain A only; see :func:`global_masks`). SIGN: the weight multiplies ``g`` itself, so a
+  POSITIVE ``global_weight`` MINIMISES ``g`` and favours the protonated state. Upstream's docstrings say the opposite; this follows
+  the code. ``sdGlob`` is a third frozen z-scale, the pooled variance of the same unary over blocks where it varies.
+- ``adjacent_repeat_weight`` (upstream 2257-2259, 2337-2351): ``+w`` per sequence-adjacent (residue number differs by 1) pair on the
+  same canonical amino acid, raw (not z-scaled), chain A only; within the block as a pairwise term, against a fixed neighbour as a unary.
+- ``self_weight`` (upstream ``stability_weights`` 285-288, ``reweighted`` 1610-1627, ``stability_scorer`` 1671-1685): scales the
+  slot-0 field of the table by ``self_weight`` for the STABILITY term only (pairs at 1), in both the frozen ``sdH`` and the per-visit
+  stability potentials. Selective, global and reported energies stay on the true table; ``self_weight == 1`` is an exact no-op.
+
 Not ported (refused with ``NotImplementedError`` at the top of :func:`block_descent` where a knob exists):
-``global_weight``, ``adjacent_repeat_weight``, ``self_weight != 1``, and ``zscale_mode != "block"``. The visit
+``zscale_mode != "block"``. The visit
 order ``sweep_order`` (``"position"``, ``"knn"``, ``"energy"``) is applied by ``ph_design`` before this function
 is called, so ``plan_designable`` arrives already in visit order.``PHDesignConfig`` has no ``repetitive_window_gate_types`` field, so the
 upstream gate is absent and the window term is active whenever its weight is non-zero and a parent set is
@@ -64,8 +78,14 @@ from jax import lax
 from jaxtyping import Array, Bool, Float, Int
 from xtrax.tiling import AxisSpec
 
+from aminx.families.potts_mpnn.etab import potts_energy
 from aminx.families.protonpotts_mpnn.ph_potentials import block_stability_potentials
-from aminx.families.protonpotts_mpnn.vocab import PROTONPOTTS_V6, THREE_TO_ONE, canonical_letter
+from aminx.families.protonpotts_mpnn.vocab import (
+  PROTONPOTTS_V6,
+  THREE_TO_ONE,
+  canonical_letter,
+  token_index,
+)
 from aminx.tiling.dispatch import make_axis_dispatch_via_xtrax
 from aminx.tiling.planner import plan_axis_strategy
 from aminx.tiling.strategy import SafeMap
@@ -78,7 +98,7 @@ class DescentResult(NamedTuple):
   seq: Int[Array, " L"]  # final sequence
   n_draws: Int[Array, ""]  # uniforms consumed (0 at temperature 0)
   rounds: Int[Array, ""]  # sweeps executed, including the final sweep that changed nothing
-  zscales: Float[Array, " 3"]  # (sdH, sdSel, sdGlob) as upstream returns them; sdGlob is always 1.0
+  zscales: Float[Array, " 3"]  # (sdH, sdSel, sdGlob) as upstream returns them; sdGlob is 1.0 unless global_weight != 0
 
 
 _LETTER_TO_THREE: dict[str, str] = {letter: name for name, letter in THREE_TO_ONE.items()}
@@ -108,12 +128,6 @@ SWEEP_ORDERS = ("position", "knn", "energy")
 def _check_supported(config: PHDesignConfig) -> None:
   """Refuse upstream knobs this port does not implement, naming each one."""
   checks = (
-    (config.global_weight != 0.0, "global_weight != 0 (the upstream global protonation term)"),
-    (
-      config.adjacent_repeat_weight != 0.0,
-      "adjacent_repeat_weight != 0 (the adjacent-repeat bias)",
-    ),
-    (config.self_weight != 1.0, "self_weight != 1.0 (self/pair reweighting of the stability term)"),
     (config.zscale_mode != "block", f"zscale_mode={config.zscale_mode!r} (only 'block' is ported)"),
     (
       config.sweep_order not in SWEEP_ORDERS,
@@ -282,6 +296,144 @@ def _repetitive(
   return unary, pair
 
 
+# --- the three objective knobs of debt #2621 -------------------------------------------------------------------------
+
+_CANON = tuple(canonical_letter(i) for i in range(PROTONPOTTS_V6.size))
+_HIS_P, _HIS_S = token_index("HIS-P"), token_index("HIS-S")
+_ASP_P, _ASP_D = token_index("ASP-P"), token_index("ASP-D")
+_GLU_P, _GLU_D = token_index("GLU-P"), token_index("GLU-D")
+
+
+class GlobalMasks(NamedTuple):
+  """Positions the global term protonates / deprotonates: binder (chain A) positions whose NATIVE residue is His / Asp / Glu."""
+
+  his: Bool[Array, " L"]
+  asp: Bool[Array, " L"]
+  glu: Bool[Array, " L"]
+
+
+def global_masks(native: Int[Array, " L"], binder_mask: Bool[Array, " L"]) -> GlobalMasks:
+  """Residue-class masks of upstream ``_global_protonation_dH`` (2683-2686).
+
+  Upstream reads ``ctx.token_aa.res_name`` (the STRUCTURE's residue names, fixed for the run) ANDed with ``ctx.chainA_t``. Here the
+  native sequence's canonical letter plays ``res_name`` (``HIS-P`` and ``H`` are both His), so ``native`` must be the sequence BEFORE
+  the pins are set. The masks do not follow the working sequence: a position whose native residue is Asp is protonated by the
+  global term whatever the design put there.
+  """
+  native = jnp.asarray(native, dtype=jnp.int32)
+  binder = jnp.asarray(binder_mask, dtype=bool)
+
+  def klass(letter: str) -> Array:
+    return jnp.asarray([c == letter for c in _CANON], dtype=bool)[native] & binder
+
+  return GlobalMasks(his=klass("H"), asp=klass("D"), glu=klass("E"))
+
+
+def _global_sequences(seq: Int[Array, " L"], masks: GlobalMasks) -> tuple[Array, Array]:
+  """``(sp, sd)``: ``seq`` with the class residues protonated, and with Asp/Glu deprotonated and His at HIS-S (upstream 2688-2692)."""
+  sp = jnp.where(masks.his, _HIS_P, jnp.where(masks.asp, _ASP_P, jnp.where(masks.glu, _GLU_P, seq)))
+  sd = jnp.where(masks.his, _HIS_S, jnp.where(masks.asp, _ASP_D, jnp.where(masks.glu, _GLU_D, seq)))
+  return sp.astype(seq.dtype), sd.astype(seq.dtype)
+
+
+def global_protonation_dH(  # noqa: N802 -- upstream's name
+  table: Float[Array, "L K V V"],
+  e_idx: Int[Array, "L K"],
+  seq: Int[Array, " L"],
+  masks: GlobalMasks,
+) -> Float[Array, ""]:
+  """``g = H(all binder titratable -> protonated) - H(-> deprotonated)``, upstream ``_global_protonation_dH`` (v6 branch).
+
+  Lower ``g`` prefers the protonated state. Neutral His is the single ``HIS-S`` token, so upstream's mean over the neutral tokens
+  has one term. Full Potts energies on ``table``.
+  """
+  seq = jnp.asarray(seq, dtype=jnp.int32)
+  sp, sd = _global_sequences(seq, masks)
+  valid = jnp.ones(seq.shape, dtype=bool)
+  return potts_energy(table, e_idx, valid, sp) - potts_energy(table, e_idx, valid, sd)
+
+
+def _global_rel(
+  table: Float[Array, "L K V V"],
+  e_idx: Int[Array, "L K"],
+  seq: Int[Array, " L"],
+  block: Int[Array, " B"],
+  block_valid: Bool[Array, " B"],
+  masks: GlobalMasks,
+) -> Float[Array, "B V"]:
+  """``rel[b, a] = g(seq with block[b]=a) - g(seq)`` for each member alone, the rest held at ``seq`` (upstream ``dGlob``).
+
+  ``g`` depends on ``seq[p]`` only if ``p`` is outside the three residue-class masks (a class position is overwritten in both
+  ``sp`` and ``sd``), and then only through the candidate-energy row of ``p`` in ``sp`` and in ``sd``: ``H(x with p=a) - H(x with
+  p=b) == E[p, a] - E[p, b]``. Each member is taken as a single-member block, so edges to the other members count as fixed context.
+  Class positions get exactly 0, as upstream's ``g - glob0`` of an unchanged ``g``.
+  """
+  block_safe = jnp.where(block_valid, block, 0)
+  sp, sd = _global_sequences(seq, masks)
+  rows = []
+  for b in range(block.shape[0]):
+    pos, val = block_safe[b : b + 1], block_valid[b : b + 1]
+    u_p, _ = block_stability_potentials(table, e_idx, sp, pos, val)
+    u_d, _ = block_stability_potentials(table, e_idx, sd, pos, val)
+    rows.append(u_p[0] - u_d[0])
+  absolute = jnp.stack(rows)  # (B, V)
+  cur = seq[block_safe]
+  rel = absolute - jnp.take_along_axis(absolute, cur[:, None], axis=1)
+  in_class = (masks.his | masks.asp | masks.glu)[block_safe]
+  return jnp.where(in_class[:, None], 0.0, rel)
+
+
+def stability_table(table: Float[Array, "L K V V"], self_weight: float) -> Float[Array, "L K V V"]:
+  """The table the STABILITY term reads: slot 0 (the self field) scaled by ``self_weight``, pairs at 1.
+
+  Upstream ``_PottsScorer.reweighted`` (1610-1627) via ``ctx.stability_scorer`` (1671-1685), which returns the unweighted scorer when
+  ``w_self == w_pair`` (here ``self_weight == 1``). Same dtype as ``table``.
+  """
+  weight = float(self_weight)
+  if weight == 1.0:
+    return table
+  return jnp.asarray(table).at[:, 0].multiply(weight)
+
+
+def _same_canonical(dtype: np.dtype) -> Float[Array, "V V"]:
+  """``same[a, b] = 1`` when tokens ``a`` and ``b`` are the same canonical amino acid (``ASP-P == ASP-D``); upstream 2259."""
+  return jnp.asarray([[float(a == b) for b in _CANON] for a in _CANON], dtype=dtype)
+
+
+def _adjacent_repeat(
+  seq: Int[Array, " L"],
+  block: Int[Array, " B"],
+  block_valid: Bool[Array, " B"],
+  residue_number: Int[Array, " L"],
+  arw: float,
+  dtype: np.dtype,
+) -> tuple[Float[Array, "B V"], Float[Array, "B B V V"]]:
+  """Adjacent-repeat unary and within-block pairwise terms (upstream 2337-2351).
+
+  ``+arw`` per sequence-adjacent pair (residue numbers differing by exactly 1) on the same canonical amino acid. Both members in the
+  block: pairwise ``arw * same`` (a). One member in the block and the neighbour fixed (anywhere outside the block, at its CURRENT
+  token): unary ``arw * same[:, seq[q]]`` (b). Raw, not z-scaled. Neighbours are found through ``residue_number``, so, as for the
+  repetitive window, non-binder positions must carry residue numbers no binder residue is adjacent to (upstream: chain A only).
+  """
+  length = seq.shape[0]
+  n_block = block.shape[0]
+  same = _same_canonical(dtype)
+  block_safe = jnp.where(block_valid, block, 0)
+  res_block = residue_number[block_safe]  # (B,)
+  in_block = (
+    jnp.zeros((length,), dtype=bool).at[jnp.where(block_valid, block, length)].set(True, mode="drop")
+  )
+  adjacent = jnp.abs(residue_number[None, :] - res_block[:, None]) == 1  # (B, L)
+  fixed_nbr = (adjacent & ~in_block[None, :]).astype(dtype)  # (B, L)
+  unary = arw * jnp.einsum("bl,vl->bv", fixed_nbr, same[:, seq])  # (B, V)
+
+  close = jnp.abs(res_block[:, None] - res_block[None, :]) == 1  # (B, B)
+  upper = jnp.triu(jnp.ones((n_block, n_block), dtype=bool), k=1)
+  member_pair = block_valid[:, None] & block_valid[None, :] & close & upper
+  pair = (arw * member_pair.astype(dtype))[:, :, None, None] * same[None, None, :, :]
+  return unary, pair
+
+
 def block_objective(
   table: Float[Array, "L K V V"],
   e_idx: Int[Array, "L K"],
@@ -299,6 +451,9 @@ def block_objective(
   config: PHDesignConfig,
   wh: Float[Array, ""],
   wsel: Float[Array, ""],
+  wglob: Float[Array, ""] | float = 0.0,
+  glob_masks: GlobalMasks | None = None,
+  stab_table: Float[Array, "L K V V"] | None = None,
 ) -> Float[Array, " S"]:
   """Flat block objective ``J`` over all ``V**B`` joint assignments of one block.
 
@@ -306,9 +461,18 @@ def block_objective(
   fixed at ``seq`` (pins must already be set in ``seq``). Row-major with block axis 0 slowest, so
   ``np.unravel_index(index, [V] * B)`` recovers the assignment. Invalid tokens are ``+inf`` on every axis, and
   padded members (``block_valid`` False) take only token 0, with zero contribution.
+
+  The objective knobs of debt #2621: ``wglob`` is ``global_weight / sdGlob`` and ``glob_masks`` the :func:`global_masks`
+  (required when ``config.global_weight != 0``, else ``ValueError``); ``stab_table`` is :func:`stability_table` (default: built
+  from ``config.self_weight``); ``config.adjacent_repeat_weight`` needs nothing more.
   """
   _check_supported(config)
+  want_global = float(config.global_weight) != 0.0
+  if want_global and glob_masks is None:
+    msg = "global_weight != 0 needs glob_masks (see global_masks)"
+    raise ValueError(msg)
   table = jnp.asarray(table)
+  stab = stability_table(table, config.self_weight) if stab_table is None else jnp.asarray(stab_table)
   e_idx = jnp.asarray(e_idx, dtype=jnp.int32)
   seq = jnp.asarray(seq, dtype=jnp.int32)
   block = jnp.asarray(block, dtype=jnp.int32)
@@ -324,7 +488,7 @@ def block_objective(
   n_block = block.shape[0]
   block_safe = jnp.where(block_valid, block, 0)
 
-  unary, pair = block_stability_potentials(table, e_idx, seq, block_safe, block_valid)
+  unary, pair = block_stability_potentials(stab, e_idx, seq, block_safe, block_valid)
   sel_abs = _selective_unary(
     table,
     e_idx,
@@ -349,8 +513,18 @@ def block_objective(
   )
 
   member = block_valid[:, None]
-  unary_tot = jnp.where(member, wh * unary + wsel * sel_rel + rep_unary, 0.0)
+  unary_tot = wh * unary + wsel * sel_rel
+  if want_global:
+    assert glob_masks is not None  # noqa: S101 -- narrowed above
+    unary_tot = unary_tot + wglob * _global_rel(table, e_idx, seq, block, block_valid, glob_masks)
+  unary_tot = unary_tot + rep_unary
   pair_tot = wh * pair + rep_pair
+  arw = float(config.adjacent_repeat_weight)
+  if arw != 0.0:
+    adj_unary, adj_pair = _adjacent_repeat(seq, block, block_valid, residue_number, arw, table.dtype)
+    unary_tot = unary_tot + adj_unary
+    pair_tot = pair_tot + adj_pair
+  unary_tot = jnp.where(member, unary_tot, 0.0)
   allowed = _allowed_tokens(member, valid_tokens, vocab)
   return _joint(unary_tot, pair_tot, allowed, n_block, vocab).reshape(-1)
 
@@ -403,12 +577,15 @@ def block_zstats(
   pin_dep: Int[Array, "P D"],
   pin_dep_valid: Bool[Array, "P D"],
   valid_tokens: Bool[Array, " V"],
+  *,
+  stab_table: Float[Array, "L K V V"] | None = None,
 ) -> tuple[Array, Array, Array, Array]:
   """z-scale statistics of ONE block: ``(var_h, has_h, var_s, has_s)``. ``seq`` must already carry the pins.
 
   The per-block part of :func:`block_zscales`, lifted out so the browser can export it as its own graph and pool
-  the blocks itself.
+  the blocks itself. ``stab_table`` (default ``table``) is :func:`stability_table`, which only the stability variance reads.
   """
+  stab = table if stab_table is None else stab_table
   vocab = table.shape[-1]
   dtype = table.dtype
   n_block = block.shape[0]
@@ -416,7 +593,7 @@ def block_zstats(
   member = valid[:, None]
   allowed = _allowed_tokens(member, valid_tokens, vocab)
 
-  unary, pair = block_stability_potentials(table, e_idx, seq, block_safe, valid)
+  unary, pair = block_stability_potentials(stab, e_idx, seq, block_safe, valid)
   var_h, count_h = _finite_var(_joint(unary, pair, allowed, n_block, vocab))
 
   sel_abs = _selective_unary(
@@ -447,6 +624,32 @@ def block_zstats(
   return var_h, has_h, var_s, has_s
 
 
+def block_zstats_global(
+  table: Float[Array, "L K V V"],
+  e_idx: Int[Array, "L K"],
+  seq: Int[Array, " L"],
+  block: Int[Array, " B"],
+  valid: Bool[Array, " B"],
+  valid_tokens: Bool[Array, " V"],
+  glob_masks: GlobalMasks,
+) -> tuple[Array, Array]:
+  """``(var_g, has_g)`` of ONE block: the variance of the unary global term, as the selective one (upstream 2114-2119).
+
+  The block's joint is the broadcast sum of its members' ``g(S with p=a) - g(S)`` rows over the valid tokens; it contributes only if
+  some row is non-zero and the joint has more than one finite entry. ``seq`` must already carry the pins.
+  """
+  vocab = table.shape[-1]
+  n_block = block.shape[0]
+  member = valid[:, None]
+  allowed = _allowed_tokens(member, valid_tokens, vocab)
+  rel = _global_rel(table, e_idx, seq, block, valid, glob_masks)
+  rel = jnp.where(member & valid_tokens[None, :], rel, 0.0)
+  varies = jnp.sum(jnp.abs(rel)) > 0
+  joint = _joint(rel, jnp.zeros((n_block, n_block, vocab, vocab), dtype=table.dtype), allowed, n_block, vocab)
+  var_g, count_g = _finite_var(joint)
+  return var_g, varies & (count_g > 1)
+
+
 def block_zscales(
   table: Float[Array, "L K V V"],
   e_idx: Int[Array, "L K"],
@@ -458,10 +661,14 @@ def block_zscales(
   pin_dep: Int[Array, "P D"],
   pin_dep_valid: Bool[Array, "P D"],
   valid_tokens: Bool[Array, " V"],
+  *,
+  stab_table: Float[Array, "L K V V"] | None = None,
+  glob_masks: GlobalMasks | None = None,
 ) -> Float[Array, " 3"]:
-  """Frozen ``(sdH, sdSel, sdGlob)`` of upstream ``_block_zscales`` (``zscale_mode="block"``), with ``sdGlob=1``.
+  """Frozen ``(sdH, sdSel, sdGlob)`` of upstream ``_block_zscales`` (``zscale_mode="block"``).
 
-  Pins are set in ``seq`` first, as upstream does, so the caller may pass the raw seed sequence.
+  Pins are set in ``seq`` first, as upstream does, so the caller may pass the raw seed sequence. ``sdGlob`` is pooled only when
+  ``glob_masks`` is given (upstream ``want_global``), else 1.0. ``stab_table`` is :func:`stability_table` (default ``table``).
   """
   seq = _set_pins(seq, pin_positions, pin_prot)
   vocab = table.shape[-1]
@@ -469,11 +676,15 @@ def block_zscales(
   n_block = blocks.shape[1]
   block_safe_all = jnp.where(block_valid, blocks, 0)
 
-  def per_block(xs: tuple[Array, Array]) -> tuple[Array, Array, Array, Array]:
+  def per_block(xs: tuple[Array, Array]) -> tuple[Array, ...]:
     block, valid = xs
-    return block_zstats(
+    stats = block_zstats(
       table, e_idx, seq, block, valid, pin_positions, pin_prot, pin_dep, pin_dep_valid, valid_tokens,
+      stab_table=stab_table,
     )
+    if glob_masks is None:
+      return stats
+    return (*stats, *block_zstats_global(table, e_idx, seq, block, valid, valid_tokens, glob_masks))
 
   # The blocks are independent, so this is a map, not a scan. Which map (one vmap, or tiles of it) is xtrax's call:
   # each block holds a V**B joint, and the planner demotes Vmap to SafeMap when all N of them would not fit.
@@ -492,10 +703,11 @@ def block_zscales(
     blocks_in = jnp.concatenate([blocks_in, jnp.broadcast_to(blocks_in[:1], (pad, *blocks_in.shape[1:]))])
     valid_in = jnp.concatenate([valid_in, jnp.broadcast_to(valid_in[:1], (pad, *valid_in.shape[1:]))])
   iterator = make_axis_dispatch_via_xtrax(strategy, axis=_PH_BLOCKS.name)
-  var_h, has_h, var_s, has_s = (out[:n_blocks] for out in iterator(per_block, (blocks_in, valid_in)))
-  sd_h = _pool(var_h, has_h, dtype)
-  sd_s = _pool(var_s, has_s, dtype)
-  return jnp.stack([sd_h, sd_s, jnp.asarray(1.0, dtype=dtype)])
+  outs = [out[:n_blocks] for out in iterator(per_block, (blocks_in, valid_in))]
+  sd_h = _pool(outs[0], outs[1], dtype)
+  sd_s = _pool(outs[2], outs[3], dtype)
+  sd_g = _pool(outs[4], outs[5], dtype) if glob_masks is not None else jnp.asarray(1.0, dtype=dtype)
+  return jnp.stack([sd_h, sd_s, sd_g])
 
 
 def select_joint(
@@ -568,6 +780,7 @@ def block_descent(
   config: PHDesignConfig,
   uniforms: Float[Array, " M"],
   cdf_order: Array | None = None,
+  binder_mask: Bool[Array, " L"] | None = None,
 ) -> DescentResult:
   """Gauss-Seidel block descent over the designable positions, as upstream ``_block_descent`` 2193-2387.
 
@@ -579,10 +792,17 @@ def block_descent(
   ``cdf_order`` (default None) sets the token order of the inverse-CDF sampler; see ``select_joint``. It exists
   for parity with an upstream dump and is left unset in production.
 
+  ``binder_mask (L,)`` (the chain-A positions) is required when ``config.global_weight != 0``: with the NATIVE ``seq`` (before the pins
+  are set) it fixes the His/Asp/Glu positions the global term titrates (:func:`global_masks`). Else it is unused.
+
   ``plan_designable`` only fixes the row count and order (row ``n`` visits ``plan_designable[n]``, which is
   ``blocks[n, 0]``). Unsupported upstream knobs raise ``NotImplementedError`` before any work is done.
   """
   _check_supported(config)
+  gw = float(config.global_weight)
+  if gw != 0.0 and binder_mask is None:
+    msg = "global_weight != 0 needs binder_mask (chain-A positions) to fix the residues the global term titrates"
+    raise ValueError(msg)
   if blocks.shape[0] != plan_designable.shape[0]:
     raise ValueError(
       f"blocks has {blocks.shape[0]} rows but plan_designable has {plan_designable.shape[0]}",
@@ -602,7 +822,9 @@ def block_descent(
   uniforms = jnp.asarray(uniforms, dtype=table.dtype)
 
   dtype = table.dtype
+  glob_masks = global_masks(seq, binder_mask) if gw != 0.0 and binder_mask is not None else None  # native, pre-pin
   seq = _set_pins(seq, pin_positions, pin_prot)
+  stab_table = stability_table(table, config.self_weight)
   n_designable = blocks.shape[0]
   if n_designable == 0:
     return DescentResult(
@@ -631,10 +853,16 @@ def block_descent(
     pin_dep,
     pin_dep_valid,
     valid_tokens,
+    stab_table=stab_table,
+    glob_masks=glob_masks,
   )
   lam = float(config.combined_lambda)
   wh = (1.0 - lam) / zscales[0]
   wsel = lam / zscales[1]
+  # SIGN: upstream's ``wGlob = gw / sdGlob`` multiplies ``(g - g0)`` and the descent MINIMISES the objective, so a POSITIVE
+  # global_weight minimises g = H(protonated) - H(deprotonated), i.e. favours the PROTONATED state (upstream's docstrings say the
+  # reverse). Follows the code; ``wglob`` is 0 (term absent) when global_weight == 0.
+  wglob = gw / zscales[2] if gw != 0.0 else 0.0
   seq_final, draws_final, rounds_final = _sweep_to_convergence(
     table,
     e_idx,
@@ -652,6 +880,9 @@ def block_descent(
     config=config,
     wh=wh,
     wsel=wsel,
+    wglob=wglob,
+    glob_masks=glob_masks,
+    stab_table=stab_table,
     cdf_order=cdf_order,
   )
   return DescentResult(
@@ -680,6 +911,9 @@ def _sweep_to_convergence(
   config: PHDesignConfig,
   wh: Float[Array, ""],
   wsel: Float[Array, ""],
+  wglob: Float[Array, ""] | float = 0.0,
+  glob_masks: GlobalMasks | None = None,
+  stab_table: Float[Array, "L K V V"] | None = None,
   cdf_order: Array | None = None,
 ) -> tuple[Array, Array, Array]:
   """Repeat full sweeps until one changes nothing or ``block_max_rounds`` is reached.
@@ -716,6 +950,9 @@ def _sweep_to_convergence(
       config=config,
       wh=wh,
       wsel=wsel,
+      wglob=wglob,
+      glob_masks=glob_masks,
+      stab_table=stab_table,
     )
     if temperature > 0:
       uniform = uniforms[jnp.minimum(draws, n_uniform - 1)]

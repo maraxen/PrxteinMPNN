@@ -27,7 +27,13 @@ from aminx.families.potts_mpnn.model import PottsMPNN
 from aminx.families.protonpotts_mpnn import ProtonPottsDriver
 from aminx.families.protonpotts_mpnn.energy import protonpotts_table
 from aminx.families.protonpotts_mpnn.ph_config import PHDesignConfig, config_from_options
-from aminx.families.protonpotts_mpnn.ph_descent import _check_supported, rep_class_mask
+from aminx.families.protonpotts_mpnn.ph_descent import (
+  _adjacent_repeat,
+  _check_supported,
+  global_masks,
+  rep_class_mask,
+  stability_table,
+)
 from aminx.families.protonpotts_mpnn.ph_methods import UNK_INDEX, DecoderField, design_methods
 from aminx.families.protonpotts_mpnn.ph_potentials import candidate_energies
 from aminx.families.protonpotts_mpnn.ph_design import _plan_for, _visit_order
@@ -614,12 +620,18 @@ def test_knob_semantics_sweep_order(registered: ProtonPottsDriver, tmp_path: Pat
 
 
 def test_knob_semantics_global_weight() -> None:
-  """global_weight is unported: the mapping holds and block_descent refuses non-default values (#2621)."""
+  """global_weight is ported (#2621): the mapping holds, block_descent accepts it, and the term is the sign the code has."""
   assert ProtonPottsOptions().global_weight == 0.0
   config = config_from_options(ProtonPottsOptions(binder_chain="A", global_weight=0.1))
   assert config.global_weight == 0.1
-  with pytest.raises(NotImplementedError, match="global_weight"):
-    _check_supported(config)
+  _check_supported(config)  # no longer refused
+  # Native His / Asp / Glu on the binder chain only: the global term titrates exactly those positions.
+  native = jnp.asarray([token_index(t) for t in ("H", "D", "E", "A", "H")])
+  binder = jnp.asarray([True, True, True, True, False])
+  masks = global_masks(native, binder)
+  assert np.asarray(masks.his).tolist() == [True, False, False, False, False]
+  assert np.asarray(masks.asp).tolist() == [False, True, False, False, False]
+  assert np.asarray(masks.glu).tolist() == [False, False, True, False, False]
 
 
 def test_knob_semantics_zscale_mode() -> None:
@@ -632,18 +644,34 @@ def test_knob_semantics_zscale_mode() -> None:
 
 
 def test_knob_semantics_adjacent_repeat_weight() -> None:
-  """adjacent_repeat_weight is unported: the mapping holds and block_descent refuses non-zero values (#2621)."""
+  """adjacent_repeat_weight is ported (#2621): the mapping holds, block_descent accepts it, and an adjacent same-AA pair costs +w."""
   assert ProtonPottsOptions().adjacent_repeat_weight == 0.0
   config = config_from_options(ProtonPottsOptions(binder_chain="A", adjacent_repeat_weight=0.2))
   assert config.adjacent_repeat_weight == 0.2
-  with pytest.raises(NotImplementedError, match="adjacent_repeat_weight"):
-    _check_supported(config)
+  _check_supported(config)  # no longer refused
+  seq = jnp.asarray([token_index("A"), token_index("A"), token_index("G")])
+  block = jnp.asarray([0, 1])
+  valid = jnp.asarray([True, True])
+  residue = jnp.asarray([1, 2, 3])
+  unary, pair = _adjacent_repeat(seq, block, valid, residue, 0.2, jnp.float32)
+  # Member 0 and member 1 are adjacent: the pair table charges 0.2 where both tokens are the same amino acid, 0 otherwise.
+  assert float(pair[0, 1, token_index("A"), token_index("A")]) == pytest.approx(0.2)
+  assert float(pair[0, 1, token_index("ASP-P"), token_index("ASP-D")]) == pytest.approx(0.2)
+  assert float(pair[0, 1, token_index("A"), token_index("G")]) == 0.0
+  # Member 1 also touches the fixed position 2 (token G): choosing G there costs 0.2 as a unary; member 0 has no fixed neighbour.
+  assert float(unary[1, token_index("G")]) == pytest.approx(0.2)
+  assert float(unary[1, token_index("A")]) == 0.0
+  assert float(jnp.abs(unary[0]).sum()) == 0.0
 
 
 def test_knob_semantics_self_weight() -> None:
-  """self_weight is unported: the mapping holds and block_descent refuses values other than 1.0 (#2621)."""
+  """self_weight is ported (#2621): the mapping holds, block_descent accepts it, 1.0 is a no-op and others scale slot 0 only."""
   assert ProtonPottsOptions().self_weight == 1.0
   config = config_from_options(ProtonPottsOptions(binder_chain="A", self_weight=0.9))
   assert config.self_weight == 0.9
-  with pytest.raises(NotImplementedError, match="self_weight"):
-    _check_supported(config)
+  _check_supported(config)  # no longer refused
+  table = jnp.ones((3, 4, 5, 5))
+  assert stability_table(table, 1.0) is table
+  scaled = stability_table(table, 0.5)
+  assert np.allclose(np.asarray(scaled[:, 0]), 0.5)
+  assert np.allclose(np.asarray(scaled[:, 1:]), 1.0)

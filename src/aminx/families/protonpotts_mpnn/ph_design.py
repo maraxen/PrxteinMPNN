@@ -282,8 +282,12 @@ def _run_optimiser(
   config: PHDesignConfig,
   draws_u: jnp.ndarray,
   cdf_order: jnp.ndarray | None,
+  binder_mask: np.ndarray | None = None,
 ) -> DescentResult | GreedyResult:
-  """One optimiser run for a plan: pin arrays and block table as in ``protonpotts_ph_block_parity.run_call``."""
+  """One optimiser run for a plan: pin arrays and block table as in ``protonpotts_ph_block_parity.run_call``.
+
+  ``binder_mask`` (chain-A positions) reaches ``block_descent``, which needs it only when ``global_weight != 0``.
+  """
   valid = jnp.asarray(valid_token_mask(config.forbidden_tokens))
   rep = jnp.asarray(rep_class_mask(config.repetitive_window_parents))
   residue_j = jnp.asarray(residue, dtype=jnp.int32)
@@ -330,6 +334,7 @@ def _run_optimiser(
     config=config,
     uniforms=draws_u,
     cdf_order=cdf_order,
+    binder_mask=None if binder_mask is None else jnp.asarray(binder_mask, dtype=bool),
   )
 
 
@@ -410,6 +415,7 @@ def design_structure(
       config,
       draws_u,
       cdf_order,
+      binder_mask,
     )
 
     seq = np.asarray(result.seq, dtype=np.int32)

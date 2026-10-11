@@ -49,7 +49,8 @@ test("pickProbs: inverse CDF in a non-identity cdfOrder, side='left' at an exact
   assert.equal(draws.pickProbs(probs), 0); // 0.625 == cumulative[1]: side='left' keeps index 1 (token 0), not index 2
   assert.equal(draws.pickProbs(probs), 1); // 0.99 in (0.75, 1]
   assert.equal(draws.events.length, 4);
-  assert.deepEqual(draws.events[2], { uniform: 0.625, choice: 0 });
+  // Events also carry the probabilities drawn from (X11b amendment 261010), in aminx token order.
+  assert.deepEqual(draws.events[2], { uniform: 0.625, choice: 0, probs: [0.125, 0.25, 0.5, 0.125] });
 });
 
 test("pickProbs with the identity order when no cdfOrder is given", () => {

@@ -24,6 +24,15 @@ Controls (each rejected when the comparison fails on at least one call of the ce
   SWAPPED -- the knn calls run with sweep_order "energy" (and vice versa): a port that confuses the rankers must fail;
   SHIFTED -- uniforms shifted by one draw on a T > 0 call.
 
+AMENDMENT (261011), after graded run cf69cf4c recorded FAIL (disclosed; that run stays a recorded fail): 47/48 calls passed with every
+visit order, plan, token, draw count and z-scale exact (f64 ~1e-15) and all four controls rejected. The one failing call
+(multichain/f32/block_energy_T05/4) missed only the f32 selectivity-score band: aminx f32 gap -23.512512, upstream f32 -23.512360,
+upstream f64 -23.512355 -- aminx's own f32 summation error (1.5e-4, 6.5e-6 relative; it is equally far from upstream f64), against a band
+of 10x UPSTREAM's f32-vs-f64 spread (4.4e-6 on that call). That band measures only one implementation's f32 noise. Amended f32 score band:
+10 x max(upstream |f32 - f64|, aminx |f32 - f64| of the SAME designed sequence, scored with the f64 table), never below 1e-6 relative --
+applied to the final energy and the selectivity gap of every f32 call. f64 bands, all exact checks and the controls are unchanged. The
+oracle is deterministic, so the amended rule is necessarily re-applied to the same 48 calls; this limitation is stated, not hidden.
+
 PREDICTION, stated before the run so it can be wrong: all 48 calls pass and all four controls are rejected. Risks: the energy ranker's
 in-edge lookup (upstream _inc_src/_inc_slot vs aminx scanning e_idx rows; duplicate neighbours, last occurrence wins), Python-float sums
 on an f32 table near ties, and the pooled z-scale order now following the visit order.

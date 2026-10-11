@@ -20,7 +20,7 @@ import equinox as eqx
 import jax
 from proxide.ops.dataset import create_protein_dataset
 
-from aminx.host.family_driver import FAMILY_DRIVERS
+from aminx.host.family_driver import FAMILY_DRIVERS, validate_model_family
 from aminx.io.weights import load_model
 from aminx.run.resources import proxide_dataset_resource_kwargs
 
@@ -195,6 +195,7 @@ def prep_protein_stream_and_model(
     "use_vdw": bool(spec.use_vdw),
   }
 
+  validate_model_family(spec.model_family)
   driver = FAMILY_DRIVERS.get(spec.model_family)
   if driver is not None:
     # Fallback purposes: the registered driver loaded the composite module and

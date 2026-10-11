@@ -27,7 +27,13 @@ from aminx.host._sampling_helper import (
   _structure_ids_for_batch,
 )
 from aminx.host.bucketing import batch_span, repad_residue_axis, score_rung, trim_residue_axis
-from aminx.host.family_driver import FAMILY_DRIVERS, FamilyDriver
+from aminx.host.family_driver import (
+  DRIVER_BACKED_FAMILY_MODULES,
+  FAMILY_DRIVERS,
+  FAMILY_EXTRA_REQUIREMENTS,
+  FamilyDriver,
+  validate_model_family,
+)
 from aminx.host.family_runner import run_family_driver
 from aminx.host.kernel_dispatch import _sample_batch, _spec_sample_rung
 from aminx.host.logit_aggregation import (
@@ -66,13 +72,32 @@ from aminx.run.specs import (
 
 # Families whose dispatch REQUIRES a registered FamilyDriver. The stock MPNN path
 # cannot serve these, so a missing driver is an error, never a silent fallback.
-# Keyed by family so adding a third family is a one-line table entry rather than
-# another hand-written branch that the next family forgets to add -- which is the
-# shape this replaced, one `if family == ...` per family.
-_DRIVER_BACKED_FAMILIES: dict[str, str] = {
-  "pottsmpnn": "aminx.families.potts_mpnn",
-  "lasermpnn": "aminx.families.laser_mpnn",
-}
+# The table lives in family_driver (one source of truth shared with spec validation);
+# this alias keeps the name the dispatch code and its tests use.
+_DRIVER_BACKED_FAMILIES: dict[str, str] = DRIVER_BACKED_FAMILY_MODULES
+
+
+def _require_family_extra(family: str) -> None:
+  """Fail with the install hint when a family's optional dependency is missing.
+
+  Without this, a laser request dies on a bare ``ModuleNotFoundError: prody`` raised
+  from inside featurization (#2483). Checked at resolution, before any featurizing.
+  """
+  requirement = FAMILY_EXTRA_REQUIREMENTS.get(family)
+  if requirement is None:
+    return
+  import importlib  # noqa: PLC0415
+
+  module, extra = requirement
+  try:
+    importlib.import_module(module)
+  except ImportError as exc:
+    msg = (
+      f"model_family={family!r} needs the optional {module!r} dependency, which is not "
+      f"installed. Install the {extra!r} extra: `uv sync --extra {extra}` or "
+      f"`pip install 'aminx[{extra}]'`."
+    )
+    raise ImportError(msg) from exc
 
 
 def _family_driver_for(spec: Any) -> FamilyDriver | None:  # noqa: ANN401
@@ -101,7 +126,11 @@ def _family_driver_for(spec: Any) -> FamilyDriver | None:  # noqa: ANN401
   keep a third family from re-introducing it.
   """
   family = getattr(spec, "model_family", None)
+  if family is not None:
+    validate_model_family(family)
   module = _DRIVER_BACKED_FAMILIES.get(family) if isinstance(family, str) else None
+  if module is not None:
+    _require_family_extra(family)
   if module is not None and FAMILY_DRIVERS.get(family) is None:
     import importlib  # noqa: PLC0415
 

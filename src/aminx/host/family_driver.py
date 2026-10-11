@@ -22,7 +22,31 @@ if TYPE_CHECKING:
 # Canonical 21-letter alphabet stamped on driver sink roots (X is the gap token).
 ALPHABET = "ACDEFGHIKLMNPQRSTVWYX"
 
-DRIVER_MODEL_FAMILIES: frozenset[str] = frozenset({"pottsmpnn", "lasermpnn"})
+# ONE source of truth for which ``model_family`` names exist. Validation (RunSpecification,
+# runner, prep, CLI) and dispatch all read these tables, so a name cannot be valid in one
+# place and unknown in another.
+STOCK_MODEL_FAMILIES: tuple[str, ...] = ("proteinmpnn", "ligandmpnn")
+# Driver-backed families need a registered FamilyDriver, imported on first use from the
+# module named here. A missing driver is an error, never a fallback to the stock path.
+DRIVER_BACKED_FAMILY_MODULES: dict[str, str] = {
+  "pottsmpnn": "aminx.families.potts_mpnn",
+  "lasermpnn": "aminx.families.laser_mpnn",
+}
+# Optional-dependency gate per driver-backed family: (importable module, pip extra).
+FAMILY_EXTRA_REQUIREMENTS: dict[str, tuple[str, str]] = {
+  "lasermpnn": ("prody", "laser"),
+}
+MODEL_FAMILIES: tuple[str, ...] = (*STOCK_MODEL_FAMILIES, *DRIVER_BACKED_FAMILY_MODULES)
+DRIVER_MODEL_FAMILIES: frozenset[str] = frozenset(DRIVER_BACKED_FAMILY_MODULES)
+
+
+def validate_model_family(value: object) -> str:
+  """Return ``value`` when it names a known family; raise ValueError listing the valid names."""
+  if isinstance(value, str) and value in MODEL_FAMILIES:
+    return value
+  valid = ", ".join(repr(name) for name in MODEL_FAMILIES)
+  msg = f"unknown model_family {value!r}; valid model families are: {valid}"
+  raise ValueError(msg)
 
 
 class FamilyBatch(NamedTuple):

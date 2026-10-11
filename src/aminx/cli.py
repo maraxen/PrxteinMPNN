@@ -13,6 +13,7 @@ from typing import Annotated, Any, Literal, cast
 
 import typer
 
+from aminx.host.family_driver import validate_model_family
 from aminx.io.input_uri import (
   get_dedup_key,
   parse_input_uri,
@@ -429,6 +430,16 @@ def _emit_or_run(
 _OPT = typer.Option
 
 
+def _validate_model_family_option(value: str | None) -> str | None:
+  """Reject an unknown ``--model-family`` at parse time, naming the valid families (#2484)."""
+  if value is None:
+    return None
+  try:
+    return validate_model_family(value)
+  except ValueError as exc:
+    raise typer.BadParameter(str(exc)) from exc
+
+
 @dataclasses.dataclass
 class _RunBase:
   """Carrier for the shared model/infra options parsed by the ``run`` callback."""
@@ -490,6 +501,7 @@ def _run_base(
       "dispatch through a FamilyDriver rather than the stock MPNN path. Leave unset to "
       "auto-derive from checkpoint_id (RunSpecification.__post_init__); an explicit value "
       "here is always respected even if it disagrees with checkpoint_id.",
+      callback=_validate_model_family_option,
     ),
   ] = None,
   checkpoint_id: Annotated[str | None, _OPT(help="Checkpoint identifier")] = None,
@@ -1111,6 +1123,7 @@ def _spec_base(
       "dispatch through a FamilyDriver rather than the stock MPNN path. Leave unset to "
       "auto-derive from checkpoint_id (RunSpecification.__post_init__); an explicit value "
       "here is always respected even if it disagrees with checkpoint_id.",
+      callback=_validate_model_family_option,
     ),
   ] = None,
   checkpoint_id: Annotated[str | None, _OPT(help="Checkpoint identifier")] = None,

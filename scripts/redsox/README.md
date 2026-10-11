@@ -156,8 +156,8 @@ comparison of anything the gate does.
    dirty tree, and checks every `--mutants` string against the manifest before
    anything launches. It must be run from a checkout that already has it.
 
-   Group 4 is `protonpotts_parity` alone (spec 261007 section 50): the twelve ProtonPottsMPNN waves behind one row,
-   93 controls named `<wave>.<control>`. It needs the sealed P4 dumps (`AMINX_PROTONPOTTS_ORACLES`, default
+   Group 4 is `protonpotts_parity` alone (spec 261007 section 50): the thirteen ProtonPottsMPNN waves behind one row,
+   98 controls named `<wave>.<control>`. It needs the sealed P4 dumps (`AMINX_PROTONPOTTS_ORACLES`, default
    `~/projects/aminx-oracles-protonpotts`) and the converted state (`AMINX_PROTONPOTTS_STATE`, default
    `~/scratch/v6_state.npz`); the launcher exports both:
 

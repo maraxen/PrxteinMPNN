@@ -23,6 +23,7 @@ import jax
 import pytest
 
 from port._emit import Evidence, TierVerdict, emit_tier_verdict
+from port_guards import unset_wave_skip_reason
 
 PORT_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = PORT_ROOT.parents[1]
@@ -301,7 +302,17 @@ def pytest_collection_modifyitems(
       msg = f"{item.nodeid} is under tests/port but has no port_wave marker"
       raise pytest.UsageError(msg)
   active = os.environ.get("AMINX_PORT_WAVE")
-  governed = [item for item in port_items if active is None or _marker_wave(item) == active]
+  if active is None:
+    # Debt #2444: without AMINX_PORT_WAVE only the pyproject default wave runs; every
+    # other wave skips with a reason rather than loading the default oracle.
+    default_wave = _default_wave_name()
+    for item in port_items:
+      reason = unset_wave_skip_reason(_marker_wave(item), default_wave)
+      if reason is not None:
+        item.add_marker(pytest.mark.skip(reason=reason))
+    governed = [item for item in port_items if _marker_wave(item) == default_wave]
+  else:
+    governed = [item for item in port_items if _marker_wave(item) == active]
   if not governed:
     return
   port_config = load_port_target()
@@ -327,6 +338,16 @@ def _marker_wave(item: pytest.Item) -> str | None:
   if mark is None or not mark.args:
     return None
   return str(mark.args[0])
+
+
+def _default_wave_name() -> str:
+  """Wave named by pyproject ``[tool.port] target`` (the only wave run without the env)."""
+  data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+  configured = data.get("tool", {}).get("port", {}).get("target")
+  if not isinstance(configured, str) or not configured:
+    msg = "AMINX_PORT_WAVE is unset and [tool.port] target is missing"
+    raise FileNotFoundError(msg)
+  return Path(configured).stem
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:

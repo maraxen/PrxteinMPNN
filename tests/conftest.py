@@ -12,6 +12,7 @@ from jax import random
 
 from aminx.utils.data_structures import Protein
 from aminx.types.arrays import ModelParameters
+from port_guards import check_selected_wave
 
 
 def _hf_hub_reachable() -> bool:
@@ -383,6 +384,8 @@ def pytest_collection_modifyitems(
   if deselected:
     config.hook.pytest_deselected(items=deselected)
     items[:] = selected
+  # Debt #2494: an explicitly selected wave must collect real, non-vacuous items.
+  check_selected_wave(selected, wave)
 
 
 @pytest.hookimpl(hookwrapper=True)

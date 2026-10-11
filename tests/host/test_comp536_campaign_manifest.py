@@ -488,7 +488,7 @@ class TestIntegration:
         spec = SamplingSpecification(
             inputs=["/tmp/test.pdb"],
             checkpoint_id="ckpt_001",
-            model_family="ligandmpnn_v1",
+            model_family="ligandmpnn",
             temperature=[1.0],
             backbone_noise=[0.0],
         )
@@ -521,7 +521,7 @@ class TestIntegration:
         spec = SamplingSpecification(
             inputs=["/tmp/test.pdb"],
             checkpoint_id="ckpt_001",
-            model_family="ligandmpnn_v1",
+            model_family="ligandmpnn",
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             manifest_path = Path(tmpdir) / "manifest.json"
@@ -547,7 +547,7 @@ class TestIntegration:
         spec = SamplingSpecification(
             inputs=["/tmp/test.pdb"],
             checkpoint_id=None,  # intentionally empty
-            model_family="ligandmpnn_v1",
+            model_family="ligandmpnn",
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             with pytest.raises(ValueError, match="checkpoint_id"):

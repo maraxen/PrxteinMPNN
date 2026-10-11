@@ -20,8 +20,10 @@ from aminx.host.family_driver import (
     DRIVER_BACKED_FAMILY_MODULES,
     MODEL_FAMILIES,
     STOCK_MODEL_FAMILIES,
+    ModelFamily,
     validate_model_family,
 )
+from aminx.model.versions import MODEL_WEIGHTS
 from aminx.run.specs import RunSpecification, SamplingSpecification
 
 _UNKNOWN = "foompnn"
@@ -29,7 +31,7 @@ _UNKNOWN = "foompnn"
 
 def _literal_members() -> set[str]:
     raw = RunSpecification.__annotations__["model_family"]
-    hint = eval(raw, {"Literal": Literal}) if isinstance(raw, str) else raw  # noqa: S307
+    hint = eval(raw, {"Literal": Literal, "ModelFamily": ModelFamily}) if isinstance(raw, str) else raw  # noqa: S307
     members: set[str] = set()
     for arg in get_args(hint):
         if arg is type(None):
@@ -54,6 +56,26 @@ def test_default_family_and_valid_names_resolve() -> None:
     assert spec.model_family == "proteinmpnn"
     # A stock family is not driver-backed: resolution returns None and does not raise.
     assert _runner._family_driver_for(SimpleNamespace(model_family="proteinmpnn")) is None  # noqa: SLF001
+
+
+@pytest.mark.parametrize("typo", ["foompnn", "lasermpn"])
+def test_pure_typos_rejected(typo: str) -> None:
+    with pytest.raises(ValueError, match=typo):
+        validate_model_family(typo)
+
+
+def test_temperature_and_weight_family_names_validate() -> None:
+    # Families named by the temperature-default rule (spec.py _as_temperature_tuple) and
+    # the MODEL_WEIGHTS registry's family-shaped name must all pass the guard.
+    temperature_families = {"proteinmpnn", "ligandmpnn", "membrane", "pottsmpnn", "lasermpnn"}
+    weight_families = set(get_args(MODEL_WEIGHTS)) & set(MODEL_FAMILIES)
+    assert weight_families == {"membrane"}
+    for name in temperature_families | weight_families:
+        assert validate_model_family(name) == name
+    # Weight-variant names are not families and stay rejected.
+    for name in ("soluble", "sc", "original", "ligand"):
+        with pytest.raises(ValueError):
+            validate_model_family(name)
 
 
 def test_unknown_family_rejected_by_spec_listing_valid_names() -> None:

@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TextIO, cast
 
-from aminx.host.family_driver import validate_model_family
+from aminx.host.family_driver import ModelFamily, validate_model_family
 from aminx.io.proxide_fetch import InputResolutionError
 from aminx.io.weights import get_topology_for_checkpoint
 from aminx.model.versions import MODEL_VERSION, MODEL_WEIGHTS
@@ -194,7 +194,7 @@ class RunSpecification:
   # sidechain context injection (host/_sampling_helper.py::_prepare_ligand_context)
   # independent of checkpoint_id, and a caller who forgot to set it got a silent no-op
   # (found live 2026-07-14).
-  model_family: Literal["proteinmpnn", "ligandmpnn", "pottsmpnn", "lasermpnn"] | None = None
+  model_family: ModelFamily | None = None
   checkpoint_id: str | None = None
   model_local_path: str | Path | None = None
   checkpoint_registry_path: str | Path | None = None

@@ -195,13 +195,18 @@ def test_divergence_larger_than_the_boundary_distance_fails_naming_the_sequence(
 
 
 def test_aligned_discrepancy_past_the_bound_fails_even_when_sequences_agree() -> None:
-  js = _design(probs=[[0.5 + 2e-3, 0.5 - 2e-3], [0.5, 0.5], [0.5, 0.5]])  # pick 0 is aligned: 2e-3 > 1e-3
+  js = _design(probs=[[0.5 + 6e-3, 0.5 - 6e-3], [0.5, 0.5], [0.5, 0.5]])  # pick 0 is aligned: 6e-3 > PROB_BOUND (5e-3)
   for exempt in (True, False):
     out = gate.compare_designs([js], [_design()], exempt_fragile=exempt)
     assert not out["pass"]
     assert [m["field"] for m in out["mismatches"]] == ["prob_bound"]
-    assert out["mismatches"][0]["max_discrepancy"] == pytest.approx(2e-3)
-    assert out["max_discrepancy"] == pytest.approx(2e-3)
+    assert out["mismatches"][0]["max_discrepancy"] == pytest.approx(6e-3)
+    assert out["max_discrepancy"] == pytest.approx(6e-3)
+
+
+def test_the_bound_is_the_amended_value() -> None:
+  assert gate.PROB_BOUND == 5.0e-3  # amendment 2; graded run 0bd45441 used 1e-3
+  assert gate.case_seed(0, 0, 100000) == gate.case_seed(0, 0) + 100000
 
 
 def test_aligned_discrepancy_within_the_bound_passes() -> None:

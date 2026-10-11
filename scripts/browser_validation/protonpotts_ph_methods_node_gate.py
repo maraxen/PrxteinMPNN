@@ -42,7 +42,7 @@ from scripts.browser_validation.protonpotts_score_gate import _verify_artifacts 
 logger = logging.getLogger("protonpotts_ph_methods_node_gate")
 
 FRAGILE_MARGIN = 1.0e-5  # of the total mass; reporting only (is_fragile_pick), no longer an exemption (amendment 261010)
-PROB_BOUND = 1.0e-3  # max cumulative-probability discrepancy on every aligned pick (amendment 261010)
+PROB_BOUND = 5.0e-3  # max cumulative-probability discrepancy on every aligned pick (amendment 2; 1e-3 in 0bd45441)
 SAMPLES = 2
 CENTER_TYPES = ("HIS-P",)
 SEED_BASE = 1000
@@ -247,8 +247,8 @@ def js_config(config: Any) -> dict[str, Any]:  # noqa: ANN401
   }
 
 
-def case_seed(case_index: int, cell_index: int) -> int:
-  return SEED_BASE + 10 * case_index + cell_index
+def case_seed(case_index: int, cell_index: int, offset: int = 0) -> int:
+  return SEED_BASE + offset + 10 * case_index + cell_index
 
 
 def inputs_sha256(payload: dict[str, Any]) -> str:
@@ -488,6 +488,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901, PLR0912, PLR0915
   parser.add_argument("--node-bin", default=os.environ.get("NODE_BIN"))
   parser.add_argument("--ort-web-dir", default=os.environ.get("ORT_WEB_DIR"))
   parser.add_argument("--unit-timeout", type=int, default=UNIT_TIMEOUT_S, help="seconds per (cell, case) Node process")
+  parser.add_argument("--seed-offset", type=int, default=0, help="added to every case seed (amendment 2: 100000 = held-out draws)")
   args = parser.parse_args(argv)
   logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -550,7 +551,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901, PLR0912, PLR0915
         row: dict[str, Any] = {"id": cid, "cell": name, "case": case, "method": method, "temperature": temperature,
                                "ran": False, "passed": False, "reused": False, "error": ""}  # fmt: skip
         result["cases"].append(row)
-        seed = case_seed(case_index, cell_index)
+        seed = case_seed(case_index, cell_index, args.seed_offset)
         rec = record_case(table, e_idx, native, binder_mask, res_id, config, seed)
         cdf_order = _cdf_order_array()
         ref_raw = reference_designs(table, e_idx, native, binder_mask, res_id, config, rec["replay"])

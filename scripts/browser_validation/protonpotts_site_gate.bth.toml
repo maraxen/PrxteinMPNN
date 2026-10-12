@@ -1,0 +1,114 @@
+[metadata]
+title = "X10 deployed-site gate: the built dist/protonpotts/ site reproduces the graded ProtonPotts harness pages bitwise, under a Pages subpath, without and with cross-origin isolation"
+created = "261010"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = """
+The deployable ProtonPotts site -- site/protonpotts/{index.html, app.mjs, worker.mjs, config.js} assembled by tools/build_site.py
+(browser/protonpotts-scorer/* modules copied to dist/protonpotts/lib/ with the import rewrite; weights copied from the X6a/X7a/X8a
+exports with per-file sha256 checks; ORT loaded from the jsDelivr CDN pinned at onnxruntime-web@1.30.0) -- served from a SUBPATH
+(/aminx/protonpotts/, as GitHub Pages serves a project site) and driven in headless Chromium through its own programmatic hook
+window.__PP_RUN__ (the same function its buttons call), produces outputs BITWISE IDENTICAL to the validated harness pages
+(protonpotts_page.mjs / ph_page.mjs / sampler_page.mjs, which X6c 42f9a1e9, X7c e6a4928f and X8c 335e26c8 graded against Python at
+bac26b80) on the SAME cells: the X6c scoring cells (energies, all rows), the X7c pH-design cells (designs, every field the page
+returns) and the X8c sampler cases (sequence, decoding order, log-probabilities), compared as exact float32/int equality.
+
+Thread settings, each paired with the harness page at the same thread count:
+  PAGES -- deployed site served WITHOUT COOP/COEP (the GitHub Pages condition) at 1 thread; must report crossOriginIsolated = false
+           and an effective thread count of 1.
+  COI   -- deployed site served WITH COOP/COEP (the condition a vendored coi-serviceworker or another host provides) at 4 threads;
+           must report crossOriginIsolated = true and an effective thread count of 4.
+The harness pages run as graded (COOP/COEP) at 1 and 4 threads.
+
+Why this licenses "validated": the harness pages are asserted byte-identical (git blob hash) to those graded at bac26b80, and the
+lib modules in dist are asserted byte-identical to browser/protonpotts-scorer/ apart from nothing (no rewrite touches them); exact
+equality with a graded page on the same inputs carries that page's validation over to the deployed path.
+
+Controls (each must fire, or the run is instrument_unverified):
+  PLANTED -- per arm, one cell sent to the deployed hook with a planted difference (scoring: variant rows shifted one token;
+             pH design: uniforms rolled by one; sampler: uniforms rolled by one) must make the SAME exact comparator report a
+             mismatch against the harness output for the unperturbed cell.
+  INTEGRITY -- a second staged copy of the site with one byte flipped in one scoring graph: the deployed hook must return
+             ok = false with an error naming that file (the site's sha256 check refuses it).
+  ENVIRONMENT -- the PAGES and COI isolation/thread reports above; and the ORT version the deployed page reports (ort.env.versions)
+             must be 1.30.0, the version the harness pages vendor.
+
+Preemption safety (pre-registered; changes scheduling only, never the outcomes): each (path, arm, thread setting) unit runs in its
+own process with its own timeout and persists its payload plus a completion stamp keyed by the sha256 of its inputs (cells.json,
+site tree digest, model manifest digests); a rerun reuses a unit only when those hashes match and records which units were reused.
+
+PREDICTION, stated before the run so it can be wrong: bitwise equality on every cell at both settings, all controls fire.
+Risks: (a) the CDN is unreachable from the gate host -- an error outcome, not a disagreement; (b) jsDelivr's 1.30.0 build differs
+from the npm tarball vendored under browser/layer_c (it should be the same artifact) -- would show as a mismatch, localised by the
+version record; (c) the deployed worker passes a parameter differently from the harness page (e.g. a config default or a labels
+encoding) -- a named mismatch on the affected arm, the failure this gate exists to catch.
+"""
+stage_name = "validation"
+novel = true
+# No [reproduction]: novel. Mirrors protonpotts_browser_parity (X6c), protonpotts_ph_browser_parity (X7c), protonpotts_sampler_browser_parity (X8c).
+
+[controls]
+positive_outcome = ["pass"]
+negative_outcome = ["error", "instrument_unverified", "fail"]
+
+# Declaration ORDER is load-bearing: bathos takes the FIRST matching branch.
+
+[outcomes.error]
+condition = "artifacts_verified = false OR harness_pages_match_graded = false OR site_built = false OR all_units_complete = false"
+decision = "A model manifest, the harness-page blob check, the site build, or at least one (path, arm, thread) unit did not complete. Nothing was compared against a complete run; cite nothing."
+reasoning = "A partial run must not borrow the authority of a complete one; a drifted harness page would break the transitive argument."
+is_residual = true
+
+[outcomes.instrument_unverified]
+condition = "all_units_complete = true AND NOT (planted_detected = true AND integrity_refused = true AND environment_ok = true)"
+decision = "A planted difference was not flagged, the tampered graph was not refused, or the PAGES/COI isolation, thread or ORT-version reports were wrong. Passes from this run are not evidence."
+reasoning = "Exact equality is only meaningful if the comparator can see a one-token change and the run tested the conditions it claims."
+is_residual = true
+
+[outcomes.fail]
+condition = "all_units_complete = true AND planted_detected = true AND integrity_refused = true AND environment_ok = true AND all_exact = false"
+decision = "At least one cell differs between the deployed site and the graded harness page. The per-cell record names the arm, thread setting, cell and field."
+reasoning = "Same modules, same graphs, same ORT version: a difference localises to the deployed worker's plumbing or the CDN build."
+is_residual = true
+
+[outcomes.pass]
+condition = "all_units_complete = true AND planted_detected = true AND integrity_refused = true AND environment_ok = true AND all_exact = true"
+decision = "The built ProtonPotts site reproduces the graded harness pages bitwise on every X6c/X7c/X8c cell, at 1 thread without isolation (GitHub Pages condition) and at 4 threads with isolation, from a subpath, with live controls. Scoring, pH block_descent design and decoder sampling are validated as deployed."
+reasoning = "Licenses 'validated as deployed' for these cells and Chromium only. Says nothing about other browsers, WebGPU, speed, the UI's form parsing beyond the hook, or methods the site does not offer."
+is_residual = false
+
+[result_schema]
+scoring_manifest_sha256 = "str"
+ph_manifest_sha256 = "str"
+decoder_manifest_sha256 = "str"
+artifacts_verified = "bool"
+harness_pages_match_graded = "bool"
+site_built = "bool"
+site_tree_sha256 = "str"
+ort_version_deployed = "str"
+onnxruntime_web_version = "str"
+playwright_version = "str"
+node_version = "str"
+git_hash = "str"
+git_clean = "bool"
+units = "list"
+units_reused = "list"
+all_units_complete = "bool"
+planted_detected = "bool"
+integrity_refused = "bool"
+environment_ok = "bool"
+all_exact = "bool"
+error = "str"
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true }
+
+[data]
+checkpoint = "ProtonPottsMPNN v6 epoch-0125, sha256 a39872250c0b8eb4c0b4cb6472a6edad0d6f6134a50c28b611386e83c592fe7b"
+artifacts = "X6a 40b4318e (scoring 7b2087dc...9243), X7a d5918c26 (ph 131a65cb...6fe7319), X8a cd5fe181 (decoder bacf2245...8c6b)"
+graded_pages = "X6c 42f9a1e9, X7c e6a4928f, X8c 335e26c8, all at bac26b80"
+tolerances = "exact: float32 bit equality and integer equality, every field"
+
+[provenance]
+note = "Pre-registered at the commit that adds this file, before protonpotts_site_gate.py exists and before the deployed site has produced any output."

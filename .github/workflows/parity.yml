@@ -12,6 +12,8 @@ jobs:
     env:
       PYTHONDONTWRITEBYTECODE: 1
       PRXTEIN_PARITY_TIER: parity_heavy
+      # requires-python is ">=3.13" with no upper bound, so uv otherwise resolves CPython 3.15, which torch has no wheel for.
+      UV_PYTHON: "3.13"
     steps:
       - name: Checkout Aminx repository
         uses: actions/checkout@v4

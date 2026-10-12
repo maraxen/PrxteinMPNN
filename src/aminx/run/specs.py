@@ -31,7 +31,7 @@ if TYPE_CHECKING:
   from aminx.utils.decoding_order import DecodingOrderFn
 
   from .batch_mapping import MappedBy
-  from .options import LaserOptions, PottsMPNNOptions
+  from .options import LaserOptions, PottsMPNNOptions, ProtonPottsOptions
 
 
 # Type aliases for convenience
@@ -285,6 +285,8 @@ class RunSpecification:
   sidechain_conditioning: bool = False
   potts_mpnn: PottsMPNNOptions | None = None
   """PottsMPNN knobs. ``None`` means the family defaults; set only for ``pottsmpnn``."""
+  protonpotts: ProtonPottsOptions | None = None
+  """ProtonPottsMPNN knobs. ``None`` means the family defaults; set only for ``protonpottsmpnn``."""
   laser: LaserOptions | None = None
   """LASErMPNN knobs. ``None`` means the family defaults; set only for ``lasermpnn``."""
 
@@ -465,6 +467,8 @@ class RunSpecification:
     checkpoint_name = self.checkpoint_id if isinstance(self.checkpoint_id, str) else ""
     if self.model_family is None and checkpoint_name.startswith("pottsmpnn_"):
       object.__setattr__(self, "model_family", "pottsmpnn")
+    elif self.model_family is None and checkpoint_name.startswith("protonpottsmpnn_"):
+      object.__setattr__(self, "model_family", "protonpottsmpnn")
     elif self.model_family is None and checkpoint_name.startswith("lasermpnn_"):
       object.__setattr__(self, "model_family", "lasermpnn")
 
@@ -523,6 +527,7 @@ _ALL_OUTPUT_KINDS = frozenset(
     "logits",
     "energy",
     "ddg",
+    "selectivity",
     "proofread_unconditional",
     "proofread_conditional",
   },
@@ -532,6 +537,7 @@ _OUTPUT_KINDS_BY_FAMILY: dict[str, frozenset[str]] = {
   "ligandmpnn": frozenset({"nll"}),
   "membrane": frozenset({"nll"}),
   "pottsmpnn": frozenset({"nll", "logits", "energy", "ddg"}),
+  "protonpottsmpnn": frozenset({"energy", "ddg", "selectivity"}),
   "lasermpnn": frozenset(
     {"nll", "logits", "proofread_unconditional", "proofread_conditional"},
   ),
@@ -582,6 +588,7 @@ class ScoringSpecification(RunSpecification):
     "logits",
     "energy",
     "ddg",
+    "selectivity",
     "proofread_unconditional",
     "proofread_conditional",
   ] = "nll"

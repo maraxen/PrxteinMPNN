@@ -1,0 +1,110 @@
+[metadata]
+title = "X7d sweep_order gate: JS block_descent with sweep_order knn / energy (Node, and headless Chromium at 1 and 4 threads) vs aminx design_structure"
+created = "261011"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = """
+browser/protonpotts-scorer/ph_design.mjs block_descent, with the visit-order knob config.sweepOrder in {"knn", "energy"} newly ported
+(knn: designable positions by their best rank in any pin's E_idx row, ties by index -- the existing ph_plan.mjs knnRank; energy: a new
+pure ranker reproducing aminx ph_design._centre_energy_rank -- outgoing then incoming pair terms, deps averaged, absolute gap summed over
+centres in float64, sorted by (-score, position)), reproduces aminx.families.protonpotts_mpnn.ph_design.design_structure with the same
+sweep_order -- the Python port graded against the upstream P4k oracle (protonpotts_ph_knobs_parity) -- on the X7b cells.
+
+Arms: (1) Node, onnxruntime-web wasm, 1 thread (the X7b runner); (2) headless Chromium through browser/layer_c/run_p07.mjs unchanged on
+the X7c harness page, at ORT numThreads 1 and 4 (crossOriginIsolated and effective threads recorded; the 4-thread arm counts only if
+isolated with more than one effective thread). Artifacts X6a scoring and X7a pH, verified by manifest sha256.
+
+Cells (X7b's): 1EL1, 1BVC, 1OLR (bucket 256), 6m0j (bucket 1024, binder chain E). Cases per cell, centre types HIS-P ASP-P GLU-P,
+2 samples, production defaults otherwise: knn_t0, energy_t0 (temperature 0), knn_t005, energy_t005 (temperature 0.05, injected uniforms,
+one array per sample, seeded from SEED 4031 -- not X7b's 31).
+
+A design passes when: the visit order (the reordered designable list block_descent actually used, recorded by both sides) is exactly
+equal; sequence tokens, designable positions, pins, label and draw counts exactly equal; final and selective energies within
+max|d| / max(1, |ref|) <= 1e-4 (the X7b bar). NO fragility exemptions: X7b, X7c and X10 graded these paths token-exact, so an order or
+token difference here is a failure, reported with the case, sample and first differing index. A unit is (arm, thread setting, cell,
+case); the run passes when every unit passes.
+
+Controls (each must make the SAME comparator fail on at least one design of the cases it applies to, at every arm and thread setting):
+ORDER -- the JS run with sweepOrder "position" graded against the knn / energy reference (shows the knob is live in these cells and the
+comparator sees the visit order); TOKENS -- T > 0 designs against the reference run with every uniform array rolled by one; ENERGY -- final
+energies against the same sequences scored under a Potts head perturbed by 1e-2 noise on every float leaf (as X7b).
+
+Preemption safety (scheduling only): per-unit persistence with a completion stamp keyed by the sha256 of its inputs (PDB, job, manifest
+shas, JS module and page digests, arm, thread setting); a rerun reuses matching stamps and records them.
+
+PREDICTION, stated before the run so it can be wrong: every unit passes and all three controls fire on every arm. Risk: an energy-order
+near-tie that the ORT f32 table and the JAX f32 table resolve differently (a fail, reported; any later exemption rule would be a disclosed
+amendment tested on fresh seeds, not an edit).
+
+AFTER THIS GATE (recorded here so the order is fixed): editing ph_design.mjs changes the digests that X7b, X7c, X11b and X11c key on and
+the built site X10 compares, so all five are re-run unchanged at the commit that carries the port, and cited only from those re-runs.
+"""
+stage_name = "validation"
+novel = true
+
+[controls]
+positive_outcome = ["pass"]
+negative_outcome = ["error", "instrument_unverified", "fail"]
+
+# Declaration ORDER is load-bearing: bathos takes the FIRST matching branch.
+
+[outcomes.error]
+condition = "jax_arm_ok = false OR artifacts_verified = false OR node_ok = false OR browser_complete = false"
+decision = "The reference, the artifact check, the Node arm or a browser arm did not complete. Cite nothing."
+reasoning = "Without a complete reference and complete arms there is nothing to grade."
+is_residual = true
+
+[outcomes.instrument_unverified]
+condition = "isolated_at_4 = false OR NOT (control_order_detected = true AND control_tokens_detected = true AND control_energy_detected = true)"
+decision = "The 4-thread arm did not run isolated with more than one thread, or a planted difference was not flagged on some arm. Passes are not evidence."
+reasoning = "A comparator blind to the visit order would pass a port that ignores sweepOrder."
+is_residual = true
+
+[outcomes.pass]
+condition = "n_cases > 0 AND n_pass = n_cases"
+decision = "JS block_descent honours sweep_order knn / energy exactly as the graded Python port, in Node and in headless Chromium at 1 and 4 threads."
+reasoning = "n_cases counts (arm, thread setting, cell, case) units. Licenses the sweep_order port for these cells only; the five re-runs named above are separate."
+is_residual = false
+
+[outcomes.fail]
+condition = "NOT (n_cases > 0 AND n_pass = n_cases)"
+decision = "At least one unit disagrees; the record names the arm, thread setting, case, sample, field and first differing index."
+reasoning = "Same tables and draws as the reference: a disagreement localises to the JS ranker or the loop."
+is_residual = true
+
+[result_schema]
+scoring_manifest_sha256 = "str"
+ph_manifest_sha256 = "str"
+artifacts_verified = "bool"
+jax_arm_ok = "bool"
+node_ok = "bool"
+browser_complete = "bool"
+isolated_at_4 = "bool"
+threads_effective = "dict"
+jax_version = "str"
+onnxruntime_web_version = "str"
+node_version = "str"
+chromium_version = "str"
+git_hash = "str"
+git_clean = "bool"
+n_cases = "int"
+n_pass = "int"
+cases = "list"
+units_reused = "list"
+control_order_detected = "bool"
+control_tokens_detected = "bool"
+control_energy_detected = "bool"
+error = "str"
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true }
+
+[data]
+checkpoint = "ProtonPottsMPNN v6 epoch-0125, sha256 a39872250c0b8eb4c0b4cb6472a6edad0d6f6134a50c28b611386e83c592fe7b"
+artifacts = "X6a 40b4318e (scoring 7b2087dc...9243), X7a d5918c26 (ph 131a65cb...6fe7319)"
+reference = "aminx ph_design.design_structure with PHDesignConfig.sweep_order knn / energy; the Python visit orders are graded against upstream P4k by protonpotts_ph_knobs_parity (run 576a66f8)"
+tolerances = "visit order, tokens, designable, pins, label, draws exact (no exemptions); energies max|d|/max(1,|ref|) <= 1e-4; SEED 4031"
+
+[provenance]
+note = "Pre-registered before the JS sweepOrder port and before protonpotts_ph_sweep_gate.py exist, and before any JS output with sweepOrder != position exists."

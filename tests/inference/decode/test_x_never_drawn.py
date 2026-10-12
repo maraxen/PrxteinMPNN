@@ -9,16 +9,23 @@ the logits, so an unmasked draw emits X, and check that the masked sampler does 
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Callable
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 from xtrax.tiling import CarryShape
 
 from aminx.inference.decode.autoregressive import AutoregressiveDecode
 from aminx.inference.encode import make_encode_fn
 from aminx.inference.logits import make_stage_set
+from aminx.inference.sample_autoregressive import SampleResult
+from aminx.model import Aminx
 from aminx.tiling.iterator import JaxScanIterator, VmapIterator
+from aminx.types.bundles import InferenceBundle
+from aminx.types.configs import InferenceConfig
+from aminx.types.stages import StageSet
 from aminx.utils.aa_convert import MPNN_ALPHABET
 from aminx.utils.sampling_support import X_INDEX, exclude_x_logits
 from tests.inference.decode.test_autoregressive import _build_synthetic_fixture
@@ -27,11 +34,14 @@ from tests.inference.decode.test_autoregressive import _build_synthetic_fixture
 _BOOST = 60.0
 
 
-def _boosted_stage_set(stage_set, token: int):
+LogitTransform = Callable[..., jax.Array]
+
+
+def _boosted_stage_set(stage_set: StageSet, token: int) -> StageSet:
   """Return a copy of ``stage_set`` whose logit transforms add ``_BOOST`` to ``token``."""
 
-  def wrap(fn):
-    def boosted(logits, bias=None):
+  def wrap(fn: LogitTransform) -> LogitTransform:
+    def boosted(logits: jax.Array, bias: jax.Array | None = None) -> jax.Array:
       base = fn(logits, bias=bias)
       return base.at[..., token].add(_BOOST)
 
@@ -46,7 +56,12 @@ def _boosted_stage_set(stage_set, token: int):
   )
 
 
-def _run_ar_decode_with(model, bundle, config, stage_set):
+def _run_ar_decode_with(
+  model: Aminx,
+  bundle: InferenceBundle,
+  config: InferenceConfig,
+  stage_set: StageSet,
+) -> SampleResult:
   """Encode then run the generic AR decode with a caller-supplied stage set."""
   L = int(bundle.geometry.residue_index.shape[1])
   ar_decode = AutoregressiveDecode(
@@ -118,6 +133,70 @@ def test_potts_mh_sweep_still_moves_to_a_boosted_standard_letter() -> None:
   seq = jnp.zeros((n,), dtype=jnp.int32)
   out = dlmc_sweep(jax.random.PRNGKey(3), seq, h, j, w, mask, n_steps=20)
   assert np.all(np.asarray(out) == 5), np.asarray(out)
+
+
+def test_potts_mh_sweep_keeps_the_sequence_dtype() -> None:
+  """The X entry guard does not promote an int8 sequence to int32."""
+  from aminx.potts.sampling import dlmc_sweep
+
+  n, q = 6, 21
+  h = jnp.zeros((n, q)).at[:, X_INDEX].set(_BOOST)
+  seq = jnp.full((n,), X_INDEX, dtype=jnp.int8)
+  out = dlmc_sweep(
+    jax.random.PRNGKey(0), seq, h, jnp.zeros((n, n, q, q)), jnp.zeros((n, n)), jnp.ones((n,)),
+  )
+  assert out.dtype == jnp.int8
+  assert not np.any(np.asarray(out) == X_INDEX)
+
+
+def test_potts_sweeps_reject_an_explicit_x_index_outside_the_alphabet() -> None:
+  """A 20-letter model has no column 20, and JAX would drop that write silently."""
+  from aminx.potts.sampling import dlmc_sweep, gibbs_sweep
+
+  n, q = 4, 20
+  args = (
+    jax.random.PRNGKey(0),
+    jnp.zeros((n,), dtype=jnp.int32),
+    jnp.zeros((n, q)),
+    jnp.zeros((n, n, q, q)),
+    jnp.zeros((n, n)),
+    jnp.ones((n,)),
+  )
+  with pytest.raises(ValueError, match="x_index=20"):
+    dlmc_sweep(*args, x_index=X_INDEX)
+  with pytest.raises(ValueError, match="x_index=20"):
+    gibbs_sweep(*args, x_index=X_INDEX)
+  # The default ("auto") excludes nothing on a non-MPNN alphabet, and None opts out.
+  assert dlmc_sweep(*args).shape == (n,)
+  assert gibbs_sweep(*args, x_index=None)[0].shape == (n,)
+
+
+def test_potts_auto_x_index_resolves_to_mpnn_x_only_for_q21() -> None:
+  from aminx.potts.sampling import _resolve_x_index
+
+  assert _resolve_x_index("auto", 21) == X_INDEX
+  assert _resolve_x_index("auto", 20) is None
+  assert _resolve_x_index("auto", 3) is None
+  assert _resolve_x_index(None, 21) is None
+  assert _resolve_x_index(3, 21) == 3
+
+
+def test_potts_gibbs_sweep_honours_a_custom_x_index() -> None:
+  """With X at column 3 and +60 on it, the Gibbs sweep never picks column 3."""
+  from aminx.potts.sampling import gibbs_sweep
+
+  n, q, x_col = 12, 21, 3
+  h = jnp.zeros((n, q)).at[:, x_col].set(_BOOST)
+  out, _ = gibbs_sweep(
+    jax.random.PRNGKey(5),
+    jnp.zeros((n,), dtype=jnp.int32),
+    h,
+    jnp.zeros((n, n, q, q)),
+    jnp.zeros((n, n)),
+    jnp.ones((n,)),
+    x_index=x_col,
+  )
+  assert not np.any(np.asarray(out) == x_col), np.asarray(out)
 
 
 def test_generic_autoregressive_sampler_never_emits_x_under_a_forced_x_bias() -> None:

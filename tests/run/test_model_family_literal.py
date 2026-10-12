@@ -6,6 +6,7 @@ from typing import Literal, get_args
 
 import pytest
 
+from aminx.host.family_driver import ModelFamily
 from aminx.run.run_spec_portable_json import run_spec_portable_to_dict
 from aminx.run.specs import RunSpecification, SamplingSpecification
 
@@ -15,7 +16,7 @@ def _literal_members() -> set[str]:
     # names that are not imported into the module (EncodingFusionFn). Read this
     # field's annotation on its own.
     raw = RunSpecification.__annotations__["model_family"]
-    hint = eval(raw, {"Literal": Literal}) if isinstance(raw, str) else raw  # noqa: S307
+    hint = eval(raw, {"Literal": Literal, "ModelFamily": ModelFamily}) if isinstance(raw, str) else raw  # noqa: S307
     members: set[str] = set()
     for arg in get_args(hint):
         if arg is type(None):
@@ -28,13 +29,7 @@ def _literal_members() -> set[str]:
 
 
 def test_model_family_literal_includes_driver_families() -> None:
-    assert _literal_members() == {
-        "proteinmpnn",
-        "ligandmpnn",
-        "pottsmpnn",
-        "protonpottsmpnn",
-        "lasermpnn",
-    }
+    assert _literal_members() == {"proteinmpnn", "ligandmpnn", "membrane", "pottsmpnn", "protonpottsmpnn", "lasermpnn"}
 
 
 def test_prefix_derivation_precedes_model_type() -> None:

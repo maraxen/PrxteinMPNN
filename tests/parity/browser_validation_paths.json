@@ -147,6 +147,7 @@
   "src/aminx/host/campaign.py::validate_manifest_rows": "P28",
   "src/aminx/host/campaign.py::write_campaign_manifest": "P28",
   "src/aminx/host/campaign.py::write_manifest": "P28",
+  "src/aminx/host/family_driver.py::validate_model_family": "P26",
   "src/aminx/host/family_driver.py::FamilyBatch": {
     "internal": "FamilyDriver seam: the host-side protocol by which a non-ProteinMPNN family (PottsMPNN, LASErMPNN) plugs into host/runner.py. ProteinMPNN does not route through it, so no browser P-ID reaches it; covered by tests/host/test_family_driver_seam.py."
   },

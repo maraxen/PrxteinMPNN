@@ -7,7 +7,7 @@ tasks; an empty registry leaves every existing MPNN runner path unchanged.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Mapping
-from typing import TYPE_CHECKING, Any, NamedTuple, Protocol
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Protocol, get_args
 
 import jax
 from equinox import Module as EqxModule
@@ -22,7 +22,38 @@ if TYPE_CHECKING:
 # Canonical 21-letter alphabet stamped on driver sink roots (X is the gap token).
 ALPHABET = "ACDEFGHIKLMNPQRSTVWYX"
 
-DRIVER_MODEL_FAMILIES: frozenset[str] = frozenset({"pottsmpnn", "protonpottsmpnn", "lasermpnn"})
+# ONE source of truth for which ``model_family`` names exist. Validation (RunSpecification,
+# runner, prep, CLI) and dispatch all read these tables, so a name cannot be valid in one
+# place and unknown in another.
+# The declared family type. RunSpecification annotates model_family with this alias, so the
+# type checker, the runtime guard and the stock list below all read the same Literal.
+ModelFamily = Literal["proteinmpnn", "ligandmpnn", "membrane", "pottsmpnn", "protonpottsmpnn", "lasermpnn"]
+# Driver-backed families need a registered FamilyDriver, imported on first use from the
+# module named here. A missing driver is an error, never a fallback to the stock path.
+DRIVER_BACKED_FAMILY_MODULES: dict[str, str] = {
+  "pottsmpnn": "aminx.families.potts_mpnn",
+  "protonpottsmpnn": "aminx.families.protonpotts_mpnn",
+  "lasermpnn": "aminx.families.laser_mpnn",
+}
+# Every declared family that is not driver-backed runs on the stock MPNN path.
+STOCK_MODEL_FAMILIES: tuple[str, ...] = tuple(
+  name for name in get_args(ModelFamily) if name not in DRIVER_BACKED_FAMILY_MODULES
+)
+# Optional-dependency gate per driver-backed family: (importable module, pip extra).
+FAMILY_EXTRA_REQUIREMENTS: dict[str, tuple[str, str]] = {
+  "lasermpnn": ("prody", "laser"),
+}
+MODEL_FAMILIES: tuple[str, ...] = (*STOCK_MODEL_FAMILIES, *DRIVER_BACKED_FAMILY_MODULES)
+DRIVER_MODEL_FAMILIES: frozenset[str] = frozenset(DRIVER_BACKED_FAMILY_MODULES)
+
+
+def validate_model_family(value: object) -> str:
+  """Return ``value`` when it names a known family; raise ValueError listing the valid names."""
+  if isinstance(value, str) and value in MODEL_FAMILIES:
+    return value
+  valid = ", ".join(repr(name) for name in MODEL_FAMILIES)
+  msg = f"unknown model_family {value!r}; valid model families are: {valid}"
+  raise ValueError(msg)
 
 
 class FamilyBatch(NamedTuple):

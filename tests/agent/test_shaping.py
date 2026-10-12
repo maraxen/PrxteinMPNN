@@ -204,7 +204,7 @@ def test_score_pairs_sequences_and_parks_logits(tmp_path: Path) -> None:
   results = {
     "scores": np.array([[1.0, 2.0]], dtype=np.float32),
     "logits": logits,
-    "schema_version": "scoring_v1",
+    "schema_version": "scoring_v2",
     "metadata": {
       "structure_ids": ["fused_multistate"],
       "fused_structure_ids": ["1ubq", "1mbn"],
@@ -224,6 +224,33 @@ def test_score_pairs_sequences_and_parks_logits(tmp_path: Path) -> None:
   assert shaped["fused_structure_ids"] == ["1ubq", "1mbn"]
   loaded = np.load(shaped["side_file"]["path"])
   np.testing.assert_array_equal(loaded["logits"], logits)
+
+
+def test_score_noise_axis_emits_noise_index(tmp_path: Path) -> None:
+  """A 3-D (S, C, D) score array emits one entry per (candidate, noise level) with noise_index."""
+  spec = ScoringSpecification(inputs=[str(_PDB)], sequences_to_score=["AAAA", "CCCC"])
+  scores = np.arange(1 * 2 * 3, dtype=np.float32).reshape(1, 2, 3)
+  results = {
+    "scores": scores,
+    "schema_version": "scoring_v2",
+    "noise_levels": (0.0, 0.1, 0.3),
+    "metadata": {
+      "structure_ids": ["1ubq"],
+      "skipped_inputs": [],
+      "noise_levels": (0.0, 0.1, 0.3),
+    },
+  }
+  shaped = _shape(tmp_path, results, kind="score", spec=spec, inline_cap=10, run_id="score-noise")
+  (structure,) = shaped["structures"]
+  assert [(e["sequence"], e["noise_index"], e["nll"]) for e in structure["scores"]] == [
+    ("AAAA", 0, 0.0),
+    ("AAAA", 1, 1.0),
+    ("AAAA", 2, 2.0),
+    ("CCCC", 0, 3.0),
+    ("CCCC", 1, 4.0),
+    ("CCCC", 2, 5.0),
+  ]
+  assert shaped["noise_levels"] == [0.0, 0.1, 0.3]
 
 
 def test_inspect_features_use_structure_keys(tmp_path: Path) -> None:

@@ -30,7 +30,9 @@ GRID_SCHEMA_VERSION: Final[str] = "grid_v1"
 SAMPLING_SCHEMA_VERSION: Final[str] = "sampling_v1"
 
 # Scoring (full-context inference) schema version.
-SCORING_SCHEMA_VERSION: Final[str] = "scoring_v1"
+# scoring_v2 (261011): scores gain a trailing noise-level axis when the spec has >= 2
+# backbone_noise levels, (S, C, D), and results record ``noise_levels``.
+SCORING_SCHEMA_VERSION: Final[str] = "scoring_v2"
 
 # Inspection (detailed model internals export) schema version.
 INSPECTION_SCHEMA_VERSION: Final[str] = "inspection_v1"

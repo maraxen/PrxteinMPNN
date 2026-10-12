@@ -41,7 +41,9 @@ import jax.numpy as jnp
 import numpy as np
 from xtrax.tiling import AxisSpec, BatchPlanner
 
+from aminx.families.potts_mpnn.driver import apply_potts_backbone_noise
 from aminx.families.potts_mpnn.model import PottsMPNN
+from aminx.families.potts_mpnn.noise_levels import potts_backbone_noise_levels
 from aminx.families.protonpotts_mpnn.energy import protonpotts_energies, protonpotts_table
 from aminx.families.protonpotts_mpnn.features import (
   PdbFeatureError,
@@ -76,6 +78,9 @@ _HANDLED = frozenset({"score:energy", "score:ddg", "score:selectivity", "sample"
 _REFERENCE_PURPOSES = frozenset({"score:energy", "score:selectivity"})
 _KEY = re.compile(r"^(?P<chain>[^:\s]+):(?P<number>-?\d+)(?P<icode>[A-Za-z]?)$")
 _VOCABULARY = ",".join(PROTONPOTTS_V6.symbols)
+# Fold constant of the backbone-noise key. Distinct from Potts' 0x9077 and LASEr's 0x6262 so the three
+# families never share a draw, and shared by every level of a sweep (the level is not folded in).
+_NOISE_FOLD = 0x7070
 
 
 class _Graph(NamedTuple):
@@ -93,6 +98,9 @@ class _Prepared(NamedTuple):
   graph: _Graph
   include_reference_in_output: bool
   kept: tuple[tuple[str, int, str, str], ...] = ()
+  # One plain ``_Prepared`` per backbone-noise level when the spec sweeps two or more (spec 261011
+  # N-D5); empty for a single level.
+  variants: tuple[_Prepared, ...] = ()
 
 
 class ProtonPottsInputError(ValueError):
@@ -119,6 +127,15 @@ class _ScoreStages:
   def __init__(self, model: PottsMPNN) -> None:
     self._model = model
 
+  def _block(self, item: _Prepared, *, reference_mode: bool) -> tuple[jax.Array, jax.Array]:
+    """Energies (or ddG) of one structure's rows at one noise level, and the rows shown."""
+    graph = item.graph
+    block = _JIT_ENERGIES(self._model, *_graph_args(graph), jnp.asarray(graph.sequences))
+    rows = jnp.asarray(graph.sequences, dtype=jnp.int32)
+    if reference_mode:
+      return block.astype(jnp.float32), rows
+    return (block[1:] - block[0]).astype(jnp.float32), rows[1:]
+
   def __call__(
     self,
     batch: FamilyBatch,
@@ -136,17 +153,16 @@ class _ScoreStages:
     expt: list[jax.Array] = []
     reference_mode = prepared[0].include_reference_in_output
     for item in prepared:
-      graph = item.graph
-      block = _JIT_ENERGIES(self._model, *_graph_args(graph), jnp.asarray(graph.sequences))
-      rows = jnp.asarray(graph.sequences, dtype=jnp.int32)
-      if reference_mode:
-        values, shown = block.astype(jnp.float32), rows
-      else:
-        values, shown = (block[1:] - block[0]).astype(jnp.float32), rows[1:]
+      per_level = [
+        self._block(variant, reference_mode=reference_mode) for variant in (item.variants or (item,))
+      ]
+      shown = per_level[0][1]
+      # Noise axis (D >= 2) sits after the candidate axis; one level keeps the plain (C,) vector.
+      values = per_level[0][0] if len(per_level) == 1 else jnp.stack([v for v, _ in per_level], axis=1)
       energies.append(values)
       ids.append(jnp.arange(values.shape[0], dtype=jnp.int32))
       tokens.append(shown)
-      expt.append(jnp.full(values.shape, jnp.nan, dtype=jnp.float32))
+      expt.append(jnp.full((values.shape[0],), jnp.nan, dtype=jnp.float32))
     if reference_mode:
       return {
         "energy": jnp.stack(energies),
@@ -187,13 +203,23 @@ class _SelectivityStages:
     ids: list[np.ndarray] = []
     tokens: list[np.ndarray] = []
     for item, pins in zip(prepared, pins_by_structure, strict=True):
-      table, e_idx = _JIT_TABLE(self._model, *_graph_args(item.graph))
       forced = np.stack([force_pins(row, pins) for row in item.graph.sequences])
-      gaps = [selectivity_gaps(table, e_idx, row, pins) for row in forced]
-      totals.append(np.asarray([total for total, _ in gaps], dtype=np.float32))
-      per_centre.append(
-        np.asarray([per for _, per in gaps], dtype=np.float32).reshape(len(gaps), -1),
-      )
+      level_totals: list[np.ndarray] = []
+      level_centres: list[np.ndarray] = []
+      for variant in item.variants or (item,):
+        table, e_idx = _JIT_TABLE(self._model, *_graph_args(variant.graph))
+        gaps = [selectivity_gaps(table, e_idx, row, pins) for row in forced]
+        level_totals.append(np.asarray([total for total, _ in gaps], dtype=np.float32))
+        level_centres.append(
+          np.asarray([per for _, per in gaps], dtype=np.float32).reshape(len(gaps), -1),
+        )
+      if item.variants:
+        # Noise axis right after the candidate axis: (C, D) and (C, D, N_centre).
+        totals.append(np.stack(level_totals, axis=1))
+        per_centre.append(np.stack(level_centres, axis=1))
+      else:
+        totals.append(level_totals[0])
+        per_centre.append(level_centres[0])
       ids.append(np.arange(forced.shape[0], dtype=np.int32))
       tokens.append(forced)
     return {
@@ -319,6 +345,7 @@ class ProtonPottsDriver:
     """One structure per batch, featurized by the v6 host port."""
     purpose = _purpose(spec)
     options = _options(spec)
+    _refuse_design_noise_axis(spec, purpose)
     if purpose == "sample":
       _check_sample_count(spec)
     if purpose == "score:selectivity" and not options.explicit_centers:
@@ -334,7 +361,7 @@ class ProtonPottsDriver:
         continue
       path = Path(item)
       try:
-        prepared = _prepare(path, options, purpose, _spec_sequences(spec))
+        prepared = _prepare(path, options, purpose, _spec_sequences(spec), spec=spec)
       except PdbFeatureError as exc:
         pending.append((index, str(exc)))
         continue
@@ -411,8 +438,7 @@ class ProtonPottsDriver:
     return designs
 
   def axes(self, spec: Any, purpose: str, batch: FamilyBatch) -> list[AxisSpec]:  # noqa: ANN401
-    """Structure and candidate axes."""
-    del spec
+    """Structure and candidate axes, plus ``noise`` when the spec sweeps two or more levels."""
     if purpose == "sample":
       designs = cast("tuple[list[PHDesign], ...]", batch.arrays.get("designs", ()))
       n_rows = max((len(d) for d in designs), default=1)
@@ -429,6 +455,9 @@ class ProtonPottsDriver:
       ),
       AxisSpec(name="mutants", cardinality=max(n_rows, 1), default_batch_size=max(n_rows, 1)),
     ]
+    n_noise = len(potts_backbone_noise_levels(spec))
+    if n_noise >= 2 and purpose != "sample":
+      specs.append(AxisSpec(name="noise", cardinality=n_noise, default_batch_size=n_noise))
     BatchPlanner().plan(specs)
     return specs
 
@@ -449,24 +478,31 @@ class ProtonPottsDriver:
     """
     vocab = {"vocabulary": _VOCABULARY}
     names = _id_attrs(spec, purpose)
+    _refuse_design_noise_axis(spec, purpose)
+    noised = len(potts_backbone_noise_levels(spec)) >= 2
+    cand = ("N_cand", "D_noise") if noised else ("N_cand",)
     if purpose == "score:energy":
       return {
-        "energy": SinkArraySpec(dims=("N_cand",), dtype="float32", attrs={}),
+        "energy": SinkArraySpec(dims=cand, dtype="float32", attrs={}),
         "candidate_ids": SinkArraySpec(dims=("N_cand",), dtype="int32", attrs=names),
         "candidate_tokens": SinkArraySpec(dims=("N_cand", "L_total"), dtype="int32", attrs=vocab),
       }
     if purpose == "score:ddg":
       return {
-        "ddg": SinkArraySpec(dims=("N_mut",), dtype="float32", attrs={}),
+        "ddg": SinkArraySpec(
+          dims=("N_mut", "D_noise") if noised else ("N_mut",),
+          dtype="float32",
+          attrs={},
+        ),
         "mutant_ids": SinkArraySpec(dims=("N_mut",), dtype="int32", attrs=names),
         "ddg_expt": SinkArraySpec(dims=("N_mut",), dtype="float32", attrs={}),
         "mutant_tokens": SinkArraySpec(dims=("N_mut", "L_total"), dtype="int32", attrs=vocab),
       }
     if purpose == "score:selectivity":
       return {
-        "selectivity": SinkArraySpec(dims=("N_cand",), dtype="float32", attrs={}),
+        "selectivity": SinkArraySpec(dims=cand, dtype="float32", attrs={}),
         "selectivity_per_centre": SinkArraySpec(
-          dims=("N_cand", "N_centre"),
+          dims=(*cand, "N_centre"),
           dtype="float32",
           attrs={},
         ),
@@ -495,6 +531,36 @@ def _purpose(spec: Any) -> str:  # noqa: ANN401
   if kind is None:
     return "sample"
   return f"score:{kind}"
+
+
+def _refuse_design_noise_axis(spec: Any, purpose: str) -> None:  # noqa: ANN401
+  """pH design cannot carry a noise axis, so a multi-level sweep is refused rather than truncated.
+
+  Designs are sorted by final energy per run, and the placement plan is chosen from the energy table of the
+  (noised) structure, so design ``i`` at level 0 and design ``i`` at level 1 need not share a plan, a pin
+  layout or even a count. There is no honest ``(N_design, D)`` array; run one level per call instead.
+  """
+  levels = potts_backbone_noise_levels(spec)
+  if purpose == "sample" and len(levels) >= 2:
+    msg = (
+      f"protonpottsmpnn sample (pH design): a multi-level backbone_noise sweep ({len(levels)} levels) has no "
+      "noise axis, because designs are energy-sorted and placement plans are re-chosen per noised "
+      "structure; pass a single level (one call per level)."
+    )
+    raise ValueError(msg)
+
+
+def _noised_coords(coords: np.ndarray, level: float, spec: Any) -> np.ndarray:  # noqa: ANN401
+  """Potts' per-atom Gaussian (``augment_eps * randn``) on featurized coordinates; ``level <= 0`` is a no-op.
+
+  Upstream PottsMPNN-pH featurizes through the same ``structure_noise`` path as PottsMPNN (its pH engine
+  passes 0.0). Keyed off ``random_seed`` with its own fold constant; the level is not folded in, so levels
+  share one draw scaled by the level.
+  """
+  if level <= 0.0:
+    return coords
+  key = jax.random.fold_in(jax.random.PRNGKey(int(spec.random_seed)), _NOISE_FOLD)
+  return np.asarray(apply_potts_backbone_noise(coords, level, key=key), dtype=np.float32)
 
 
 def _check_sample_count(spec: Any) -> None:  # noqa: ANN401
@@ -693,6 +759,8 @@ def _prepare(
   options: ProtonPottsOptions,
   purpose: str,
   sequences: Sequence[str],
+  *,
+  spec: Any = None,  # noqa: ANN401
 ) -> _Prepared:
   loaded = loaded_residues(path)
   labels = _reference_labels(loaded, options)
@@ -723,11 +791,20 @@ def _prepare(
     pad_valid=np.ones(length, dtype=np.bool_),
     sequences=rows,
   )
-  return _Prepared(
-    graph=graph,
-    include_reference_in_output=purpose in _REFERENCE_PURPOSES,
-    kept=tuple((chain, int(number), icode, name) for chain, number, icode, name in kept),
+  kept_rows = tuple((chain, int(number), icode, name) for chain, number, icode, name in kept)
+  # No spec (a direct call) means no noise, exactly as before this axis existed.
+  levels = potts_backbone_noise_levels(spec) if spec is not None else (0.0,)
+  variants = tuple(
+    _Prepared(
+      graph=graph._replace(coords=_noised_coords(graph.coords, level, spec)),
+      include_reference_in_output=purpose in _REFERENCE_PURPOSES,
+      kept=kept_rows,
+    )
+    for level in levels
   )
+  if len(variants) == 1:
+    return variants[0]
+  return variants[0]._replace(variants=variants)
 
 
 FAMILY_DRIVERS.register("protonpottsmpnn")(ProtonPottsDriver())

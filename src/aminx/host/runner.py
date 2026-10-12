@@ -16,6 +16,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from aminx.host._sampling_grid_lineage import (
+  _base_sampling_key,
   _grid_iteration_arrays,
   _grid_manifest_row_hash,
   _grid_sample_indices,
@@ -303,18 +304,18 @@ def sample(
   dict[str, Any]
       Dictionary with keys:
         sequences : jax.Array
-            Sampled sequences, shape (B*N, L) where B is batch count,
-            N is num_samples per structure, L is sequence length.
-            Padded to max length across all sequences, masked with 'mask' key.
+            Sampled sequences, shape (S, N, D, T, L): S structures, N samples per
+            structure, D backbone-noise levels, T temperatures, L (padded) sequence length.
+            Masked with 'mask' key.
         mask : jax.Array
-            Sequence validity mask (1 for valid, 0 for padding). Shape: (B*N, L).
+            Sequence validity mask (1 for valid, 0 for padding). Same shape as ``sequences``.
         schema_version : str
             Schema version for results ('grid_v1' or 'sampling_v1').
         metadata : dict
             Metadata including specification, skipped_inputs, structure_ids,
             and optional lineage info (grid mode).
         logits : jax.Array, optional
-            Per-position logits if return_logits=True. Shape: (B*N, L, 21).
+            Per-position logits if return_logits=True. Shape: (S, N, D, T, L, 21).
         pseudo_perplexity : jax.Array, optional
             Per-sequence pseudo-perplexity scores if computed.
 
@@ -643,9 +644,14 @@ def _make_averaged_score_fn(
       )
       bundles_per_noise.append(bundle)
 
-    # R3 assertion: runs on concrete arrays (outside JIT) so eqx.tree_equal returns
-    # a Python bool, not an abstract tracer. This is the safe location for this check.
-    if len(bundles_per_noise) > 1:
+    # R3 assertion: needs concrete arrays so eqx.tree_equal returns a Python bool. Under the
+    # runner's jax.vmap the inputs are tracers and bool() raises TracerBoolConversionError for
+    # D >= 2 (debt #2517), so the check is hoisted: ``runner.score`` calls
+    # ``score_sequence_averaged.check_r3`` once, eagerly, on the first concrete structure, and
+    # this in-call check only runs when the inputs are concrete (a direct, un-vmapped call).
+    if len(bundles_per_noise) > 1 and not any(
+      isinstance(leaf, jax.core.Tracer) for leaf in jax.tree.leaves(bundles_per_noise)
+    ):
       _check_r3_invariance(bundles_per_noise)
 
     # Delegate to JIT-compiled core
@@ -660,6 +666,38 @@ def _make_averaged_score_fn(
       use_rolling_state=use_rolling_state,
     )
 
+  def check_r3(
+    sequence: jax.Array,
+    structure_coordinates: jax.Array,
+    mask: jax.Array,
+    residue_index: jax.Array,
+    chain_index: jax.Array,
+  ) -> None:
+    """Run the R3 invariance check eagerly on concrete arrays (hoisted out of the vmap, #2517).
+
+    The invariant -- conditioning / geometry / ligand / wave are identical across the D noise
+    levels -- is a property of the bundle builder, not of the data, so one concrete structure
+    suffices. Raises ``AssertionError`` on a violation; a no-op for fewer than two levels.
+    """
+    levels = spec.run_spec.sampling.backbone_noise or (0.0,)
+    if len(levels) < 2:
+      return
+    bundles = [
+      build_inference_bundle(
+        coords=structure_coordinates,
+        mask=mask,
+        residue_index=residue_index,
+        chain_index=chain_index,
+        sequence=sequence,
+        backbone_noise=float(level),
+        mode="score_conditional",
+        inference=True,
+      )[0]
+      for level in levels
+    ]
+    _check_r3_invariance(bundles)
+
+  score_sequence_averaged.check_r3 = check_r3  # type: ignore[attr-defined]
   return score_sequence_averaged
 
 
@@ -752,6 +790,46 @@ def _candidate_activation_bytes(
   return int(per_structure) * batch_size
 
 
+def _score_noise_levels(spec: Any) -> tuple[float, ...]:  # noqa: ANN401
+  """The spec's backbone-noise levels as floats; ``(0.0,)`` when none are set."""
+  return tuple(float(level) for level in (spec.backbone_noise or (0.0,)))
+
+
+def _score_noise_key(spec: Any, structure_idx: Any) -> jax.Array:  # noqa: ANN401
+  """The per-structure backbone-noise key, identical to ``runner.sample``'s (N-D2).
+
+  Design derives ``fold_in(_base_sampling_key(spec), structure_idx)``
+  (``host/kernel_dispatch.py``, ``encode_key``) and hands it to the encoder; score uses the
+  same derivation so scoring at a design's spec/seed sees the identical noised backbone.
+  ``structure_idx`` is the index WITHIN the structure batch, as in design (design folds
+  ``jnp.arange(batch_size)``, not a global index). Scoring has no grid lineage, so
+  ``grid_lineage=None`` (the non-grid design key).
+  """
+  return jax.random.fold_in(_base_sampling_key(spec, grid_lineage=None), structure_idx)
+
+
+def _over_noise_levels(
+  run: Callable[..., Any],
+  noise_levels: tuple[float, ...],
+  noise_key: jax.Array,
+) -> Any:  # noqa: ANN401
+  """Run ``run(noise, key)`` at each noise level; D >= 2 gains a noise axis after candidates.
+
+  ``run`` returns a pytree whose leaves have a leading candidate axis. One level calls it
+  directly (output unchanged, ``(C, ...)``); two or more map it over the levels with
+  ``jax.vmap`` and move the level axis to position 1, giving ``(C, D, ...)``. A single level
+  of exactly ``0.0`` passes ``(None, None)`` so the call is the historical noise-free one,
+  bit for bit.
+  """
+  any_noise = any(level != 0.0 for level in noise_levels)
+  if len(noise_levels) == 1:
+    return run(*((noise_levels[0], noise_key) if any_noise else (None, None)))
+  key = noise_key if any_noise else None
+  levels = jnp.asarray(noise_levels, dtype=jnp.float32)
+  out = jax.vmap(lambda level: run(level, key))(levels)
+  return jax.tree.map(lambda leaf: jnp.moveaxis(leaf, 0, 1), out)
+
+
 def score(  # noqa: PLR0915
   spec: ScoringSpecification | None = None,
   **kwargs: Any,  # noqa: ANN401
@@ -775,15 +853,27 @@ def score(  # noqa: PLR0915
   dict[str, Any]
       Dictionary with keys:
         scores : jax.Array
-            Negative log-likelihood scores. Shape: (num_structures, num_sequences).
+            Negative log-likelihood scores. Shape: (num_structures, num_sequences) when
+            ``spec.backbone_noise`` has exactly one level, else
+            (num_structures, num_sequences, D) with one trailing entry per noise level
+            (candidates before noise, mirroring ``sample``'s samples-before-noise order).
+            The shape depends only on the spec. The fused multi-state path
+            (``state_position_map``) has one fused "structure": (1, C) / (1, C, D). With
+            ``average_node_features=True`` the levels are fused (D -> 1), so there is never a
+            noise axis.
         mask : jax.Array
             Structure validity mask (1 for valid, 0 for padding). Shape: (num_structures,).
         schema_version : str
-            Schema version for results ('scoring_v1').
+            Schema version for results ('scoring_v2').
+        noise_levels : tuple[float, ...]
+            The backbone-noise levels scored, in axis order (also in ``metadata``). Noise is
+            drawn from ``runner.sample``'s per-structure key, so a score at the same
+            spec/seed sees the same noised backbone as the design did.
         metadata : dict
-            Metadata including specification, structure_ids, and skipped_inputs.
+            Metadata including specification, structure_ids, noise_levels, and skipped_inputs.
         logits : jax.Array, optional
-            Per-position logits if return_logits=True. Shape: (num_structures, num_sequences, L, 21).
+            Per-position logits if return_logits=True. Shape: (num_structures, num_sequences, L, 21),
+            with the same trailing-D axis position as scores: (S, C, D, L, 21) for D >= 2.
         decoding_orders : None, optional
             Present (and always ``None``) if return_decoding_orders=True. Every score()
             path is full-context teacher forcing (``1 - I`` mask, no waves), so there is no
@@ -864,21 +954,12 @@ def score(  # noqa: PLR0915
     )
     raise ValueError(msg)
 
-  # Backbone noise (debt #2509). Only the averaged-feature path applies spec.backbone_noise
-  # (host/averaging.py encodes at each level). The plain per-structure path (its encode-once and
-  # per-candidate branches) and the fused multi-state path never forward a noise level to the
-  # scorer, and they return one score set per (structure, candidate) with no noise-level axis.
-  # Returning those noise-free scores for a spec that asked for noise would be silent, so refuse.
-  noise_levels = tuple(float(level) for level in (spec.backbone_noise or (0.0,)))
-  if not spec.average_node_features and any(level != 0.0 for level in noise_levels):
-    msg = (
-      f"score runner: spec.backbone_noise={noise_levels} is nonzero, but the plain score path "
-      "(and the fused multi-state path) never applies backbone noise and has no noise-level "
-      "axis in its result, so the scores would be noise-free without warning. Set "
-      "average_node_features=True to score with backbone noise applied, or set backbone_noise "
-      "to 0."
-    )
-    raise ValueError(msg)
+  # Backbone noise axis (N-D1..N-D3, spec 261011_noise-level-axis). Replaces the #214 refusal.
+  # The plain per-structure and fused multi-state paths apply every level in
+  # spec.backbone_noise, drawing the noise from design's per-structure key
+  # (``_score_noise_key``); the averaged-feature path fuses the levels (D -> 1) and has no
+  # noise axis. One level -> ``(S, C)``; two or more -> ``(S, C, D)``.
+  noise_levels = _score_noise_levels(spec)
 
   from aminx.scoring.score import make_score_fn, make_score_split_fns  # noqa: PLC0415
   from aminx.utils.aa_convert import string_to_protein_sequence  # noqa: PLC0415
@@ -904,10 +985,10 @@ def score(  # noqa: PLR0915
     score_fn = make_score_fn(model)  # type: ignore[arg-type]
 
   # Encode-once path (#147). Only the plain per-structure branch below uses it: the encoding is
-  # candidate-independent exactly when no backbone noise reaches the encoder, which is how this
-  # branch has always called the core (it forwards no noise level). The averaged-feature path
-  # encodes at spec.backbone_noise levels with keys derived from each candidate's key, and the
-  # fused multi-state path (state_position_map) stacks states into one encode; both keep their
+  # candidate-independent because the noise is drawn from the per-STRUCTURE key (N-D2), so it
+  # is encoded once per (structure, noise level) (N-D3). The averaged-feature path encodes at
+  # spec.backbone_noise levels with keys derived from each candidate's key, and the fused
+  # multi-state path (state_position_map) stacks states into one encode; both keep their
   # per-candidate core and are NOT hoisted.
   split_fns = (
     make_score_split_fns(model)  # type: ignore[arg-type]
@@ -938,6 +1019,7 @@ def score(  # noqa: PLR0915
       protein_iterator,
       score_fn,
       sequence_indices_list,
+      noise_levels=noise_levels,
     )
 
   from aminx.sampling.conditional_logits import _plan_axis_strategy  # noqa: PLC0415
@@ -980,6 +1062,7 @@ def score(  # noqa: PLR0915
     )
 
   padding_check = _PaddingCheck("score", rung_fn=_score_rung_of)
+  r3_checked = False
   for _batch_idx, batched_ensemble in enumerate(protein_iterator):
     padding_check(batched_ensemble)
     batch_size = batched_ensemble.coordinates.shape[0]
@@ -1033,6 +1116,9 @@ def score(  # noqa: PLR0915
       prng_key, subkey = jax.random.split(prng_key)
       flat_keys.append(subkey)
     batch_keys = jnp.stack(flat_keys, axis=0).reshape(batch_size, n_candidates, -1)
+    # One backbone-noise key per structure in the batch (N-D2): design's key, shared by every
+    # candidate and every noise level. Never consumed when no level is nonzero.
+    batch_noise_keys = jax.vmap(lambda idx: _score_noise_key(spec, idx))(jnp.arange(batch_size))
 
     # Per-structure ligand tensors (B, L, M, ...) or None. Only prepared when the spec asks for
     # a ligand, so the ligand-free path is byte-for-byte what it was.
@@ -1072,7 +1158,8 @@ def score(  # noqa: PLR0915
       score_ligand = tuple(trim_residue_axis(part, rung, 1) for part in score_ligand)
 
     if split_fns is not None:
-      activation_bytes = _candidate_activation_bytes(
+      # The noise-level axis is vmapped, so its activations coexist: scale by D.
+      activation_bytes = len(noise_levels) * _candidate_activation_bytes(
         split_fns,
         spec.multi_state_strategy,
         SimpleNamespace(
@@ -1108,6 +1195,7 @@ def score(  # noqa: PLR0915
       struct_chain_index: jax.Array,
       struct_keys: jax.Array,
       struct_ligand: tuple[jax.Array | None, jax.Array | None, jax.Array | None],
+      struct_noise_key: jax.Array,
       _candidate_iterator: Any = candidate_iterator,  # noqa: ANN401
       _stacked_sequences: jax.Array = score_sequences,
     ) -> tuple[jax.Array, jax.Array, jax.Array | None]:
@@ -1122,51 +1210,76 @@ def score(  # noqa: PLR0915
       )
 
       if split_fns is not None:
-        # Encode this structure ONCE (the ligand tensors belong to the encode side); the
-        # candidate map below closes over the encoding and runs only decode + NLL.
-        encoding = split_fns.encode_structure(
+
+        def _run_level(
+          noise: float | jax.Array | None,
+          noise_key: jax.Array | None,
+        ) -> tuple[jax.Array, jax.Array, jax.Array | None]:
+          noise_kwargs = {} if noise is None else {"backbone_noise": noise, "noise_key": noise_key}
+          # Encode this structure ONCE per noise level (the ligand tensors belong to the encode
+          # side); the candidate map below closes over the encoding and runs only decode + NLL.
+          encoding = split_fns.encode_structure(
+            struct_coords,
+            struct_mask,
+            struct_residue_index,
+            struct_chain_index,
+            **ligand_kwargs,
+            **noise_kwargs,
+          )
+
+          def _score_one_candidate(
+            item: dict[str, jax.Array],
+          ) -> tuple[jax.Array, jax.Array, jax.Array | None]:
+            return split_fns.score_candidate(
+              item["key"],
+              jax.nn.one_hot(item["seq"], 21),
+              encoding,
+              struct_coords,
+              struct_mask,
+              struct_residue_index,
+              struct_chain_index,
+              multi_state_strategy=spec.multi_state_strategy,
+            )
+
+          return _candidate_iterator(
+            _score_one_candidate,
+            {"key": struct_keys, "seq": _stacked_sequences},
+          )
+
+        return _over_noise_levels(_run_level, noise_levels, struct_noise_key)
+
+      # Averaged-feature path: it fuses the noise levels itself (D -> 1) from spec.backbone_noise,
+      # so it takes no noise key and has no noise axis.
+      def _score_one_candidate(
+        item: dict[str, jax.Array],
+      ) -> tuple[jax.Array, jax.Array, jax.Array | None]:
+        seq_one_hot = jax.nn.one_hot(item["seq"], 21)
+        return score_fn(  # type: ignore[misc]
+          item["key"],
+          seq_one_hot,
           struct_coords,
           struct_mask,
           struct_residue_index,
           struct_chain_index,
+          multi_state_strategy=spec.multi_state_strategy,
           **ligand_kwargs,
         )
-
-        def _score_one_candidate(
-          item: dict[str, jax.Array],
-        ) -> tuple[jax.Array, jax.Array, jax.Array | None]:
-          return split_fns.score_candidate(
-            item["key"],
-            jax.nn.one_hot(item["seq"], 21),
-            encoding,
-            struct_coords,
-            struct_mask,
-            struct_residue_index,
-            struct_chain_index,
-            multi_state_strategy=spec.multi_state_strategy,
-          )
-
-      else:
-
-        def _score_one_candidate(
-          item: dict[str, jax.Array],
-        ) -> tuple[jax.Array, jax.Array, jax.Array | None]:
-          seq_one_hot = jax.nn.one_hot(item["seq"], 21)
-          return score_fn(  # type: ignore[misc]
-            item["key"],
-            seq_one_hot,
-            struct_coords,
-            struct_mask,
-            struct_residue_index,
-            struct_chain_index,
-            multi_state_strategy=spec.multi_state_strategy,
-            **ligand_kwargs,
-          )
 
       return _candidate_iterator(
         _score_one_candidate,
         {"key": struct_keys, "seq": _stacked_sequences},
       )
+
+    if spec.average_node_features and len(noise_levels) > 1 and not r3_checked:
+      # Hoisted R3 check (#2517): concrete arrays, once, outside the vmap below.
+      score_fn.check_r3(  # type: ignore[union-attr]
+        score_sequences[0],
+        score_coords[0],
+        score_mask[0],
+        score_residue_index[0],
+        score_chain_index[0],
+      )
+      r3_checked = True
 
     # The third output (a decoding order) is discarded: scoring is full-context, see the
     # `decoding_orders` note in this function's docstring (debt #1717).
@@ -1177,6 +1290,7 @@ def score(  # noqa: PLR0915
       score_chain_index,
       batch_keys,
       score_ligand,
+      batch_noise_keys,
     )
     if rung is not None:
       batch_logits = repad_residue_axis(batch_logits, struct_len, -2)
@@ -1188,22 +1302,25 @@ def score(  # noqa: PLR0915
     resolved_structure_ids.extend(batch_structure_ids)
     structure_offset += batch_size
 
-  # Concatenate results: shape (num_structures, num_sequences)
+  # Concatenate results: (num_structures, num_sequences), plus a trailing noise-level axis
+  # (num_structures, num_sequences, D) when the spec has two or more levels (N-D1).
   scores_array = jnp.concatenate(all_scores, axis=0)
 
   results = {
     "scores": scores_array,
     "mask": jnp.ones(scores_array.shape[0], dtype=jnp.int32),
     "schema_version": SCORING_SCHEMA_VERSION,
+    "noise_levels": noise_levels,
     "metadata": {
       "specification": spec,
       "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
       "structure_ids": resolved_structure_ids,
+      "noise_levels": noise_levels,
     },
   }
 
   if spec.run_spec.sampling.return_logits and all_logits is not None:
-    # Shape: (num_structures, num_sequences, L, 21)
+    # Shape: (num_structures, num_sequences, L, 21), or (S, C, D, L, 21) with D >= 2 levels.
     results["logits"] = jnp.concatenate(all_logits, axis=0)
 
   if spec.run_spec.sampling.return_decoding_orders:
@@ -1212,11 +1329,13 @@ def score(  # noqa: PLR0915
   return results
 
 
-def _score_fused_multistate(  # not length-bucketed in S8 v1
+def _score_fused_multistate(  # noqa: PLR0915  # not length-bucketed in S8 v1
   spec: ScoringSpecification,
   protein_iterator: Any,  # noqa: ANN401
   score_fn: Any,  # noqa: ANN401
   sequence_indices_list: list[jax.Array],
+  *,
+  noise_levels: tuple[float, ...] = (0.0,),
 ) -> dict[str, Any]:
   """Score sequences against ONE genuinely fused multi-state ensemble.
 
@@ -1233,6 +1352,9 @@ def _score_fused_multistate(  # not length-bucketed in S8 v1
   Returns a `scores`/`logits` shaped with a leading dimension of 1 (one fused
   "structure"), not `len(spec.inputs)` independent ones -- the semantics are
   genuinely different from the default branch's per-structure output, by design.
+  `scores` is `(1, C)`, or `(1, C, D)` for two or more `noise_levels`; the noise draw uses the
+  design key for structure 0 (`_score_noise_key`). The averaged-feature scorer fuses levels
+  itself (D -> 1), so with `average_node_features` the levels are recorded but not mapped.
   """
   # Draining the Grain protein_iterator into host-side lists is not the "hand-rolled
   # loop over JAX computation" this project's composability convention forbids -- no
@@ -1318,41 +1440,66 @@ def _score_fused_multistate(  # not length-bucketed in S8 v1
   )
   candidate_iterator = make_axis_dispatch_via_xtrax(strategy, axis=N_CANDIDATES.name)
 
-  def _score_one_candidate(
-    item: dict[str, jax.Array],
-  ) -> tuple[jax.Array, jax.Array, jax.Array | None]:
-    seq_one_hot = jax.nn.one_hot(item["seq"], 21)
-    return score_fn(
-      item["key"],
-      seq_one_hot,
+  if spec.average_node_features and len(noise_levels) > 1:
+    # Hoisted R3 check (#2517): eager, on concrete arrays, outside the candidate vmap.
+    score_fn.check_r3(
+      stacked_sequences[0],
       stacked_coords,
       stacked_mask,
       stacked_residue_index,
       stacked_chain_index,
-      state_position_map=state_position_map,
-      multi_state_strategy=spec.multi_state_strategy,
-      multi_state_temperature=spec.multi_state_temperature,
     )
 
-  all_scores, all_logits, _ = candidate_iterator(
-    _score_one_candidate,
-    {"key": candidate_keys, "seq": stacked_sequences},
+  def _run_level(
+    noise: float | jax.Array | None,
+    noise_key: jax.Array | None,
+  ) -> tuple[jax.Array, jax.Array, jax.Array | None]:
+    noise_kwargs = {} if noise is None else {"backbone_noise": noise, "noise_key": noise_key}
+
+    def _score_one_candidate(
+      item: dict[str, jax.Array],
+    ) -> tuple[jax.Array, jax.Array, jax.Array | None]:
+      seq_one_hot = jax.nn.one_hot(item["seq"], 21)
+      return score_fn(
+        item["key"],
+        seq_one_hot,
+        stacked_coords,
+        stacked_mask,
+        stacked_residue_index,
+        stacked_chain_index,
+        state_position_map=state_position_map,
+        multi_state_strategy=spec.multi_state_strategy,
+        multi_state_temperature=spec.multi_state_temperature,
+        **noise_kwargs,
+      )
+
+    return candidate_iterator(
+      _score_one_candidate,
+      {"key": candidate_keys, "seq": stacked_sequences},
+    )
+
+  all_scores, all_logits, _ = _over_noise_levels(
+    _run_level,
+    (0.0,) if spec.average_node_features else noise_levels,
+    _score_noise_key(spec, 0),
   )
 
   # Leading dim of 1: ONE fused "structure", not len(spec.inputs) independent ones.
   results: dict[str, Any] = {
-    "scores": all_scores[None, :],
+    "scores": all_scores[None],
     "mask": jnp.ones(1, dtype=jnp.int32),
     "schema_version": SCORING_SCHEMA_VERSION,
+    "noise_levels": noise_levels,
     "metadata": {
       "specification": spec,
       "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
+      "noise_levels": noise_levels,
       "structure_ids": ["fused_multistate"],
       "fused_structure_ids": structure_ids,
     },
   }
   if spec.return_logits:
-    results["logits"] = all_logits[None, :]
+    results["logits"] = all_logits[None]
   if spec.return_decoding_orders:
     # Full-context scoring has no decoding order; see score()'s docstring (debt #1717).
     results["decoding_orders"] = None

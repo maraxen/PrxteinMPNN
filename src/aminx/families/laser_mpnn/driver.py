@@ -214,6 +214,9 @@ class _Prepared(NamedTuple):
   laser_indices: np.ndarray
   canonical_indices: np.ndarray
   order: np.ndarray
+  # One plain ``_Prepared`` per noise level when the spec sweeps two or more
+  # (spec 261011 N-D5); empty for a single level.
+  variants: tuple[_Prepared, ...] = ()
 
 
 def _graph(model: LASErMPNN) -> GraphStructure:
@@ -334,6 +337,13 @@ def _score_prepared(model: LASErMPNN, item: _Prepared, purpose: str) -> jax.Arra
     else:
       rows.append(sequence_nll(logits, jnp.asarray(canon, dtype=jnp.int32)).astype(jnp.float32))
   return jnp.stack(rows)
+
+
+def _score_noised(model: LASErMPNN, item: _Prepared, purpose: str) -> jax.Array:
+  """One structure's scores; with a noise sweep the level axis sits at 1 (after N_cand)."""
+  if not item.variants:
+    return _score_prepared(model, item, purpose)
+  return jnp.stack([_score_prepared(model, v, purpose) for v in item.variants], axis=1)
 
 
 def _proofread_batch(
@@ -512,7 +522,7 @@ class _ScoreStages:
         seed=self._seed,
         dropout_key=dropout_key,
       )
-    stacked = jnp.stack([_score_prepared(self._model, item, self._purpose) for item in prepared])
+    stacked = jnp.stack([_score_noised(self._model, item, self._purpose) for item in prepared])
     key = "logits" if self._purpose == "score:logits" else "nll"
     payload: dict[str, jax.Array] = {key: stacked}
     if self._options.output_fasta or self._options.output_fasta_only:
@@ -522,6 +532,37 @@ class _ScoreStages:
     if self._options.output_fasta_only:
       return {"fasta": payload["fasta"]}
     return payload
+
+
+def backbone_noise_levels(spec: Any) -> tuple[float, ...]:  # noqa: ANN401
+  """Every backbone noise level this spec asks for, or ``(0.0,)``.
+
+  Levels share ONE draw (the key ``0x6262`` fold is not indexed by level) scaled
+  by the level, so a single-level run is bit-identical to the first-level-only
+  behaviour. A noise axis exists in the output iff there are two or more.
+  """
+  for bundle in getattr(spec, "noise", ()) or ():
+    if bundle.feature_type == "backbone" and bundle.enabled and bundle.noise_levels:
+      return tuple(float(level) for level in bundle.noise_levels)
+  return (0.0,)
+
+
+def noise_axis_dims(dims: tuple[str, ...], levels: Sequence[float]) -> tuple[str, ...]:
+  """Insert ``D_noise`` right after the leading candidate/sample axis when D >= 2."""
+  if len(levels) < 2:
+    return dims
+  return (dims[0], "D_noise", *dims[1:])
+
+
+def refuse_proofread_noise(spec: Any, purpose: str) -> None:  # noqa: ANN401
+  """Proofread reduces over an ensemble of one noised structure: no noise axis exists."""
+  levels = backbone_noise_levels(spec)
+  if purpose.startswith("score:proofread_") and len(levels) >= 2:
+    msg = (
+      f"lasermpnn {purpose}: a multi-level backbone_noise sweep ({len(levels)} levels) "
+      "has no noise axis on proofread results; pass a single level."
+    )
+    raise ValueError(msg)
 
 
 def backbone_noise_level(spec: Any) -> float:  # noqa: ANN401
@@ -589,22 +630,6 @@ def _prepare(path: Path, spec: Any, options: LaserOptions) -> _Prepared:  # noqa
     ignore_ligand=options.ignore_ligand,
     dtype=_working_dtype(),
   )
-  level = backbone_noise_level(spec)
-  if level > 0.0:
-    # Keyed off random_seed so a run is reproducible, and folded with a constant
-    # so the noise draw cannot coincide with the decoding-order draw below,
-    # which reads the same seed.
-    noise_key = jax.random.fold_in(jax.random.PRNGKey(int(spec.random_seed)), 0x6262)
-    # LaserFeatures is a frozen dataclass, not a NamedTuple, so dataclasses
-    # .replace rather than ._replace.
-    features = dataclasses.replace(
-      features,
-      backbone_coords=apply_backbone_noise(
-        features.backbone_coords,
-        level,
-        key=noise_key,
-      ),
-    )
   length = int(features.sequence_indices.shape[0])
   rows = [_letters(sequence) for sequence in _spec_sequences(spec)]
   for index, row in enumerate(rows):
@@ -612,15 +637,50 @@ def _prepare(path: Path, spec: Any, options: LaserOptions) -> _Prepared:  # noqa
       msg = f"sequences_to_score[{index}] length {row.shape[0]} != structure length {length}"
       raise ValueError(msg)
   laser = np.stack(rows)
-  return _Prepared(
+  canonical = _canonical_index(laser)
+  variants = tuple(
+    _Prepared(
+      noised,
+      laser,
+      canonical,
+      decoding_order(
+        np.asarray(noised.chain_mask),
+        np.asarray(noised.extra_atom_contact_mask),
+        seed=int(spec.random_seed),
+      ),
+    )
+    for noised in (
+      noised_features(features, spec, level, noise_fold=0) for level in backbone_noise_levels(spec)
+    )
+  )
+  if len(variants) == 1:
+    return variants[0]
+  return variants[0]._replace(variants=variants)
+
+
+def noised_features(
+  features: LaserFeatures,
+  spec: Any,  # noqa: ANN401
+  level: float,
+  *,
+  noise_fold: int = 0,
+) -> LaserFeatures:
+  """``features`` with LASEr backbone noise at ``level``; ``level <= 0`` is a no-op.
+
+  Keyed off ``random_seed`` so a run is reproducible, and folded with a constant
+  so the noise draw cannot coincide with the decoding-order draw, which reads the
+  same seed. The level is NOT folded in: every level of a sweep shares one draw.
+  ``noise_fold`` separates the tied partner (1) from the primary structure (0).
+  """
+  if level <= 0.0:
+    return features
+  base = jax.random.fold_in(jax.random.PRNGKey(int(spec.random_seed)), 0x6262)
+  key = base if noise_fold == 0 else jax.random.fold_in(base, noise_fold)
+  # LaserFeatures is a frozen dataclass, not a NamedTuple, so dataclasses
+  # .replace rather than ._replace.
+  return dataclasses.replace(
     features,
-    laser,
-    _canonical_index(laser),
-    decoding_order(
-      np.asarray(features.chain_mask),
-      np.asarray(features.extra_atom_contact_mask),
-      seed=int(spec.random_seed),
-    ),
+    backbone_coords=apply_backbone_noise(features.backbone_coords, level, key=key),
   )
 
 
@@ -869,8 +929,8 @@ class LaserDriver:
       from aminx.families.laser_mpnn.sample_host import sample_axes  # noqa: PLC0415
 
       return sample_axes(spec, batch)
-    del spec, purpose
-    return [
+    del purpose
+    specs = [
       AxisSpec(
         name="structures",
         cardinality=max(len(batch.input_indices), 1),
@@ -878,6 +938,10 @@ class LaserDriver:
         heterogeneous=True,
       ),
     ]
+    n_noise = len(backbone_noise_levels(spec))
+    if n_noise >= 2:
+      specs.append(AxisSpec(name="noise", cardinality=n_noise, default_batch_size=n_noise))
+    return specs
 
   def stages(self, spec: Any, purpose: str, model: eqx.Module) -> FamilyStages:  # noqa: ANN401
     """Per-batch sample, teacher-forced score, or a proofread reduction."""
@@ -894,16 +958,27 @@ class LaserDriver:
 
       return sample_schema(spec)
     options = _options(spec)
+    refuse_proofread_noise(spec, purpose)
+    levels = backbone_noise_levels(spec)
+    # ``fasta`` is the candidate's own sequence: it does not depend on the noise.
     fasta = {
       "fasta": SinkArraySpec(dims=("N_cand", "L_total"), dtype="int32", attrs={}),
     }
     if purpose == "score:logits":
       body = {
-        "logits": SinkArraySpec(dims=("N_cand", "L_total", "alphabet"), dtype="float32", attrs={}),
+        "logits": SinkArraySpec(
+          dims=noise_axis_dims(("N_cand", "L_total", "alphabet"), levels),
+          dtype="float32",
+          attrs={},
+        ),
       }
     elif purpose == "score:nll":
       body = {
-        "nll": SinkArraySpec(dims=("N_cand", "L_total"), dtype="float32", attrs={}),
+        "nll": SinkArraySpec(
+          dims=noise_axis_dims(("N_cand", "L_total"), levels),
+          dtype="float32",
+          attrs={},
+        ),
       }
     elif purpose == "score:proofread_unconditional":
       # No candidate axis. Proofreading reads the structure's own sequence, so

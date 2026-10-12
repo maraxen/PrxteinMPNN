@@ -197,8 +197,8 @@ def test_averaged_score_path_is_not_bucketed() -> None:
 
   This path draws backbone noise at the coordinate shape, so a trim would change the
   noise draw and the score. Before the fix it was trimmed despite being documented as
-  unbucketed. One noise level: with two or more, this path fails its R3 check under
-  vmap (TracerBoolConversionError) with bucketing on or off alike (aminx debt #2517).
+  unbucketed. One noise level here; the two-level case (formerly a TracerBoolConversionError,
+  debt #2517, fixed by hoisting the R3 check) is in test_score_noise_axis.py.
   """
   pytest.importorskip("aminx")
   from aminx.host.runner import score  # noqa: PLC0415
@@ -228,10 +228,10 @@ def test_averaged_score_path_is_not_bucketed() -> None:
 def test_g_invariance_comparison_can_fail() -> None:
   """Negative control: the rtol=1e-6 comparison detects a real change.
 
-  Backbone noise is not a usable control: the plain score path forwards no noise
-  level (runner.score, encode-once path #147), so 1ubq scores 4.4554 at noise 0,
-  0.1 and 1.0 alike (aminx debt #2509). Scoring a different sequence through the
-  bucketed path does change the score, and the comparison must catch it.
+  Backbone noise would be a poor control here: the plain score path now applies it, but
+  only through the same bucketed/un-bucketed code on both sides, so it would not isolate the
+  comparison. Scoring a different sequence through the bucketed path does change the
+  score, and the comparison must catch it.
   """
   pytest.importorskip("aminx")
   bucketed, opted_out = _score_pair(

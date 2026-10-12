@@ -353,7 +353,8 @@ def _stage_sample_rank(
     if not parts:
       continue
     energy = np.concatenate(parts, axis=0) if len(parts) > 1 else parts[0]
-    rank = np.argsort(energy, kind="stable").astype(np.int32)
+    # Rank along the sample axis: (N,) as always, or (N, D_noise) per noise level (spec 261011).
+    rank = np.argsort(energy, axis=0, kind="stable").astype(np.int32)
     if sink is None:
       bucket = memory.setdefault(index, {})
       bucket["sample_rank"] = [rank]

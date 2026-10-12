@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 DEFAULT_INLINE_CAP = 10_000
 
-_SKIP_ROUTE = frozenset({"metadata", "schema_version"})
+_SKIP_ROUTE = frozenset({"metadata", "schema_version", "noise_levels"})
 _KINDS = frozenset({"sample", "score", "inspect", "jacobian"})
 _SEQUENCE_NDIM = 5
 # Residue-length axes of per-structure list results (inspect features, jacobian outputs). The
@@ -227,6 +227,9 @@ def shape_result(
   fused = metadata.get("fused_structure_ids")
   if fused is not None:
     summary["fused_structure_ids"] = to_jsonable(fused)
+  noise_levels = metadata.get("noise_levels")
+  if noise_levels is not None:
+    summary["noise_levels"] = to_jsonable(noise_levels)
   if "lineage" in metadata:
     summary["lineage"] = to_jsonable(metadata["lineage"])
   summary["side_file"] = _write_side_file(output_dir, run_id, store)
@@ -320,13 +323,18 @@ def _score_structures(
   structure_ids: Sequence[str],
   warnings: list[str],
 ) -> list[dict[str, object]]:
-  """Pair negative-log-likelihood rows with ``sequences_to_score``."""
+  """Pair negative-log-likelihood rows with ``sequences_to_score``.
+
+  ``scores`` is ``(S, C)`` for a single noise level, or ``(S, C, D)`` with two or more (scoring_v2):
+  the 3-D form emits one entry per (candidate, noise level), tagged with ``noise_index``.
+  """
   array = np.asarray(scores)
   if array.ndim == 1:
     array = array.reshape(1, -1)
-  if array.ndim != 2:
-    warnings.append(f"score array has ndim {array.ndim}; expected 2")
+  if array.ndim not in (2, 3):
+    warnings.append(f"score array has ndim {array.ndim}; expected 2 or 3")
     return []
+  has_noise_axis = array.ndim == 3
   sequences = [str(item) for item in getattr(spec, "sequences_to_score", ()) or ()]
   if len(sequences) < int(array.shape[1]):
     warnings.append(
@@ -337,7 +345,13 @@ def _score_structures(
     scored: list[dict[str, object]] = []
     for column in range(int(array.shape[1])):
       sequence = sequences[column] if column < len(sequences) else ""
-      scored.append({"sequence": sequence, "nll": float(array[row_index, column])})
+      if has_noise_axis:
+        scored.extend(
+          {"sequence": sequence, "noise_index": noise_index, "nll": float(value)}
+          for noise_index, value in enumerate(array[row_index, column])
+        )
+      else:
+        scored.append({"sequence": sequence, "nll": float(array[row_index, column])})
     rows.append(
       {
         "structure_id": _structure_id_at(structure_ids, row_index),

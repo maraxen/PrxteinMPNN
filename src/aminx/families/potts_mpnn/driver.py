@@ -40,6 +40,7 @@ from aminx.families.potts_mpnn.featurize import (
   tied_featurize_port,
 )
 from aminx.families.potts_mpnn.model import PottsMPNN, _encoder_states, cast_floating
+from aminx.families.potts_mpnn.noise_levels import potts_backbone_noise_levels
 from aminx.families.potts_mpnn.sample_host import (
   SampleStages,
   force_optimize_num_samples,
@@ -95,6 +96,9 @@ class _Prepared(NamedTuple):
   expt: np.ndarray
   partitions: tuple[_Graph, ...]
   chain_order: tuple[str, ...]
+  # One entry per noise level when the spec has two or more (spec 261011 N-D5);
+  # each is a plain ``_Prepared`` at that level. Empty for a single level.
+  variants: tuple[_Prepared, ...] = ()
 
 
 class _SubtractPartitions:
@@ -181,7 +185,13 @@ class _ScoreStages:
     ids: list[jax.Array] = []
     expt: list[jax.Array] = []
     for item in prepared:
-      values = _score_one(self._model, item, mean_norm=self._mean_norm)
+      if item.variants:
+        values = jnp.stack(
+          [_score_one(self._model, v, mean_norm=self._mean_norm) for v in item.variants],
+          axis=-1,
+        )
+      else:
+        values = _score_one(self._model, item, mean_norm=self._mean_norm)
       rows.append(values)
       ids.append(jnp.arange(values.shape[0], dtype=jnp.int32))
       if item.include_reference_in_output:
@@ -310,7 +320,7 @@ class PottsMPNNDriver:
     """Structure, mutant, partition, or sample/temperature axes."""
     if purpose == "sample":
       return sample_axes(spec, batch)
-    del spec
+    n_noise = len(potts_backbone_noise_levels(spec))
     prepared = cast("tuple[_Prepared, ...]", batch.arrays.get("prepared", ()))
     n_mut = int(prepared[0].graph.sequences.shape[0]) if prepared else 1
     n_part = len(prepared[0].partitions) if prepared else 0
@@ -328,6 +338,8 @@ class PottsMPNNDriver:
         default_batch_size=max(n_mut, 1),
       ),
     ]
+    if n_noise >= 2:
+      specs.append(AxisSpec(name="noise", cardinality=n_noise, default_batch_size=n_noise))
     if purpose == "score:ddg" and n_part > 0:
       specs.append(
         AxisSpec(
@@ -356,15 +368,23 @@ class PottsMPNNDriver:
     """§4.5 arrays. Per-position dims are ``L_total`` on the sample path."""
     if purpose == "sample":
       return sample_schema(spec)
-    del spec
+    noised = len(potts_backbone_noise_levels(spec)) >= 2
     if purpose == "score:energy":
       return {
-        "energy": SinkArraySpec(dims=("N_cand",), dtype="float32", attrs={}),
+        "energy": SinkArraySpec(
+          dims=("N_cand", "D_noise") if noised else ("N_cand",),
+          dtype="float32",
+          attrs={},
+        ),
         "candidate_ids": SinkArraySpec(dims=("N_cand",), dtype="int32", attrs={}),
       }
     if purpose == "score:ddg":
       return {
-        "ddg": SinkArraySpec(dims=("N_mut",), dtype="float32", attrs={}),
+        "ddg": SinkArraySpec(
+          dims=("N_mut", "D_noise") if noised else ("N_mut",),
+          dtype="float32",
+          attrs={},
+        ),
         "mutant_ids": SinkArraySpec(dims=("N_mut",), dtype="int32", attrs={}),
         "ddg_expt": SinkArraySpec(dims=("N_mut",), dtype="float32", attrs={}),
       }
@@ -396,6 +416,7 @@ def _pack(
   name: str,
   *,
   spec: Any = None,  # noqa: ANN401
+  level: float | None = None,
 ) -> _Prepared:
   reference = "".join(chain.sequence for chain in chains)
   if purpose == "score:energy":
@@ -413,7 +434,9 @@ def _pack(
     raise ValueError(msg)
   rows = (reference, *[item.sequence for item in candidates])
   touched = set().union(*(item.chains for item in candidates))
-  partitions = _partition_graphs(parsed, chains, options, name, rows, touched, spec=spec)
+  partitions = _partition_graphs(
+    parsed, chains, options, name, rows, touched, spec=spec, level=level,
+  )
   expt = np.asarray([item.expt for item in candidates], dtype=np.float32)
   return _Prepared(
     graph=_graph(features, rows),
@@ -579,6 +602,7 @@ def _partition_graphs(
   touched: set[str],
   *,
   spec: Any = None,  # noqa: ANN401
+  level: float | None = None,
 ) -> tuple[_Graph, ...]:
   """Re-featurize each flagged partition and score those chains only.
 
@@ -600,7 +624,7 @@ def _partition_graphs(
     designed = sorted(partition)
     part_features = tied_featurize_port([parsed], {name: (designed, [])})[0]
     if spec is not None:
-      part_features = _noised(part_features, spec, stream=stream)
+      part_features = _noised(part_features, spec, stream=stream, level=level)
     part_rows = tuple(_project(row, chains, designed) for row in rows)
     graphs.append(_graph(part_features, part_rows))
   return tuple(graphs)
@@ -762,15 +786,23 @@ def apply_potts_backbone_noise(
   return base + float(level) * shift
 
 
-def _noised(features: PottsFeatures, spec: Any, *, stream: int = 0) -> PottsFeatures:  # noqa: ANN401
+def _noised(
+  features: PottsFeatures,
+  spec: Any,  # noqa: ANN401
+  *,
+  stream: int = 0,
+  level: float | None = None,
+) -> PottsFeatures:
   """Apply the spec's backbone noise to featurized coordinates, if any.
 
   Returns ``features`` unchanged when the knob is off, which is the default, so
   every run that does not ask for noise is bit-identical to before this existed.
   ``stream`` separates independent draws (binding partitions); stream 0 is the
-  complex and keeps exactly the key it always had.
+  complex and keeps exactly the key it always had. ``level`` overrides the
+  spec's first level; every level of a multi-level sweep uses the SAME key.
   """
-  level = potts_backbone_noise_level(spec)
+  if level is None:
+    level = potts_backbone_noise_level(spec)
   if level <= 0.0:
     return features
   key = jax.random.fold_in(jax.random.PRNGKey(int(spec.random_seed)), 0x9077)
@@ -898,6 +930,13 @@ def _is_sample(spec: Any) -> bool:  # noqa: ANN401
 def _sample_batches(spec: Any) -> Iterator[FamilyBatch]:  # noqa: ANN401
   """One PDB per batch for purpose ``sample``."""
   options = _options(spec)
+  levels = potts_backbone_noise_levels(spec)
+  if len(levels) >= 2 and options.emit_etab:
+    msg = (
+      "pottsmpnn: emit_etab has no noise axis; a multi-level backbone_noise sweep "
+      f"({len(levels)} levels) cannot carry potts_etab. Use one level or disable emit_etab."
+    )
+    raise ValueError(msg)
   pending: list[tuple[int, str]] = []
   for index, item in enumerate(_inputs(spec)):
     if not isinstance(item, (str, Path)):
@@ -908,16 +947,24 @@ def _sample_batches(spec: Any) -> Iterator[FamilyBatch]:  # noqa: ANN401
       parsed_list = parse_pdb_upstream(path, skip_gaps=options.skip_gaps)
       parsed = parsed_list[0]
       name = str(parsed["name"])
-      features = _noised(_featurize_one(parsed, options, name), spec)
-      if knn_boundary_tie(features.present, features.L_total):
-        log.warning("knn_boundary_tie for %s (L_total=%s)", name, features.L_total)
-      chains = _chain_sequences(parsed, features)
-      ready = prepare_sample(
-        features,
-        tuple((chain.letter, chain.sequence) for chain in chains),
-        options,
-        spec,
-      )
+      base = _featurize_one(parsed, options, name)
+      readies = []
+      for level in levels:
+        features = _noised(base, spec, level=level)
+        if knn_boundary_tie(features.present, features.L_total):
+          log.warning("knn_boundary_tie for %s (L_total=%s)", name, features.L_total)
+        chains = _chain_sequences(parsed, features)
+        readies.append(
+          prepare_sample(
+            features,
+            tuple((chain.letter, chain.sequence) for chain in chains),
+            options,
+            spec,
+          ),
+        )
+      ready = readies[0]
+      if len(readies) > 1:
+        ready = ready._replace(noise_variants=tuple(readies))
     except PottsInputError as exc:
       pending.append((index, str(exc)))
       continue
@@ -946,7 +993,9 @@ def _prepare_from_spec(item: Any, spec: Any) -> _Prepared:  # noqa: ANN401
   parsed_list = parse_pdb_upstream(path, skip_gaps=options.skip_gaps)
   parsed = parsed_list[0]
   name = str(parsed["name"])
-  features = _noised(_featurize_one(parsed, options, name), spec)
+  base = _featurize_one(parsed, options, name)
+  levels = potts_backbone_noise_levels(spec)
+  features = _noised(base, spec, level=levels[0])
   if knn_boundary_tie(features.present, features.L_total):
     log.warning("knn_boundary_tie for %s (L_total=%s)", name, features.L_total)
   chains = _chain_sequences(parsed, features)
@@ -957,7 +1006,23 @@ def _prepare_from_spec(item: Any, spec: Any) -> _Prepared:  # noqa: ANN401
     )
   else:
     candidates = _candidates(name, chains, options, purpose, ())
-  return _pack(parsed, features, chains, candidates, options, purpose, name, spec=spec)
+  variants = tuple(
+    _pack(
+      parsed,
+      _noised(base, spec, level=level),
+      chains,
+      candidates,
+      options,
+      purpose,
+      name,
+      spec=spec,
+      level=level,
+    )
+    for level in levels
+  )
+  if len(variants) == 1:
+    return variants[0]
+  return variants[0]._replace(variants=variants)
 
 
 FAMILY_DRIVERS.register("pottsmpnn")(PottsMPNNDriver())

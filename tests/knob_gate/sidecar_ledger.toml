@@ -81,61 +81,60 @@
 # previously looked like a missing record.
 
 [sidecar.laser_proofread_parity]
-# REWRITTEN 261011 at 6311e481 (re-wave of PR #211: the ph_knobs fold, sweep_order and the options.py knob exposure staled every row).
-# Cool-tier record: completed, outcome pass, git_dirty False. verify_wave.py with all nine full ids at 6311e481:
+# REWRITTEN 261012 at 43a7a3bd (re-wave after PRs #212-#215 merged to main and the zscale single_mutation fold staled every row).
+# Cool-tier record: completed, outcome pass. verify_wave.py with all nine full ids at 43a7a3bd:
 # would grade ALL NINE, 135/135 conditions PASS, would NOT grade (none).
-bth_run_id = "2684c205-89ca-416a-adb0-bda1f5ee2520"
+bth_run_id = "d4a3b47a-775c-48d2-a593-b07345b0bb47"
 
 [sidecar.laser_proofread_unconditional_parity]
-# REWRITTEN 261011 at 6311e481 (re-wave of PR #211: the ph_knobs fold, sweep_order and the options.py knob exposure staled every row).
-# Cool-tier record: completed, outcome pass, git_dirty False. verify_wave.py with all nine full ids at 6311e481:
+# REWRITTEN 261012 at 43a7a3bd (re-wave after PRs #212-#215 merged to main and the zscale single_mutation fold staled every row).
+# Cool-tier record: completed, outcome pass. verify_wave.py with all nine full ids at 43a7a3bd:
 # would grade ALL NINE, 135/135 conditions PASS, would NOT grade (none).
-bth_run_id = "a6966b06-5f91-4f50-856b-71ff68f7aa43"
+bth_run_id = "a861cb55-b7c3-4543-8667-b7009e56dc95"
 
 [sidecar.laser_decode_e2e]
-# REWRITTEN 261011 at 6311e481 (re-wave of PR #211: the ph_knobs fold, sweep_order and the options.py knob exposure staled every row).
-# Cool-tier record: completed, outcome pass, git_dirty False. verify_wave.py with all nine full ids at 6311e481:
+# REWRITTEN 261012 at 43a7a3bd (re-wave after PRs #212-#215 merged to main and the zscale single_mutation fold staled every row).
+# Cool-tier record: completed, outcome pass. verify_wave.py with all nine full ids at 43a7a3bd:
 # would grade ALL NINE, 135/135 conditions PASS, would NOT grade (none).
-bth_run_id = "f3779ff7-cb5b-475f-986b-a152cf98d694"
+bth_run_id = "8ea2e30f-a0cf-42b5-816b-20af321311a2"
 
 [sidecar.potts_ar_decode]
-# REWRITTEN 261011 at 6311e481 (re-wave of PR #211: the ph_knobs fold, sweep_order and the options.py knob exposure staled every row).
-# Cool-tier record: completed, outcome pass, git_dirty False. verify_wave.py with all nine full ids at 6311e481:
+# REWRITTEN 261012 at 43a7a3bd (re-wave after PRs #212-#215 merged to main and the zscale single_mutation fold staled every row).
+# Cool-tier record: completed, outcome pass. verify_wave.py with all nine full ids at 43a7a3bd:
 # would grade ALL NINE, 135/135 conditions PASS, would NOT grade (none).
-bth_run_id = "b911c331-45d9-48f9-8730-2606dd897e75"
+bth_run_id = "5ee5d1cb-220b-486e-b121-ea702ef3902a"
 
 [sidecar.potts_energy_parity]
-# REWRITTEN 261011 at 6311e481 (re-wave of PR #211: the ph_knobs fold, sweep_order and the options.py knob exposure staled every row).
-# Cool-tier record: completed, outcome pass, git_dirty False. verify_wave.py with all nine full ids at 6311e481:
+# REWRITTEN 261012 at 43a7a3bd (re-wave after PRs #212-#215 merged to main and the zscale single_mutation fold staled every row).
+# Cool-tier record: completed, outcome pass. verify_wave.py with all nine full ids at 43a7a3bd:
 # would grade ALL NINE, 135/135 conditions PASS, would NOT grade (none).
-bth_run_id = "c1ca6022-43e4-4fed-a168-9e366b7ffffb"
+bth_run_id = "e4bdf56f-78ea-421b-be1f-2adf41713d4a"
 
 [sidecar.laser_score_parity]
-# REWRITTEN 261011 at 6311e481 (re-wave of PR #211: the ph_knobs fold, sweep_order and the options.py knob exposure staled every row).
-# Cool-tier record: completed, outcome pass, git_dirty False. verify_wave.py with all nine full ids at 6311e481:
+# REWRITTEN 261012 at 43a7a3bd (re-wave after PRs #212-#215 merged to main and the zscale single_mutation fold staled every row).
+# Cool-tier record: completed, outcome pass. verify_wave.py with all nine full ids at 43a7a3bd:
 # would grade ALL NINE, 135/135 conditions PASS, would NOT grade (none).
-bth_run_id = "d61dd374-925f-4022-9a8e-da0cebfe53ef"
+bth_run_id = "2d5670c8-6bbf-4cc1-8c0f-e585fd2aa2c7"
 
 [sidecar.potts_ar_refine_exact]
-# REWRITTEN 261011 at 6311e481 (re-wave of PR #211: the ph_knobs fold, sweep_order and the options.py knob exposure staled every row).
-# Cool-tier record: completed, outcome pass, git_dirty False. verify_wave.py with all nine full ids at 6311e481:
+# REWRITTEN 261012 at 43a7a3bd (re-wave after PRs #212-#215 merged to main and the zscale single_mutation fold staled every row).
+# Cool-tier record: completed, outcome pass. verify_wave.py with all nine full ids at 43a7a3bd:
 # would grade ALL NINE, 135/135 conditions PASS, would NOT grade (none).
-bth_run_id = "9ea86255-f653-4cb3-a327-d4b063210b37"
+bth_run_id = "fa569be0-e3fc-416f-865e-f277c5fd3b7b"
 
 [sidecar.potts_ddg_megascale]
-# REWRITTEN 261011 at 6311e481 (re-wave of PR #211: the ph_knobs fold, sweep_order and the options.py knob exposure staled every row).
-# Cool-tier record: completed, outcome pass, git_dirty False. verify_wave.py with all nine full ids at 6311e481:
+# REWRITTEN 261012 at 43a7a3bd (re-wave after PRs #212-#215 merged to main and the zscale single_mutation fold staled every row).
+# Cool-tier record: completed, outcome pass. verify_wave.py with all nine full ids at 43a7a3bd:
 # would grade ALL NINE, 135/135 conditions PASS, would NOT grade (none).
-bth_run_id = "492fdd39-0639-4bb5-ae6b-9144d1c969f3"
+bth_run_id = "0ae1cf5f-1ec6-4cde-895c-4960986a3c15"
 
 [sidecar.protonpotts_parity]
-# REWRITTEN 261011 at 2cf0acb9 (#2621: the ph_objective_knobs port touched protonpotts_mpnn/ph_* and scripts/parity,
-# which staled this row only; stale_rows.py: 1 of 9, the other eight stay fresh at 6311e481).
-# Combined vehicle REVISION 261011: 13 waves (ph_objective_knobs folded), 98 controls, all 'failed'; 13 waves rc 0.
-# Cool-tier record: completed, outcome pass, git_dirty False. verify_wave.py with all nine full ids at 2cf0acb9:
+# REWRITTEN 261012 at 43a7a3bd (re-wave after PRs #212-#215 merged to main and the zscale single_mutation fold staled every row).
+# Cool-tier record: completed, outcome pass. verify_wave.py with all nine full ids at 43a7a3bd:
 # would grade ALL NINE, 135/135 conditions PASS, would NOT grade (none).
-# Previous row 5dee158c (6311e481, 12 waves / 93 controls) stays on record.
-bth_run_id = "931ab51a-d675-4a11-a6d7-3dd8bec8da7c"
+# Combined vehicle REVISION 261012: ph_objective_knobs on the P4m4 dump with a sixth control block_zscales,
+# 99 controls, all 'failed'. Previous row 931ab51a (2cf0acb9, 13 waves / 98 controls) stays on record.
+bth_run_id = "f3c82564-d8a3-4a3f-916a-6a888f5e23b7"
 
 # NOT YET LISTED: nothing. All seven manifest vehicle slugs now carry a verified
 # row, so check_branch_coverage should leave instrument_invalid.

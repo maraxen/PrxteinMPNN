@@ -6,7 +6,6 @@ order, the uniform stream, and the result-schema arrays around those calls.
 
 from __future__ import annotations
 
-import dataclasses
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any, NamedTuple, cast
@@ -18,11 +17,12 @@ from xtrax.tiling import AxisSpec, BatchPlanner
 
 from aminx.families.laser_mpnn.driver import (
   CANONICAL_OF_LASER,
-  apply_backbone_noise,
-  backbone_noise_level,
+  backbone_noise_levels,
   budget_mask_for,
   decoding_order,
   load_joint_decode,
+  noise_axis_dims,
+  noised_features,
 )
 from aminx.families.laser_mpnn.featurize import (
   LaserFeatures,
@@ -46,6 +46,9 @@ class _Sampled(NamedTuple):
   features: LaserFeatures
   chain_mask: np.ndarray
   tied: LaserFeatures | None
+  # One plain ``_Sampled`` per noise level when the spec sweeps two or more
+  # (spec 261011 N-D5); empty for a single level.
+  variants: tuple[_Sampled, ...] = ()
 
 
 def _x64_enabled() -> bool:
@@ -95,9 +98,20 @@ def _featurize_one(
   options: LaserOptions,
   *,
   noise_fold: int,
+  level: float | None = None,
 ) -> LaserFeatures:
   """B0 features plus LASEr backbone noise. Fold 0 matches the score-path key."""
-  features = featurize(
+  features = _featurize_raw(path, options)
+  return noised_features(
+    features,
+    spec,
+    backbone_noise_levels(spec)[0] if level is None else level,
+    noise_fold=noise_fold,
+  )
+
+
+def _featurize_raw(path: Path, options: LaserOptions) -> LaserFeatures:
+  return featurize(
     path,
     fix_from_bfactor=options.fix_from_bfactor,
     use_water=options.use_water,
@@ -105,15 +119,6 @@ def _featurize_one(
     ignore_ligand=options.ignore_ligand,
     dtype=_working_dtype(),
   )
-  level = backbone_noise_level(spec)
-  if level > 0.0:
-    base = jax.random.fold_in(jax.random.PRNGKey(int(spec.random_seed)), 0x6262)
-    key = base if noise_fold == 0 else jax.random.fold_in(base, noise_fold)
-    features = dataclasses.replace(
-      features,
-      backbone_coords=apply_backbone_noise(features.backbone_coords, level, key=key),
-    )
-  return features
 
 
 def _chain_mask(features: LaserFeatures, spec: Any, options: LaserOptions) -> np.ndarray:  # noqa: ANN401
@@ -134,11 +139,15 @@ def _tied_partner(
   options: LaserOptions,
   spec: Any,  # noqa: ANN401
   length: int,
+  *,
+  level: float | None = None,
 ) -> LaserFeatures | None:
   if not options.tied_second_input:
     return None
   try:
-    partner = _featurize_one(Path(options.tied_second_input), spec, options, noise_fold=1)
+    partner = _featurize_one(
+      Path(options.tied_second_input), spec, options, noise_fold=1, level=level,
+    )
   except LaserInputError as exc:
     msg = f"tied_second_input: {exc}"
     raise ValueError(msg) from exc
@@ -152,22 +161,30 @@ def _tied_partner(
 def sample_batches(spec: Any) -> Iterator[FamilyBatch]:  # noqa: ANN401
   """One structure per batch. Tied partners are featurized here, decoded later."""
   options = _options(spec)
+  levels = backbone_noise_levels(spec)
   pending: list[tuple[int, str]] = []
   for index, item in enumerate(_inputs(spec)):
     if not isinstance(item, (str, Path)):
       pending.append((index, "lasermpnn_requires_pdb"))
       continue
     try:
-      features = _featurize_one(Path(item), spec, options, noise_fold=0)
+      per_level = []
+      for level in levels:
+        features = _featurize_one(Path(item), spec, options, noise_fold=0, level=level)
+        length = int(features.sequence_indices.shape[0])
+        per_level.append(
+          _Sampled(
+            features,
+            _chain_mask(features, spec, options),
+            _tied_partner(options, spec, length, level=level),
+          ),
+        )
     except LaserInputError as exc:
       pending.append((index, str(exc)))
       continue
-    length = int(features.sequence_indices.shape[0])
-    sampled = _Sampled(
-      features,
-      _chain_mask(features, spec, options),
-      _tied_partner(options, spec, length),
-    )
+    sampled = per_level[0]
+    if len(per_level) > 1:
+      sampled = sampled._replace(variants=tuple(per_level))
     yield FamilyBatch(
       input_indices=(index,),
       arrays={"sampled": (sampled,)},
@@ -198,6 +215,9 @@ def sample_axes(spec: Any, batch: FamilyBatch) -> list[AxisSpec]:  # noqa: ANN40
     AxisSpec(name="samples", cardinality=n_samples, default_batch_size=n_samples),
     AxisSpec(name="temperatures", cardinality=n_temp, default_batch_size=n_temp),
   ]
+  n_noise = len(backbone_noise_levels(spec))
+  if n_noise >= 2:
+    specs.append(AxisSpec(name="noise", cardinality=n_noise, default_batch_size=n_noise))
   BatchPlanner().plan(specs)
   return specs
 
@@ -212,6 +232,15 @@ def _include_tied_logits(spec: Any, options: LaserOptions) -> bool:  # noqa: ANN
 
 
 def sample_schema(spec: Any) -> dict[str, SinkArraySpec]:  # noqa: ANN401
+  """§5.6 sample channels, with ``D_noise`` after ``N`` when the spec sweeps >= 2 levels."""
+  levels = backbone_noise_levels(spec)
+  return {
+    name: array._replace(dims=noise_axis_dims(array.dims, levels))
+    for name, array in _base_sample_schema(spec).items()
+  }
+
+
+def _base_sample_schema(spec: Any) -> dict[str, SinkArraySpec]:  # noqa: ANN401
   """§5.6 sample channels. ``sidechain_coords`` is omitted for FASTA-only runs."""
   options = _options(spec)
   fasta = {
@@ -393,6 +422,21 @@ class SampleStages:
     return {key: jnp.stack([row[key] for row in rows]) for key in keys}
 
   def _one(
+    self,
+    item: _Sampled,
+    chunk_start: int,
+    chunk_count: int,
+    dropout_key: jax.Array,
+  ) -> dict[str, np.ndarray]:
+    """One level, or every level with the SAME dropout key, noise axis at 1."""
+    if not item.variants:
+      return self._one_level(item, chunk_start, chunk_count, dropout_key)
+    per_level = [
+      self._one_level(variant, chunk_start, chunk_count, dropout_key) for variant in item.variants
+    ]
+    return {key: np.stack([row[key] for row in per_level], axis=1) for key in per_level[0]}
+
+  def _one_level(
     self,
     item: _Sampled,
     chunk_start: int,

@@ -33,6 +33,7 @@ from aminx.families.potts_mpnn.etab import (
 )
 from aminx.families.potts_mpnn.featurize import PottsFeatures, pad
 from aminx.families.potts_mpnn.model import PottsMPNN, _encoder_states, cast_floating
+from aminx.families.potts_mpnn.noise_levels import potts_backbone_noise_levels
 from aminx.families.potts_mpnn.refine import BindingTables, PottsRefine, check_tied_only_groups
 from aminx.host.family_driver import FamilyBatch, SinkArraySpec
 from aminx.host.omit_aa_bias import omit_letter_indices
@@ -210,6 +211,8 @@ class _Ready(NamedTuple):
   name: str
   l_total: int
   tied: bool
+  # Per-level readies when the spec sweeps two or more noise levels (261011 N-D5).
+  noise_variants: tuple[_Ready, ...] = ()
 
 
 def build_tie_groups_np(
@@ -384,6 +387,9 @@ def sample_axes(spec: Any, batch: FamilyBatch) -> list[AxisSpec]:  # noqa: ANN40
     specs.append(
       AxisSpec(name="temperatures", cardinality=n_temp, default_batch_size=n_temp),
     )
+  n_noise = len(potts_backbone_noise_levels(spec))
+  if n_noise >= 2:
+    specs.append(AxisSpec(name="noise", cardinality=n_noise, default_batch_size=n_noise))
   BatchPlanner().plan(specs)
   return specs
 
@@ -394,19 +400,22 @@ def sample_schema(spec: Any) -> dict[str, SinkArraySpec]:  # noqa: ANN401
   optimizing = bool(options.optimize_pdb or options.optimize_fasta) and (
     options.optimization_mode != "none"
   )
-  sequence = SinkArraySpec(dims=("N", "L_total"), dtype="int32", attrs={})
+  noised = len(potts_backbone_noise_levels(spec)) >= 2
+  lead = ("N", "D_noise") if noised else ("N",)
+  sequence = SinkArraySpec(dims=(*lead, "L_total"), dtype="int32", attrs={})
   if optimizing:
     schema: dict[str, SinkArraySpec] = {"refined_sequence": sequence}
   else:
     schema = {
       "sequence": sequence,
-      "sample_energy": SinkArraySpec(dims=("N",), dtype="float32", attrs={}),
-      "sample_rank": SinkArraySpec(
-        dims=("N",),
-        dtype="int32",
-        attrs={"level": "structure"},
-      ),
+      "sample_energy": SinkArraySpec(dims=lead, dtype="float32", attrs={}),
     }
+    # The runner ranks along axis N, so with a noise axis the ranking is per level.
+    schema["sample_rank"] = SinkArraySpec(
+      dims=lead,
+      dtype="int32",
+      attrs={"level": "structure"},
+    )
     if options.optimization_mode != "none":
       schema["refined_sequence"] = sequence
   if options.emit_etab:
@@ -444,6 +453,22 @@ class SampleStages:
     return {key: jnp.stack([row[key] for row in rows]) for key in keys}
 
   def _one(
+    self,
+    ready: _Ready,
+    chunk_start: int,
+    chunk_count: int,
+    dropout_key: jax.Array,
+  ) -> dict[str, jax.Array]:
+    """Run one level, or every level with the SAME dropout key, noise axis at 1."""
+    if not ready.noise_variants:
+      return self._one_level(ready, chunk_start, chunk_count, dropout_key)
+    per_level = [
+      self._one_level(variant, chunk_start, chunk_count, dropout_key)
+      for variant in ready.noise_variants
+    ]
+    return {key: jnp.stack([row[key] for row in per_level], axis=1) for key in per_level[0]}
+
+  def _one_level(
     self,
     ready: _Ready,
     chunk_start: int,

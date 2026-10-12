@@ -138,6 +138,7 @@ def make_score_fn(
     ligand_coords: jax.Array | None = None,
     ligand_atom_types: jax.Array | None = None,
     ligand_mask: jax.Array | None = None,
+    noise_key: jax.Array | None = None,
     **kwargs,  # Accept but ignore extra kwargs (e.g., _k_neighbors for backward compat)
   ) -> tuple[jax.Array, jax.Array, jax.Array]:
 
@@ -201,7 +202,15 @@ def make_score_fn(
       state_weights=state_weights,
     )
 
-    logits = score_conditional.kernel(model, prng_key, bundle, config, stage_set)
+    if noise_key is None:
+      logits = score_conditional.kernel(model, prng_key, bundle, config, stage_set)
+    else:
+      # Backbone noise is drawn from ``noise_key`` (the design-shared per-structure key,
+      # N-D2), NOT from the per-candidate ``prng_key``: that one only drives decoding. The
+      # decode half is split exactly as ``kernel`` does it.
+      _, k_dec = score_conditional.split_keys(prng_key)
+      enc = score_conditional.encode(model, noise_key, bundle, config)
+      logits = score_conditional.score_from_encoding(model, k_dec, enc, bundle, config, stage_set)
 
     # Compute score using single-source NLL formula
     nll = _nll_from_logits(logits, sequence, mask)
@@ -240,12 +249,11 @@ def make_score_split_fns(
     decoding_order)`` -- the same three outputs as ``make_score_fn``'s function, with the
     same key derivation (decoding-order draw, then ``score_conditional.split_keys``).
 
-  ``encode_structure`` has no PRNG key and no ``backbone_noise`` on purpose. Sharing one
-  encoding across candidates is only valid when the encoding does not depend on the
-  candidate's key, i.e. when ``backbone_noise`` is 0 -- which is how ``runner.score`` calls
-  the un-split core (it never forwards a noise level on this path). With nonzero noise the
-  encoder consumes the per-candidate key and every candidate would need its own encoding;
-  use ``make_score_fn`` (or the averaged path) for that.
+  ``encode_structure`` takes an optional ``backbone_noise`` level and ``noise_key``
+  (defaults ``0.0`` / ``None``, which reproduce the old noise-free encoding exactly). Sharing
+  one encoding across candidates is valid because the noise is drawn from a per-STRUCTURE key
+  (the same ``fold_in(base_key, structure_idx)`` design uses, N-D2), never from a
+  per-candidate key; the runner encodes once per (structure, noise level).
 
   Args:
     model: Protein or Ligand Equinox checkpoint.
@@ -268,23 +276,29 @@ def make_score_split_fns(
     ligand_coords: jax.Array | None = None,
     ligand_atom_types: jax.Array | None = None,
     ligand_mask: jax.Array | None = None,
+    backbone_noise: float | jax.Array = 0.0,
+    noise_key: jax.Array | None = None,
   ) -> EncoderOutput:
     # Sequence / AR mask are left at their defaults: the encoder reads only geometry, ligand
-    # and backbone_noise (0 here), never the conditioning bundle.
+    # and backbone_noise, never the conditioning bundle.
     bundle, config = build_inference_bundle(
       coords=structure_coordinates,
       mask=mask,
       residue_index=residue_index,
       chain_index=chain_index,
-      backbone_noise=0.0,
+      backbone_noise=backbone_noise,
       ligand_coords=ligand_coords,
       ligand_atom_types=ligand_atom_types,
       ligand_mask=ligand_mask,
       mode="score_conditional",
       inference=True,
     )
-    # The key only feeds backbone-noise injection, which is off (see docstring above).
-    k_enc, _ = score_conditional.split_keys(jax.random.PRNGKey(0))
+    # The key only feeds backbone-noise injection. With no noise_key (noise off) keep the
+    # historical constant key so the noise-free encoding is bit-identical to before.
+    if noise_key is None:
+      k_enc, _ = score_conditional.split_keys(jax.random.PRNGKey(0))
+    else:
+      k_enc = noise_key
     return score_conditional.encode(model, k_enc, bundle, config)
 
   @partial(jax.jit, static_argnames=("multi_state_strategy",))

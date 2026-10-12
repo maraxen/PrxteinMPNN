@@ -123,6 +123,12 @@ export class PhDesigner {
    * Returns designs sorted by final Potts energy (stable), like design_structure.
    */
   async design(pdbText, labels, config = {}, uniforms = null, replay = null) {
+    // zscale_mode="single_mutation" is ported in Python only (ph_descent.single_mutation_zscales); this export has just the block graphs.
+    for (const key of ["zscaleMode", "zscale_mode"]) {
+      if (config[key] !== undefined && config[key] !== "block") {
+        throw new PhPlanError(`${key} ${JSON.stringify(config[key])} is not ported to the browser; only "block" is`);
+      }
+    }
     // Methods other than block_descent route to the host-loop port below (_designMethods); block_descent is untouched.
     if ((config.method ?? DEFAULT_CONFIG.method) !== "block_descent") {
       return this._designMethods(pdbText, labels, { ...DEFAULT_CONFIG, ...config }, replay);

@@ -26,6 +26,7 @@ from aminx.families.protonpotts_mpnn.ph_descent import (
   global_masks,
   rep_class_mask,
   select_joint,
+  single_mutation_zscales,
   stability_table,
 )
 from aminx.families.protonpotts_mpnn.ph_plan import block_table, valid_token_mask
@@ -419,13 +420,129 @@ def test_short_block_matches_explicit_padding():
   np.testing.assert_allclose(np.asarray(narrow.zscales), np.asarray(wide.zscales), rtol=1e-6)
 
 
-def test_zscale_mode_is_still_refused():
-  # global_weight, adjacent_repeat_weight and self_weight are ported (#2621); zscale_mode != "block" is not.
-  # sweep_order knn / energy are ported (#2621 phase 1); an unknown value is refused in test_ph_sweep_order.py.
+def test_zscale_mode_single_mutation_is_accepted_and_runs():
+  # global_weight, adjacent_repeat_weight, self_weight and zscale_mode="single_mutation" are all ported (#2621).
   p = _problem(10)
-  cfg = PHDesignConfig(zscale_mode="single_mutation", block_size=3)
-  with pytest.raises(NotImplementedError, match="zscale_mode"):
-    _run(p, config=cfg)
+  cfg = dataclasses.replace(p.config, zscale_mode="single_mutation")
+  res = _run(p, config=cfg)
+  ref = _run(p)
+  zs = np.asarray(res.zscales)
+  assert zs.shape == (3,)
+  assert np.all(np.isfinite(zs)) and np.all(zs > 0)
+  assert np.array_equal(np.asarray(res.seq)[p.pin_pos], p.pin_prot)
+  # the scales differ from block mode (different statistic), and the descent used them: wH = (1-lam)/sdH
+  assert not np.allclose(zs[:2], np.asarray(ref.zscales)[:2])
+
+
+def _smz_args(p: _Problem, **over):
+  args = dict(
+    table=jnp.asarray(p.table), e_idx=jnp.asarray(p.e_idx), seq=jnp.asarray(p.seq0), designable=jnp.asarray(p.designable),
+    pin_positions=jnp.asarray(p.pin_pos), pin_prot=jnp.asarray(p.pin_prot), pin_dep=jnp.asarray(p.pin_dep),
+    pin_dep_valid=jnp.asarray(p.pin_dep_valid), valid_tokens=jnp.asarray(p.valid),
+  )  # fmt: skip
+  args.update(over)
+  return args
+
+
+def _ref_std(deltas: np.ndarray, rows: np.ndarray, valid: np.ndarray) -> float:
+  """Upstream _zscale: std(unbiased=False) of the finite valid-column entries of the selected rows; 1.0 if none; floor 1e-6."""
+  vals = deltas[rows][:, valid]
+  vals = vals[np.isfinite(vals)]
+  if vals.size == 0:
+    return 1.0
+  return max(float(vals.std()), 1e-6)
+
+
+def _ref_single_mutation(p: _Problem, masks: GlobalMasks | None, seq: np.ndarray | None = None) -> np.ndarray:
+  """Brute-force mirror of upstream _block_mutation_tables + the 2243-2255 branch: one full re-evaluation per (row, token)."""
+  seq = p.seq0.copy() if seq is None else seq.copy()
+  seq[p.pin_pos] = p.pin_prot
+  n = p.designable.size
+  d_h = np.full((n, V), np.inf)
+  d_sel = np.zeros((n, V))
+  d_glob = np.zeros((n, V))
+  sel0 = _selective(p, seq)
+  g0 = _g_oracle(p, seq) if masks is not None else 0.0
+  for r, i in enumerate(p.designable):
+    cur = int(seq[i])
+    for a in np.flatnonzero(p.valid):
+      trial = seq.copy()
+      trial[i] = a
+      e = _energy_batch(p, np.stack([trial, seq]))
+      d_h[r, a] = e[0] - e[1]
+      if a == cur:
+        continue
+      d_sel[r, a] = _selective(p, trial) - sel0
+      if masks is not None:
+        d_glob[r, a] = _g_oracle(p, trial) - g0
+  sd_h = _ref_std(d_h, np.ones(n, bool), p.valid)
+  sel_rows = np.abs(d_sel).sum(1) > 0
+  sd_s = _ref_std(d_sel, sel_rows if sel_rows.any() else np.ones(n, bool), p.valid)
+  glob_rows = np.abs(d_glob).sum(1) > 0
+  sd_g = _ref_std(d_glob, glob_rows, p.valid) if (masks is not None and glob_rows.any()) else 1.0
+  return np.array([sd_h, sd_s, sd_g])
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_single_mutation_zscales_match_numpy_reference_of_upstream(seed):
+  p, masks = _knob_problem(seed, zscale_mode="single_mutation")
+  got = np.asarray(single_mutation_zscales(**_smz_args(p), glob_masks=masks))
+  want = _ref_single_mutation(p, masks)
+  assert got.shape == (3,)
+  assert want[2] != 1.0  # the global scale is actually exercised
+  np.testing.assert_allclose(got, want, rtol=2e-4)
+  without = np.asarray(single_mutation_zscales(**_smz_args(p)))
+  np.testing.assert_allclose(without[:2], want[:2], rtol=2e-4)
+  assert without[2] == 1.0
+
+
+def test_single_mutation_zscales_set_the_pins_first():
+  p = _problem(4)
+  raw = p.seq0.copy()
+  raw[p.pin_pos] = token_index("A")  # unpinned seed
+  got = np.asarray(single_mutation_zscales(**_smz_args(p, seq=jnp.asarray(raw))))
+  np.testing.assert_allclose(got, np.asarray(single_mutation_zscales(**_smz_args(p))), rtol=1e-6)
+
+
+def test_single_mutation_selective_scale_floors_when_no_row_varies():
+  # No pin edge reaches any designable position -> the selective deltas are all zero -> upstream's all-zero fallback: std 0 -> 1e-6.
+  p = _problem(5)
+  table = p.table.copy()
+  for c in p.pin_pos:
+    table[c, 1:] = 0.0  # edges out of a pin
+    table[:, 1:][p.e_idx[:, 1:] == c] = 0.0  # edges into a pin
+  q = p._replace(table=table)
+  got = np.asarray(single_mutation_zscales(**_smz_args(q)))
+  assert got[1] == pytest.approx(1e-6)
+  assert got[0] > 1e-3
+  assert got[2] == 1.0
+  np.testing.assert_allclose(got, _ref_single_mutation(q, None), rtol=2e-4)
+
+
+def test_single_mutation_self_weight_does_not_change_sdh():
+  # Upstream uses the unweighted ctx.scorer here (block mode uses stab_scorer): self_weight must not move sdH.
+  p = _problem(6)
+  base = np.asarray(single_mutation_zscales(**_smz_args(p)))
+  res_w = _run(p, config=dataclasses.replace(p.config, zscale_mode="single_mutation", self_weight=0.5))
+  res_1 = _run(p, config=dataclasses.replace(p.config, zscale_mode="single_mutation"))
+  np.testing.assert_allclose(np.asarray(res_w.zscales), np.asarray(res_1.zscales), rtol=1e-6)
+  np.testing.assert_allclose(np.asarray(res_1.zscales), base, rtol=1e-6)
+  # ... whereas block mode's sdH does move with self_weight
+  blk_w = _run(p, config=dataclasses.replace(p.config, self_weight=0.5))
+  blk_1 = _run(p)
+  assert not np.isclose(np.asarray(blk_w.zscales)[0], np.asarray(blk_1.zscales)[0])
+
+
+def test_single_mutation_block_descent_with_global_weight_uses_the_global_scale():
+  p, masks = _knob_problem(1, zscale_mode="single_mutation", global_weight=0.5)
+  res = block_descent(
+    jnp.asarray(p.table), jnp.asarray(p.e_idx), jnp.asarray(p.seq0), jnp.asarray(p.designable), jnp.asarray(p.blocks),
+    jnp.asarray(p.block_valid), jnp.asarray(p.pin_pos), jnp.asarray(p.pin_prot), jnp.asarray(p.pin_dep),
+    jnp.asarray(p.pin_dep_valid), jnp.asarray(p.valid), jnp.asarray(p.rep_mask), jnp.asarray(p.residue),
+    config=p.config, uniforms=jnp.zeros(p.config.block_max_rounds * p.designable.size, dtype=jnp.float32),
+    binder_mask=jnp.ones(LENGTH, dtype=bool),
+  )  # fmt: skip
+  np.testing.assert_allclose(np.asarray(res.zscales), _ref_single_mutation(p, masks), rtol=2e-4)
 
 
 # --- the three objective knobs (#2621): block_objective against independent full-objective oracles ---------------------

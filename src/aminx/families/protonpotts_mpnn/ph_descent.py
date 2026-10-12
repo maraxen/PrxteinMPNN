@@ -54,8 +54,13 @@ The three objective knobs of debt #2621 are ported (graded by the ``protonpotts_
   slot-0 field of the table by ``self_weight`` for the STABILITY term only (pairs at 1), in both the frozen ``sdH`` and the per-visit
   stability potentials. Selective, global and reported energies stay on the true table; ``self_weight == 1`` is an exact no-op.
 
-Not ported (refused with ``NotImplementedError`` at the top of :func:`block_descent` where a knob exists):
-``zscale_mode != "block"``. The visit
+``zscale_mode="single_mutation"`` (:func:`single_mutation_zscales`, upstream ``_block_mutation_tables`` 2006-2038 and the branch at 2243-2255)
+freezes the same three scales from single-position deltas instead: over the designable rows, the population std of the finite
+valid-token deltas of the UNWEIGHTED stability energy (``self_weight`` is not applied, unlike block mode), of the selective unary
+(rows where it varies; ``1e-6`` when no row varies, since the all-zero table has std 0) and of the global unary (rows where it varies;
+``1.0`` when the term is off or no row varies). Not ported browser-side (``ph_design.mjs`` only has the block graphs).
+
+Not ported (refused with ``NotImplementedError`` at the top of :func:`block_descent` where a knob exists): unknown ``zscale_mode``/``sweep_order`` values. The visit
 order ``sweep_order`` (``"position"``, ``"knn"``, ``"energy"``) is applied by ``ph_design`` before this function
 is called, so ``plan_designable`` arrives already in visit order.``PHDesignConfig`` has no ``repetitive_window_gate_types`` field, so the
 upstream gate is absent and the window term is active whenever its weight is non-zero and a parent set is
@@ -79,7 +84,10 @@ from jaxtyping import Array, Bool, Float, Int
 from xtrax.tiling import AxisSpec
 
 from aminx.families.potts_mpnn.etab import potts_energy
-from aminx.families.protonpotts_mpnn.ph_potentials import block_stability_potentials
+from aminx.families.protonpotts_mpnn.ph_potentials import (
+  block_stability_potentials,
+  candidate_energies_at,
+)
 from aminx.families.protonpotts_mpnn.vocab import (
   PROTONPOTTS_V6,
   THREE_TO_ONE,
@@ -123,12 +131,16 @@ def rep_class_mask(parents: Sequence[str]) -> np.ndarray:
 # Visit orders ported from upstream ``_block_descent``. The order itself is computed by ``ph_design`` before the
 # block table is built; ``block_descent`` only checks that the knob is one of these.
 SWEEP_ORDERS = ("position", "knn", "energy")
+ZSCALE_MODES = ("block", "single_mutation")
 
 
 def _check_supported(config: PHDesignConfig) -> None:
   """Refuse upstream knobs this port does not implement, naming each one."""
   checks = (
-    (config.zscale_mode != "block", f"zscale_mode={config.zscale_mode!r} (only 'block' is ported)"),
+    (
+      config.zscale_mode not in ZSCALE_MODES,
+      f"zscale_mode={config.zscale_mode!r} (only {', '.join(map(repr, ZSCALE_MODES))} are ported)",
+    ),
     (
       config.sweep_order not in SWEEP_ORDERS,
       f"sweep_order={config.sweep_order!r} (only {', '.join(map(repr, SWEEP_ORDERS))} are ported)",
@@ -710,6 +722,72 @@ def block_zscales(
   return jnp.stack([sd_h, sd_s, sd_g])
 
 
+def _delta_std(deltas: Array, rows: Array, valid_tokens: Array) -> Array:
+  """Upstream ``_zscale`` (1995-2003): population std of the finite entries of ``deltas[rows][:, valid_tokens]``.
+
+  Floored at ``1e-6``; ``1.0`` when no finite entry is selected.
+  """
+  finite = rows[:, None] & valid_tokens[None, :] & jnp.isfinite(deltas)
+  count = jnp.sum(finite)
+  safe = jnp.maximum(count, 1).astype(deltas.dtype)
+  vals = jnp.where(finite, deltas, 0.0)
+  mean = jnp.sum(vals) / safe
+  var = jnp.sum(jnp.where(finite, (vals - mean) ** 2, 0.0)) / safe
+  sd = jnp.maximum(jnp.sqrt(var), 1e-6)
+  return jnp.where(count > 0, sd, 1.0).astype(deltas.dtype)
+
+
+def single_mutation_zscales(
+  table: Float[Array, "L K V V"],
+  e_idx: Int[Array, "L K"],
+  seq: Int[Array, " L"],
+  designable: Int[Array, " N"],
+  pin_positions: Int[Array, " P"],
+  pin_prot: Int[Array, " P"],
+  pin_dep: Int[Array, "P D"],
+  pin_dep_valid: Bool[Array, "P D"],
+  valid_tokens: Bool[Array, " V"],
+  *,
+  glob_masks: GlobalMasks | None = None,
+) -> Float[Array, " 3"]:
+  """Frozen ``(sdH, sdSel, sdGlob)`` of upstream ``zscale_mode="single_mutation"`` (2006-2038, branch 2243-2255).
+
+  ``dH[n, a] = E[i, a] - E[i, cur]`` of the UNWEIGHTED ``table`` (upstream ``ctx.scorer``; ``self_weight`` does not apply), ``dSel``
+  and ``dGlob`` the change of the selective / global term when ``designable[n]`` alone is set to ``a``, all pins at their protonated
+  token. The current-token entry is 0 and counts. ``sdSel`` and ``sdGlob`` use only the rows where the term varies; ``sdSel`` is
+  ``1e-6`` when none does and ``sdGlob`` is ``1.0`` when ``glob_masks`` is None (upstream ``want_global`` False) or none does.
+  Pins are set in ``seq`` first.
+  """
+  seq = _set_pins(seq, pin_positions, pin_prot)
+  designable = designable.astype(jnp.int32)
+  n_rows = designable.shape[0]
+  dtype = table.dtype
+  all_rows = jnp.ones((n_rows,), dtype=bool)
+  cur = seq[designable]
+
+  e_abs = candidate_energies_at(table, e_idx, seq, designable)
+  d_h = e_abs - jnp.take_along_axis(e_abs, cur[:, None], axis=1)
+  sd_h = _delta_std(d_h, all_rows, valid_tokens)
+
+  sel_abs = _selective_unary(table, e_idx, pin_positions, pin_prot, pin_dep, pin_dep_valid, designable, all_rows)
+  d_sel = jnp.where(valid_tokens[None, :], sel_abs - jnp.take_along_axis(sel_abs, cur[:, None], axis=1), 0.0)
+  sel_rows = jnp.sum(jnp.abs(d_sel), axis=1) > 0
+  # No varying row: upstream falls back to the whole (all-zero) table, whose std is 0 -> the 1e-6 floor, not 1.0.
+  sd_s = _delta_std(d_sel, jnp.where(jnp.any(sel_rows), sel_rows, all_rows), valid_tokens)
+
+  if glob_masks is None:
+    sd_g = jnp.asarray(1.0, dtype=dtype)
+  else:
+
+    def one_row(pos: Array) -> Array:
+      return _global_rel(table, e_idx, seq, pos[None], jnp.ones((1,), dtype=bool), glob_masks)[0]
+
+    d_glob = jnp.where(valid_tokens[None, :], lax.map(one_row, designable), 0.0)
+    glob_rows = jnp.sum(jnp.abs(d_glob), axis=1) > 0
+    sd_g = jnp.where(jnp.any(glob_rows), _delta_std(d_glob, glob_rows, valid_tokens), 1.0).astype(dtype)
+  return jnp.stack([sd_h, sd_s, sd_g]).astype(dtype)
+
+
 def select_joint(
   flat: Float[Array, " S"],
   uniform: Float[Array, ""],
@@ -842,20 +920,34 @@ def block_descent(
       f"uniforms has {n_uniform} entries; sampling needs up to block_max_rounds * N = "
       f"{max_rounds * n_designable}",
     )
-  zscales = block_zscales(
-    table,
-    e_idx,
-    seq,
-    blocks,
-    block_valid,
-    pin_positions,
-    pin_prot,
-    pin_dep,
-    pin_dep_valid,
-    valid_tokens,
-    stab_table=stab_table,
-    glob_masks=glob_masks,
-  )
+  if config.zscale_mode == "single_mutation":
+    zscales = single_mutation_zscales(
+      table,
+      e_idx,
+      seq,
+      blocks[:, 0],
+      pin_positions,
+      pin_prot,
+      pin_dep,
+      pin_dep_valid,
+      valid_tokens,
+      glob_masks=glob_masks,
+    )
+  else:
+    zscales = block_zscales(
+      table,
+      e_idx,
+      seq,
+      blocks,
+      block_valid,
+      pin_positions,
+      pin_prot,
+      pin_dep,
+      pin_dep_valid,
+      valid_tokens,
+      stab_table=stab_table,
+      glob_masks=glob_masks,
+    )
   lam = float(config.combined_lambda)
   wh = (1.0 - lam) / zscales[0]
   wsel = lam / zscales[1]

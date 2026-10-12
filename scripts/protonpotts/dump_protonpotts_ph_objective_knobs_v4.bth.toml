@@ -29,7 +29,10 @@ dtype around the whole engine run (so upstream's torch.full/zeros tables in the 
 
 Claims, all of P4m3's (1-7, unchanged text below) plus:
 8. THE SINGLE-MUTATION PATH IS WHAT RAN. Every zsm_* call invoked _block_mutation_tables exactly once and _zscale 2 or 3 times; every P4m3-style
-   block call invoked neither (folded into `complete`).
+   block call invoked _block_mutation_tables exactly once (via _block_zscales, 2071) and _zscale never (folded into `complete`).
+   CORRECTION, disclosed: the first draft of this claim said block calls invoke _block_mutation_tables zero times; an UNGRADED smoke of the
+   v4 script on one cell (1EL1, not cited, no record) showed `complete` false for exactly that reason (block calls call it once via
+   _block_zscales). The claim and the script check were corrected together, before any graded run; no threshold or outcome criterion changed.
 9. THE ORACLE SEES THE NEW SCALES (zscale_live): in at least one cell and precision the sdH recorded for block_zsm_T0 differs from the P4g
    block_T0 sdH by more than 1e-6 relative -- otherwise a port that silently used block z-scales could pass.
 10. THE GLOBAL SCALE IS SEEN (zscale_glob_live): in at least one cell and precision the sdGlob recorded for block_zsm_glob1_T0 differs from the sdGlob of

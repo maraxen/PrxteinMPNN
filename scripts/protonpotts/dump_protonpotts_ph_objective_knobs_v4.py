@@ -132,7 +132,9 @@ class _ZsmRecorder:
   """Per block-descent invocation: the values upstream's ``_zscale`` returned and how often ``_block_mutation_tables`` ran.
 
   Wraps, never patches: the originals are called unchanged and restored by ``_dump``. ``_zscale`` is called in block descent only by
-  the single_mutation branch (upstream 2249-2254), so a block-mode invocation records no values.
+  the single_mutation branch (upstream 2249-2254), so a block-mode invocation records no values. ``_block_mutation_tables`` runs ONCE in
+  either mode (block mode through ``_block_zscales`` 2071, single_mutation directly 2247); an ungraded smoke found that the first draft
+  of this check assumed zero for block mode. The discriminator between the modes is therefore the ``_zscale`` calls (0 vs 2-3).
   """
 
   def __init__(self) -> None:
@@ -187,7 +189,7 @@ def _attach_zsm_zscales(meta: dict, records: list[dict]) -> None:
     call["zsm_n_tables"] = int(rec["n_tables"])
     call["zsm_n_zscale_calls"] = len(z)
     if not _is_zsm(call["label"]):
-      call["zsm_path_taken"] = bool(rec["n_tables"] == 0 and not z and call["zscales"] is not None)
+      call["zsm_path_taken"] = bool(rec["n_tables"] == 1 and not z and call["zscales"] is not None)  # _block_zscales calls it once
       continue
     if call["zscales"] is not None:
       msg = f"call {call['index']}: single_mutation call unexpectedly recorded _block_zscales output"

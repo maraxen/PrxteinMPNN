@@ -38,7 +38,10 @@ is_residual = true
 
 [result_schema]
 m_values = { type = "list[int]", doc = "Temperature set sizes benchmarked: [1, 2, 4, 8]" }
-cells = { type = "list[dict]", doc = "One cell per M value" }
+
+[result_schema.cells]
+type = "list[dict]"
+doc = "One cell per M value"
 
 [result_schema.cells.item]
 m = { type = "int", doc = "Number of temperatures in this run" }

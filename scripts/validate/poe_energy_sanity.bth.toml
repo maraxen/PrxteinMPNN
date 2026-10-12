@@ -1,5 +1,6 @@
 [metadata]
 run_id = "poe_energy_sanity_v1"
+tags = ["potts-model", "poe-energy", "sanity-check", "alphabet-validation", "scale-factor"]
 script = "scripts/validate/poe_energy_sanity.py"
 description = "Sanity check for PoE (Product of Experts) energy computation invariants"
 
@@ -17,10 +18,3 @@ full = "uv run python scripts/validate/poe_energy_sanity.py --n-residues 6 --num
 [exit_codes]
 0 = "All assertions passed"
 1 = "One or more assertions failed, or NotImplementedError (model not yet complete)"
-
-[tags]
-- "potts-model"
-- "poe-energy"
-- "sanity-check"
-- "alphabet-validation"
-- "scale-factor"

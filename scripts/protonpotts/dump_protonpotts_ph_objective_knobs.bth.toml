@@ -1,0 +1,82 @@
+[metadata]
+title = "ProtonPottsMPNN pH-design objective-knob dump: upstream block descent with global_weight / adjacent_repeat_weight / self_weight on the sealed tables, f32 and f64 (P4m, #2621)"
+created = "261011"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = """
+Debt #2621, phase 2 (the objective knobs; phase 1 was the visit-order knob, P4k). Same harness, cells, precisions, sealed inputs,
+inverse-CDF shim, thread pinning and per-call records as the sealed P4g dump (scripts/protonpotts/dump_protonpotts_ph.py) and as P4k
+(scripts/protonpotts/dump_protonpotts_ph_knobs.py), with sweep_order "position" and the P4g block-descent production values otherwise,
+and ONE objective knob set away from its default per configuration -- seven configurations:
+  block_glob_p1_T0, block_glob_p1_T05 (global_weight +1.0; upstream _global_protonation_dH enters combined_unary as
+    wGlob * (g - g0) with wGlob = global_weight / sdGlob, so a POSITIVE weight minimises g, i.e. favours protonated; the upstream
+    docstring states the opposite and the code is what is dumped),
+  block_glob_m1_T0 (global_weight -1.0; the sign control),
+  block_adjrep_T0, block_adjrep_T05 (adjacent_repeat_weight 1.0: +w per sequence-adjacent pair with the same canonical amino acid,
+    chain A only, raw in z-units, both the in-block pairwise and the out-of-block unary cases),
+  block_self_T0, block_self_T05 (self_weight 0.5: the stability term's field weight, pairs at 1, used for the frozen sdH and the
+    per-round stability score; selective and global stay on the true model).
+T0 configurations draw 1 sample, T05 configurations (temperature 0.05) 2 samples, as in P4k. zscale_mode stays "block" (still refused).
+Cells 1BVC chain A, 6m0j binder chain E, 1OLR chain A, 1EL1 chain A; float32 and float64. Recorded per call additionally: the configured
+knob values (all five #2621 knobs), the frozen z-scales including sdGlob when global_weight != 0, and, per design, the global term g of
+the final sequence (upstream _global_protonation_dH) whatever the weight.
+
+Claims, falsifiable by this run:
+
+1. THE ENGINE SEES THE SEALED INPUTS (as P4g claim 1).
+2. COMPLETE. Every cell and precision carries all seven configurations with z-scales, designs and the recorded knob values.
+3. THE SHIM IS THE ONLY RANDOMNESS. Every T=0 call consumes zero uniforms and every T>0 call at least one.
+4. THE f64 RUN IS REALLY DOUBLE (as P4g claim 4).
+5. REPRODUCIBLE. A second run in a fresh process gives identical content and metadata hashes, threads pinned to 1.
+6. EACH KNOB IS LIVE (the controls that make this oracle a test): for each of global_weight, adjacent_repeat_weight and self_weight,
+   in at least one cell and precision the T=0 designs differ from the P4g sweep_order "position" T=0 designs of the same cell and
+   precision -- otherwise a port that ignores that knob would pass against it.
+7. THE SIGN IS VISIBLE: in at least one cell and precision the block_glob_p1_T0 and block_glob_m1_T0 designs differ -- otherwise a port
+   with the global term's sign flipped could pass against it.
+
+Recorded, not required: per configuration and cell, the global term g of the final designs (expected lower at +1 than at -1 when they
+differ, from the code's sign; reported, not a claim).
+"""
+stage_name = "confirmation"
+novel = false
+
+[outcomes.pass]
+condition = "engine_matches_sealed AND complete AND shim_consistent AND f64_is_float64 AND precisions_differ AND reproducible AND global_live AND adjrep_live AND self_live AND global_sign_visible AND n_cells = 4"
+decision = "Seal the dump and grade the aminx port of the three objective knobs against it."
+reasoning = "All P4g claims hold for the knob configurations, every knob changes the designs somewhere, and the global sign is observable, so the oracle can tell a faithful port from one that ignores or flips a knob."
+is_residual = false
+adversarial_check = "NOT (engine_matches_sealed AND complete AND shim_consistent AND f64_is_float64 AND precisions_differ AND reproducible AND global_live AND adjrep_live AND self_live AND global_sign_visible AND n_cells = 4)"
+
+[outcomes.fail]
+condition = "NOT (engine_matches_sealed AND complete AND shim_consistent AND f64_is_float64 AND precisions_differ AND reproducible AND global_live AND adjrep_live AND self_live AND global_sign_visible AND n_cells = 4)"
+decision = "Do not seal. Read which flag is false; a live/sign flag false means these cells and weights cannot grade that knob, and a new registration with other weights is needed (not an edit of this one)."
+reasoning = "At least one claim is false."
+is_residual = true
+adversarial_check = "engine_matches_sealed AND complete AND shim_consistent AND f64_is_float64 AND precisions_differ AND reproducible AND global_live AND adjrep_live AND self_live AND global_sign_visible AND n_cells = 4"
+
+[result_schema]
+engine_matches_sealed = "bool"
+complete = "bool"
+shim_consistent = "bool"
+f64_is_float64 = "bool"
+precisions_differ = "bool"
+reproducible = "bool"
+global_live = "bool"
+adjrep_live = "bool"
+self_live = "bool"
+global_sign_visible = "bool"
+n_cells = "int"
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true, doc = "aminx commit SHA" }
+
+[data]
+upstream = "ProtonPottsMPNN @ 09682abf, PottsMPNNPHEngine (inference_engines/potts_mpnn_ph.py): criteria fields global_weight L145, adjacent_repeat_weight L156, self_weight L173; _global_protonation_dH L2666; combined_unary ~L2273-2290; adjacent-repeat terms ~L2318-2352; stability reweighting ~L1610-1624"
+inputs = "sealed P4e dump (run 60351d47) merged tables and E_idx; sealed P4b/P4c/P4d feature dumps (native S); the P4g dump for the default-design comparison"
+cells = "pkad_unlabelled=1BVC chain A; multichain=6m0j binder chain E; only_o_1olr=1OLR chain A; gap=1EL1 chain A"
+configurations = "P4g block-descent production values (block_size 3, combined_lambda 0.3, neighbour_k 16, max_mutations 20, repetitive window 1.0/2, forbidden HIS-A ASP-A GLU-A UNK, v6 dep_map, centre types HIS-P ASP-P GLU-P, scan_potts, sweep_order position) with one of: global_weight +1.0 (T 0, 0.05), global_weight -1.0 (T 0), adjacent_repeat_weight 1.0 (T 0, 0.05), self_weight 0.5 (T 0, 0.05); T 0 1 sample, T 0.05 2 samples"
+threads = "OMP/MKL/OPENBLAS_NUM_THREADS=1 before torch import, torch.set_num_threads(1)"
+
+[provenance]
+note = "Pre-registered before dump_protonpotts_ph_objective_knobs.py exists and before any upstream output with these knob values exists. Weights chosen a priori (unit magnitude; self_weight halved), not tuned. Graded invocation as P4g's / P4k's (bth run in the aminx-oracles-protonpotts env from a clean checkout of a commit containing this file and the script)."

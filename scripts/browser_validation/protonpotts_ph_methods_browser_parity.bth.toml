@@ -1,0 +1,117 @@
+[metadata]
+title = "X11c browser parity: the JS pH host-loop methods (converged_mcmc, converged_mcmc_combined, two_phase, gibbs) in headless Chromium at 1 and 4 threads vs aminx design_methods on replayed draws"
+created = "261011"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = """
+browser/protonpotts-scorer/ph_design.mjs (PhDesigner.design with config.method in {converged_mcmc, converged_mcmc_combined, two_phase,
+gibbs}, backend "potts", the replay passed as design()'s fifth argument), loaded by a dedicated harness page served over HTTP with COOP/COEP
+and driven in headless Chromium through browser/layer_c/run_p07.mjs UNCHANGED, reproduces aminx.families.protonpotts_mpnn.ph_methods.
+design_methods on the X11b cases, at ORT numThreads 1 AND numThreads 4.
+
+Everything that grades is X11b's (protonpotts_ph_methods_node_gate, graded PASS 98067055 under amendment 3), imported, not restated:
+the cells (1EL1, 1BVC, 1OLR at bucket 256; 6m0j at bucket 1024, binder chain E), the five cases (mcmc_t005, mcmc_t0, combined_t005,
+two_phase_t005, gibbs_t005; HIS-P, two samples, production defaults), draw recording and replay, the reference consistency check, and the
+comparator with its bounds exactly as X11b's amendment 3 left them: tokens / designable / pins / label / n_draws exact; energies
+max|d| / max(1, |ref|) <= 1e-4; cumulative-probability discrepancy <= 5e-3 on every aligned pick (PROB_BOUND); explained divergence
+(discrepancy at the first differing pick >= the reference's boundary distance) exempt as fragile; at T = 0 an argmin-trace divergence
+exempt as fragile only when the reference margin at that pick is <= 2.5e-4 (TIE_MARGIN). Fragile designs are reported, never counted as
+passes. Artifacts: X6a scoring and X7a pH, verified by manifest sha256 (not re-exported).
+
+HELD-OUT DRAWS: every case seed is offset by 300000 (--seed-offset 300000), disjoint from X11b's exploratory (0), amendment-2 (100000) and
+confirmatory (200000) seeds, so no bound in this registration was fitted to these draws.
+
+WHY SEPARATE FROM X11b: Node is not a browser, and at 4 threads ORT's wasm reductions may order differently; that is where a thread race
+or a reduction-order shift large enough to cross PROB_BOUND would show. crossOriginIsolated and the effective thread count, as ORT reports
+them after init, are recorded per thread setting; the 4-thread arm only counts if it actually ran isolated with more than one thread.
+
+Controls (per thread setting; each must make the SAME comparator fail on at least one design of the cases it applies to; exemptions
+disabled for controls, as in X11b): TOKENS -- browser designs vs the reference replayed with every uniform list rolled by one (T > 0
+cases); RANDINT -- vs the reference with the randint list rolled by one (mcmc, combined, two_phase); PERM -- vs the reference with every
+gibbs permutation reversed (gibbs); ENERGY -- browser final energies vs the reference energy of the same sequences under a Potts head
+perturbed by 1e-2 noise on every float leaf.
+
+No shipped page is modified: ph_index.html / ph_page.mjs (X7c) and site/protonpotts/ (X10) keep their graded content; the harness page is
+new and imports ph_design.mjs as-is.
+
+Preemption safety (scheduling only): each (thread setting, cell, case) runs and persists separately with a completion stamp keyed by the
+sha256 of its inputs (PDB, config, replay record, manifest shas, JS module and page digests, thread setting); a rerun reuses matching
+stamps and records which were reused.
+
+PREDICTION, stated before the run so it can be wrong: every case passes at both thread settings with all four controls firing at both;
+the maximum discrepancy stays within 2x X11b's held-out maximum (1.03e-3), with at most a handful of fragile exemptions. Risks: (a) 6m0j
+converge/gibbs cases at bucket 1024 exceeding the harness timeout (an incomplete run, outcome error, not a disagreement); (b) a 4-thread
+reduction order raising the discrepancy past 5e-3 on some pick (a fail, reported with the case and pick).
+"""
+stage_name = "validation"
+novel = true
+# No [reproduction]: novel. Mirrors protonpotts_ph_browser_parity (X7c) on top of protonpotts_ph_methods_node_gate (X11b).
+
+[controls]
+positive_outcome = ["pass"]
+negative_outcome = ["error", "instrument_unverified", "fail"]
+
+# Declaration ORDER is load-bearing: bathos takes the FIRST matching branch.
+
+[outcomes.error]
+condition = "jax_arm_ok = false OR artifacts_verified = false OR browser_complete = false OR reference_consistent = false"
+decision = "The reference, the artifact check, a browser run (either thread setting) or the reference's own replay consistency did not hold. Cite nothing."
+reasoning = "Without a complete, self-consistent reference and complete browser runs there is nothing to grade."
+is_residual = true
+
+[outcomes.instrument_unverified]
+condition = "isolated_at_4 = false OR NOT (control_tokens_detected = true AND control_randint_detected = true AND control_perm_detected = true AND control_energy_detected = true)"
+decision = "Either the 4-thread arm did not run cross-origin isolated with more than one thread, or a planted difference was not flagged at some thread setting. Passes are not evidence."
+reasoning = "A 4-thread arm that silently fell back to one thread does not test reduction order; a comparator blind to a changed draw stream would pass a port that ignores it."
+is_residual = true
+
+[outcomes.pass]
+condition = "n_cases > 0 AND n_pass = n_cases"
+decision = "The JS host-loop methods reproduce aminx design_methods in headless Chromium at 1 and 4 threads on held-out draws (fragile exemptions reported). Validated in a browser for these cases."
+reasoning = "n_cases counts (thread setting, cell, case) units, so a pass requires both thread settings. Licenses browser validation for these cases only."
+is_residual = false
+
+[outcomes.fail]
+condition = "NOT (n_cases > 0 AND n_pass = n_cases)"
+decision = "At least one (thread setting, case) has a non-fragile disagreement. The per-design record names the thread setting, case, sample, field and first differing pick."
+reasoning = "Same draws, same graphs, same JS as X11b: a disagreement localises to the browser runtime or thread count."
+is_residual = true
+
+[result_schema]
+scoring_manifest_sha256 = "str"
+ph_manifest_sha256 = "str"
+artifacts_verified = "bool"
+jax_arm_ok = "bool"
+browser_complete = "bool"
+reference_consistent = "bool"
+isolated_at_4 = "bool"
+threads_effective = "dict"
+jax_version = "str"
+onnxruntime_web_version = "str"
+chromium_version = "str"
+git_hash = "str"
+git_clean = "bool"
+seed_offset = "int"
+n_cases = "int"
+n_pass = "int"
+n_fragile_designs = "int"
+max_prob_discrepancy = "float"
+cases = "list"
+units_reused = "list"
+control_tokens_detected = "bool"
+control_randint_detected = "bool"
+control_perm_detected = "bool"
+control_energy_detected = "bool"
+error = "str"
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true }
+
+[data]
+checkpoint = "ProtonPottsMPNN v6 epoch-0125, sha256 a39872250c0b8eb4c0b4cb6472a6edad0d6f6134a50c28b611386e83c592fe7b"
+artifacts = "X6a 40b4318e (scoring 7b2087dc...9243), X7a d5918c26 (ph 131a65cb...6fe7319)"
+tolerances = "X11b's, unchanged: tokens/pins/n_draws exact; energies <= 1e-4 rel; PROB_BOUND 5e-3; explained-divergence and TIE_MARGIN 2.5e-4 exemptions (fragile, reported); held-out seed offset 300000"
+
+[provenance]
+note = "Pre-registered at the commit that adds this file, before the harness page and protonpotts_ph_methods_browser_parity.py exist and before any browser output of these methods exists. X11b (Node) passed as 98067055; X10's site gate exercised the deployed page, not these methods' outputs against the reference."

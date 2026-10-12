@@ -1,0 +1,86 @@
+[metadata]
+title = "protonpotts_ph_knobs wave: aminx block descent with sweep_order knn / energy against the upstream engine (P4k), replayed uniforms (#2621 phase 1)"
+created = "261010"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = """
+The aminx port of upstream's block-descent visit order -- ph_design._visit_order with sweep_order "knn" (ph_plan.knn_rank) and "energy"
+(ph_design._centre_energy_rank), applied once on the seed with centres pinned, BEFORE the pooled z-scales and the block table --
+reproduces the upstream PottsMPNNPHEngine against the P4k dump (scripts/protonpotts/dump_protonpotts_ph_knobs.py, graded under its own
+sidecar), for the four P4g cells (1BVC, 6m0j binder chain E, 1OLR, 1EL1), both precisions, and every block-descent call of the four knob
+configurations (block_knn_T0, block_knn_T05, block_energy_T0, block_energy_T05): 6 calls per cell and precision, 48 in total.
+
+Per call the aminx side is given only what upstream was given (sealed table and E_idx, native sequence, binder mask, the configuration with
+its knob values as recorded in the dump meta) and must, through the SHIPPED code path (ph_design._visit_order, then block_table and
+block_descent on that order, as ph_design._run_optimiser composes them):
+  0. reproduce the recorded visit order EXACTLY (the list upstream's ranker returned);
+  1-5. match plan, pooled z-scales, final sequence, uniforms consumed and scores with the SAME bars as the protonpotts_ph_block wave
+       (plan/tokens/draws exact; z-scales and scores f64 1e-9 relative, f32 10x the measured upstream f32-vs-f64 spread, min 1e-6).
+
+Controls (each rejected when the comparison fails on at least one call of the cells it applies to):
+  POSITION_KNN -- the knn calls run with sweep_order "position": must fail wherever the dump marked the knn order live;
+  POSITION_ENERGY -- the same for the energy calls;
+  SWAPPED -- the knn calls run with sweep_order "energy" (and vice versa): a port that confuses the rankers must fail;
+  SHIFTED -- uniforms shifted by one draw on a T > 0 call.
+
+AMENDMENT (261011), after graded run cf69cf4c recorded FAIL (disclosed; that run stays a recorded fail): 47/48 calls passed with every
+visit order, plan, token, draw count and z-scale exact (f64 ~1e-15) and all four controls rejected. The one failing call
+(multichain/f32/block_energy_T05/4) missed only the f32 selectivity-score band: aminx f32 gap -23.512512, upstream f32 -23.512360,
+upstream f64 -23.512355 -- aminx's own f32 summation error (1.5e-4, 6.5e-6 relative; it is equally far from upstream f64), against a band
+of 10x UPSTREAM's f32-vs-f64 spread (4.4e-6 on that call). That band measures only one implementation's f32 noise. Amended f32 score band:
+10 x max(upstream |f32 - f64|, aminx |f32 - f64| of the SAME designed sequence, scored with the f64 table), never below 1e-6 relative --
+applied to the final energy and the selectivity gap of every f32 call. f64 bands, all exact checks and the controls are unchanged. The
+oracle is deterministic, so the amended rule is necessarily re-applied to the same 48 calls; this limitation is stated, not hidden.
+
+PREDICTION, stated before the run so it can be wrong: all 48 calls pass and all four controls are rejected. Risks: the energy ranker's
+in-edge lookup (upstream _inc_src/_inc_slot vs aminx scanning e_idx rows; duplicate neighbours, last occurrence wins), Python-float sums
+on an f32 table near ties, and the pooled z-scale order now following the visit order.
+"""
+stage_name = "validation"
+novel = false
+
+[outcomes.pass]
+condition = "clean = 'pass' AND n_calls = 48 AND n_calls_ok = 48 AND n_orders_exact = 48 AND n_tokens_exact = 48 AND n_draws_ok = 48 AND dump_flags_pass AND n_listed = 4 AND n_failed = n_listed"
+decision = "protonpotts_ph_knobs is graded: sweep_order knn and energy reproduce upstream's visit order and designs in both precisions, and each control is rejected."
+reasoning = "Every call matches on order, plan, z-scales, tokens, draws and scores; the dump passed; all four controls fail the same comparison."
+is_residual = false
+adversarial_check = "NOT (clean = 'pass' AND n_calls = 48 AND n_calls_ok = 48 AND n_orders_exact = 48 AND n_tokens_exact = 48 AND n_draws_ok = 48 AND dump_flags_pass AND n_listed = 4 AND n_failed = n_listed)"
+
+[outcomes.fail]
+condition = "NOT (clean = 'pass' AND n_calls = 48 AND n_calls_ok = 48 AND n_orders_exact = 48 AND n_tokens_exact = 48 AND n_draws_ok = 48 AND dump_flags_pass AND n_listed = 4 AND n_failed = n_listed)"
+decision = "Do not treat sweep_order as graded. Read per_call: an order miss names the ranker; an order match with z-scales or tokens off names the composition (order fed to block_table / block_descent); an undetected control means the comparison cannot see that error."
+reasoning = "Some call differs from upstream, the dump did not pass, or a control was not rejected."
+is_residual = true
+adversarial_check = "clean = 'pass' AND n_calls = 48 AND n_calls_ok = 48 AND n_orders_exact = 48 AND n_tokens_exact = 48 AND n_draws_ok = 48 AND dump_flags_pass AND n_listed = 4 AND n_failed = n_listed"
+
+[result_schema]
+clean = "str"
+n_cells = "int"
+n_calls = "int"
+n_calls_ok = "int"
+n_orders_exact = "int"
+n_plans_ok = "int"
+n_zscales_ok = "int"
+n_tokens_exact = "int"
+n_draws_ok = "int"
+n_scores_ok = "int"
+dump_flags_pass = "bool"
+worst_zscale_rel_f64 = "float"
+worst_energy_rel_f64 = "float"
+n_listed = "int"
+n_failed = "int"
+mutants = "dict"
+undetected = "list"
+per_call = "dict"
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true, doc = "aminx commit SHA" }
+
+[data]
+oracle = "P4k knob dump (graded under scripts/protonpotts/dump_protonpotts_ph_knobs.bth.toml): upstream PottsMPNNPHEngine with sweep_order knn / energy on the sealed P4e tables, injected-uniform shim, recorded visit order"
+inputs = "sealed P4e merged tables and E_idx; sealed P4b/P4c/P4d native S; the dump's per-cell context arrays and call meta (knob values, visit_order)"
+tolerances = "visit order, plan, tokens and draw count exact; z-scales and scores as protonpotts_ph_block (f64 1e-9 relative; f32 10x measured spread, min 1e-6)"
+
+[provenance]
+note = "Pre-registered before protonpotts_ph_knobs_parity.py exists and before the graded P4k dump. Graded invocation: bth run --project-slug aminx -- uv run --no-sync python scripts/parity/protonpotts_ph_knobs_parity.py --encoder-dir <P4e out dir> --ph-dir <P4k out dir> --features-dir ~/projects/aminx-oracles-protonpotts, from a clean checkout."

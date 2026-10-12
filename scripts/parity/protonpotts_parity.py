@@ -85,6 +85,10 @@ class Roots:
   def p4m3(self) -> Path:
     return self.oracles / "features_v6_p4m3"
 
+  @property
+  def p4m4(self) -> Path:
+    return self.oracles / "features_v6_p4m4"
+
 
 def _cells(roots: Roots, *, chains: bool) -> list[str]:
   out: list[str] = []
@@ -120,7 +124,7 @@ def wave_argv(wave: str, roots: Roots) -> list[str]:
   if wave == "ph_knobs":
     return ["--encoder-dir", str(roots.p4e), "--ph-dir", str(roots.p4k), *features]
   if wave == "ph_objective_knobs":
-    return ["--encoder-dir", str(roots.p4e), "--ph-dir", str(roots.p4m3), *features]
+    return ["--encoder-dir", str(roots.p4e), "--ph-dir", str(roots.p4m4), *features]
   msg = f"unknown wave {wave!r}"
   raise ValueError(msg)
 

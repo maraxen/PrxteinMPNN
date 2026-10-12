@@ -1114,3 +1114,12 @@ mutant = "ph_objective_knobs.shifted"
 [branch.vehicle]
 kind = "sidecar"
 slug = "protonpotts_parity"
+
+[[branch]]
+id = "ph_objective_knobs.block_zscales"
+stage = "P10"
+fixture = "protonpotts_dumps"
+mutant = "ph_objective_knobs.block_zscales"
+[branch.vehicle]
+kind = "sidecar"
+slug = "protonpotts_parity"

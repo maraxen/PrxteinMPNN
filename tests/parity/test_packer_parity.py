@@ -11,6 +11,7 @@ from aminx.model.packer import Packer as JAXPacker
 from aminx.types.bundles import PackerBundle
 from aminx.types.configs import InferenceConfig
 from scripts.convert_weights import convert_packer_model
+from tests.matmul_precision import highest_matmul_precision
 from tests.parity.reference_utils import import_reference_module, require_heavy_parity_prereqs
 
 torch = pytest.importorskip("torch")
@@ -34,12 +35,12 @@ def _feature_dict_to_packer_bundle(fd: dict[str, jnp.ndarray]) -> PackerBundle:
   )
 
 
+@highest_matmul_precision
 def _forward_jax_packer_for_parity(
   jax_packer: JAXPacker,
   feature_dict_jax: dict[str, jnp.ndarray],
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
   """Run JAX packer on CPU when available to align with reference ``device='cpu'`` numerics."""
-  jax.config.update("jax_default_matmul_precision", "highest")
   bundle = _feature_dict_to_packer_bundle(feature_dict_jax)
   cpu_devices = [d for d in jax.devices() if d.platform == "cpu"]
   if cpu_devices:

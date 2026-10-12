@@ -15,6 +15,7 @@ from scipy.stats import pearsonr
 
 from aminx.model.ligand_mpnn import PrxteinLigandMPNN
 from aminx.parity.matrix import ligand_tied_multistate_rollout_outcome
+from tests.matmul_precision import highest_matmul_precision
 from tests.model.sampling_dist_parity_helpers import mean_positionwise_js
 from tests.parity.reference_utils import require_heavy_parity_prereqs
 
@@ -399,14 +400,13 @@ def ligand_batch() -> LigandBatch:
 
 
 @pytest.mark.parity_targeted
+@highest_matmul_precision
 def test_ligand_feature_extraction_reference_parity(
   ligand_models: tuple[Any, PrxteinLigandMPNN],
   ligand_batch: LigandBatch,
 ) -> None:
   """Check ligand feature tensors against reference extraction."""
   import torch
-
-  jax.config.update("jax_default_matmul_precision", "highest")
 
   pt_model, jax_model = ligand_models
   feature_dict = _to_torch_feature_dict(ligand_batch, torch)

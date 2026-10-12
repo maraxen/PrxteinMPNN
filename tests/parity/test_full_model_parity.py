@@ -23,6 +23,7 @@ from aminx.inference import (
 from aminx.io.weights import load_weights
 from aminx.model.mpnn import Aminx
 from aminx.types.bundles import WaveScheduleBundle
+from tests.matmul_precision import highest_matmul_precision
 from tests.parity.reference_utils import load_reference_function, require_heavy_parity_prereqs
 
 
@@ -272,14 +273,13 @@ def parity_batch() -> ParityBatch:
 @pytest.mark.parity_heavy
 @pytest.mark.parity_targeted
 @pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
+@highest_matmul_precision
 def test_protein_feature_extraction_parity(
   heavy_parity_models: HeavyParityModels,
   parity_batch: ParityBatch,
   weight_source: JaxHeavyWeightSource,
 ) -> None:
   """protein-feature-extraction: projected edge features and neighbors match reference."""
-  jax.config.update("jax_default_matmul_precision", "highest")
-
   feature_dict = _build_torch_feature_dict(heavy_parity_models.torch, parity_batch)
   with heavy_parity_models.torch.no_grad():
     pt_edges, pt_neighbor_indices = heavy_parity_models.pt_model.features(feature_dict)

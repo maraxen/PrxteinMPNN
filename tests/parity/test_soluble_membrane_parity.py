@@ -18,6 +18,7 @@ from aminx.inference.logits import make_stage_set
 from aminx.inference import score_unconditional
 from aminx.io.weights import load_weights
 from aminx.model.mpnn import Aminx
+from tests.matmul_precision import highest_matmul_precision
 from tests.parity.reference_utils import require_heavy_parity_prereqs
 
 
@@ -396,6 +397,7 @@ def parity_batch() -> ParityBatch:
   "checkpoint_kind",
   ["soluble", "membrane_per_residue", "membrane_global"],
 )
+@highest_matmul_precision
 def test_unconditional_parity(
   soluble_membrane_parity_models: SolubleMembraneParityModels,
   parity_batch: ParityBatch,
@@ -403,8 +405,6 @@ def test_unconditional_parity(
   checkpoint_kind: str,
 ) -> None:
   """unconditional-scoring: manual reference branch and JAX branch stay correlated across variant families."""
-  jax.config.update("jax_default_matmul_precision", "highest")
-
   # Select checkpoint and model paths
   is_membrane = checkpoint_kind in ("membrane_per_residue", "membrane_global")
   if checkpoint_kind == "soluble":

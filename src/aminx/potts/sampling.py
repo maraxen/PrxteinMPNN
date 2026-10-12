@@ -18,6 +18,8 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, Int
 
+from aminx.utils.sampling_support import X_INDEX, exclude_x_logits, exclude_x_probs
+
 
 def _potts_field_energy(
   h: Float[Array, "n q"],
@@ -121,6 +123,11 @@ def dlmc_sweep(
   n = int(seq.shape[0])
   if site_order is None:
     site_order = jnp.arange(n, dtype=jnp.int32)
+  # The chain lives on the 20 standard letters. An active site that starts at X is moved to
+  # alanine (index 0) before the first sweep: a chain started at X could never accept a move
+  # out of it, since the reverse proposal from X has zero weight. This is burn-in, not a
+  # change of target. Inactive sites are left as they are.
+  seq = jnp.where((mask > 0.5) & (seq == X_INDEX), jnp.int32(0), seq)
 
   def one_sweep(seq_in: Int[Array, " n"], key_in: Array) -> tuple[Int[Array, " n"], Array]:
     """One full sweep: visit each site and perform DLMC MH update."""
@@ -137,7 +144,9 @@ def dlmc_sweep(
       # Zanella balancing: w(s'|x_i) = exp(0.5 * (logits_i[s'] - logits_i[x_i]))
       current_state = seq_curr[i]
       logits_balanced = 0.5 * (logits_i - logits_i[current_state])
-      weights = jnp.exp(jnp.clip(logits_balanced, -30.0, 30.0))
+      # X is never proposed: the clip below would turn a -inf logit into a small finite
+      # weight, so zero the weight directly (debt #2660, see sampling_support).
+      weights = exclude_x_probs(jnp.exp(jnp.clip(logits_balanced, -30.0, 30.0)))
 
       # Normalize to proposal distribution q(s'|x_i)
       weights_sum = jnp.sum(weights)
@@ -148,7 +157,7 @@ def dlmc_sweep(
 
       # Reverse proposal probability: q(x_i|s')
       logits_balanced_rev = 0.5 * (logits_i - logits_i[proposal_state])
-      weights_rev = jnp.exp(jnp.clip(logits_balanced_rev, -30.0, 30.0))
+      weights_rev = exclude_x_probs(jnp.exp(jnp.clip(logits_balanced_rev, -30.0, 30.0)))
       weights_rev_sum = jnp.sum(weights_rev)
       q_reverse = weights_rev[current_state] / (weights_rev_sum + 1e-12)
 
@@ -239,7 +248,8 @@ def gibbs_sweep(
       neighbor_scale=neighbor_scale,
       inverse_temp=inverse_temp,
     )
-    new_aa = jax.random.categorical(kc, logits)
+    # Upstream PottsMPNN: "Gap and X should never be chosen" (debt #2660).
+    new_aa = jax.random.categorical(kc, exclude_x_logits(logits))
     active = mask[i] > 0.5
     new_aa_eff = jnp.where(active, new_aa, seq_in[i])
     seq_out = seq_in.at[i].set(new_aa_eff)

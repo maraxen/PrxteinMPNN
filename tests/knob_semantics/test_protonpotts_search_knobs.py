@@ -13,8 +13,11 @@ tests assert through the sequence.
 
 from __future__ import annotations
 
+import dataclasses
+
 from collections.abc import Iterator
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import equinox as eqx
@@ -635,12 +638,16 @@ def test_knob_semantics_global_weight() -> None:
 
 
 def test_knob_semantics_zscale_mode() -> None:
-  """zscale_mode is unported: the mapping holds and block_descent refuses non-'block' values (#2621)."""
+  """zscale_mode maps through and block_descent accepts both ported values (#2621); ph_greedy ignores it."""
   assert ProtonPottsOptions().zscale_mode == "block"
   config = config_from_options(ProtonPottsOptions(binder_chain="A", zscale_mode="single_mutation"))
   assert config.zscale_mode == "single_mutation"
+  _check_supported(config)  # accepted: single_mutation is ported
+  bogus = SimpleNamespace(
+    global_weight=0.0, adjacent_repeat_weight=0.0, self_weight=1.0, zscale_mode="bogus", sweep_order="position",
+  )  # PHDesignConfig rejects "bogus" at construction, so only the descent guard is reachable with it
   with pytest.raises(NotImplementedError, match="zscale_mode"):
-    _check_supported(config)
+    _check_supported(bogus)  # type: ignore[arg-type]
 
 
 def test_knob_semantics_adjacent_repeat_weight() -> None:

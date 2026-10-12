@@ -80,12 +80,17 @@ def test_position_order_is_unchanged() -> None:
   assert tuple(visit) == (2, 1)
 
 
-@pytest.mark.parametrize(("knob", "value"), [
-  ("zscale_mode", "single_mutation"),
-])
-def test_other_unsupported_knobs_still_refused(knob: str, value: object) -> None:
-  with pytest.raises(NotImplementedError, match=knob):
-    _check_supported(PHDesignConfig(**{knob: value}))
+def test_zscale_mode_single_mutation_is_accepted() -> None:
+  _check_supported(PHDesignConfig(zscale_mode="single_mutation"))
+  _check_supported(PHDesignConfig(zscale_mode="block"))
+
+
+def test_unknown_zscale_mode_is_refused_by_the_descent_guard() -> None:
+  bad = SimpleNamespace(
+    global_weight=0.0, adjacent_repeat_weight=0.0, self_weight=1.0, zscale_mode="bogus", sweep_order="position",
+  )
+  with pytest.raises(NotImplementedError, match="zscale_mode"):
+    _check_supported(bad)  # type: ignore[arg-type]
 
 
 # global_weight / adjacent_repeat_weight / self_weight are ported (#2621, graded by protonpotts_ph_objective_knobs run 590fa4dc).

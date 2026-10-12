@@ -11,7 +11,7 @@ mirror upstream ``__post_init__``: ``autoregressive`` and ``mpnn_sample`` requir
 ``selective_source='decoder'`` is for ``autoregressive`` only. What is not ported is refused at construction, naming the debt item that tracks it:
 
 - debt #2621: ``sweep_order`` (knn/energy), ``global_weight``, ``adjacent_repeat_weight`` and ``self_weight`` are ported (the last three graded by the
-  ``protonpotts_ph_objective_knobs`` wave, wave pending) and exposed on ``ProtonPottsOptions``; ``block_descent`` still refuses ``zscale_mode != 'block'`` (``NotImplementedError``). ``record_trajectory`` (default on) is accepted and ignored by every method: the per-step energy trajectory was never ported.
+  ``protonpotts_ph_objective_knobs`` wave, wave pending) and exposed on ``ProtonPottsOptions``; ``zscale_mode='single_mutation'`` is ported in ``block_descent`` (``single_mutation_zscales``; wave pending; browser refuses it). ``record_trajectory`` (default on) is accepted and ignored by every method: the per-step energy trajectory was never ported.
 - debt #2616: ``placement_by='random'``, multi-centre enumeration and ``seed_source='inverse'``.
 - ``backend='mpnn'``, ``placement_by='scan_mpnn'`` and ``selective=False`` are graded only with the new methods; ``block_descent`` and
   ``greedy_energy_block`` refuse them.

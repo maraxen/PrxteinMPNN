@@ -29,11 +29,11 @@ _ATOL = 2e-5  # float32 reduction-order noise between a vmapped and an un-vmappe
 
 def _spec(**kwargs: object) -> ScoringSpecification:
   kwargs.setdefault("random_seed", 7)
+  kwargs.setdefault("max_length", 128)
   return ScoringSpecification(
     inputs=[_STRUCTURE],
     checkpoint_id=_PROTEIN_CHECKPOINT,
     sequences_to_score=list(_CANDIDATES),
-    max_length=128,
     return_logits=True,
     **kwargs,  # type: ignore[arg-type]
   )
@@ -186,10 +186,12 @@ def test_noised_score_is_deterministic_in_the_seed() -> None:
 @pytest.mark.requires_weights
 def test_fused_multistate_score_gets_the_noise_axis() -> None:
   """Fused multi-state keeps its leading 1: ``(1, C)`` for one level, ``(1, C, D)`` for several."""
-  positions = [list(range(len(_UBIQUITIN)))]
-  multi = score(_spec(backbone_noise=_LEVELS, state_position_map=positions))
+  # The fused path needs the map width to equal the padded length (as test_score_multistate_fusion does).
+  length = len(_UBIQUITIN)
+  positions = [list(range(length))]
+  multi = score(_spec(backbone_noise=_LEVELS, state_position_map=positions, max_length=length))
   assert np.asarray(multi["scores"]).shape == (1, len(_CANDIDATES), len(_LEVELS))
-  single = score(_spec(backbone_noise=(0.3,), state_position_map=positions))
+  single = score(_spec(backbone_noise=(0.3,), state_position_map=positions, max_length=length))
   assert np.asarray(single["scores"]).shape == (1, len(_CANDIDATES))
   np.testing.assert_allclose(
     np.asarray(multi["scores"])[..., 2],

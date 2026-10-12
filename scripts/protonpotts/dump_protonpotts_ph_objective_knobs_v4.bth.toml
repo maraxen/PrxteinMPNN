@@ -1,0 +1,138 @@
+[metadata]
+title = "ProtonPottsMPNN pH-design objective-knob + zscale_mode=single_mutation dump: upstream block descent on the sealed tables, f32 and f64 (P4m4, #2621; P4m3 configurations plus six single_mutation configurations)"
+created = "261011"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = """
+P4m4 (task 261011_zscale-sm, debt #2621) = P4m3 UNCHANGED (its eight configurations, cells, precisions, shim, claims and criteria; its record, run
+to be cited by uuid, is the oracle for the three objective knobs) PLUS six configurations that run upstream's zscale_mode="single_mutation"
+(potts_mpnn_ph.py @09682abf: _zscale 1995-2003, _block_mutation_tables 2006-2038, branch in _block_descent 2243-2255), so that the aminx
+port (ph_descent.single_mutation_zscales, commit 928ec0ad) can be graded against the real engine. Nothing about the P4m3 configurations is
+re-chosen; no aminx output for single_mutation exists in any form that this registration depends on.
+
+New configurations (each P4g's block_T0 / block_T05 production criteria, sweep_order "position", with):
+  block_zsm_T0, block_zsm_T05            zscale_mode "single_mutation" alone;
+  block_zsm_glob1_T0, block_zsm_glob1_T05  zscale_mode "single_mutation" and global_weight +1.0 (so sdGlob is the single-mutation global scale);
+  block_zsm_self4_T0, block_zsm_self4_T05  zscale_mode "single_mutation" and self_weight 4.0 (a value != 0 and != 1; upstream's single_mutation sdH reads
+                                           the UNWEIGHTED scorer, so sdH is expected NOT to move with self_weight while the per-visit stability
+                                           score still does -- recorded, not a claim).
+T0 configurations draw 1 sample and T05 configurations 2, as for P4m3: 3 + 3x2 = 9 new block calls per cell and precision, 20 in all (P4m3's 11
+plus 9), 160 over four cells and two precisions.
+
+Instrument change (disclosed). Upstream's single_mutation branch never calls _block_zscales, which is what the P4g harness wraps to record
+z-scales, so those calls would record zscales = None. The v4 script additionally WRAPS (never patches) upstream's _zscale and
+_block_mutation_tables around each block-descent invocation and records zscales = [sdH, sdSel, sdGlob] from the three values _zscale returned
+in the branch's own order (two values -> sdGlob is the literal 1.0, three -> the third), plus whether _block_mutation_tables ran exactly once.
+Block-mode calls must record no _zscale calls and no _block_mutation_tables call. The float64 rule is unchanged: torch default dtype set to the run's
+dtype around the whole engine run (so upstream's torch.full/zeros tables in the branch are double in the f64 run), tables and features cast to it.
+
+Claims, all of P4m3's (1-7, unchanged text below) plus:
+8. THE SINGLE-MUTATION PATH IS WHAT RAN. Every zsm_* call invoked _block_mutation_tables exactly once and _zscale 2 or 3 times; every P4m3-style
+   block call invoked neither (folded into `complete`).
+9. THE ORACLE SEES THE NEW SCALES (zscale_live): in at least one cell and precision the sdH recorded for block_zsm_T0 differs from the P4g
+   block_T0 sdH by more than 1e-6 relative -- otherwise a port that silently used block z-scales could pass.
+10. THE GLOBAL SCALE IS SEEN (zscale_glob_live): in at least one cell and precision the sdGlob recorded for block_zsm_glob1_T0 differs from the sdGlob of
+   P4m3's block_glob_p1_T0 by more than 1e-6 relative.
+Recorded, not required: sdH with self_weight 4.0 against without; the number of single-mutation designs that differ from P4g's.
+
+--- P4m3 text follows unchanged ---
+
+SECOND RE-REGISTRATION (P4m3, disclosed). P4m2 (dump_protonpotts_ph_objective_knobs_v2.bth.toml, graded run f436cd91 at 252c1f94)
+also recorded FAIL on exactly self_live, on all four cells, with self_weight 0.0 and 4.0; every other claim held. Its record measures
+why: upstream self_weight acts only through the frozen stability scale sdH, which over the whole tried range moves 11.40686 (w 0) ->
+11.43715 (w 1) -> 11.55962 (w 4) on 1EL1 f64 (~1%), too little to flip a T=0 argmin on these cells, while the T=0.05 designs DO differ
+from P4g's (both samples, in the P4m and P4m2 records) because the shifted z-weight moves the sampling probabilities. A port that
+ignores self_weight is therefore detectable at T > 0, not at T = 0, on these cells. P4m3 is P4m2 UNCHANGED (configurations, cells,
+every other claim) except that claim 6 for self_weight is also satisfied by the T=0.05 configuration block_self0_T05 differing from
+P4g's block_T05 (same shim uniforms). This change was chosen after seeing both records and is disclosed as such; it is a statement
+about the oracle's power to tell a port that ignores the knob from one that honours it, and no port output exists. Neither P4m nor
+P4m2 is sealed or used as an oracle.
+
+FIRST RE-REGISTRATION (P4m2, kept for the record). P4m (dump_protonpotts_ph_objective_knobs.bth.toml, graded run b69bd83d at 04b52dc1) recorded FAIL on exactly
+one claim: self_live -- at self_weight 0.5 no T=0 design in any of the four cells differed from the P4g default designs, while every
+other claim held (global_live, adjrep_live, global_sign_visible true). Its record shows the knob WAS applied (the frozen stability scale
+sdH moved 11.43715 -> 11.42134 on 1EL1 f64) but the field term carries ~0.1% of the stability variance, so halving it rarely moves an
+argmin. P4m is not sealed and is not used as an oracle. This registration repeats P4m unchanged except the self_weight configurations,
+whose values were chosen AFTER seeing that record (disclosed): self_weight 0.0 (field term removed; the largest change the >= 0 domain
+allows below 1) at T 0 and T 0.05, and self_weight 4.0 at T 0. The liveness requirement itself is unchanged in kind; it is a property of
+the oracle (can it distinguish a port that ignores the knob?), not of any port, and no port output exists yet.
+
+Debt #2621, phase 2 (the objective knobs; phase 1 was the visit-order knob, P4k). Same harness, cells, precisions, sealed inputs,
+inverse-CDF shim, thread pinning and per-call records as the sealed P4g dump (scripts/protonpotts/dump_protonpotts_ph.py) and as P4k
+(scripts/protonpotts/dump_protonpotts_ph_knobs.py), with sweep_order "position" and the P4g block-descent production values otherwise,
+and ONE objective knob set away from its default per configuration -- eight configurations (P4m3; P4m4 adds the six above):
+  block_glob_p1_T0, block_glob_p1_T05 (global_weight +1.0; upstream _global_protonation_dH enters combined_unary as
+    wGlob * (g - g0) with wGlob = global_weight / sdGlob, so a POSITIVE weight minimises g, i.e. favours protonated; the upstream
+    docstring states the opposite and the code is what is dumped),
+  block_glob_m1_T0 (global_weight -1.0; the sign control),
+  block_adjrep_T0, block_adjrep_T05 (adjacent_repeat_weight 1.0: +w per sequence-adjacent pair with the same canonical amino acid,
+    chain A only, raw in z-units, both the in-block pairwise and the out-of-block unary cases),
+  block_self0_T0, block_self0_T05 (self_weight 0.0), block_self4_T0 (self_weight 4.0): the stability term's field weight, pairs at 1,
+    used for the frozen sdH and the per-round stability score; selective and global stay on the true model.
+T0 configurations draw 1 sample, T05 configurations (temperature 0.05) 2 samples, as in P4k. zscale_mode stays "block" for these eight (P4m4 adds the single_mutation ones).
+Cells 1BVC chain A, 6m0j binder chain E, 1OLR chain A, 1EL1 chain A; float32 and float64. Recorded per call additionally: the configured
+knob values (all five #2621 knobs), the frozen z-scales including sdGlob when global_weight != 0, and, per design, the global term g of
+the final sequence (upstream _global_protonation_dH) whatever the weight.
+
+Claims, falsifiable by this run:
+
+1. THE ENGINE SEES THE SEALED INPUTS (as P4g claim 1).
+2. COMPLETE. Every cell and precision carries all eight configurations with z-scales, designs and the recorded knob values.
+3. THE SHIM IS THE ONLY RANDOMNESS. Every T=0 call consumes zero uniforms and every T>0 call at least one.
+4. THE f64 RUN IS REALLY DOUBLE (as P4g claim 4).
+5. REPRODUCIBLE. A second run in a fresh process gives identical content and metadata hashes, threads pinned to 1.
+6. EACH KNOB IS LIVE (the controls that make this oracle a test): for each of global_weight, adjacent_repeat_weight and self_weight,
+   in at least one cell and precision the T=0 designs differ from the P4g sweep_order "position" T=0 designs of the same cell and
+   precision -- otherwise a port that ignores that knob would pass against it. For self_weight (P4m3), any of block_self0_T0,
+   block_self4_T0 (against P4g block_T0) or block_self0_T05 (against P4g block_T05, same shim uniforms) may supply the difference.
+7. THE SIGN IS VISIBLE: in at least one cell and precision the block_glob_p1_T0 and block_glob_m1_T0 designs differ -- otherwise a port
+   with the global term's sign flipped could pass against it.
+
+Recorded, not required: per configuration and cell, the global term g of the final designs (expected lower at +1 than at -1 when they
+differ, from the code's sign; reported, not a claim).
+"""
+stage_name = "confirmation"
+novel = false
+
+[outcomes.pass]
+condition = "engine_matches_sealed AND complete AND shim_consistent AND f64_is_float64 AND precisions_differ AND reproducible AND global_live AND adjrep_live AND self_live AND global_sign_visible AND zscale_live AND zscale_glob_live AND n_cells = 4"
+decision = "Seal the dump and grade the aminx port of zscale_mode=single_mutation (and re-confirm the three objective knobs) against it."
+reasoning = "All P4g claims hold for the knob configurations, every knob changes the designs somewhere, the global sign is observable, and the single-mutation z-scales differ observably from block-mode ones, so the oracle can tell a faithful port from one that ignores or flips a knob."
+is_residual = false
+adversarial_check = "NOT (engine_matches_sealed AND complete AND shim_consistent AND f64_is_float64 AND precisions_differ AND reproducible AND global_live AND adjrep_live AND self_live AND global_sign_visible AND zscale_live AND zscale_glob_live AND n_cells = 4)"
+
+[outcomes.fail]
+condition = "NOT (engine_matches_sealed AND complete AND shim_consistent AND f64_is_float64 AND precisions_differ AND reproducible AND global_live AND adjrep_live AND self_live AND global_sign_visible AND zscale_live AND zscale_glob_live AND n_cells = 4)"
+decision = "Do not seal. Read which flag is false; a live/sign flag false means these cells and weights cannot grade that knob, and a new registration with other weights is needed (not an edit of this one)."
+reasoning = "At least one claim is false."
+is_residual = true
+adversarial_check = "engine_matches_sealed AND complete AND shim_consistent AND f64_is_float64 AND precisions_differ AND reproducible AND global_live AND adjrep_live AND self_live AND global_sign_visible AND zscale_live AND zscale_glob_live AND n_cells = 4"
+
+[result_schema]
+engine_matches_sealed = "bool"
+complete = "bool"
+shim_consistent = "bool"
+f64_is_float64 = "bool"
+precisions_differ = "bool"
+reproducible = "bool"
+global_live = "bool"
+adjrep_live = "bool"
+self_live = "bool"
+global_sign_visible = "bool"
+zscale_live = "bool"
+zscale_glob_live = "bool"
+n_cells = "int"
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true, doc = "aminx commit SHA" }
+
+[data]
+upstream = "ProtonPottsMPNN @ 09682abf, PottsMPNNPHEngine (inference_engines/potts_mpnn_ph.py): zscale_mode single_mutation _zscale L1995, _block_mutation_tables L2006, branch L2243-2255; criteria fields global_weight L145, adjacent_repeat_weight L156, self_weight L173; _global_protonation_dH L2666; combined_unary ~L2273-2290; adjacent-repeat terms ~L2318-2352; stability reweighting ~L1610-1624"
+inputs = "sealed P4e dump (run 60351d47) merged tables and E_idx; sealed P4b/P4c/P4d feature dumps (native S); the P4g dump for the default-design comparison"
+cells = "pkad_unlabelled=1BVC chain A; multichain=6m0j binder chain E; only_o_1olr=1OLR chain A; gap=1EL1 chain A"
+configurations = "P4m4 adds six: zscale_mode single_mutation alone, with global_weight +1.0, with self_weight 4.0, each at T 0 (1 sample) and T 0.05 (2 samples). The P4m3 configurations, on the P4g block-descent production values (block_size 3, combined_lambda 0.3, neighbour_k 16, max_mutations 20, repetitive window 1.0/2, forbidden HIS-A ASP-A GLU-A UNK, v6 dep_map, centre types HIS-P ASP-P GLU-P, scan_potts, sweep_order position) with one of: global_weight +1.0 (T 0, 0.05), global_weight -1.0 (T 0), adjacent_repeat_weight 1.0 (T 0, 0.05), self_weight 0.0 (T 0, 0.05), self_weight 4.0 (T 0); T 0 1 sample, T 0.05 2 samples"
+threads = "OMP/MKL/OPENBLAS_NUM_THREADS=1 before torch import, torch.set_num_threads(1)"
+
+[provenance]
+note = "Pre-registered (task 261011_zscale-sm) before dump_protonpotts_ph_objective_knobs_v4.py was run; the script and this sidecar are committed together before any run. No v4 output exists at registration. P4m3 is the template; its configurations are unchanged. Graded invocation as P4m3 (bth run --project-slug aminx -- <env python> scripts/protonpotts/dump_protonpotts_ph_objective_knobs_v4.py ... from a clean checkout of a commit containing both files)."

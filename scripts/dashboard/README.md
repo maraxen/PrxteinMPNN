@@ -15,6 +15,11 @@ statistic. It does not run any test or experiment.
   `tests/knob_gate/sidecar_ledger.toml`, `tests/knob_gate/branch_manifest.toml`,
   `tests/knob_gate/alias_map.toml`, and `scripts/parity/*.bth.toml`.
 - `--stale-rows-json FILE`: optional JSON list of stale slugs. Without it, `stale` is null.
+- `--controls-root DIR`: where each vehicle run wrote its per-control statuses,
+  `<DIR>/<slug>/<git sha8>/branch_controls.json` (`~/.aminx/sidecars` on titanix, the
+  path `scripts/redsox/launch_wave.sh` passes as `--output-paths`). A run's own metadata
+  carries only control *counts*, so without this every control status is null. Each
+  ledger entry records the file it read and its sha256 under `branch_controls`.
 - `--out FILE`: output path.
 
 ## Running
@@ -26,6 +31,7 @@ interpreter that has `pyarrow`, for example the bathos tool environment:
 # titanix / Engaging, catalog under ~/.bth/catalog/runs/aminx
 <python-with-pyarrow> scripts/dashboard/extract_parity.py \
   --catalog ~/.bth/catalog/runs/aminx \
+  --controls-root ~/.aminx/sidecars \
   --out ~/parity_dashboard.json
 ```
 
@@ -33,7 +39,8 @@ Local test run against a snapshot:
 
 ```bash
 <python-with-pyarrow> scripts/dashboard/extract_parity.py \
-  --catalog /tmp/claude/parity_dash/catalog --out /tmp/claude/parity_dash/parity_dashboard.json
+  --catalog /tmp/claude/parity_dash/catalog --controls-root /tmp/claude/parity_dash/sidecars \
+  --out /tmp/claude/parity_dash/parity_dashboard.json
 ```
 
 Warnings (missing runs, unparsable metadata, controls without a status) are listed

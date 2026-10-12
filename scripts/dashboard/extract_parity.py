@@ -11,6 +11,7 @@ pointing at a directory of those files.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import math
@@ -167,6 +168,37 @@ def read_sidecar(repo: Path, slug: str) -> dict[str, Any] | None:
   }
 
 
+def read_branch_controls(
+  controls_root: Path | None,
+  slug: str,
+  run: dict[str, Any] | None,
+  warnings: list[str],
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+  """The vehicle's ``branch_controls.json`` (per-control status), as launch_wave.sh writes it.
+
+  The run's own metadata carries only counts; the per-control map lives in the file the run
+  lists in ``--output-paths``: ``<controls_root>/<slug>/<git sha8>/branch_controls.json``.
+  Returns (parsed file, provenance {path, sha256}) or (None, None).
+  """
+  if controls_root is None or run is None or not run.get("git_hash"):
+    return None, None
+  path = controls_root / slug / str(run["git_hash"])[:8] / "branch_controls.json"
+  if not path.is_file():
+    warnings.append(f"{slug}: no branch_controls.json at {path}")
+    return None, None
+  raw = path.read_bytes()
+  try:
+    parsed = json.loads(raw)
+  except json.JSONDecodeError as exc:
+    warnings.append(f"{slug}: {path} is not valid JSON: {exc}")
+    return None, None
+  provenance = {
+    "path": str(path.relative_to(controls_root)),
+    "sha256": hashlib.sha256(raw).hexdigest(),
+  }
+  return _clean(parsed), provenance
+
+
 def _control_status(results: object, control_id: str) -> object:
   if not isinstance(results, dict):
     return None
@@ -187,6 +219,7 @@ def build_ledger(
   stale: list[str] | None,
   warnings: list[str],
   cache: dict[str, Any],
+  controls_root: Path | None = None,
 ) -> list[dict[str, Any]]:
   controls_by_slug: dict[str, list[dict[str, Any]]] = {}
   for row in manifest:
@@ -209,19 +242,19 @@ def build_ledger(
     results = _parse_results(run, warnings, cache)
     entry["results"] = results
 
+    branch_controls, provenance = read_branch_controls(controls_root, slug, run, warnings)
+    entry["branch_controls"] = provenance
+    source = branch_controls if branch_controls is not None else results
+
     rows = controls_by_slug.get(slug, [])
-    if (
-      rows
-      and results is not None
-      and not (isinstance(results, dict) and isinstance(results.get("mutants"), dict))
-    ):
-      warnings.append(f"{slug}: results carry no 'mutants' mapping; control status is null")
+    if rows and not (isinstance(source, dict) and isinstance(source.get("mutants"), dict)):
+      warnings.append(f"{slug}: no 'mutants' mapping found; control status is null")
     controls: list[dict[str, Any]] = []
     for row in rows:
       control_id = str(row.get("id"))
-      status = _control_status(results, control_id)
-      if results is not None and status is None:
-        warnings.append(f"{slug}: manifest control {control_id} has no status in results")
+      status = _control_status(source, control_id)
+      if source is not None and status is None:
+        warnings.append(f"{slug}: manifest control {control_id} has no recorded status")
       wave = (
         control_id.split(".", 1)[0] if slug == "protonpotts_parity" and "." in control_id else None
       )
@@ -313,7 +346,12 @@ def build_knobs(alias_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
   for row in alias_rows:
     entry = _clean(dict(row))
     ref = str(row.get("ref", ""))
-    entry["family"] = ref.partition("__")[0] or None
+    # ref is <upstream entry point>__<knob>; "__aminx_only__<knob>" has no upstream counterpart.
+    upstream_entry = ref.partition("__")[0]
+    entry["upstream_entry"] = upstream_entry or None
+    entry["family"] = (
+      "aminx_only" if not upstream_entry else family_of_slug(upstream_entry) or upstream_entry
+    )
     entry["covered_by_parity"] = bool(row.get("parity_test_ids"))
     knobs.append(entry)
   return knobs
@@ -323,6 +361,7 @@ def build_dashboard(
   catalog: Path,
   repo: Path,
   stale: list[str] | None,
+  controls_root: Path | None = None,
 ) -> dict[str, Any]:
   warnings: list[str] = []
   cache: dict[str, Any] = {}
@@ -340,7 +379,7 @@ def build_dashboard(
     "schema_version": SCHEMA_VERSION,
     "generated_at": datetime.now(UTC).isoformat(),
     "repo_head": _git_head(repo),
-    "ledger": build_ledger(ledger, manifest, runs, repo, stale, warnings, cache),
+    "ledger": build_ledger(ledger, manifest, runs, repo, stale, warnings, cache, controls_root),
     "history": build_history(list(ledger), runs, warnings),
     "waves": build_waves(runs, repo, warnings, cache),
     "knobs": build_knobs(alias_rows),
@@ -364,6 +403,13 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     default=None,
     help="optional JSON list of stale slugs; omitted means staleness is null",
   )
+  parser.add_argument(
+    "--controls-root",
+    type=Path,
+    default=None,
+    help="dir holding <slug>/<sha8>/branch_controls.json (on titanix ~/.aminx/sidecars); "
+    "omitted means per-control status comes only from run metadata",
+  )
   parser.add_argument("--out", type=Path, required=True, help="output JSON path")
   return parser.parse_args(argv)
 
@@ -381,7 +427,7 @@ def main(argv: list[str] | None = None) -> int:
   if args.stale_rows_json is not None:
     stale = [str(s) for s in json.loads(args.stale_rows_json.read_text())]
 
-  dashboard = build_dashboard(args.catalog, args.repo, stale)
+  dashboard = build_dashboard(args.catalog, args.repo, stale, args.controls_root)
   args.out.parent.mkdir(parents=True, exist_ok=True)
   args.out.write_text(json.dumps(_clean(dashboard), sort_keys=False, indent=1) + "\n")
   log.info("wrote %s (%d warnings)", args.out, len(dashboard["warnings"]))

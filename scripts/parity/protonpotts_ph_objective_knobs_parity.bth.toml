@@ -1,0 +1,106 @@
+[metadata]
+title = "protonpotts_ph_objective_knobs wave: aminx block descent with global_weight / adjacent_repeat_weight / self_weight against the upstream engine (P4m3), replayed uniforms (#2621 phase 2)"
+created = "261011"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = """
+The aminx port of upstream's three block-descent OBJECTIVE knobs, in ph_descent.block_descent (until now refused by _check_supported) --
+global_weight (upstream _global_protonation_dH g, entering the combined unary as (global_weight / sdGlob) * (g - g0), sdGlob a third
+frozen z-scale; a POSITIVE weight favours protonated, as the code does), adjacent_repeat_weight (+w per sequence-adjacent same-canonical
+pair, chain A only, raw in z-units, in-block pairwise and out-of-block unary), self_weight (the stability term's field weight, pairs at 1,
+for the frozen sdH and the per-round stability score) -- reproduces the upstream PottsMPNNPHEngine against the P4m3 dump
+(scripts/protonpotts/dump_protonpotts_ph_objective_knobs_v3.py, graded under its own sidecar; this wave is run only if that dump passed),
+for the four P4g cells (1BVC, 6m0j binder chain E, 1OLR, 1EL1), both precisions, and every block-descent call of the eight knob
+configurations (block_glob_p1_T0, block_glob_p1_T05, block_glob_m1_T0, block_adjrep_T0, block_adjrep_T05, block_self0_T0,
+block_self0_T05, block_self4_T0): 11 calls per cell and precision, 88 in total.
+
+Per call the aminx side is given only what upstream was given (sealed table and E_idx, native sequence, binder mask, the configuration with
+its knob values as recorded in the dump meta, the shim uniforms) and must, through the SHIPPED code path (ph_design._run_optimiser ->
+block_table -> block_descent):
+  1. match the plan exactly;
+  2. match the pooled z-scales (sdH, sdSel, and sdGlob when global_weight != 0);
+  3. match the final sequence tokens exactly;
+  4. match the uniforms consumed exactly;
+  5. match the scores (final energy, selectivity gap, and the global term g of the final sequence)
+with the protonpotts_ph_knobs wave's AMENDED bars: plan/tokens/draws exact; z-scales and scores f64 within 1e-9 relative; f32 within
+10 x max(upstream |f32 - f64|, aminx |f32 - f64| of the same designed sequence scored with the f64 table), never below 1e-6 relative.
+
+Controls (each rejected when the same comparison fails on at least one call of the configurations it applies to):
+  IGNORE_GLOBAL -- the global_weight calls run with global_weight 0 (a port that drops the term);
+  FLIP_GLOBAL   -- the global_weight calls run with the weight negated (the sign trap);
+  IGNORE_ADJREP -- the adjacent_repeat_weight calls run with weight 0;
+  IGNORE_SELF   -- the self_weight calls run with self_weight 1.0 (a port that drops the knob; P4m3 records that only the T=0.05
+                   configuration's designs differ, so this control is expected to be rejected there, and on the z-scales everywhere);
+  SHIFTED       -- uniforms shifted by one draw on a T > 0 call.
+
+AMENDMENT 1 (261011), after graded run efce8c0a recorded FAIL (disclosed; that run stays a recorded fail): 87/88 calls passed every
+check (f64 z-scales ~1e-14, energies ~1e-16, g ~1e-13) and all five controls were rejected. The one failing call
+(gap / f32 / block_glob_p1_T05 / call 2) missed ONLY tokens_ok; plan, draws, z-scales, energy, gap and g were within band. An exploratory,
+uncited diagnostic (.praxia/spikes/r3_f32_token_miss.py) found: aminx f32 tokens == aminx f64 tokens == upstream f64 tokens exactly, while
+upstream's OWN f32 tokens differ from upstream f64 at positions 8 and 32 -- upstream's f32 drift at T = 0.05, not a port difference (the
+f64 twin call passes exactly). Rule added, nothing else changed: an f32 call whose ONLY failing check is tokens_ok is reported as
+f32_upstream_drift (never as a pass) when (a) aminx f32 tokens equal upstream f64 tokens exactly for the same call and (b) upstream f32
+tokens differ from upstream f64 tokens; it then counts toward completion but not toward n_calls_ok, and the pass condition becomes
+n_calls_ok + n_f32_upstream_drift = 88 (likewise for n_tokens_exact). The rule has no tunable parameter. The oracle is deterministic, so it is
+necessarily re-applied to the same 88 calls; this limitation is stated, not hidden (as in the protonpotts_ph_knobs amendment).
+
+Disclosure: P4m (b69bd83d) and P4m2 (f436cd91) failed their self_live claim and are not used. P4m3 is the oracle. The f32 band is the one the
+protonpotts_ph_knobs wave adopted by amendment after its own run; it is adopted here a priori, before any aminx output for these knobs.
+
+Scope: the port touches src/aminx/families/protonpotts_mpnn/ (ph_descent.py and, if needed, ph_design.py); it does NOT touch
+src/aminx/run/options.py (the three fields already exist there) -- so only the protonpotts_parity ledger row goes stale, and the wave is
+folded into that vehicle with one vehicle run and the ledger updated last.
+
+PREDICTION, stated before the run so it can be wrong: all 88 calls pass and all five controls are rejected. Risks: the global term's
+reference g0 (which sequence it is taken at) and sdGlob's sample set; the adjacent-repeat out-of-block unary at chain boundaries; the
+self_weight copy of the table used for both sdH and the per-round score; f32 summation order in g.
+"""
+stage_name = "validation"
+novel = false
+
+[outcomes.pass]
+condition = "clean = 'pass' AND n_calls = 88 AND n_calls_ok + n_f32_upstream_drift = 88 AND n_tokens_exact + n_f32_upstream_drift = 88 AND n_draws_ok = 88 AND dump_flags_pass AND n_listed = 5 AND n_failed = n_listed"
+decision = "protonpotts_ph_objective_knobs is graded: global_weight, adjacent_repeat_weight and self_weight reproduce upstream's z-scales, designs and scores in both precisions, and each control is rejected."
+reasoning = "Every call matches on plan, z-scales, tokens, draws and scores; the dump passed; all five controls fail the same comparison."
+is_residual = false
+adversarial_check = "NOT (clean = 'pass' AND n_calls = 88 AND n_calls_ok + n_f32_upstream_drift = 88 AND n_tokens_exact + n_f32_upstream_drift = 88 AND n_draws_ok = 88 AND dump_flags_pass AND n_listed = 5 AND n_failed = n_listed)"
+
+[outcomes.fail]
+condition = "NOT (clean = 'pass' AND n_calls = 88 AND n_calls_ok + n_f32_upstream_drift = 88 AND n_tokens_exact + n_f32_upstream_drift = 88 AND n_draws_ok = 88 AND dump_flags_pass AND n_listed = 5 AND n_failed = n_listed)"
+decision = "Do not treat the objective knobs as graded. Read per_call: a z-scale miss names the scale term; a token miss with z-scales exact names the unary/pairwise term; an undetected control means the comparison cannot see that error."
+reasoning = "Some call differs from upstream, the dump did not pass, or a control was not rejected."
+is_residual = true
+adversarial_check = "clean = 'pass' AND n_calls = 88 AND n_calls_ok + n_f32_upstream_drift = 88 AND n_tokens_exact + n_f32_upstream_drift = 88 AND n_draws_ok = 88 AND dump_flags_pass AND n_listed = 5 AND n_failed = n_listed"
+
+[result_schema]
+clean = "str"
+n_cells = "int"
+n_calls = "int"
+n_calls_ok = "int"
+n_plans_ok = "int"
+n_zscales_ok = "int"
+n_tokens_exact = "int"
+n_draws_ok = "int"
+n_scores_ok = "int"
+n_f32_upstream_drift = "int"
+dump_flags_pass = "bool"
+worst_zscale_rel_f64 = "float"
+worst_energy_rel_f64 = "float"
+worst_global_rel_f64 = "float"
+n_listed = "int"
+n_failed = "int"
+mutants = "dict"
+undetected = "list"
+per_call = "dict"
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true, doc = "aminx commit SHA" }
+
+[data]
+oracle = "P4m3 objective-knob dump (graded under scripts/protonpotts/dump_protonpotts_ph_objective_knobs_v3.bth.toml): upstream PottsMPNNPHEngine with global_weight +-1, adjacent_repeat_weight 1, self_weight 0 / 4 on the sealed P4e tables, injected-uniform shim, recorded z-scales and g"
+inputs = "sealed P4e merged tables and E_idx; sealed P4b/P4c/P4d native S; the dump's per-cell context arrays and call meta (knob values, z-scales, designs, g)"
+tolerances = "plan, tokens and draw count exact; z-scales and scores f64 1e-9 relative; f32 10x max(upstream, aminx) f32-vs-f64 spread, min 1e-6 (the protonpotts_ph_knobs amended band)"
+
+[provenance]
+note = "Pre-registered before the port (block_descent still refuses all three knobs) and before protonpotts_ph_objective_knobs_parity.py exists; written while the graded P4m3 dump is running, before its outcome is known. Graded invocation: bth run --project-slug aminx -- uv run --no-sync python scripts/parity/protonpotts_ph_objective_knobs_parity.py --encoder-dir <P4e out dir> --ph-dir <P4m3 out dir> --features-dir ~/projects/aminx-oracles-protonpotts, from a clean checkout."

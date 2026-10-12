@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>aminx ProtonPottsMPNN pH methods — browser harness</title>
+  </head>
+  <body>
+    <!-- Headless harness page (X11c). No UI: scripts/browser_validation/protonpotts_ph_methods_browser_parity.py drives it through
+         browser/layer_c/run_p07.mjs, which reads window.__PARITY_RESULT__ / __PARITY_DONE__ / __PARITY_ERROR__. -->
+    <p>Running the ProtonPottsMPNN pH host-loop methods. Results land on
+      <code>window.__PARITY_RESULT__</code>.</p>
+    <script type="module" src="./ph_methods_page.mjs"></script>
+  </body>
+</html>

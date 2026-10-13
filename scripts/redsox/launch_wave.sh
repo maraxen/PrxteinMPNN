@@ -126,13 +126,54 @@ export AMINX_POTTS_ROOT=$HOME/repos/PottsMPNN
 export AMINX_PROTONPOTTS_ORACLES=$HOME/projects/aminx-oracles-protonpotts
 export AMINX_PROTONPOTTS_STATE=$HOME/scratch/v6_state.npz
 
+# BACKEND (R6, 261013). The aminx (JAX) side of every vehicle runs on a GPU by
+# default; the upstream oracles are torch in the CPU-only oracle venv and are
+# unaffected. Spike 261013: laser_proofread_parity's clean arm on GPU 3 took
+# 1052 s against 54 min on CPU, same inputs and code, and its 450 cell values
+# matched the CPU run to 3.2e-15 (both pass at ~5e-15 against upstream).
+# AMINX_WAVE_BACKEND=cpu restores the old JAX_PLATFORMS=cpu behaviour.
+# Each slug is pinned to one GPU by a hash of its name, so a rerun of a slug
+# lands on the same device. Preallocation is off so vehicles can share a GPU.
+WAVE_BACKEND=${AMINX_WAVE_BACKEND:-gpu}
+read -ra WAVE_GPUS <<< "${AMINX_WAVE_GPUS:-2 3}"
+if [ "$WAVE_BACKEND" = "gpu" ]; then
+  for g in "${WAVE_GPUS[@]}"; do
+    used=$(nvidia-smi --id="$g" --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null || echo missing)
+    # A GPU already holding >8 GB is someone else's (vLLM holds ~21.5 GB on 0/1).
+    if [ "$used" = "missing" ] || [ "$used" -gt 8000 ]; then
+      echo "REFUSING: GPU $g is unavailable or busy (${used} MiB); set AMINX_WAVE_GPUS or AMINX_WAVE_BACKEND=cpu" >&2
+      exit 1
+    fi
+  done
+elif [ "$WAVE_BACKEND" != "cpu" ]; then
+  echo "REFUSING: AMINX_WAVE_BACKEND must be gpu or cpu, got $WAVE_BACKEND" >&2
+  exit 2
+fi
+if [ "$WAVE_BACKEND" = "gpu" ]; then echo "backend: gpu (GPUs ${WAVE_GPUS[*]})"; else echo "backend: cpu"; fi
+
+backend_env () {
+  local v=$1
+  if [ "$WAVE_BACKEND" = "cpu" ]; then
+    echo "JAX_PLATFORMS=cpu"
+    return
+  fi
+  local idx=$(( $(printf '%s' "$v" | cksum | cut -d' ' -f1) % ${#WAVE_GPUS[@]} ))
+  # JAX_PLATFORMS=cuda, not merely unset: protonpotts_parity.py forwards
+  # JAX_PLATFORMS to its wave subprocesses with a default of "cpu", and an
+  # explicit cuda also makes a missing GPU an error instead of a silent CPU run.
+  echo "JAX_PLATFORMS=cuda CUDA_VISIBLE_DEVICES=${WAVE_GPUS[$idx]} XLA_PYTHON_CLIENT_PREALLOCATE=false"
+}
+
 launch () {
   local v=$1 m=${MUT[$1]}
   mkdir -p "$HOME/.aminx/sidecars/$v/$H"
+  local -a benv
+  read -ra benv <<< "$(backend_env "$v")"
+  echo "$v -> ${benv[*]}"
   # AMINX_CLOSURE_* switch on scripts/redsox/closure_hook, which records the repo
   # files this process really loads so verify_wave.py can check them against the
   # row's closure. It edits no vehicle (a vehicle is in its own closure).
-  nohup setsid env JAX_PLATFORMS=cpu \
+  nohup setsid env "${benv[@]}" \
     AMINX_CLOSURE_OUT="$HOME/.aminx/sidecars/$v/$H/loaded_files.json" \
     AMINX_CLOSURE_SCRIPT="$v.py" AMINX_CLOSURE_REPO="$REPO" \
     PYTHONPATH="$REPO/scripts/redsox/closure_hook${PYTHONPATH:+:$PYTHONPATH}" \
@@ -194,7 +235,8 @@ case "$GROUP" in
     # `fail` here is therefore the positive control succeeding, and an outcome
     # of `pass` would mean a no-op mutation changed the result. Read the
     # payloads under the work-dir, not the outcome column.
-    nohup setsid env JAX_PLATFORMS=cpu bth run --project-slug aminx \
+    read -ra benv <<< "$(backend_env laser_proofread_parity)"
+    nohup setsid env "${benv[@]}" bth run --project-slug aminx \
       -- uv run --no-sync python3 \
       scripts/parity/laser_proofread_parity.py \
       --mutants scalar_both_off --work-dir "/tmp/positive_$H" \

@@ -43,6 +43,16 @@ cache_dir = "str"
 aminx_version = { type = "git_sha", required = true, doc = "aminx commit SHA" }
 
 [data]
+backend = """
+DISCLOSED 261013, BEFORE THE R6 RUN, NO CRITERIA CHANGE. From R6 the aminx (JAX) side of this vehicle runs on a
+titanix GPU: scripts/redsox/launch_wave.sh with AMINX_WAVE_BACKEND=gpu sets JAX_PLATFORMS=cuda,
+CUDA_VISIBLE_DEVICES=2 or 3 (fixed per slug) and XLA_PYTHON_CLIENT_PREALLOCATE=false. Every graded run before
+R6 ran JAX on CPU (JAX_PLATFORMS=cpu). The upstream oracle side is unchanged: torch in the CPU-only oracle venv.
+No outcome condition, band, control, mutant or threshold changes. Evidence the backend does not move results:
+spike 261013 ran laser_proofread_parity's clean arm on GPU 3 with R5's inputs and code (43a7a3bd-equivalent
+aminx); all 450 cell values matched the CPU run to 3.2e-15 and both passed at ~5e-15 against upstream (GPU
+1052 s vs CPU 54 min). One pre-registered run never mixes backends; AMINX_WAVE_BACKEND=cpu restores CPU.
+"""
 potts_root_env = "AMINX_POTTS_ROOT (defaults to ~/repos/PottsMPNN)"
 example_pdbs = "/home/marielle/repos/PottsMPNN/inputs/example_pdbs"
 checkpoint = "/home/marielle/repos/PottsMPNN/vanilla_model_weights/pottsmpnn_20.pt"

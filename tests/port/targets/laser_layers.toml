@@ -15,7 +15,7 @@ dynamic_shape = false
 ad_critical = false
 ad_critical_justification = ""
 tolerance_policy_f64 = "rtol=1e-9,atol=1e-12"
-tolerance_policy_f32 = "rtol=1e-5,atol=1e-6"
+tolerance_policy_f32 = "rtol=1e-5,atol=4e-5"
 max_traces = 1
 
 [access]
@@ -55,10 +55,28 @@ bound remains able to detect a real port defect and did not pass by being loose.
 # Scope of the evidence, stated so it is not over-read:
 f64_atol_basis = "measured; graded run 2747efa8"
 f32_atol_basis = """
-NOT measured. 1e-6 is the house pairing for rtol=1e-5 (potts_head f32 is
-rtol=1e-5,atol=1e-6). The f32 tier had not run when this was written, because the
-f64 tier gated it. If the f32 tier shows a deviation above this bound, measure it
-and amend separately rather than widening this value.
+MEASURED, AMENDED 261013 WITH USER RATIFICATION. atol 1e-6 -> 4e-5; rtol and the
+element-wise FORM are unchanged.
+
+The superseded text read: "NOT measured. 1e-6 is the house pairing for rtol=1e-5.
+If the f32 tier shows a deviation above this bound, measure it and amend
+separately rather than widening this value." The f32 tier did show it: 63/63
+tier-3 failures in run 0f08f15a (261006) and again in gate run 466053e2 at
+bf1d7b21 (261013), the first gate runs where the oracle was reachable.
+
+The measurement is graded run 7384a821 (scripts/analysis/laser_layers_f32_floor.py,
+script sha256 cb24dc74..., e4487402, 63 pairs x 819 fields, f64 and f32):
+  max |aminx - upstream| f32   6.79e-6   (f64: 8.9e-15, f64 tier passes)
+  proposed_atol_elementwise    4e-5      (pre-registered derivation)
+  elementwise_clears_margin    true      (band vs an injected 1e-2 defect)
+  control admissions           0
+Its verdict was scale_is_degenerate, NOT elementwise_suffices: two fields,
+backbone_frame_vec_input_layer/out/scalars and backbone_frame_vec_norm/out/scalars,
+have ~zero reference scale in all 63 pairs, and the grader ranks that outcome
+first. Degeneracy only forbids the SCALE-RELATIVE rule; every condition of the
+elementwise_suffices branch other than "degenerate_fields == []" held. Because
+that branch did not formally fire, the user ratified adopting its measured atol
+explicitly on 261013 rather than this file assuming it.
 """
 port_correctness_not_implied = """
 This amendment says nothing about whether the port is correct. It says the

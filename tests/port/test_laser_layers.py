@@ -36,7 +36,7 @@ pytestmark = [pytest.mark.port_wave("laser_layers"), pytest.mark.parity_heavy]
 _RTOL = {"f64": 1e-9, "f32": 1e-5}
 # Amended after graded run 2747efa8 (outcome=pass): a pure relative bound is
 # unsatisfiable where the reference is exactly 0. See targets/laser_layers.toml.
-_ATOL = {"f64": 1e-12, "f32": 1e-6}
+_ATOL = {"f64": 1e-12, "f32": 4e-5}
 _CHECKPOINTS = {
   "nothing_heldout": "model_weights/laser_weights_0p1A_nothing_heldout.pt",
   "noise_ligandmpnn_split": "model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt",

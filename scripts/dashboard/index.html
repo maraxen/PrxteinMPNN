@@ -1,0 +1,241 @@
+<title>aminx Parity Ledger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: summary strip, then ledger table, run history strips, wave list, knob coverage. Data comes only from parity_dashboard.json. */
+:root {
+  color-scheme: light;
+  --bg: #f4f7f8; --surface: #ffffff; --fg: #1b2830; --muted: #5a6b73; --rule: #d6dfe3; --accent: #1d6b75;
+  --pass: #237a45; --pass-bg: #ddf0e4; --fail: #a32d2d; --fail-bg: #f8dede;
+  --warn: #8a5a00; --warn-bg: #f7ebcb; --none: #8a979d; --none-bg: #e9eef0;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #10181c; --surface: #162127; --fg: #dde7eb; --muted: #94a6ae; --rule: #2a3a42; --accent: #6fc3cf;
+    --pass: #8fd6a8; --pass-bg: #173323; --fail: #f0a0a0; --fail-bg: #3a1a1a;
+    --warn: #f0c97c; --warn-bg: #3a2f15; --none: #8a979d; --none-bg: #1f2b31;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #10181c; --surface: #162127; --fg: #dde7eb; --muted: #94a6ae; --rule: #2a3a42; --accent: #6fc3cf;
+  --pass: #8fd6a8; --pass-bg: #173323; --fail: #f0a0a0; --fail-bg: #3a1a1a;
+  --warn: #f0c97c; --warn-bg: #3a2f15; --none: #8a979d; --none-bg: #1f2b31;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1200px; margin-inline: auto; padding-inline: 16px; padding-block: 24px 64px; }
+header { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; justify-content: space-between; border-bottom: 2px solid var(--accent); padding-bottom: 12px; }
+h1 { margin: 0; font-size: 1.6rem; font-weight: 600; letter-spacing: -0.01em; }
+.meta { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 16px; }
+h2 { font-size: 1.1rem; font-weight: 600; margin: 32px 0 4px; }
+.lede { margin: 0 0 12px; color: var(--muted); max-width: 80ch; font-size: 0.92rem; }
+code, .mono { font-family: var(--mono); font-size: 0.85em; }
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 20px 0 8px; }
+.stat { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+.stat b { display: block; font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 0.82rem; color: var(--muted); }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.86rem; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+.pill { display: inline-block; font-family: var(--mono); font-size: 0.76rem; font-weight: 500; padding: 0 0.5em; border-radius: 3px; line-height: 1.6; white-space: nowrap; }
+.o-pass { color: var(--pass); background: var(--pass-bg); }
+.o-fail, .o-error, .o-instrument_invalid { color: var(--fail); background: var(--fail-bg); }
+.o-inconclusive, .o-instrument_unverified, .o-running, .o-unknown { color: var(--warn); background: var(--warn-bg); }
+.o-none, .o-derived { color: var(--none); background: var(--none-bg); }
+.slug { font-family: var(--mono); font-weight: 500; }
+.sub { color: var(--muted); font-size: 0.8rem; }
+details summary { cursor: pointer; color: var(--accent); font-size: 0.8rem; }
+details p { margin: 6px 0 0; font-size: 0.82rem; max-width: 70ch; }
+.strip { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.cell { width: 14px; height: 14px; border-radius: 2px; border: 1px solid transparent; }
+.cell.o-pass { background: var(--pass); } .cell.o-fail, .cell.o-error, .cell.o-instrument_invalid { background: var(--fail); }
+.cell.o-inconclusive, .cell.o-instrument_unverified, .cell.o-running, .cell.o-unknown { background: var(--warn); }
+.cell.o-none, .cell.o-derived { background: var(--none); }
+.cell.current { outline: 2px solid var(--fg); outline-offset: 1px; }
+.hist-row { display: grid; grid-template-columns: minmax(0, 260px) 1fr; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--rule); align-items: center; }
+.hist-row:last-child { border-bottom: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.8rem; color: var(--muted); margin: 6px 0 10px; align-items: center; }
+.legend i { display: inline-block; width: 11px; height: 11px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.controls label { font-size: 0.82rem; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+select, input[type="search"] { font: inherit; font-size: 0.85rem; padding: 4px 8px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); color: var(--fg); }
+select:focus-visible, input:focus-visible, summary:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bars { display: grid; gap: 10px; padding: 12px; }
+.bar-row { display: grid; grid-template-columns: 110px 1fr 70px; gap: 10px; align-items: center; font-size: 0.84rem; }
+.bar { display: flex; height: 18px; border-radius: 3px; overflow: hidden; background: var(--none-bg); }
+.bar span { height: 100%; }
+.eq-identical { background: var(--pass); } .eq-semantic { background: var(--accent); } .eq-aminx_extension { background: #7a5fb0; }
+.eq-divergence { background: var(--warn); } .eq-exclusion { background: var(--none); }
+.empty { padding: 32px 16px; text-align: center; color: var(--muted); }
+.empty button { font: inherit; margin-top: 8px; }
+.warnings { color: var(--warn); font-size: 0.85rem; }
+@media (max-width: 560px) { .hist-row { grid-template-columns: 1fr; } .bar-row { grid-template-columns: 80px 1fr 56px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>aminx Parity Ledger</h1>
+    <div class="meta" id="meta">Loading parity_dashboard.json&hellip;</div>
+  </header>
+
+  <div id="app">
+    <div class="empty" id="empty">
+      <p>This page shows the parity ledger: each vehicle's recorded run, its negative controls, its run history, and knob coverage.</p>
+      <p>It reads <code>parity_dashboard.json</code> from the same folder. If that file is not served next to the page, choose it here.</p>
+      <label for="file">Load a dashboard JSON file </label><input type="file" id="file" accept="application/json,.json">
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const sha8 = (s) => (s ? String(s).slice(0, 8) : "");
+const day = (ts) => (ts ? String(ts).slice(0, 10) : "");
+const dur = (s) => (s == null ? "" : s >= 3600 ? (s / 3600).toFixed(1) + " h" : s >= 60 ? Math.round(s / 60) + " min" : Math.round(s) + " s");
+const okey = (o) => (o == null ? "none" : String(o).replace(/[^a-z_]/gi, "_"));
+const pill = (o) => `<span class="pill o-${okey(o)}">${esc(o ?? "no outcome")}</span>`;
+
+function render(d) {
+  document.getElementById("meta").innerHTML =
+    `<span>schema ${esc(d.schema_version)}</span><span>repo ${esc(sha8(d.repo_head))}</span><span>generated ${esc(String(d.generated_at).slice(0, 16).replace("T", " "))} UTC</span>`;
+  const ledger = d.ledger || [];
+  const nPass = ledger.filter((r) => r.record?.outcome === "pass").length;
+  const nStale = ledger.filter((r) => r.stale === true).length;
+  const ctl = ledger.reduce((a, r) => { a.listed += r.results?.n_listed ?? 0; a.failed += r.results?.n_failed ?? 0; return a; }, { listed: 0, failed: 0 });
+  const covered = (d.knobs || []).filter((k) => k.covered_by_parity).length;
+  const heads = [...new Set(ledger.map((r) => sha8(r.record?.git_hash)))];
+
+  const app = document.getElementById("app");
+  app.innerHTML = `
+  <section class="summary" aria-label="Summary">
+    <div class="stat"><b>${nPass} / ${ledger.length}</b><span>ledger rows pass by record</span></div>
+    <div class="stat"><b>${ctl.failed} / ${ctl.listed}</b><span>negative controls detected (each must make its check fail)</span></div>
+    <div class="stat"><b>${heads.length === 1 ? esc(heads[0]) : heads.length + " commits"}</b><span>commit the ledger rows ran at</span></div>
+    <div class="stat"><b>${covered} / ${(d.knobs || []).length}</b><span>knob rows covered by a parity test</span></div>
+  </section>
+  ${nStale ? `<p class="warnings">${nStale} ledger row(s) are marked stale against the current code.</p>` : ""}
+  ${(d.warnings || []).length ? `<p class="warnings">Extractor warnings: ${d.warnings.map(esc).join("; ")}</p>` : ""}
+
+  <h2 id="ledger">Ledger</h2>
+  <p class="lede">One row per vehicle in <code>tests/knob_gate/sidecar_ledger.toml</code>. Each row is a pre-registered run graded by its sidecar. A row passes only when its clean comparison passes and every listed negative control makes its check fail.</p>
+  <div class="panel" tabindex="0" role="region" aria-label="Ledger table, scrollable">
+  <table>
+    <thead><tr><th>Vehicle</th><th>Outcome</th><th>Controls detected</th><th>Commit</th><th>Ran</th><th>Duration</th><th>Pre-registration</th></tr></thead>
+    <tbody>${ledger.map(ledgerRow).join("")}</tbody>
+  </table></div>
+
+  <h2 id="history">Run history per vehicle</h2>
+  <p class="lede">Every recorded run of each vehicle script, oldest first. The outlined square is the run the ledger cites. Failed and errored runs stay on record.</p>
+  <div class="legend">${["pass", "fail", "error", "inconclusive", "none"].map((o) => `<span><i class="cell o-${o}"></i>${o === "none" ? "no outcome" : o}</span>`).join("")}</div>
+  <div class="panel">${Object.entries(d.history || {}).map(([slug, runs]) => histRow(slug, runs, ledger)).join("")}</div>
+
+  <h2 id="waves">Wave scripts</h2>
+  <p class="lede">Every parity, oracle and browser-gate script with at least one recorded run, with its most recent run. A non-pass latest run is shown as recorded. Some are superseded or exploratory, and the vehicles above are what the ledger grades.</p>
+  <div class="controls">
+    <label for="wave-filter">Latest outcome <select id="wave-filter"><option value="">all</option></select></label>
+    <label for="wave-q">Search <input type="search" id="wave-q" placeholder="script or title"></label>
+  </div>
+  <div class="panel" tabindex="0" role="region" aria-label="Wave scripts, scrollable">
+  <table><thead><tr><th>Script</th><th>Latest</th><th>Runs</th><th>Commit</th><th>Ran</th></tr></thead><tbody id="wave-body"></tbody></table></div>
+
+  <h2 id="knobs">Knob coverage</h2>
+  <p class="lede">Rows of the knob alias map by family and by how each aminx knob relates to the upstream one: <b>identical</b> (same semantics), <b>semantic</b> (same effect, different spelling), <b>aminx_extension</b> (aminx only), <b>divergence</b> (documented difference), <b>exclusion</b> (not a knob, e.g. checkpoint-derived).</p>
+  <div class="legend">${["identical", "semantic", "aminx_extension", "divergence", "exclusion"].map((e) => `<span><i class="eq-${e}"></i>${e}</span>`).join("")}</div>
+  <div class="panel"><div class="bars">${knobBars(d.knobs || [])}</div></div>
+  <div class="controls">
+    <label for="knob-fam">Family <select id="knob-fam"><option value="">all</option>${[...new Set((d.knobs || []).map((k) => k.family))].sort().map((f) => `<option>${esc(f)}</option>`).join("")}</select></label>
+    <label for="knob-eq">Relation <select id="knob-eq"><option value="">all</option>${[...new Set((d.knobs || []).map((k) => k.equivalence))].sort().map((f) => `<option>${esc(f)}</option>`).join("")}</select></label>
+    <label for="knob-q">Search <input type="search" id="knob-q" placeholder="knob or note"></label>
+  </div>
+  <div class="panel" tabindex="0" role="region" aria-label="Knob rows, scrollable">
+  <table><thead><tr><th>Knob</th><th>Family</th><th>Relation</th><th>aminx targets</th><th>Parity tests</th><th>Note</th></tr></thead><tbody id="knob-body"></tbody></table></div>
+  `;
+
+  const waves = (d.waves || []).slice().sort((a, b) => String(b.latest?.timestamp).localeCompare(String(a.latest?.timestamp)));
+  const wf = document.getElementById("wave-filter");
+  [...new Set(waves.map((w) => w.latest?.outcome ?? "none"))].sort().forEach((o) => wf.insertAdjacentHTML("beforeend", `<option>${esc(o)}</option>`));
+  const drawWaves = () => {
+    const f = wf.value, q = document.getElementById("wave-q").value.toLowerCase();
+    const rows = waves.filter((w) => (!f || (w.latest?.outcome ?? "none") === f) && (!q || (w.script + " " + (w.sidecar_title || "")).toLowerCase().includes(q)));
+    document.getElementById("wave-body").innerHTML = rows.map((w) => `<tr>
+      <td><span class="slug">${esc(w.script.replace(/^scripts\//, ""))}</span>${w.sidecar_title ? `<div class="sub">${esc(w.sidecar_title.slice(0, 140))}</div>` : ""}</td>
+      <td>${pill(w.latest?.outcome)}</td><td>${w.n_runs}</td>
+      <td class="mono">${esc(sha8(w.latest?.git_hash))}</td><td>${esc(day(w.latest?.timestamp))}</td></tr>`).join("") || `<tr><td colspan="5" class="sub">No wave matches.</td></tr>`;
+  };
+  wf.onchange = drawWaves; document.getElementById("wave-q").oninput = drawWaves; drawWaves();
+
+  const knobs = d.knobs || [];
+  const drawKnobs = () => {
+    const fam = document.getElementById("knob-fam").value, eq = document.getElementById("knob-eq").value;
+    const q = document.getElementById("knob-q").value.toLowerCase();
+    const rows = knobs.filter((k) => (!fam || k.family === fam) && (!eq || k.equivalence === eq) &&
+      (!q || (k.ref + " " + (k.note || "") + " " + (k.targets || []).join(" ")).toLowerCase().includes(q)));
+    document.getElementById("knob-body").innerHTML = rows.slice(0, 300).map((k) => `<tr>
+      <td class="mono">${esc(k.ref)}</td><td>${esc(k.family)}</td><td><span class="pill" style="color:var(--fg);background:var(--none-bg)"><i class="eq-${okey(k.equivalence)}" style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px"></i>${esc(k.equivalence)}</span></td>
+      <td class="mono sub">${(k.targets || []).map(esc).join("<br>")}</td>
+      <td class="mono sub">${(k.parity_test_ids || []).length}</td>
+      <td class="sub">${esc(k.note || k.reason || "")}</td></tr>`).join("") +
+      (rows.length > 300 ? `<tr><td colspan="6" class="sub">Showing 300 of ${rows.length}; narrow the filter to see the rest.</td></tr>` : "") ||
+      `<tr><td colspan="6" class="sub">No knob matches.</td></tr>`;
+  };
+  ["knob-fam", "knob-eq"].forEach((id) => (document.getElementById(id).onchange = drawKnobs));
+  document.getElementById("knob-q").oninput = drawKnobs; drawKnobs();
+}
+
+function ledgerRow(r) {
+  const rec = r.record || {}, res = r.results || {}, sc = r.sidecar || {};
+  const ctls = r.controls || [];
+  const bad = ctls.filter((c) => c.status !== "failed");
+  return `<tr>
+    <td><span class="slug">${esc(r.slug)}</span><div class="sub">${esc(r.family)}${r.stale === true ? " &middot; stale" : ""}</div></td>
+    <td>${pill(rec.outcome)}${rec.git_dirty ? ` <span class="pill o-unknown">dirty tree</span>` : ""}</td>
+    <td>${res.n_failed ?? "?"} / ${res.n_listed ?? "?"}${bad.length ? `<div class="sub">${bad.length} not detected: ${bad.map((c) => esc(c.id)).join(", ")}</div>` : ""}
+      ${ctls.length ? `<details><summary>${ctls.length} controls</summary><p class="mono">${ctls.map((c) => `${esc(c.wave ? c.wave + "/" : "")}${esc(c.id)}: ${esc(c.status ?? "unknown")}`).join("<br>")}</p></details>` : ""}</td>
+    <td class="mono">${esc(sha8(rec.git_hash))}</td>
+    <td>${esc(day(rec.timestamp))}<div class="sub mono">${esc(sha8(rec.id))}</div></td>
+    <td>${esc(dur(rec.duration_s))}</td>
+    <td>${esc(sc.title || "")}<details><summary>hypothesis and pass condition</summary><p>${esc(sc.hypothesis || "")}</p><p class="mono">${esc(sc.pass_condition || "")}</p><p class="sub mono">${esc(sc.path || "")}</p></details></td>
+  </tr>`;
+}
+
+function histRow(slug, runs, ledger) {
+  const cited = ledger.find((r) => r.slug === slug)?.run_id;
+  const sorted = runs.slice().sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+  const counts = sorted.reduce((a, r) => ((a[r.outcome ?? "none"] = (a[r.outcome ?? "none"] || 0) + 1), a), {});
+  return `<div class="hist-row"><div><span class="slug">${esc(slug)}</span><div class="sub">${sorted.length} runs &middot; ${Object.entries(counts).map(([k, v]) => `${v} ${esc(k)}`).join(", ")}</div></div>
+    <div class="strip">${sorted.map((r) => `<span class="cell o-${okey(r.outcome)}${r.id === cited ? " current" : ""}" role="img" aria-label="${esc(day(r.timestamp))} ${esc(r.outcome ?? "no outcome")}" title="${esc(sha8(r.id))} · ${esc(day(r.timestamp))} · ${esc(r.outcome ?? "no outcome")} · ${esc(sha8(r.git_hash))}"></span>`).join("")}</div></div>`;
+}
+
+function knobBars(knobs) {
+  const order = ["identical", "semantic", "aminx_extension", "divergence", "exclusion"];
+  const fams = [...new Set(knobs.map((k) => k.family))].sort();
+  return fams.map((f) => {
+    const ks = knobs.filter((k) => k.family === f);
+    const segs = order.map((e) => [e, ks.filter((k) => k.equivalence === e).length]).filter(([, n]) => n);
+    return `<div class="bar-row"><span class="slug">${esc(f)}</span>
+      <div class="bar" role="img" aria-label="${esc(f)}: ${segs.map(([e, n]) => `${n} ${e}`).join(", ")}">${segs.map(([e, n]) => `<span class="eq-${e}" style="width:${(100 * n) / ks.length}%" title="${n} ${e}"></span>`).join("")}</div>
+      <span class="sub">${ks.length} rows</span></div>`;
+  }).join("");
+}
+
+function load(text) {
+  try { render(JSON.parse(text)); }
+  catch (e) { document.getElementById("meta").textContent = "Could not read the dashboard JSON: " + e.message; }
+}
+document.getElementById("file").addEventListener("change", (ev) => {
+  const f = ev.target.files[0]; if (!f) return;
+  const r = new FileReader(); r.onload = () => load(r.result); r.readAsText(f);
+});
+fetch("parity_dashboard.json").then((r) => (r.ok ? r.text() : Promise.reject(new Error("HTTP " + r.status))))
+  .then(load)
+  .catch(() => { document.getElementById("meta").textContent = "parity_dashboard.json not found next to this page; choose a file below."; });
+</script>

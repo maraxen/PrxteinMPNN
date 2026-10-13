@@ -45,3 +45,13 @@ Local test run against a snapshot:
 
 Warnings (missing runs, unparsable metadata, controls without a status) are listed
 in the output's `warnings` array.
+
+## Page
+
+`index.html` is a static page with no build step and no script dependencies. It renders
+the JSON: a summary strip, the ledger rows with their per-control status and pre-registered
+pass condition, every recorded run per vehicle (the cited run outlined), the latest run of
+each wave script, and knob coverage by family and relation. It fetches
+`parity_dashboard.json` from its own folder; opened from disk, it offers a file picker
+instead. Serve both files together, e.g. `python3 -m http.server` in a folder holding
+`index.html` and the extractor's output renamed to `parity_dashboard.json`.

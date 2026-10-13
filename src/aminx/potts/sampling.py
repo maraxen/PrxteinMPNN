@@ -13,10 +13,14 @@ References
 from __future__ import annotations
 
 import functools
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, Int
+
+from aminx.utils.aa_convert import MPNN_ALPHABET
+from aminx.utils.sampling_support import X_INDEX, exclude_x_logits, exclude_x_probs
 
 
 def _potts_field_energy(
@@ -89,6 +93,22 @@ def _conditional_logits_site(
   return inv * logits
 
 
+def _resolve_x_index(x_index: int | Literal["auto"] | None, q: int) -> int | None:
+  """The X column to exclude for a ``q``-letter Potts model, or None for no exclusion.
+
+  ``"auto"`` means the MPNN alphabet's X when ``q`` is that alphabet's size (21), and no
+  exclusion otherwise (a toy or non-MPNN alphabet has no known X). An explicit index must
+  be a column: JAX drops out-of-range ``.at[]`` writes silently, so a wrong index would
+  leave X drawable with no error.
+  """
+  if x_index == "auto":
+    return X_INDEX if q == len(MPNN_ALPHABET) else None
+  if x_index is not None and not 0 <= x_index < q:
+    msg = f"x_index={x_index} is not a column of a q={q} Potts model; pass x_index=None when it has no X"
+    raise ValueError(msg)
+  return x_index
+
+
 def dlmc_sweep(
   key: Array,
   seq: Int[Array, " n"],
@@ -98,6 +118,8 @@ def dlmc_sweep(
   mask: Float[Array, " n"],
   site_order: Int[Array, " n"] | None = None,
   n_steps: int = 1,
+  *,
+  x_index: int | Literal["auto"] | None = "auto",
 ) -> Int[Array, " n"]:
   """Discrete Langevin Monte Carlo (DLMC) with Zanella locally-balanced proposals.
 
@@ -114,13 +136,24 @@ def dlmc_sweep(
     mask: Site activity mask of shape (n,)
     site_order: Visitation order of shape (n,); if None, uses [0, 1, ..., n-1]
     n_steps: Number of DLMC sweeps (default 1)
+    x_index: Column of the unknown token X, which is never proposed. ``"auto"`` (default)
+      uses the MPNN alphabet's X when q is 21 and excludes nothing otherwise. ``None``
+      turns the exclusion off.
 
   Returns:
     Updated sequence after n_steps DLMC rounds
   """
   n = int(seq.shape[0])
+  x_index = _resolve_x_index(x_index, int(h.shape[-1]))
   if site_order is None:
     site_order = jnp.arange(n, dtype=jnp.int32)
+  if x_index is not None:
+    # The chain lives off X. An active site that starts at X is moved to column 0 (alanine
+    # in the MPNN alphabet) before the first sweep: a chain started at X could never accept
+    # a move out of it, since the reverse proposal from X has zero weight. This is burn-in,
+    # not a change of target. Inactive sites are left as they are, and the dtype of ``seq``
+    # is kept.
+    seq = jnp.where((mask > 0.5) & (seq == x_index), jnp.zeros_like(seq), seq)
 
   def one_sweep(seq_in: Int[Array, " n"], key_in: Array) -> tuple[Int[Array, " n"], Array]:
     """One full sweep: visit each site and perform DLMC MH update."""
@@ -137,18 +170,30 @@ def dlmc_sweep(
       # Zanella balancing: w(s'|x_i) = exp(0.5 * (logits_i[s'] - logits_i[x_i]))
       current_state = seq_curr[i]
       logits_balanced = 0.5 * (logits_i - logits_i[current_state])
+      # X gets zero proposal weight (debt #2660, see sampling_support). The clip below
+      # would turn a -inf logit into a small finite weight, so the weight is zeroed
+      # directly.
       weights = jnp.exp(jnp.clip(logits_balanced, -30.0, 30.0))
+      if x_index is not None:
+        weights = exclude_x_probs(weights, x_index)
 
       # Normalize to proposal distribution q(s'|x_i)
       weights_sum = jnp.sum(weights)
       q_proposal = weights / (weights_sum + 1e-12)
 
-      # Sample proposal state s'
-      proposal_state = jax.random.categorical(k_prop, jnp.log(q_proposal + 1e-12))
+      # Sample proposal state s'. The +1e-12 inside the log would give X a ~1e-12 chance
+      # per step, so X's logit is set to -inf for the draw itself. This changes the
+      # result only when X would have been drawn.
+      log_q = jnp.log(q_proposal + 1e-12)
+      if x_index is not None:
+        log_q = exclude_x_logits(log_q, x_index)
+      proposal_state = jax.random.categorical(k_prop, log_q)
 
       # Reverse proposal probability: q(x_i|s')
       logits_balanced_rev = 0.5 * (logits_i - logits_i[proposal_state])
       weights_rev = jnp.exp(jnp.clip(logits_balanced_rev, -30.0, 30.0))
+      if x_index is not None:
+        weights_rev = exclude_x_probs(weights_rev, x_index)
       weights_rev_sum = jnp.sum(weights_rev)
       q_reverse = weights_rev[current_state] / (weights_rev_sum + 1e-12)
 
@@ -165,7 +210,7 @@ def dlmc_sweep(
       # Update sequence
       new_state = jnp.where(accept, proposal_state, current_state)
       active = mask[i] > 0.5
-      new_state_eff = jnp.where(active, new_state, seq_curr[i])
+      new_state_eff = jnp.where(active, new_state, seq_curr[i]).astype(seq_curr.dtype)
       seq_new = seq_curr.at[i].set(new_state_eff)
 
       return (seq_new, k_split), None
@@ -202,6 +247,8 @@ def gibbs_sweep(
   site_order: Int[Array, " n"] | None = None,
   neighbor_scale: Float[Array, ""] | float = 1.0,
   inverse_temp: Float[Array, ""] | float = 1.0,
+  *,
+  x_index: int | Literal["auto"] | None = "auto",
 ) -> tuple[Int[Array, " n"], Array]:
   """One deterministic sweep over ``site_order`` (length ``n``); updates masked sites only.
 
@@ -215,11 +262,15 @@ def gibbs_sweep(
     site_order: Visitation order of shape (n,); if None, uses [0, 1, ..., n-1]
     neighbor_scale: Scaling factor for pair contributions
     inverse_temp: Inverse temperature for full energy scaling
+    x_index: Column of the unknown token X, which is never drawn. ``"auto"`` (default)
+      uses the MPNN alphabet's X when q is 21 and excludes nothing otherwise. ``None``
+      turns the exclusion off.
 
   Returns:
     Updated sequence and new random key
   """
   n = int(seq.shape[0])
+  x_index = _resolve_x_index(x_index, int(h.shape[-1]))
   if site_order is None:
     site_order = jnp.arange(n, dtype=jnp.int32)
 
@@ -239,6 +290,9 @@ def gibbs_sweep(
       neighbor_scale=neighbor_scale,
       inverse_temp=inverse_temp,
     )
+    # Upstream PottsMPNN: "Gap and X should never be chosen" (debt #2660).
+    if x_index is not None:
+      logits = exclude_x_logits(logits, x_index)
     new_aa = jax.random.categorical(kc, logits)
     active = mask[i] > 0.5
     new_aa_eff = jnp.where(active, new_aa, seq_in[i])

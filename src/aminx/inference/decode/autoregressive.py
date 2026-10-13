@@ -37,6 +37,7 @@ from aminx.inference.sample_autoregressive import SampleResult
 from aminx.types.bundles import EncoderOutput, InferenceBundle
 from aminx.types.configs import InferenceConfig
 from aminx.types.stages import StageSet
+from aminx.utils.sampling_support import exclude_x_logits
 
 #: Sentinel token for a position that has not been drawn yet.
 #:
@@ -159,6 +160,9 @@ def _fuse_and_sample(
   avg_sampling = jax.vmap(
     lambda mg: _fuse_one_group(sampling_logits, mg, stage_set.tie_group_fuse),
   )(mask_group)  # (G, 21)
+  # Support rule (debt #2660): upstream LigandMPNN samples 20 columns, so X is never drawn.
+  # The stored logits above stay unmasked; only the draw below uses the masked copy.
+  avg_sampling = exclude_x_logits(avg_sampling)
 
   # Sample each group from its own bias-applied logits, independently.
   # ``gumbel_noise[g]`` is the vector ``categorical`` would draw for tie-group id ``g``

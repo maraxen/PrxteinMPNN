@@ -32,6 +32,7 @@ from aminx.types.stages import (
 from aminx.utils.autoregression import ar_mask_from_decoding_order
 from aminx.utils.data_structures import Protein
 from aminx.utils.decoding_order import DecodingOrder, DecodingOrderFn
+from aminx.utils.sampling_support import exclude_x_logits
 from aminx.utils.ste import straight_through_estimator
 
 
@@ -515,7 +516,7 @@ def _make_encoding_sampling_split_fn_legacy(
           group_count = group_mask.sum(axis=0, keepdims=True)  # (1, 1)
           group_bias = (bias * group_mask).sum(axis=0) / (group_count.squeeze() + 1e-8)
           avg_logits = avg_logits + group_bias
-        scaled_logits = avg_logits / temperature
+        scaled_logits = exclude_x_logits(avg_logits) / temperature  # X is never drawn (debt #2660)
         key, subkey = jax.random.split(key)
         sampled_aa = jax.random.categorical(subkey, scaled_logits).astype(jnp.int8)
         updated_seq = jnp.where(group_member_mask, sampled_aa, sequence)
@@ -540,7 +541,7 @@ def _make_encoding_sampling_split_fn_legacy(
         pos = decoding_order[i]
         if bias is not None:
           logits = logits.at[pos].add(bias[pos])
-        scaled_logits = logits[pos] / temperature
+        scaled_logits = exclude_x_logits(logits[pos]) / temperature  # X is never drawn (debt #2660)
         key, subkey = jax.random.split(key)
         sampled_aa = jax.random.categorical(subkey, scaled_logits).astype(jnp.int8)
         updated_seq = cast("jax.Array", sequence).at[pos].set(sampled_aa)

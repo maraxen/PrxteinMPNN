@@ -63,7 +63,30 @@ def _self_test() -> dict[str, Any]:
   if key_enc == key_score:
     failed.append("unit_key_ignores_wave")
 
+  # Amendment 1: an identically-zero field (max|ref| = 0 and max|err| = 0, as lig_vectors is) is
+  # excluded from the floor rather than turning it into inf, and is still reported as degenerate.
+  checks += 1
+  population = [
+    base._synth(f"p{i}", "f", 1.0, 1000.0)  # noqa: SLF001
+    for i in range(5)
+  ] + [base._synth(f"p{i}", "zero", 0.0, 0.0) for i in range(5)]  # noqa: SLF001
+  degenerate, scaled = _split_degenerate(population)
+  try:
+    floor = base._floor(scaled)[0]  # noqa: SLF001
+    base._leave_one_out(scaled)  # noqa: SLF001
+  except ValueError:
+    floor = math.inf
+  if len(degenerate) != 5 or not math.isfinite(floor):
+    failed.append("zero_scale_field_breaks_floor")
+
   return {"passed": not failed, "n_checks": checks, "failed": failed}
+
+
+def _split_degenerate(stats: list[Any]) -> tuple[list[str], list[Any]]:
+  """``(degenerate pair::field ids, the non-degenerate entries)`` (amendment 1)."""
+  degenerate = base._degenerate(stats)  # noqa: SLF001
+  excluded = set(degenerate)
+  return degenerate, [s for s in stats if f"{s.pair}::{s.field}" not in excluded]
 
 
 def main() -> int:
@@ -124,14 +147,25 @@ def main() -> int:
   payload["n_fields"] = len({s.field for s in f32})
   payload["f64_passes"] = all(s.n_violating == 0 for s in f64)
   payload["f32_violated_elementwise"] = any(s.n_violating for s in f32)
-  payload["degenerate_fields"] = base._degenerate(f32)  # noqa: SLF001
+  degenerate, scaled = _split_degenerate(f32)
+  excluded = set(degenerate)
+  payload["degenerate_fields"] = degenerate
+  payload["degenerate_field_names"] = sorted({d.split("::", 1)[1].rsplit("__", 1)[-1] for d in degenerate})
+  payload["degenerate_max_abs"] = max(
+    (s.max_abs for s in f32 if f"{s.pair}::{s.field}" in excluded),
+    default=0.0,
+  )
+  if not scaled:
+    msg = "every f32 entry is degenerate; nothing to derive a floor from"
+    raise RuntimeError(msg)
 
-  floor, floor_pair, floor_field, second = base._floor(f32)  # noqa: SLF001
+  # Amendment 1: floor, leave-one-out and control run over the non-degenerate entries only.
+  floor, floor_pair, floor_field, second = base._floor(scaled)  # noqa: SLF001
   payload["floor_scale_relative"] = floor
   payload["floor_pair"] = floor_pair
   payload["floor_field"] = floor_field
   payload["second_worst_scale_relative"] = second
-  payload["floor_scale_relative_per_field"] = base._per_field_floor(f32)  # noqa: SLF001
+  payload["floor_scale_relative_per_field"] = base._per_field_floor(scaled)  # noqa: SLF001
 
   if math.isfinite(floor) and floor > 0.0:
     tol = base._tol_from(floor)  # noqa: SLF001
@@ -139,13 +173,13 @@ def main() -> int:
     tol = math.inf if math.isinf(floor) else 0.0
   payload["proposed_tol"] = tol
 
-  not_adm, loo_pair, loo_ratio = base._leave_one_out(f32)  # noqa: SLF001
+  not_adm, loo_pair, loo_ratio = base._leave_one_out(scaled)  # noqa: SLF001
   payload["n_loo_not_admitted"] = not_adm
   payload["loo_all_admitted"] = not_adm == 0
   payload["loo_worst_pair"] = loo_pair
   payload["loo_worst_ratio"] = loo_ratio
 
-  n_control_admitted, control_ratio = base._control_scale_relative(f32, tol)  # noqa: SLF001
+  n_control_admitted, control_ratio = base._control_scale_relative(scaled, tol)  # noqa: SLF001
   payload["control_rejected"] = n_control_admitted == 0
   payload["control_scale_ratio"] = control_ratio
   payload["below_control_scale"] = control_ratio <= 1.0 / base._CONTROL_SCALE_MARGIN  # noqa: SLF001

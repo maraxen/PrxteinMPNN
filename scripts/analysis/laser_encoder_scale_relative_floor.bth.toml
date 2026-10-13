@@ -118,6 +118,8 @@ loo_worst_ratio = "float"
 control_rejected = "bool"
 below_control_scale = "bool"
 degenerate_fields = "list"
+degenerate_field_names = "list"
+degenerate_max_abs = "float"
 floor_scale_relative = "float"
 floor_scale_relative_per_field = "dict"
 floor_pair = "str"
@@ -153,6 +155,26 @@ derivation_rule = "proposed_tol = ceil_one_significant_figure(10 * floor); inher
 negative_control_graded = "1e-2 relative defect, analytic, inherited from laser_f32_tolerance_floor; band must reject it and stay >= 10x below it"
 measurement_reuses_the_test = "deviations come from test_laser_encoder's own _run via the shared _measure_unit recorder, which refuses unless _rows_over is called exactly once per _FLOATS entry (verified for this wave by 91dfbf20)"
 cost = "63 pairs x 2 precisions = 126 forward passes on CPU, no whole-run timeout; per-unit resume"
+
+amendment_1_instrument_crash = """
+AMENDED 261013 AFTER A CRASHED RUN, DISCLOSED HERE. Run 25519960 (script 15843e52) measured all
+126 units and then raised ValueError('cannot round inf to one significant figure') in the
+inherited _leave_one_out, so it never graded. Cause, read from its stamped units, not inferred:
+field lig_vectors has max|ref| = 0 AND max|aminx - upstream| = 0 in all 63 pairs at both
+precisions (an exact match on an identically-zero field). The inherited _scale_ratio maps ANY zero
+scale to inf, so the floor was inf; main() guards _tol_from against that but _leave_one_out does
+not. The same latent crash exists in laser_score_scale_relative_floor.py; it never fired there
+because no laser_score field has zero scale. That module is left byte-identical.
+WHAT CHANGES: this script computes floor, leave-one-out and the analytic control over the
+NON-degenerate entries only, and reports the degenerate ones by name with their own max|err|
+(degenerate_fields, degenerate_field_names, degenerate_max_abs), so their exactness is a recorded
+number. WHAT DOES NOT CHANGE: the grader, its order, every threshold, the derivation rule, the
+control, the margin and every outcome condition. Because degenerate_fields is non-empty the grade
+will be scale_is_degenerate exactly as the crashed run should have graded, whose decision is "do
+NOT adopt the rule for the degenerate fields; report them by name". The non-degenerate band is
+supplied so the user can decide the remaining six fields, not adopted on the strength of this run.
+A self-test check is added that the floor path survives an exact zero-scale field.
+"""
 
 [provenance]
 note = "Lives in scripts/analysis/, outside _SCOPED_PREFIXES (tests/knob_gate/_coverage.py), so it stales no ledger row. Imports the graded instruments unchanged. Invocation: AMINX_LASER_ORACLE_DIR=<b3_laser_owned> JAX_PLATFORMS=cpu bth run --project-slug aminx -- uv run --no-sync python3 scripts/analysis/laser_encoder_scale_relative_floor.py --work-dir <dir> --out <json>."

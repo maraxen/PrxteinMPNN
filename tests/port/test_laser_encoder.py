@@ -3,9 +3,9 @@
 One item per (checkpoint, fixture). Ids are read from the dump at collection
 time; an absent oracle yields no pairs and the wave skips.
 
-f64 uses rtol=1e-8, atol=1e-11. f32 uses rtol=1e-4, atol=1e-7 and reports every
-key whose rows exceed that bound (debt #2299: the ligand path can miss a
-same-precision f32 oracle on a minority of rows; the bound is not loosened).
+f64 uses rtol=1e-8, atol=1e-11, element-wise. f32 is SCALE-RELATIVE per field
+per pair, max|got - ref| <= 2e-4 * max|ref| (measured by run 86da517a; see
+_SCALE_REL and targets/laser_encoder.toml), and reports every key that exceeds it.
 
 Edge indices are compared exactly, separate from the embedding leaves, so a
 kNN convention error fails before the stack is judged.
@@ -32,10 +32,25 @@ from aminx.model.laser.graphs import GraphStructure
 
 pytestmark = [pytest.mark.port_wave("laser_encoder"), pytest.mark.parity_heavy]
 
-_RTOL = {"f64": 1e-8, "f32": 1e-4}
-# House pairing for the declared rtol. Not a measured deviation; the
-# orchestrator replaces atol from the graded run. See targets/laser_encoder.toml.
-_ATOL = {"f64": 1e-11, "f32": 1e-7}
+# f64 keeps the ELEMENT-WISE envelope: it is the correctness check, and f64 is a
+# parity dtype, never a production one.
+_RTOL = {"f64": 1e-8}
+# House pairing for the declared rtol. Not a measured deviation.
+_ATOL = {"f64": 1e-11}
+# f32 is SCALE-RELATIVE (the laser_score option 3, chosen for this wave by the
+# user 2026-10-13). A REDUCTION per field per pair, not an element-wise envelope:
+#
+#     max|got - ref|  <=  tol * max|ref|
+#
+# The element-wise rule could not work here: floor run 91dfbf20 found that the
+# best atol admitting float32 noise sits at 0.246 of an injected 1% defect.
+# The band is measured, not chosen: graded run 86da517a
+# (scripts/analysis/laser_encoder_scale_relative_floor.py @ b4389e58, clean)
+# gives floor_scale_relative = 1.089e-5 over all 63 pairs, leave-one-out admits
+# 63/63 (worst ratio 0.109), and the band is 0.02 of a 1e-2 defect (50x margin).
+# lig_vectors is identically zero in reference and aminx; _scale_relative holds
+# a zero-scale field to an exact match, so that field is not loosened by this.
+_SCALE_REL = {"f32": 2e-4}
 _CHECKPOINTS = {
   "nothing_heldout": "model_weights/laser_weights_0p1A_nothing_heldout.pt",
   "noise_ligandmpnn_split": "model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt",
@@ -228,6 +243,31 @@ def _rows_over(
   return int(np.sum(row_bad)), int(row_bad.shape[0]), worst
 
 
+def _scale_relative(got: np.ndarray, ref: np.ndarray) -> tuple[float, float, float]:
+  """``max|got-ref|``, the scale ``max|ref|``, and their ratio.
+
+  The f32 rule's measurement, identical to test_laser_score._scale_relative. NaN
+  handling matches ``_rows_over``: shared NaNs are not errors, a one-sided NaN is
+  infinite error. A zero scale admits an exact match only: the ratio is 0 when the
+  deviation is 0 and inf otherwise.
+  """
+  got64 = got.astype(np.float64)
+  ref64 = ref.astype(np.float64)
+  both_nan = np.isnan(got64) & np.isnan(ref64)
+  nan_mismatch = np.isnan(got64) != np.isnan(ref64)
+  error = np.abs(got64 - ref64)
+  error = np.where(both_nan, 0.0, error)
+  error = np.where(nan_mismatch, np.inf, error)
+  max_abs = float(np.max(error)) if error.size else 0.0
+  finite_ref = np.where(np.isnan(ref64), 0.0, ref64)
+  scale = float(np.max(np.abs(finite_ref))) if finite_ref.size else 0.0
+  if scale > 0.0:
+    ratio = max_abs / scale
+  else:
+    ratio = 0.0 if max_abs == 0.0 else float("inf")
+  return max_abs, scale, ratio
+
+
 def _run(
   data: np.lib.npyio.NpzFile,
   precision: str,
@@ -240,8 +280,17 @@ def _run(
   failures: list[str] = []
   worst = 0.0
   dtype = np.float64 if precision == "f64" else np.float32
-  rtol = _RTOL[precision]
-  atol = _ATOL[precision]
+  rtol = _RTOL.get(precision)
+  atol = _ATOL.get(precision)
+  scale_rel = _SCALE_REL.get(precision)
+  # A precision must be defined by exactly ONE rule, so a half-done migration
+  # cannot silently apply whichever branch is checked first.
+  if (rtol is None and atol is None) == (scale_rel is None):
+    msg = (
+      f"laser_encoder {precision}: exactly one of the element-wise band "
+      f"(_RTOL/_ATOL) and the scale-relative band (_SCALE_REL) must define it"
+    )
+    raise AssertionError(msg)
   prefix = f"{checkpoint}__{fixture}__"
   with x64_context(precision), jax.default_matmul_precision("highest"):
     predicted = _predict(checkpoint, fixture, dtype)
@@ -264,7 +313,17 @@ def _run(
             worst = max(worst, float(np.max(delta)) if delta.size else 0.0)
           else:
             worst = max(worst, 1.0)
-      elif numeric:
+      elif numeric and scale_rel is not None:
+        max_abs, scale, ratio = _scale_relative(got, ref)
+        worst = max(worst, max_abs)
+        # Negated rather than `ratio > scale_rel` so a NaN ratio fails.
+        if not ratio <= scale_rel:
+          failures.append(
+            f"{key}: max|got-ref|/max|ref| = {ratio:.6e} exceeds "
+            f"scale_rel={scale_rel:g} "
+            f"(max|got-ref|={max_abs:.6e}, max|ref|={scale:.6e})",
+          )
+      elif numeric and rtol is not None and atol is not None:
         n_bad, n_rows, max_abs = _rows_over(got, ref, rtol, atol)
         worst = max(worst, max_abs)
         if n_bad:
@@ -340,18 +399,42 @@ def test_tier_2_f64(oracle: object, checkpoint: str, fixture: str) -> None:
 @pytest.mark.tier_3
 @pytest.mark.parametrize(("checkpoint", "fixture"), _PAIRS, ids=_PAIR_IDS)
 def test_tier_3_f32(oracle: object, checkpoint: str, fixture: str) -> None:
-  """f32 encoder outputs match at rtol=1e-4, atol=1e-7, reporting every key.
-
-  Debt #2299: a same-precision f32 ligand path can exceed a tight bound on a
-  minority of rows while f64 stays clean. This tier records those keys and the
-  worst absolute delta. It does not widen the bound.
-  """
+  """f32 encoder outputs match scale-relatively at _SCALE_REL['f32'], reporting every key."""
   _skip_absent_oracle()
   data = open_dump(oracle, "f32")
   try:
     assert _run(data, "f32", checkpoint, fixture, numeric=True) > 0
   finally:
     data.close()
+
+
+def test_scale_relative_band_rejects_an_injected_defect() -> None:
+  """NEGATIVE CONTROL for the f32 band. Needs no oracle, so it always runs.
+
+  A 1e-2 relative defect must be rejected with more than 10x margin, a round-off
+  perturbation must pass, and the NaN and zero-scale edge cases must not forgive.
+  """
+  tol = _SCALE_REL["f32"]
+  rng = np.random.default_rng(0)
+  ref = rng.normal(size=(64, 9)).astype(np.float32)
+
+  clean = (ref * np.float32(1.0 + 1e-6)).astype(np.float32)
+  assert _scale_relative(clean, ref)[2] <= tol
+
+  defect = (ref * np.float32(1.0 + 1e-2)).astype(np.float32)
+  ratio = _scale_relative(defect, ref)[2]
+  assert not ratio <= tol
+  assert ratio / tol > 10.0, f"injected defect only {ratio / tol:.1f}x over the band"
+
+  with_nan = ref.copy()
+  with_nan[0, 0] = np.nan
+  assert _scale_relative(with_nan.copy(), with_nan)[2] == 0.0
+  assert not _scale_relative(ref, with_nan)[2] <= tol
+
+  # lig_vectors' case: an identically-zero field admits an exact match and nothing else.
+  zeros = np.zeros((4,), dtype=np.float32)
+  assert _scale_relative(zeros, zeros)[2] == 0.0
+  assert _scale_relative(zeros + np.float32(1e-30), zeros)[2] == float("inf")
 
 
 @pytest.mark.tier_5

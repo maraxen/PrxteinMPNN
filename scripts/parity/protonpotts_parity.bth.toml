@@ -133,6 +133,18 @@ to 1e-15 on every wave and 99 of 99 controls fired. TITAN RTX (cc 7.5) has no TF
 results under default and highest precision, so the difference is f32 summation order, and these bands were measured
 on CPU. That run stays on record, superseded. launch_wave.sh now pins this slug to CPU (CPU_PINNED); the graded
 re-run is on JAX_PLATFORMS=cpu, as every run before R6 was. No band, control, mutant or threshold is changed.
+
+AMENDED 261013 (second), BEFORE THE GPU RE-RUN. The CPU pin above is lifted. The f32 minimum bands of ph_block and
+ph_methods were re-measured on both backends with scripts/parity/protonpotts_f32_gpu_bands.py (pre-registered at
+a1c229a4; runs bcbd533d CPU and e6f508a6 GPU, both outcome measured, 24 and 44 rows, f64 arm in band, backend
+verified). CPU reproduced the old record (0 rows outside); GPU put 3 rows outside by 1.002x to 2.46x. The pre-registered
+rule (3x the worst f32 difference, rounded up) was applied PER BAND where each minimum actually binds, because the
+literal joint maximum over all columns gives 2e-3, which is set by probability differences that already have their own
+in-run floors. That reading, and the prediction "worst GPU difference below 1e-4" (observed 4.3e-4), were fixed or
+falsified after seeing the numbers; the user chose it (B-plus). New minimums: ph_block F32_MIN_REL 1e-6 -> 5e-5
+(worst measured 1.4e-5, select gap, GPU); ph_methods F32_MIN_BAND 1e-6 -> 4e-4 (the two_phase_mpnn probability
+difference 1.21e-4 sits just over its floor-set band). Controls of both waves run in float64, f64 tolerances,
+token/draw/plan exactness and every outcome condition are unchanged. This vehicle then runs on GPU.
 """
 oracle = "Sealed dumps P4 (oracles_graded), P4b-P4g under ~/projects/aminx-oracles-protonpotts; content hashes in spec sections 36-49"
 checkpoint = "ProtonPottsMPNN/checkpoints/potts_v6_afdb_edge_his0.3_acid0.06/epoch-0125.ckpt, sha256 a39872250c0b8eb4c0b4cb6472a6edad0d6f6134a50c28b611386e83c592fe7b (tests/knob_gate/checkpoint_registry.json)"

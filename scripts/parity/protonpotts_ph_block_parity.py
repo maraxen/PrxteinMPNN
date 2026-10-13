@@ -49,7 +49,8 @@ CELLS = ("pkad_unlabelled", "multichain", "only_o_1olr", "gap")
 CONTROL_CELL = "pkad_unlabelled"
 F64_REL = 1e-9
 F32_FACTOR = 10.0
-F32_MIN_REL = 1e-6
+# Amended 261013 from 1e-6 to 5e-5: 3x the worst f32 difference measured on CPU and GPU (runs bcbd533d, e6f508a6), rounded up.
+F32_MIN_REL = 5e-5
 SENTINEL = 10**6
 # Upstream accumulates its sampling CDF in ITS token order, so the same uniform selects a different entry than a
 # CDF in aminx order would. Entry j is the aminx index of upstream token j. A parity detail, not a modelling choice:

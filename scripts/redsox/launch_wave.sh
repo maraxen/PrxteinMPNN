@@ -151,12 +151,11 @@ elif [ "$WAVE_BACKEND" != "cpu" ]; then
 fi
 if [ "$WAVE_BACKEND" = "gpu" ]; then echo "backend: gpu (GPUs ${WAVE_GPUS[*]})"; else echo "backend: cpu"; fi
 
-# CPU-PINNED SLUGS (R6, 261013). protonpotts_parity's f32 bands were measured on CPU, and GPU f32 rounds
-# differently: its R6 GPU run (e2a185de, at 31ded6de) failed clean on ph_block (1 score, energy rel 1.1e-7)
-# and ph_methods (energies 2.46x over band) while f64 matched to 1e-15 and all 99 controls fired. Turing
-# has no TF32, so this is summation order, not a precision flag. Bands are not moved to fit a backend;
-# the vehicle runs where its bands were measured. Vehicles whose clean arm passed on GPU stay on GPU.
-CPU_PINNED=(protonpotts_parity)
+# CPU-PINNED SLUGS (none). protonpotts_parity was pinned to CPU at ab6897a0 after its R6 GPU run (e2a185de, at
+# 31ded6de) failed f32 bands that had only been measured on CPU (f64 matched to 1e-15, 99 of 99 controls fired).
+# The pin is lifted (261013): the f32 bands of ph_block and ph_methods were then re-measured on both backends
+# (runs bcbd533d CPU, e6f508a6 GPU) and widened to the measured minimum; see those two sidecars' AMENDED paragraphs.
+CPU_PINNED=()
 
 backend_env () {
   local v=$1

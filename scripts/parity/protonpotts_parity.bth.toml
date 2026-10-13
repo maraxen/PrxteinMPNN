@@ -125,6 +125,14 @@ No outcome condition, band, control, mutant or threshold changes. Evidence the b
 spike 261013 ran laser_proofread_parity's clean arm on GPU 3 with R5's inputs and code (43a7a3bd-equivalent
 aminx); all 450 cell values matched the CPU run to 3.2e-15 and both passed at ~5e-15 against upstream (GPU
 1052 s vs CPU 54 min). One pre-registered run never mixes backends; AMINX_WAVE_BACKEND=cpu restores CPU.
+
+AMENDED 261013, BEFORE THE RE-RUN, NO CRITERIA CHANGE. The sentence above about the backend not moving results does
+NOT hold for this vehicle's f32 arm. Its GPU run (e2a185de at 31ded6de) recorded outcome fail: ph_block failed one
+f32 score (energy_rel_diff 1.1e-7) and ph_methods was out of band on energies (worst_over_band 2.46); f64 matched
+to 1e-15 on every wave and 99 of 99 controls fired. TITAN RTX (cc 7.5) has no TF32 and a matmul probe gave identical
+results under default and highest precision, so the difference is f32 summation order, and these bands were measured
+on CPU. That run stays on record, superseded. launch_wave.sh now pins this slug to CPU (CPU_PINNED); the graded
+re-run is on JAX_PLATFORMS=cpu, as every run before R6 was. No band, control, mutant or threshold is changed.
 """
 oracle = "Sealed dumps P4 (oracles_graded), P4b-P4g under ~/projects/aminx-oracles-protonpotts; content hashes in spec sections 36-49"
 checkpoint = "ProtonPottsMPNN/checkpoints/potts_v6_afdb_edge_his0.3_acid0.06/epoch-0125.ckpt, sha256 a39872250c0b8eb4c0b4cb6472a6edad0d6f6134a50c28b611386e83c592fe7b (tests/knob_gate/checkpoint_registry.json)"

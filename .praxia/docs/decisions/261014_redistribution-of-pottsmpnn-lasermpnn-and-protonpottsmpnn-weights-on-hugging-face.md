@@ -1,7 +1,7 @@
 ---
 title: Redistribution of PottsMPNN, LASErMPNN and ProtonPottsMPNN weights on Hugging Face
 description: Upstream licence findings (all MIT), the evidence-backed checkpoint set, open items and the redistribution decision for the 0.2.1 hub weights
-status: draft
+status: accepted
 task_id: 261014_hf-family-weights
 date: '261014'
 supersedes: ''
@@ -9,9 +9,9 @@ backlog_ids: ''
 ---
 # Redistribution of PottsMPNN, LASErMPNN and ProtonPottsMPNN weights on Hugging Face
 
-**Status: draft, awaiting the reviewer's sign-off.** Plan: `~/.claude/plans/parallel-honking-ocean.md`.
-Proposed `redistribution` value: **allowed**, conditional on shipping the notices in `NOTICE-weights.md`.
-Reviewer: Marielle Russo (to confirm). Nothing is uploaded until this is signed off.
+**Status: accepted 2026-10-14** by the reviewer (Marielle Russo), who approved the record as written in chat.
+`redistribution = allowed`, conditional on shipping the notices in `NOTICE-weights.md`. The open items below
+(training-data terms, debt #2698) were accepted as open, not resolved. Plan: `~/.claude/plans/parallel-honking-ocean.md`.
 
 ## Upstream licences (read from the pinned local clones under `~/repos`)
 
@@ -82,5 +82,4 @@ the converted-file sha256s and the bathos run ids.
 
 ## Decision
 
-Proposed: `redistribution = allowed` for the nine checkpoints above, with notices shipped. To be confirmed by the
-reviewer before any upload (plan step 6).
+`redistribution = allowed` for the nine checkpoints above, with notices shipped. Confirmed by the reviewer 2026-10-14.

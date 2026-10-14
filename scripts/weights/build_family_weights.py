@@ -48,6 +48,9 @@ POTTS_COMMIT = "0cb0a58874e373d664114f1735deab77614e4ab5"
 LASER_COMMIT = "e70f2c6d765416f7e29d51bfd6d4e08496438878"
 PROTON_COMMIT = "09682abf"
 PROTON_ALPHABET = "protonpottsmpnn_v6_30"
+# The checkpoint the graded ProtonPotts runs converted: named in every scripts/browser_validation/
+# protonpotts_*.bth.toml sidecar ("epoch-0125.ckpt, sha256 a3987225...").
+PROTON_SOURCE_SHA256 = "a39872250c0b8eb4c0b4cb6472a6edad0d6f6134a50c28b611386e83c592fe7b"
 
 
 @dataclass(frozen=True)
@@ -109,7 +112,8 @@ def expected_source_sha256(args: argparse.Namespace) -> dict[str, str | None]:
 
   PottsMPNN: ``tests/port/reference/a1_potts/oracle_manifest.toml`` (the sealed oracle the parity
   tests grade against). LASErMPNN: the upstream ``VENDOR_PIN.toml`` (the clone the b3 oracle
-  was dumped from, whose hashes the b3 manifest repeats). ProtonPottsMPNN has no recorded value.
+  was dumped from, whose hashes the b3 manifest repeats). ProtonPottsMPNN: the checkpoint hash the
+  graded browser-parity sidecars record.
   """
   expected: dict[str, str | None] = {}
   potts = tomllib.loads(
@@ -124,7 +128,7 @@ def expected_source_sha256(args: argparse.Namespace) -> dict[str, str | None]:
     elif entry.family == "lasermpnn":
       expected[entry.checkpoint_id] = laser.get(Path(entry.source).name)
     else:
-      expected[entry.checkpoint_id] = None
+      expected[entry.checkpoint_id] = PROTON_SOURCE_SHA256
   return expected
 
 

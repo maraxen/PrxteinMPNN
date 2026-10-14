@@ -4,30 +4,30 @@ created = "261014"
 schema_version = "0.3"
 
 [experiment]
-hypothesis = "Each of the nine evidence-backed upstream checkpoints converts with the graded converters into a raw .eqx whose reload through the family driver's own loader is leaf-for-leaf and static-field-for-static-field identical to the converted model; the eight sources with a recorded hash (five Potts from the sealed oracle manifest, three LASEr from the upstream pin) hash to those recorded values; a second build is byte-identical; and one flipped byte changes both the sha256 and the reloaded model. The ProtonPottsMPNN source has no recorded hash, so it is built and reported as unchecked, not asserted."
+hypothesis = "Each of the nine evidence-backed upstream checkpoints converts with the graded converters into a raw .eqx whose reload through the family driver's own loader is leaf-for-leaf and static-field-for-static-field identical to the converted model; the nine sources hash to their recorded values (five Potts from the sealed oracle manifest, three LASEr from the upstream pin, the ProtonPotts epoch-0125 checkpoint from the graded browser-parity sidecars); a second build is byte-identical; and one flipped byte changes both the sha256 and the reloaded model."
 stage_name = "confirmation"
 novel = false
 
 [outcomes.pass]
-condition = "n_built = 9 AND n_expected = 9 AND all_reload_identical = true AND all_idempotent = true AND n_source_checked = 8 AND all_source_matches_expected = true AND control_all_fired = true"
+condition = "n_built = 9 AND n_expected = 9 AND all_reload_identical = true AND all_idempotent = true AND n_source_checked = 9 AND all_source_matches_expected = true AND control_all_fired = true"
 decision = "The artifacts are safe to hash into the pinned table and to upload (upload itself still needs the reviewer's sign-off on the licence record). Commit the generated table and the manifest."
-reasoning = "Identical reload is the property that makes the published bytes the graded model. The flipped-byte control proves the identity check and the sha256 guard can fail, so a pass is not vacuous. Hash agreement for the eight checked sources ties the build to the sealed oracle inputs."
+reasoning = "Identical reload is the property that makes the published bytes the graded model. The flipped-byte control proves the identity check and the sha256 guard can fail, so a pass is not vacuous. Hash agreement for the nine sources ties the build to the sealed oracle inputs."
 is_residual = false
-adversarial_check = "NOT (n_built = 9 AND n_expected = 9 AND all_reload_identical = true AND all_idempotent = true AND n_source_checked = 8 AND all_source_matches_expected = true AND control_all_fired = true)"
+adversarial_check = "NOT (n_built = 9 AND n_expected = 9 AND all_reload_identical = true AND all_idempotent = true AND n_source_checked = 9 AND all_source_matches_expected = true AND control_all_fired = true)"
 
 [outcomes.fail]
-condition = "NOT (n_built = 9 AND n_expected = 9 AND all_reload_identical = true AND all_idempotent = true AND n_source_checked = 8 AND all_source_matches_expected = true AND control_all_fired = true)"
+condition = "NOT (n_built = 9 AND n_expected = 9 AND all_reload_identical = true AND all_idempotent = true AND n_source_checked = 9 AND all_source_matches_expected = true AND control_all_fired = true)"
 decision = "Do not publish, do not write the pinned table. Read the per-row results to see which check failed: a source hash mismatch means the clone is not the one the oracle used; a non-identical reload means the loader drops state (for example a static field); a control that did not fire means the identity check cannot detect corruption."
 reasoning = "Any failed check means the artifact is not demonstrably the graded model or the check itself cannot fail."
 is_residual = true
-adversarial_check = "n_built = 9 AND n_expected = 9 AND all_reload_identical = true AND all_idempotent = true AND n_source_checked = 8 AND all_source_matches_expected = true AND control_all_fired = true"
+adversarial_check = "n_built = 9 AND n_expected = 9 AND all_reload_identical = true AND all_idempotent = true AND n_source_checked = 9 AND all_source_matches_expected = true AND control_all_fired = true"
 
 [result_schema]
 n_built = "int, artifacts written (expected 9)"
 n_expected = "int, size of the catalog"
 all_reload_identical = "bool, every artifact reloads identical to the converted model through the driver loader"
 all_idempotent = "bool, a second build is byte-identical (artifact and manifest)"
-n_source_checked = "int, sources with a recorded hash (expected 8; ProtonPottsMPNN has none)"
+n_source_checked = "int, sources with a recorded hash (expected 9)"
 all_source_matches_expected = "bool, every checked source hashes to its recorded value"
 unchecked_source = "list of checkpoint ids built without a recorded source hash"
 control_all_fired = "bool, a flipped byte changed both the sha256 and the reloaded model for every artifact"

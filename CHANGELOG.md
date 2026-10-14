@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+## 0.2.1 (2026-10-14)
+
+**Family checkpoints resolve by id.** The nine PottsMPNN, LASErMPNN and ProtonPottsMPNN checkpoints that
+a graded parity run used are now on the Hugging Face repo, and `--checkpoint-id` finds them. No change
+to the MPNN checkpoints or to any numerical path.
+
+### Added
+
+- **Hub resolution for the three family drivers** (`aminx.io.weights.resolve_family_checkpoint`,
+  `family_checkpoints`). Order after `model_local_path` and a checkpoint registry: `AMINX_WEIGHTS_DIR`
+  (authoritative, fails closed), then the Hub at `HF_REVISION`. The pinned table
+  `aminx/io/family_weights.json` carries the sha256 of every artifact and of its `.json` manifest; a
+  mismatch raises instead of loading. Published ids: `pottsmpnn_{vanilla_20,vanilla_30,sol_20,sol_30,ft}`,
+  `lasermpnn_{nothing_heldout,noise_ligandmpnn_split,soluble_65000}`, `protonpottsmpnn_v6_30`.
+- **`NOTICE-weights.md`** with the upstream copyright and permission notices (all three upstreams are MIT),
+  the licence decision record, and `scripts/weights/{build,upload}_family_weights.py`. The build ran as bathos
+  run `354f98dc` (outcome pass): every artifact reloads identical to the converted model, a second build is
+  byte-identical, every source hash matches the graded oracle input, and a flipped-byte control fires.
+
+### Changed
+
+- **`HF_REVISION` is now `d9a84e79`** (was `aa80d0fd`). It only adds files: all 15 weight files present at
+  `aa80d0fd` are byte-identical (checked against the Hub), so MPNN results do not change.
+
+### Fixed
+
+- **LASErMPNN loaded a serialised artifact with `build_hydrogens=False`.** The field is static, so `.eqx`
+  does not store it and `_load_eqx` rebuilt a default skeleton, but every upstream checkpoint sets it True. The
+  artifact's `.json` manifest now supplies it, with a warning when the manifest is missing.
+- **0.2.0 pointed at unloadable weights.** The `weights/pottsmpnn/*.eqx.zst` files in the source tree do not
+  deserialise into `PottsMPNN`; the 0.2.0 text that suggested them is corrected (debt #2697 covers the files).
+
+### Not included
+
+- The MSA PottsMPNN variants (vocab 22, debt #2067), and any checkpoint without parity evidence.
+
 ## 0.2.0 (2026-10-14)
 
 **Beta.** The Development Status classifier moves from alpha to Beta, but the repository is still

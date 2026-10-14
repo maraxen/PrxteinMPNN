@@ -63,6 +63,40 @@ def test_pinned_revision_serves_every_packaged_checkpoint() -> None:
   )
 
 
+def test_pinned_revision_serves_every_family_checkpoint() -> None:
+  """Every artifact and manifest in ``family_weights.json`` must exist at the pin.
+
+  ``_repo_files_at`` lists ``*.eqx.zst`` only, so the family ``.eqx`` / ``.json`` files need their
+  own check. The local resolver stubs the download, so this is the only test that would notice a
+  pin that omits one of them.
+  """
+  import json  # noqa: PLC0415
+
+  from huggingface_hub import list_repo_files  # noqa: PLC0415
+  from huggingface_hub.errors import HfHubHTTPError  # noqa: PLC0415
+
+  table = json.loads(files("aminx.io").joinpath("family_weights.json").read_text(encoding="utf-8"))
+  wanted = {
+    name
+    for row in table["checkpoints"]
+    for name in (row["filename"], row["manifest_filename"])
+  }
+  try:
+    at_pin = set(list_repo_files(HF_REPO_ID, revision=HF_REVISION))
+  except HfHubHTTPError as exc:  # pragma: no cover - depends on remote state
+    if "404" in str(exc) or "Revision Not Found" in str(exc):
+      pytest.fail(f"revision {HF_REVISION!r} does not exist on {HF_REPO_ID}: {exc}")
+    pytest.skip(f"Hub unreachable or refused: {exc}")
+  except OSError as exc:  # pragma: no cover - offline
+    pytest.skip(f"Hub unreachable: {exc}")
+
+  missing = sorted(wanted - at_pin)
+  assert not missing, (
+    f"{len(missing)} family file(s) are absent at the pinned revision {HF_REVISION}: {missing}. "
+    f"Resolving that checkpoint id would hard-fail."
+  )
+
+
 def test_pin_is_not_behind_the_default_branch_in_content() -> None:
   """Warn-level guard: the pin should not omit checkpoints that ``main`` already has.
 

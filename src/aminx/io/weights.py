@@ -32,7 +32,13 @@ HF_REPO_ID = "maraxen/aminx"
 # aa80d0fd (2026-09-30) regenerated the ligand and membrane checkpoints with the reference bias
 # layout (#162, #163). That LAYOUT CHANGED, so code from before that change cannot load these
 # files; it stays correct only by pinning the previous revision, 25fb7f6e985724dee7471c3bc18522fe33b9228e.
-HF_REVISION = "aa80d0fd1b70a7b7492c3d7d877c809dfc930475"
+#
+# d9a84e79 (2026-10-14) only ADDED files: the 18 PottsMPNN / LASErMPNN / ProtonPottsMPNN family
+# artifacts and manifests pinned by ``family_weights.json`` (#1 on the Hub repo), plus a notice, a
+# model-card section and a ``.gitattributes`` rule. Verified against the Hub: all 15 weight files
+# present at aa80d0fd are byte-identical here, so this pin loads the same MPNN weights as before
+# and code on the aa80d0fd layout stays compatible with it.
+HF_REVISION = "d9a84e797cc63042108a399b0ebe7feeb775f8ab"
 
 #: Env var naming a directory that is AUTHORITATIVE for weights when set. A missing file there
 #: raises instead of silently falling through to the Hub -- the silent fallback is the defect

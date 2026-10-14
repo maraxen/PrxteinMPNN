@@ -61,6 +61,25 @@ the converted-file sha256s and the bathos run ids.
    `LICENSE` read above and record the upstream URL and the checkpoint sha256 at conversion time.
 4. Courtesy, not a legal requirement: tell the three upstream groups and cite their papers on the model card.
 
+## Build record
+
+- Run: bathos `354f98dc-0cbb-4f1a-b9f3-210dd2ddd1d2`, `scripts/weights/build_family_weights.py` at `06cb071c`, branch
+  `wt/261014-hf-family-weights`, clean tree; cool-tier record `status completed, outcome pass, exit_code 0`.
+  Sidecar `scripts/weights/build_family_weights.bth.toml` was committed before the first run and amended once before any
+  run completed (ProtonPotts source hash added: it is named in the graded browser-parity sidecars).
+- First attempt (same script, `--proton-checkpoint`) errored on ProtonPotts: unpickling the `.ckpt` needs `omegaconf`,
+  absent from the gate-host env. The graded runs used the exported state file `~/scratch/v6_state.npz` (its `.json`
+  records checkpoint sha256 `a3987225...fe7b` and pin `09682abf`); the second run built from it. Both are on record.
+- Result: 9 of 9 built; every artifact reloads through the driver loader leaf-for-leaf identical to the converted model;
+  second build byte-identical; all 9 source hashes match their recorded values; the flipped-byte control changed both
+  the sha256 and the reloaded model for every artifact.
+- Pinned hashes (artifact and manifest) are in `src/aminx/io/family_weights.json`.
+- All three LASErMPNN checkpoints set `build_hydrogens = True`; before this change `_load_eqx` would have loaded such an
+  artifact with it False. Fixed by reading the manifest (`tests/io/test_family_weights.py`).
+- End to end on titanix (CPU): `aminx run --checkpoint-id <id> score ...` with only `AMINX_WEIGHTS_DIR` set resolves
+  PottsMPNN (`energy`, 1ubq) and LASErMPNN (`nll`, 1ubq) and is bitwise equal to the explicit `--model-local-path` run.
+- The tracked `weights/pottsmpnn/*.eqx.zst` are not these artifacts and do not load as `PottsMPNN` (debt #2697).
+
 ## Decision
 
 Proposed: `redistribution = allowed` for the nine checkpoints above, with notices shipped. To be confirmed by the

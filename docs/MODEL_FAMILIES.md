@@ -111,6 +111,25 @@ Without it a lasermpnn request fails with
 `aminx/families/laser_mpnn/featurize.py` rather than from a message naming the
 extra. PottsMPNN has no such requirement and works in a default install.
 
+## Checkpoints
+
+From 0.2.1 a family checkpoint resolves by `--checkpoint-id` with no `--model-local-path`. Order:
+`model_local_path`, then a `--checkpoint-registry-path` entry, then the pinned table
+(`aminx/io/family_weights.json`) through `AMINX_WEIGHTS_DIR` (authoritative, fails closed) or the
+Hugging Face repo at `HF_REVISION`. Every artifact and its `.json` manifest is checked against the
+pinned sha256; a changed or truncated file is refused.
+
+| family | checkpoint ids |
+| :--- | :--- |
+| `pottsmpnn` | `pottsmpnn_vanilla_20`, `pottsmpnn_vanilla_30`, `pottsmpnn_sol_20`, `pottsmpnn_sol_30`, `pottsmpnn_ft` |
+| `lasermpnn` | `lasermpnn_nothing_heldout`, `lasermpnn_noise_ligandmpnn_split`, `lasermpnn_soluble_65000` |
+| `protonpottsmpnn` | `protonpottsmpnn_v6_30` |
+
+Only checkpoints that a graded parity run used are published. The MSA PottsMPNN variants are not
+(they need vocab 22, debt #2067), nor is the upstream ligand-encoder pretraining file. These are
+converted copies of MIT-licensed weights; see `NOTICE-weights.md`. Your own converted `.eqx` (or an
+upstream `.pt`) still works through `--model-local-path`.
+
 ## Potts-specific spec helper
 
 `aminx spec emit-potts` emits a Potts specification directly, alongside the

@@ -1,0 +1,357 @@
+#!/usr/bin/env python3
+"""Build the PottsMPNN, LASErMPNN and ProtonPottsMPNN weight artifacts for the Hugging Face repo.
+
+Each upstream checkpoint is converted with the converter the graded parity runs used, serialised as a
+raw ``<checkpoint_id>.eqx`` (what the family drivers load) and given a ``<checkpoint_id>.json``
+manifest (static fields the ``.eqx`` format drops, plus provenance). The sha256 table that
+``aminx.io.weights.resolve_family_checkpoint`` pins is written with ``--write-table``.
+
+Checks, all reported in ``$BTH_RESULTS_PATH`` and graded by ``build_family_weights.bth.toml``:
+
+- every artifact reloads, through the driver's own loader, leaf-for-leaf and static-field-for-
+  static-field identical to the freshly converted model;
+- every source checkpoint hashes to the value the oracle / upstream pin recorded;
+- building twice gives byte-identical artifacts;
+- negative control: one flipped byte in a copy changes the sha256 AND the reloaded model.
+
+Run on titanix (needs torch, jax and the upstream clones)::
+
+  bth run --project-slug aminx -- uv run --no-sync python3 scripts/weights/build_family_weights.py \\
+    --potts-root ~/repos/PottsMPNN --laser-root ~/repos/LASErMPNN \\
+    --proton-checkpoint ~/repos/ProtonPottsMPNN/checkpoints/potts_v6_afdb_edge_his0.3_acid0.06/epoch-0125.ckpt \\
+    --out-dir ~/scratch/family_weights --write-table src/aminx/io/family_weights.json
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import importlib.util
+import json
+import logging
+import os
+import sys
+import tempfile
+import tomllib
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import equinox as eqx
+import jax
+import numpy as np
+
+logger = logging.getLogger("build_family_weights")
+
+REPO = Path(__file__).resolve().parents[2]
+POTTS_COMMIT = "0cb0a58874e373d664114f1735deab77614e4ab5"
+LASER_COMMIT = "e70f2c6d765416f7e29d51bfd6d4e08496438878"
+PROTON_COMMIT = "09682abf"
+PROTON_ALPHABET = "protonpottsmpnn_v6_30"
+# The checkpoint the graded ProtonPotts runs converted: named in every scripts/browser_validation/
+# protonpotts_*.bth.toml sidecar ("epoch-0125.ckpt, sha256 a3987225...").
+PROTON_SOURCE_SHA256 = "a39872250c0b8eb4c0b4cb6472a6edad0d6f6134a50c28b611386e83c592fe7b"
+
+
+@dataclass(frozen=True)
+class Entry:
+  """One checkpoint to publish."""
+
+  checkpoint_id: str
+  family: str
+  source: str  # path relative to the family's root, or "" for ProtonPotts (given by flag)
+  upstream_commit: str
+
+
+CATALOG: tuple[Entry, ...] = (
+  Entry("pottsmpnn_vanilla_20", "pottsmpnn", "vanilla_model_weights/pottsmpnn_20.pt", POTTS_COMMIT),
+  Entry("pottsmpnn_vanilla_30", "pottsmpnn", "vanilla_model_weights/pottsmpnn_30.pt", POTTS_COMMIT),
+  Entry("pottsmpnn_sol_20", "pottsmpnn", "soluble_model_weights/sol_pottsmpnn_20.pt", POTTS_COMMIT),
+  Entry("pottsmpnn_sol_30", "pottsmpnn", "soluble_model_weights/sol_pottsmpnn_30.pt", POTTS_COMMIT),
+  Entry("pottsmpnn_ft", "pottsmpnn", "ft_model_weights/potts_ft.pt", POTTS_COMMIT),
+  Entry(
+    "lasermpnn_nothing_heldout",
+    "lasermpnn",
+    "model_weights/laser_weights_0p1A_nothing_heldout.pt",
+    LASER_COMMIT,
+  ),
+  Entry(
+    "lasermpnn_noise_ligandmpnn_split",
+    "lasermpnn",
+    "model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt",
+    LASER_COMMIT,
+  ),
+  Entry(
+    "lasermpnn_soluble_65000",
+    "lasermpnn",
+    "model_weights/soluble_weights_no_heldout_drop_clusters_optstep_65000.pt",
+    LASER_COMMIT,
+  ),
+  Entry("protonpottsmpnn_v6_30", "protonpottsmpnn", "", PROTON_COMMIT),
+)
+
+
+def _sha256(path: Path) -> str:
+  return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _load_script(relative: str, name: str) -> Any:  # noqa: ANN401
+  path = REPO / relative
+  spec = importlib.util.spec_from_file_location(name, path)
+  if spec is None or spec.loader is None:
+    msg = f"cannot load {path}"
+    raise ImportError(msg)
+  module = importlib.util.module_from_spec(spec)
+  sys.modules[name] = module
+  spec.loader.exec_module(module)
+  return module
+
+
+def expected_source_sha256(args: argparse.Namespace) -> dict[str, str | None]:
+  """The source hash each checkpoint must have, from the oracle manifest or upstream pin.
+
+  PottsMPNN: ``tests/port/reference/a1_potts/oracle_manifest.toml`` (the sealed oracle the parity
+  tests grade against). LASErMPNN: the upstream ``VENDOR_PIN.toml`` (the clone the b3 oracle
+  was dumped from, whose hashes the b3 manifest repeats). ProtonPottsMPNN: the checkpoint hash the
+  graded browser-parity sidecars record.
+  """
+  expected: dict[str, str | None] = {}
+  potts = tomllib.loads(
+    (REPO / "tests/port/reference/a1_potts/oracle_manifest.toml").read_text(encoding="utf-8")
+  )
+  by_path = {row["path"]: row["weights_sha256"] for row in potts["checkpoint"]}
+  laser_pin = tomllib.loads((Path(args.laser_root) / "VENDOR_PIN.toml").read_text(encoding="utf-8"))
+  laser = {key: value for key, value in laser_pin["weights_sha256"].items()}
+  for entry in CATALOG:
+    if entry.family == "pottsmpnn":
+      expected[entry.checkpoint_id] = by_path.get(entry.source)
+    elif entry.family == "lasermpnn":
+      expected[entry.checkpoint_id] = laser.get(Path(entry.source).name)
+    else:
+      expected[entry.checkpoint_id] = PROTON_SOURCE_SHA256
+  return expected
+
+
+def source_path(entry: Entry, args: argparse.Namespace) -> Path:
+  if entry.family == "pottsmpnn":
+    return Path(args.potts_root) / entry.source
+  if entry.family == "lasermpnn":
+    return Path(args.laser_root) / entry.source
+  return Path(args.proton_state_npz or args.proton_checkpoint)
+
+
+def is_state_npz(entry: Entry, src: Path) -> bool:
+  """ProtonPotts may be built from the exported numpy state the graded runs used.
+
+  Unpickling the upstream ``.ckpt`` needs ``omegaconf`` (oracle env only), so the graded runs
+  converted ``converter --export-state-npz`` output instead; its ``.json`` records the checkpoint's
+  sha256 and the upstream pin.
+  """
+  return entry.family == "protonpottsmpnn" and src.suffix == ".npz"
+
+
+def source_sha256(entry: Entry, src: Path) -> str:
+  """sha256 of the upstream checkpoint, read from the state file's record when built from one."""
+  if is_state_npz(entry, src):
+    record = json.loads(src.with_suffix(".json").read_text(encoding="utf-8"))
+    return str(record["checkpoint_sha256"])
+  return _sha256(src)
+
+
+def convert(entry: Entry, src: Path) -> Any:  # noqa: ANN401
+  """Convert with the same code path the graded parity runs used."""
+  if entry.family == "pottsmpnn":
+    module = _load_script("scripts/recapture/pottsmpnn_model_to_eqx.py", "potts_converter")
+    return module.convert_state_dict(module._load_torch_state(src))  # noqa: SLF001
+  if entry.family == "lasermpnn":
+    from aminx.families.laser_mpnn.driver import _load_torch  # noqa: PLC0415
+
+    return _load_torch(src, strict=True)
+  module = _load_script("scripts/parity/convert_protonpotts_checkpoint.py", "proton_converter")
+  if is_state_npz(entry, src):
+    with np.load(src) as loaded:
+      return module.convert_state({key: loaded[key] for key in loaded.files})
+  return module.convert_state(module._read_checkpoint_state(src))  # noqa: SLF001
+
+
+def reload_artifact(entry: Entry, path: Path) -> Any:  # noqa: ANN401
+  """Load through the driver's own loader, so a loader bug cannot hide behind this script."""
+  if entry.family == "pottsmpnn":
+    from aminx.families.potts_mpnn.driver import _load_eqx  # noqa: PLC0415
+
+    return _load_eqx(path)
+  if entry.family == "lasermpnn":
+    from aminx.families.laser_mpnn.driver import _load_eqx  # noqa: PLC0415
+
+    return _load_eqx(path)
+  from aminx.families.potts_mpnn.model import PottsMPNN  # noqa: PLC0415
+  from aminx.families.protonpotts_mpnn.vocab import PROTONPOTTS_V6  # noqa: PLC0415
+
+  skeleton = PottsMPNN(key=jax.random.PRNGKey(0), alphabet=PROTONPOTTS_V6)
+  return eqx.tree_deserialise_leaves(path, skeleton)
+
+
+def models_identical(left: Any, right: Any) -> bool:  # noqa: ANN401
+  """Same tree structure (static fields included) and bitwise-equal array leaves."""
+  if jax.tree_util.tree_structure(left) != jax.tree_util.tree_structure(right):
+    return False
+  for a, b in zip(jax.tree_util.tree_leaves(left), jax.tree_util.tree_leaves(right), strict=True):
+    aa, bb = np.asarray(a), np.asarray(b)
+    if aa.dtype != bb.dtype or aa.shape != bb.shape or aa.tobytes() != bb.tobytes():
+      return False
+  return True
+
+
+def manifest_for(entry: Entry, model: Any, artifact: Path, src: Path) -> dict[str, Any]:  # noqa: ANN401
+  from_state = is_state_npz(entry, src)
+  manifest: dict[str, Any] = {
+    "checkpoint_id": entry.checkpoint_id,
+    "family": entry.family,
+    "artifact_sha256": _sha256(artifact),
+    "source_file": "epoch-0125.ckpt" if from_state else src.name,
+    "source_sha256": source_sha256(entry, src),
+    "upstream_commit": entry.upstream_commit,
+  }
+  if from_state:
+    manifest["converted_from_state_file"] = src.name
+  if entry.family == "lasermpnn":
+    manifest["build_hydrogens"] = bool(model.build_hydrogens)
+  if entry.family == "protonpottsmpnn":
+    manifest["alphabet"] = PROTON_ALPHABET
+  return manifest
+
+
+def build_one(entry: Entry, src: Path, out_dir: Path) -> tuple[Any, Path, Path]:
+  model = convert(entry, src)
+  artifact = out_dir / f"{entry.checkpoint_id}.eqx"
+  eqx.tree_serialise_leaves(artifact, model)
+  manifest_path = out_dir / f"{entry.checkpoint_id}.json"
+  manifest_path.write_text(
+    json.dumps(manifest_for(entry, model, artifact, src), indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+  )
+  return model, artifact, manifest_path
+
+
+def corrupted_copy(artifact: Path, scratch: Path) -> Path:
+  """A copy with one byte flipped in the middle of the array payload."""
+  copy = scratch / artifact.name
+  data = bytearray(artifact.read_bytes())
+  data[len(data) // 2] ^= 0xFF
+  copy.write_bytes(bytes(data))
+  return copy
+
+
+def control_fires(entry: Entry, model: Any, artifact: Path, scratch: Path) -> dict[str, bool]:  # noqa: ANN401
+  """The checksum guard and the reload comparison must both notice a flipped byte."""
+  bad = corrupted_copy(artifact, scratch)
+  sha_differs = _sha256(bad) != _sha256(artifact)
+  try:
+    reloaded = reload_artifact(entry, bad)
+    reload_differs = not models_identical(model, reloaded)
+  except Exception:  # noqa: BLE001 — a corrupted payload may fail to load at all, which also counts
+    reload_differs = True
+  return {"sha_differs": sha_differs, "reload_differs": reload_differs}
+
+
+def main(argv: list[str] | None = None) -> int:
+  parser = argparse.ArgumentParser(description=__doc__)
+  parser.add_argument("--potts-root", type=Path, required=True)
+  parser.add_argument("--laser-root", type=Path, required=True)
+  parser.add_argument("--proton-checkpoint", type=Path, default=None, help="upstream epoch-0125.ckpt")
+  parser.add_argument(
+    "--proton-state-npz",
+    type=Path,
+    default=None,
+    help="exported numpy state (+ .json with checkpoint_sha256); used instead of the .ckpt",
+  )
+  parser.add_argument("--out-dir", type=Path, required=True)
+  parser.add_argument("--write-table", type=Path, default=None)
+  args = parser.parse_args(argv)
+  if args.proton_checkpoint is None and args.proton_state_npz is None:
+    parser.error("give --proton-state-npz or --proton-checkpoint")
+  logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+  if jax.config.read("jax_enable_x64"):
+    msg = "build with x64 off: artifacts are serialised at the checkpoint's float32"
+    raise SystemExit(msg)
+  args.out_dir.mkdir(parents=True, exist_ok=True)
+  expected = expected_source_sha256(args)
+
+  rows: list[dict[str, Any]] = []
+  with tempfile.TemporaryDirectory() as scratch_name:
+    scratch = Path(scratch_name)
+    for entry in CATALOG:
+      src = source_path(entry, args)
+      logger.info("%s <- %s", entry.checkpoint_id, src)
+      model, artifact, manifest = build_one(entry, src, args.out_dir)
+      again_dir = scratch / "again" / entry.checkpoint_id
+      again_dir.mkdir(parents=True)
+      _, artifact_again, manifest_again = build_one(entry, src, again_dir)
+      reloaded = reload_artifact(entry, artifact)
+      source_sha = source_sha256(entry, src)
+      rows.append(
+        {
+          "checkpoint_id": entry.checkpoint_id,
+          "family": entry.family,
+          "filename": artifact.name,
+          "bytes": artifact.stat().st_size,
+          "sha256": _sha256(artifact),
+          "manifest_filename": manifest.name,
+          "manifest_sha256": _sha256(manifest),
+          "source_sha256": source_sha,
+          "source_sha256_expected": expected[entry.checkpoint_id],
+          "source_matches_expected": (
+            None if expected[entry.checkpoint_id] is None else source_sha == expected[entry.checkpoint_id]
+          ),
+          "reload_identical": models_identical(model, reloaded),
+          "idempotent": _sha256(artifact) == _sha256(artifact_again)
+          and _sha256(manifest) == _sha256(manifest_again),
+          "control": control_fires(entry, model, artifact, scratch),
+          "build_hydrogens": bool(getattr(model, "build_hydrogens", False))
+          if entry.family == "lasermpnn"
+          else None,
+        }
+      )
+      logger.info("%s", {k: rows[-1][k] for k in ("sha256", "reload_identical", "idempotent")})
+
+  if args.write_table is not None:
+    table = {
+      "schema_version": 1,
+      "note": "generated by scripts/weights/build_family_weights.py; do not edit by hand",
+      "checkpoints": [
+        {key: row[key] for key in ("checkpoint_id", "family", "filename", "sha256", "manifest_filename", "manifest_sha256")}
+        for row in rows
+      ],
+    }
+    args.write_table.write_text(json.dumps(table, indent=2) + "\n", encoding="utf-8")
+    logger.info("wrote %s", args.write_table)
+
+  checked = [row for row in rows if row["source_matches_expected"] is not None]
+  result = {
+    "n_built": len(rows),
+    "n_expected": len(CATALOG),
+    "all_reload_identical": all(row["reload_identical"] for row in rows),
+    "all_idempotent": all(row["idempotent"] for row in rows),
+    "n_source_checked": len(checked),
+    "all_source_matches_expected": all(row["source_matches_expected"] for row in checked),
+    "unchecked_source": [row["checkpoint_id"] for row in rows if row["source_matches_expected"] is None],
+    "control_all_fired": all(
+      row["control"]["sha_differs"] and row["control"]["reload_differs"] for row in rows
+    ),
+    "laser_build_hydrogens": {
+      row["checkpoint_id"]: row["build_hydrogens"] for row in rows if row["family"] == "lasermpnn"
+    },
+    "rows": rows,
+  }
+  results_path = os.environ.get("BTH_RESULTS_PATH")
+  if results_path:
+    Path(results_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(results_path).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+  summary = {key: value for key, value in result.items() if key != "rows"}
+  logger.info("%s", json.dumps(summary, indent=2))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

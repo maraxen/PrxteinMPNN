@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aminx"
-version = "0.2.0"
+version = "0.2.1"
 description = "Aminx: A functional interface for ProteinMPNN"
 requires-python = ">=3.13"
 dependencies = [
@@ -329,7 +329,7 @@ dev = [
 ]
 
 [tool.setuptools.package-data]
-aminx = ["py.typed", "agent_plugin.json", "families/laser_mpnn/ideal_geometry.npz"]
+aminx = ["py.typed", "agent_plugin.json", "families/laser_mpnn/ideal_geometry.npz", "io/family_weights.json"]
 
 # Weights are tracked in the source tree but must NOT ride along in the wheel. Modern
 # setuptools auto-includes them, which took a25 from 499,612 bytes (a24, zero weight files)

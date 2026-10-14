@@ -24,6 +24,7 @@
 - [260522_comp-new-sink-unify](plans/260522_comp-new-sink-unify.md) — COMP-NEW: unify result-sink topology; streaming_tensor_sink_session for non-streaming path
 
 ## Specs
+- [261011_noise-level-axis](specs/261011_noise-level-axis.md) — Every family honours a multi-level backbone_noise sweep in both sample and score, with one shared key scheme; replaces the
 - [261007_potts-onnx-export-scope](specs/261007_potts-onnx-export-scope.md) — Scope, phase plan and acceleration levers for shipping Potts-family ONNX exports, reusing the ProteinMPNN split-export process
 - [261007_protonpottsmpnn-support](specs/261007_protonpottsmpnn-support.md) — V1 scope (inference + design) for porting ProtonPottsMPNN into aminx, with the atomworks featurization re-scoped as a front end rather than a feature algebra, and a decision rule for when tensor-level parity is required versus whole-pipeline agreement
 - [261006_aminx-cisternal-cutover](specs/261006_aminx-cisternal-cutover.md) — Make aminx agent-native through cisternal: a manifest-driven plugin bundle of targeted skills (using-aminx router + five task skills), an aminx-mcp server wired with @cisternal.tool over host.runner (launched via uvx by default, switchable to a local venv), cisternal provenance/telemetry for campaign runs; the Typer-to-cyclopts CLI port is deferred.
@@ -95,6 +96,7 @@
 - [260605_caliby-nature-and-dataset](research/260605_caliby-nature-and-dataset.md) — Caliby nature and dataset investigation
 
 ## Decisions
+- [261014_redistribution-of-pottsmpnn-lasermpnn-and-protonpottsmpnn-weights-on-hugging-face](decisions/261014_redistribution-of-pottsmpnn-lasermpnn-and-protonpottsmpnn-weights-on-hugging-face.md) — Upstream licence findings (all MIT), the evidence-backed checkpoint set, open items and the redistribution decision for the 0.2.1 hub weights
 - [261008_per-row-closure-staleness](decisions/261008_per-row-closure-staleness.md) — Ledger rows go stale only when a changed path is in that row's import closure, not on any scoped-prefix change; fail-safe rules, declared edges, and a run-time loaded-files check.
 - [261008_protonpottsmpnn-v1-scope](decisions/261008_protonpottsmpnn-v1-scope.md) — What ProtonPottsMPNN V1 ships (score:energy/ddg/selectivity and pH design on the Potts energy), what is refused and tracked as debt, and the choices that put it in the ledger as one combined vehicle.
 - [261005_tiling-plan-discarded-stage2-2371](decisions/261005_tiling-plan-discarded-stage2-2371.md) — Measured evidence that BatchPlanner says Vmap+Bucket for the sample axes while execution is a Python loop, plus the T2.GATE blocker on deleting aminx's duplicate strategy types

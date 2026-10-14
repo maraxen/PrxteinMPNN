@@ -7,7 +7,7 @@
 [![Documentation](https://img.shields.io/badge/docs-online-blue.svg)](http://maraxen.github.io/Aminx)
 
 > [!NOTE]
-> **Beta, and still largely experimental.** aminx is under active development. The core `sample()` / `score()` API is functional, but parity with the LigandMPNN reference is only partly established (see below), and the API may change between releases. PottsMPNN, ProtonPottsMPNN and LASErMPNN are new in 0.2.0 and have no checkpoints on the Hugging Face repo yet; supply your own with `--model-local-path`. You may encounter bugs or rough edges; please open an issue if something breaks.
+> **Beta, and still largely experimental.** aminx is under active development. The core `sample()` / `score()` API is functional, but parity with the LigandMPNN reference is only partly established (see below), and the API may change between releases. PottsMPNN, ProtonPottsMPNN and LASErMPNN are new in 0.2.0; their checkpoints resolve by id from 0.2.1 (see [Where model weights come from](#where-model-weights-come-from)). You may encounter bugs or rough edges; please open an issue if something breaks.
 
 Aminx is a JAX/Equinox reimplementation of the [LigandMPNN](https://github.com/dauparas/LigandMPNN) codebase. A graded literature-parity audit against LigandMPNN@`26ec57ac` (2026-09-26) found several paths that match the reference to within 1e-4 nats, and confirmed defects in the ligand, membrane and conditional-scoring paths. The global grade is **FAIL** for now; see the [verdict](.praxia/docs/audits/260926_mpnn-reference-parity-verdict.md) and the per-path table below. It runs 8–61× faster on a single structure (H200) by trading eager dispatch for `jit`/`vmap`/`scan` kernels.
 
@@ -366,7 +366,7 @@ Omitting the flag means family defaults:
 aminx run score \
   --inputs complex.pdb \
   --model-family pottsmpnn \
-  --model-local-path weights/pottsmpnn_20.eqx \
+  --model-local-path path/to/pottsmpnn_vanilla_20.eqx \
   --output-kind energy \
   --potts-options-json '{"optimization_mode": "potts", "mean_norm": true}'
 
@@ -574,6 +574,16 @@ determine which weights execute. Resolution order, and it stops at the first hit
 2. **Packaged resources** (`aminx/model_params/`) — present in a source checkout, absent from
    the wheel.
 3. **Hugging Face Hub**, pinned to `HF_REVISION` in `aminx/io/weights.py`.
+
+**Family checkpoints (0.2.1+).** The PottsMPNN, LASErMPNN and ProtonPottsMPNN families resolve through
+the same order, from the same pinned Hub revision, by `--checkpoint-id` alone. Nine are published:
+`pottsmpnn_{vanilla_20,vanilla_30,sol_20,sol_30,ft}`,
+`lasermpnn_{nothing_heldout,noise_ligandmpnn_split,soluble_65000}` and `protonpottsmpnn_v6_30`. Each is
+a raw `.eqx` with a `.json` manifest beside it; both are checked against the sha256 table in
+`aminx/io/family_weights.json` and a mismatch is refused. They are converted copies of MIT-licensed
+upstream weights, with notices in [`NOTICE-weights.md`](NOTICE-weights.md). Not published: the MSA
+PottsMPNN variants (unsupported, vocab 22) and checkpoints without parity evidence.
+`--model-local-path` still overrides all of this.
 
 Because the pin is a full commit SHA, a warm cache resolves with **no network request at
 all** — measured at ~0.7 ms against ~236 ms for the unpinned form, which issued a HEAD on

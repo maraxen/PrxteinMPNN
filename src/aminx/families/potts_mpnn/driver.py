@@ -50,7 +50,7 @@ from aminx.families.potts_mpnn.sample_host import (
   sample_schema,
 )
 from aminx.host.family_driver import FAMILY_DRIVERS, FamilyBatch, FamilyStages, SinkArraySpec
-from aminx.host.prep import _resolve_local_checkpoint_from_registry
+from aminx.host.prep import _resolve_driver_checkpoint
 from aminx.run.options import PottsMPNNOptions
 from aminx.host.bucketing import bucket_ladder
 from aminx.types.boundaries import AxisBoundary
@@ -265,9 +265,12 @@ class PottsMPNNDriver:
       if path.suffix.lower() == ".pt":
         return _load_torch_checkpoint(path)
       return _load_eqx(path)
-    artifact = _resolve_local_checkpoint_from_registry(spec)
+    artifact = _resolve_driver_checkpoint(spec, "pottsmpnn")
     if artifact is None:
-      msg = "PottsMPNNDriver requires model_local_path or a checkpoint registry entry with sha256"
+      msg = (
+        "PottsMPNNDriver requires model_local_path, a checkpoint registry entry with sha256, "
+        "or a checkpoint_id in the pinned family table (aminx.io.weights.family_checkpoints)"
+      )
       raise ValueError(msg)
     return _load_eqx(Path(artifact))
 

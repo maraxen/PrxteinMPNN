@@ -6,8 +6,8 @@
 [![Run on Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/maraxen/Aminx/blob/main/examples/colab_inference_demo.ipynb)
 [![Documentation](https://img.shields.io/badge/docs-online-blue.svg)](http://maraxen.github.io/Aminx)
 
-> [!WARNING]
-> **Alpha release.** aminx is under active development. The API is functional, but parity with the LigandMPNN reference is only partly established (see below), and the API may change between releases. You may encounter bugs or rough edges — please open an issue if something breaks.
+> [!NOTE]
+> **Beta, and still largely experimental.** aminx is under active development. The core `sample()` / `score()` API is functional, but parity with the LigandMPNN reference is only partly established (see below), and the API may change between releases. PottsMPNN, ProtonPottsMPNN and LASErMPNN are new in 0.2.0 and have no checkpoints on the Hugging Face repo yet; supply your own with `--model-local-path`. You may encounter bugs or rough edges; please open an issue if something breaks.
 
 Aminx is a JAX/Equinox reimplementation of the [LigandMPNN](https://github.com/dauparas/LigandMPNN) codebase. A graded literature-parity audit against LigandMPNN@`26ec57ac` (2026-09-26) found several paths that match the reference to within 1e-4 nats, and confirmed defects in the ligand, membrane and conditional-scoring paths. The global grade is **FAIL** for now; see the [verdict](.praxia/docs/audits/260926_mpnn-reference-parity-verdict.md) and the per-path table below. It runs 8–61× faster on a single structure (H200) by trading eager dispatch for `jit`/`vmap`/`scan` kernels.
 

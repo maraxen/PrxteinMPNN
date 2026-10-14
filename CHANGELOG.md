@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+## 0.2.0 (2026-10-14)
+
+**Beta.** The Development Status classifier moves from alpha to Beta, but the repository is still
+largely experimental: parity with the upstream references is measured per path and is not complete
+(see `.praxia/docs/audits/260926_mpnn-reference-parity-verdict.md` and the parity dashboard).
+`0.2.0a3` was the last alpha.
+
+### Added
+
+- **Three new model families** (PR #165 and the PRs after it), selected with `--model-family` or
+  inferred from the `checkpoint_id` prefix: **PottsMPNN** (`score:energy`, `score:ddg`, `sample`),
+  **LASErMPNN** (`sample`, `score:nll`, `score:logits`, proofread scoring, rotamer building) and
+  **ProtonPottsMPNN** (`score:energy`, `score:ddg`, `score:selectivity`, pH design `sample`). Which
+  purposes each family runs itself, and which fall back to stock MPNN, is in
+  `docs/MODEL_FAMILIES.md`.
+  - **Weights are not on the Hugging Face repo.** `maraxen/aminx` (revision `aa80d0fd`, the pinned
+    one) holds the ProteinMPNN, SolubleMPNN, LigandMPNN and membrane checkpoints only. A PottsMPNN,
+    ProtonPottsMPNN or LASErMPNN `checkpoint_id` therefore cannot resolve on a plain `pip install`.
+    Pass `--model-local-path` (PottsMPNN `.eqx.zst` files are tracked under `weights/pottsmpnn/` in the
+    source tree; they are not in the wheel). ProtonPottsMPNN checkpoints come from
+    `scripts/parity/convert_protonpotts_checkpoint.py`.
+  - **LASErMPNN needs the `laser` extra** (`pip install 'aminx[laser]'`, ProDy).
+- **A redsox parity gate** (`scripts/redsox/run_gate.py`) and a per-family parity ledger
+  (`tests/knob_gate/sidecar_ledger.toml`, nine rows). The gate passed by record at `8004a04f` (run
+  `cc98ddb1`, 1707 ids, `verify_wave` 135/135).
+- **Parity dashboard** (`scripts/dashboard/extract_parity.py`, `index.html`). Regenerate its JSON
+  against the current ledger before quoting numbers from it.
+- Browser export and gates for PottsMPNN and ProtonPottsMPNN (ONNX graphs, a JS scorer and sampler,
+  Node and headless-Chromium parity gates).
+
+### Parity numerics
+
+- f32 minimum bands for ProtonPottsMPNN were measured on CPU and GPU and widened to the measured
+  floor: `ph_block` 5e-5, `ph_methods` 4e-4. LASErMPNN tiers: `laser_layers` atol 4e-5,
+  `laser_encoder` scale-relative 2e-4. Ledger vehicles run JAX on GPUs by default
+  (`AMINX_WAVE_BACKEND=gpu`); the CPU pin is gone.
+
+
 ### Removed
 
 - **`aminx.profiling`** (`hlo_tools`, `sampler_profile`). No importers.

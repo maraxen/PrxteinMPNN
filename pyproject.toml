@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aminx"
-version = "0.2.0a3"
+version = "0.2.0"
 description = "Aminx: A functional interface for ProteinMPNN"
 requires-python = ">=3.13"
 dependencies = [
@@ -26,8 +26,12 @@ dependencies = [
     "xtrax[io,export]==0.4.0a11",
 ]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 
 [project.scripts]

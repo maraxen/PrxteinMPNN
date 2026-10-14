@@ -38,4 +38,4 @@ rows = "list, one per checkpoint with sha256, manifest_sha256, source_sha256 and
 aminx_version = { type = "git_sha", required = true, doc = "aminx commit SHA" }
 
 [provenance]
-note = "Run on titanix from the gate-host checkout with upstream clones at the pins in each VENDOR_PIN.toml (PottsMPNN 0cb0a588, LASErMPNN e70f2c6d) and the ProtonPottsMPNN epoch-0125 checkpoint (converter pin 09682abf). x64 must be off; artifacts are float32. Pass and fail are logical complements. Written and committed before the first run."
+note = "Run on titanix from the gate-host checkout with upstream clones at the pins in each VENDOR_PIN.toml (PottsMPNN 0cb0a588, LASErMPNN e70f2c6d) and the ProtonPottsMPNN epoch-0125 checkpoint (converter pin 09682abf), built from the exported numpy state ~/scratch/v6_state.npz that the graded runs used (unpickling the .ckpt needs omegaconf, absent from this env; the first attempt failed on that and is on record), with the source hash read from the state file record. x64 must be off; artifacts are float32. Pass and fail are logical complements. Written and committed before the first run."

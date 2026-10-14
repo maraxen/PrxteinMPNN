@@ -137,7 +137,25 @@ def source_path(entry: Entry, args: argparse.Namespace) -> Path:
     return Path(args.potts_root) / entry.source
   if entry.family == "lasermpnn":
     return Path(args.laser_root) / entry.source
-  return Path(args.proton_checkpoint)
+  return Path(args.proton_state_npz or args.proton_checkpoint)
+
+
+def is_state_npz(entry: Entry, src: Path) -> bool:
+  """ProtonPotts may be built from the exported numpy state the graded runs used.
+
+  Unpickling the upstream ``.ckpt`` needs ``omegaconf`` (oracle env only), so the graded runs
+  converted ``converter --export-state-npz`` output instead; its ``.json`` records the checkpoint's
+  sha256 and the upstream pin.
+  """
+  return entry.family == "protonpottsmpnn" and src.suffix == ".npz"
+
+
+def source_sha256(entry: Entry, src: Path) -> str:
+  """sha256 of the upstream checkpoint, read from the state file's record when built from one."""
+  if is_state_npz(entry, src):
+    record = json.loads(src.with_suffix(".json").read_text(encoding="utf-8"))
+    return str(record["checkpoint_sha256"])
+  return _sha256(src)
 
 
 def convert(entry: Entry, src: Path) -> Any:  # noqa: ANN401
@@ -150,6 +168,9 @@ def convert(entry: Entry, src: Path) -> Any:  # noqa: ANN401
 
     return _load_torch(src, strict=True)
   module = _load_script("scripts/parity/convert_protonpotts_checkpoint.py", "proton_converter")
+  if is_state_npz(entry, src):
+    with np.load(src) as loaded:
+      return module.convert_state({key: loaded[key] for key in loaded.files})
   return module.convert_state(module._read_checkpoint_state(src))  # noqa: SLF001
 
 
@@ -182,14 +203,17 @@ def models_identical(left: Any, right: Any) -> bool:  # noqa: ANN401
 
 
 def manifest_for(entry: Entry, model: Any, artifact: Path, src: Path) -> dict[str, Any]:  # noqa: ANN401
+  from_state = is_state_npz(entry, src)
   manifest: dict[str, Any] = {
     "checkpoint_id": entry.checkpoint_id,
     "family": entry.family,
     "artifact_sha256": _sha256(artifact),
-    "source_file": src.name,
-    "source_sha256": _sha256(src),
+    "source_file": "epoch-0125.ckpt" if from_state else src.name,
+    "source_sha256": source_sha256(entry, src),
     "upstream_commit": entry.upstream_commit,
   }
+  if from_state:
+    manifest["converted_from_state_file"] = src.name
   if entry.family == "lasermpnn":
     manifest["build_hydrogens"] = bool(model.build_hydrogens)
   if entry.family == "protonpottsmpnn":
@@ -234,10 +258,18 @@ def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--potts-root", type=Path, required=True)
   parser.add_argument("--laser-root", type=Path, required=True)
-  parser.add_argument("--proton-checkpoint", type=Path, required=True)
+  parser.add_argument("--proton-checkpoint", type=Path, default=None, help="upstream epoch-0125.ckpt")
+  parser.add_argument(
+    "--proton-state-npz",
+    type=Path,
+    default=None,
+    help="exported numpy state (+ .json with checkpoint_sha256); used instead of the .ckpt",
+  )
   parser.add_argument("--out-dir", type=Path, required=True)
   parser.add_argument("--write-table", type=Path, default=None)
   args = parser.parse_args(argv)
+  if args.proton_checkpoint is None and args.proton_state_npz is None:
+    parser.error("give --proton-state-npz or --proton-checkpoint")
   logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
   if jax.config.read("jax_enable_x64"):
@@ -257,7 +289,7 @@ def main(argv: list[str] | None = None) -> int:
       again_dir.mkdir(parents=True)
       _, artifact_again, manifest_again = build_one(entry, src, again_dir)
       reloaded = reload_artifact(entry, artifact)
-      source_sha = _sha256(src)
+      source_sha = source_sha256(entry, src)
       rows.append(
         {
           "checkpoint_id": entry.checkpoint_id,

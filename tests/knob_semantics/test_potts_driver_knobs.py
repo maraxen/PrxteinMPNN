@@ -820,9 +820,12 @@ def test_knob_semantics_checkpoint_id_and_model_local_path(
   * ``model_local_path`` WINS OUTRIGHT. A checkpoint_id that names nothing in the
     registry, paired with a valid local path, produces byte-identical output to
     the real id -- the id is not validated when a local path is given.
-  * Neither half alone suffices: with no local path and no registry entry
-    carrying a sha256, the driver refuses rather than guessing or downloading.
-    That refusal is also why this test cannot touch the network.
+  * Neither half alone suffices: with no local path, no registry entry carrying
+    a sha256 and a checkpoint_id that is not in the published family table
+    (``aminx.io.weights.family_checkpoints``), the driver refuses rather than
+    guessing or downloading. That refusal is also why this test cannot touch
+    the network. (Before 0.2.1 every id refused; a published id now resolves
+    from the Hub, which is why the refusal is shown with an unpublished one.)
 
   THE SECOND FACT IS A PROVENANCE HAZARD, recorded here because the gate depends
   on the opposite assumption: a ledger row's weights key is meant to identify the
@@ -865,10 +868,16 @@ def test_knob_semantics_checkpoint_id_and_model_local_path(
   bogus = _energy(checkpoint_id="not_a_real_checkpoint", model_local_path=first)
   np.testing.assert_allclose(bogus, from_first, rtol=1e-6, atol=1e-6)
 
-  # Neither half alone. The message names both routes, so a caller missing one
-  # is told which to supply rather than being sent to the network.
-  with pytest.raises(ValueError, match="model_local_path or a checkpoint registry"):
-    _energy(checkpoint_id="pottsmpnn_vanilla_20")
+  # Neither half alone. The message names the routes, so a caller missing one is told which to
+  # supply. Since 0.2.1 a PUBLISHED id (``family_checkpoints()``) resolves from the Hub, so this
+  # refusal is shown with an id that is not in that table; the published-id route is covered,
+  # offline, in tests/io/test_family_weights.py.
+  from aminx.io.weights import family_checkpoints  # noqa: PLC0415
+
+  unpublished = "pottsmpnn_not_published"
+  assert unpublished not in family_checkpoints()
+  with pytest.raises(ValueError, match="model_local_path, a checkpoint registry"):
+    _energy(checkpoint_id=unpublished)
 
 
 def test_knob_semantics_inputs(

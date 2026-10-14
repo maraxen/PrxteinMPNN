@@ -20,9 +20,12 @@ largely experimental: parity with the upstream references is measured per path a
   - **Weights are not on the Hugging Face repo.** `maraxen/aminx` (revision `aa80d0fd`, the pinned
     one) holds the ProteinMPNN, SolubleMPNN, LigandMPNN and membrane checkpoints only. A PottsMPNN,
     ProtonPottsMPNN or LASErMPNN `checkpoint_id` therefore cannot resolve on a plain `pip install`.
-    Pass `--model-local-path` (PottsMPNN `.eqx.zst` files are tracked under `weights/pottsmpnn/` in the
-    source tree; they are not in the wheel). ProtonPottsMPNN checkpoints come from
-    `scripts/parity/convert_protonpotts_checkpoint.py`.
+    Pass `--model-local-path`: the upstream `.pt` (needs `torch`; LASErMPNN converts it inside the
+    installed package, PottsMPNN's on-the-fly conversion needs a source checkout because the converter
+    script is not in the wheel), or a converted `.eqx`. ProtonPottsMPNN needs a converted `.eqx` from
+    `scripts/parity/convert_protonpotts_checkpoint.py`. The `weights/pottsmpnn/*.eqx.zst` files in the
+    source tree are **not** loadable PottsMPNN artifacts (they decompress to a different architecture
+    and fail to deserialise into `PottsMPNN`); do not pass them.
   - **LASErMPNN needs the `laser` extra** (`pip install 'aminx[laser]'`, ProDy).
 - **A redsox parity gate** (`scripts/redsox/run_gate.py`) and a per-family parity ledger
   (`tests/knob_gate/sidecar_ledger.toml`, nine rows). The gate passed by record at `8004a04f` (run

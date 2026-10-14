@@ -366,7 +366,7 @@ Omitting the flag means family defaults:
 aminx run score \
   --inputs complex.pdb \
   --model-family pottsmpnn \
-  --model-local-path weights/pottsmpnn_20.eqx \
+  --model-local-path path/to/pottsmpnn_vanilla_20.eqx \
   --output-kind energy \
   --potts-options-json '{"optimization_mode": "potts", "mean_norm": true}'
 

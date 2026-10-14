@@ -13,7 +13,7 @@
 ## Read before upgrading
 
 - **Seeded sample outputs change** (length bucketing is on by default; pass `--no-length-bucketing` to reproduce a pre-bucketing run). Agent `spec_sha256` values change. Checkpoints written by the old trainer cannot be resumed.
-- **No Hugging Face weights for the new families.** `maraxen/aminx` holds the ProteinMPNN, SolubleMPNN, LigandMPNN and membrane checkpoints only. For PottsMPNN, ProtonPottsMPNN and LASErMPNN, pass your own checkpoint with `--model-local-path`. The PottsMPNN `.eqx.zst` files are tracked under `weights/pottsmpnn/` in the source tree and are not in the wheel.
+- **No Hugging Face weights for the new families.** `maraxen/aminx` holds the ProteinMPNN, SolubleMPNN, LigandMPNN and membrane checkpoints only. For PottsMPNN, ProtonPottsMPNN and LASErMPNN, pass a checkpoint with `--model-local-path`: the upstream `.pt` (needs `torch`; PottsMPNN's on-the-fly conversion needs a source checkout) or a converted `.eqx`. The `weights/pottsmpnn/*.eqx.zst` files in the source tree are not loadable PottsMPNN artifacts; do not pass them.
 - **LASErMPNN needs the `laser` extra:** `pip install 'aminx[laser]'`.
 - **Known parity gaps remain** (ligand, membrane and conditional-scoring defects from the 2026-09-26 audit; the global grade there is FAIL). See the README table.
 

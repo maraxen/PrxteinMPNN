@@ -1,0 +1,187 @@
+[metadata]
+title = "laser_encoder float32 SCALE-RELATIVE parity floor (option 3, chosen by the user 261013 for laser_encoder)"
+created = "261013"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = """
+PRE-REGISTERED BEFORE ANY RUN OF THIS SCRIPT, AND BEFORE THE SCRIPT EXISTS. Nothing below was
+written after seeing a result from it.
+
+DECISION BEING SERVED. On 261013 the user chose option 2 of the f32-tier options put to them,
+which is the laser_score option 3 of .praxia/docs/decisions/261003_laser-score-tier3-f32-design.md:
+replace the element-wise f32 assertion with a per-(pair, field) SCALE-RELATIVE one,
+max|aminx - upstream| <= tol * max|ref|, with tol MEASURED by a pre-registered floor run. For
+laser_score that run was 3af3be02 (proposed_tol 4e-4). This sidecar is the same measurement for
+laser_encoder.
+
+WHY laser_encoder NEEDS IT. Graded run 91dfbf20 (laser_encoder_f32_floor.py @ 6b9ba574) graded
+noise_reaches_defect_scale under the ELEMENT-WISE rule: proposed_atol 4e-3 sits at 0.246 of an
+injected 1e-2 relative defect, not the required 10x below it, and the binding term is atol
+(binding_atol_share 0.58). f64 passes (63/63 in gate run 466053e2 at bf1d7b21). Attribution run
+e993b929 graded larger_than_upstream_rounding on ONE of 378 entries (worst ratio 2.26 on
+lig_pr_eattr, soluble_65000__1a3u_1; median ratio 0.62) -- that run's numbers are NOT used to
+derive anything here, for the same reason 3af3be02 did not reuse 18b97f4f's.
+
+HYPOTHESIS. A band derived as ceil_one_significant_figure(10 * floor), where floor is the maximum
+over (pair, field) of max|aminx - upstream| / max|ref| in float32, (a) admits every held-out pair
+when derived from the other 62, and (b) rejects an injected 1e-2 relative defect while staying at
+least 10x below its scale-relative size, with no degenerate (pair, field) scale.
+
+I DO NOT PREDICT THE OUTCOME. laser_encoder's earliest field (lig_scalars) is where laser_score's
+shared f32 error was largest, and some fixtures may carry near-zero-scale fields; either can fire a
+non-pass outcome below, and a non-pass is a real result to report, not to work around.
+
+INSTRUMENT. Identical to 3af3be02's: this script imports laser_score_scale_relative_floor.py and
+laser_f32_tolerance_floor.py UNCHANGED (their bytes and hashes do not move) and only points the
+wave at laser_encoder. Every threshold, the derivation rule, the degenerate threshold, the control
+size and the margin are inherited exactly; none is chosen here.
+"""
+stage_name = "diagnosis"
+novel = false
+
+[outcomes.pass]
+condition = "self_test_passed AND f64_passes AND f32_violated_elementwise AND loo_all_admitted AND control_rejected AND below_control_scale AND degenerate_fields == []"
+decision = "Report proposed_tol to the user for ratification, then amend tests/port/targets/laser_encoder.toml (tolerance_policy_f32 = 'scale_rel=<proposed_tol>') and change tests/port/test_laser_encoder.py's tier-3 assertion to the scale-relative FORM laser_score already uses, teaching tests/lint/test_port_tolerances_match_targets.py the form in the same change if it does not already accept it. The f64 tier is not touched."
+reasoning = "Same as 3af3be02: leave-one-out admission makes this a floor rather than a fit, and rejecting a 1e-2 defect at a 10x margin shows the rule change kept the assertion's teeth."
+is_residual = false
+adversarial_check = "NOT (self_test_passed AND f64_passes AND f32_violated_elementwise AND loo_all_admitted AND control_rejected AND below_control_scale AND degenerate_fields == [])"
+
+[outcomes.defect_not_tolerance]
+condition = "self_test_passed AND NOT f64_passes"
+decision = "Do NOT touch any tolerance and do NOT report a band. Escalate: the f64 tier is failing, so the port disagrees with upstream for a reason float32 does not explain."
+reasoning = "f64 is re-measured in this tree rather than inherited from the gate run, so a real defect cannot be laundered into a rule change."
+is_residual = true
+adversarial_check = "NOT self_test_passed OR f64_passes"
+
+[outcomes.elementwise_was_fine]
+condition = "self_test_passed AND f64_passes AND NOT f32_violated_elementwise"
+decision = "Do NOT change the rule. The element-wise band is not violated in this tree, which contradicts gate run 466053e2; go read that run's outcomes file."
+reasoning = "The premise (63/63 tier-3 failures in 466053e2 at bf1d7b21) is re-checked here rather than assumed."
+is_residual = true
+adversarial_check = "NOT self_test_passed OR NOT f64_passes OR f32_violated_elementwise"
+
+[outcomes.noise_reaches_defect_scale]
+condition = "self_test_passed AND f64_passes AND f32_violated_elementwise AND NOT below_control_scale"
+decision = "Escalate to the user. Do NOT adopt the scale-relative rule: if its floor is also within 10x of a 1e-2 defect, no band of either form separates float32 noise from a 1% defect on this wave."
+reasoning = "Stops the rule change from being a dressed-up widening."
+is_residual = true
+adversarial_check = "NOT self_test_passed OR NOT f64_passes OR NOT f32_violated_elementwise OR below_control_scale"
+
+[outcomes.scale_is_degenerate]
+condition = "self_test_passed AND f64_passes AND degenerate_fields != []"
+decision = "Do NOT adopt the rule for the degenerate fields; report them by name to the user. A field whose max|ref| over a pair is at or near zero has no scale to be relative to."
+reasoning = "The scale-relative rule's own failure mode, declared in advance. Degenerate: max|ref| <= 1e-6 of the largest field scale in that pair (inherited threshold)."
+is_residual = true
+adversarial_check = "NOT self_test_passed OR NOT f64_passes OR degenerate_fields == []"
+
+[outcomes.band_does_not_generalise]
+condition = "self_test_passed AND f64_passes AND f32_violated_elementwise AND below_control_scale AND NOT loo_all_admitted"
+decision = "Do NOT adopt the measured band. One pair's maximum does not characterise the population."
+reasoning = "Leave-one-out is the admission that can fail; plain all_admitted is true by construction under this rule and is not a criterion."
+is_residual = true
+adversarial_check = "NOT self_test_passed OR NOT f64_passes OR NOT f32_violated_elementwise OR NOT below_control_scale OR loo_all_admitted"
+
+[outcomes.instrument_unverified]
+condition = "NOT self_test_passed"
+decision = "Discard every number from this run. Fix the instrument and re-run."
+reasoning = "The inherited self-test includes negative controls on the derivation and on the grader; if any fails the instrument is not known to be able to refuse."
+is_residual = true
+adversarial_check = "self_test_passed"
+
+[outcomes.oracle_absent]
+condition = "self_test_passed AND oracle_absent != []"
+decision = "No conclusion. Re-run with AMINX_LASER_ORACLE_DIR pointing at the sealed b3_laser_owned dumps."
+reasoning = "Dump absence is an environment fact (as gate run c8abb893 showed for this wave), never a measurement."
+is_residual = true
+adversarial_check = "NOT self_test_passed OR oracle_absent == []"
+
+[outcomes.fail]
+condition = "self_test_passed AND f64_passes AND f32_violated_elementwise AND below_control_scale AND loo_all_admitted AND degenerate_fields == [] AND NOT control_rejected"
+decision = "Do not adopt the band. The derivation produced a band that admits the injected defect."
+reasoning = "Admission arithmetic and margin arithmetic disagree: an instrument fault surfacing as a result. Report it."
+is_residual = true
+adversarial_check = "NOT self_test_passed OR NOT f64_passes OR NOT f32_violated_elementwise OR NOT below_control_scale OR NOT loo_all_admitted OR degenerate_fields != [] OR control_rejected"
+
+[result_schema]
+verdict = "str"
+oracle_absent = "list"
+self_test_passed = "bool"
+self_test_n_checks = "int"
+self_test_failed = "list"
+f64_passes = "bool"
+f32_violated_elementwise = "bool"
+loo_all_admitted = "bool"
+n_loo_not_admitted = "int"
+loo_worst_pair = "str"
+loo_worst_ratio = "float"
+control_rejected = "bool"
+below_control_scale = "bool"
+degenerate_fields = "list"
+degenerate_field_names = "list"
+degenerate_max_abs = "float"
+floor_scale_relative = "float"
+floor_scale_relative_per_field = "dict"
+floor_pair = "str"
+floor_field = "str"
+second_worst_scale_relative = "float"
+proposed_tol = "float"
+control_scale_ratio = "float"
+float32_eps = "float"
+headroom = "float"
+degenerate_scale_threshold = "float"
+control_graded_relative = "float"
+control_scale_margin = "float"
+n_pairs = "int"
+n_fields = "int"
+n_reused = "int"
+n_computed = "int"
+script_sha256 = "str"
+shared_instrument_sha256 = "str"
+work_dir = "str"
+wave = "str"
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true, doc = "aminx commit SHA" }
+
+[data]
+wave = "laser_encoder ONLY. laser_layers is out of scope: its own floor run 7384a821 already graded scale_is_degenerate, whose pre-registered decision forbids this rule for its degenerate fields."
+reference = "sealed upstream dumps via tests/port/reference/laser_encoder/algo.load(precision), under AMINX_LASER_ORACLE_DIR=~/projects/aminx-oracles/dumps/b3_laser_owned, hash-checked against oracle_manifest.toml"
+pairs = "every (checkpoint, fixture) pair from the test module's own _PAIRS: 63"
+fields = "the test module's own _FLOATS (7 fields); the _EXACT index/edge fields are not float bands and are not measured"
+precisions = "f64 AND f32; f64 is the precondition and is re-measured in this tree"
+the_rule = "max|aminx - upstream| <= tol * max|ref| per (pair, field); one tolerance"
+derivation_rule = "proposed_tol = ceil_one_significant_figure(10 * floor); inherited from 3af3be02, not chosen"
+negative_control_graded = "1e-2 relative defect, analytic, inherited from laser_f32_tolerance_floor; band must reject it and stay >= 10x below it"
+measurement_reuses_the_test = "deviations come from test_laser_encoder's own _run via the shared _measure_unit recorder, which refuses unless _rows_over is called exactly once per _FLOATS entry (verified for this wave by 91dfbf20)"
+cost = "63 pairs x 2 precisions = 126 forward passes on CPU, no whole-run timeout; per-unit resume"
+
+amendment_1_instrument_crash = """
+AMENDED 261013 AFTER A CRASHED RUN, DISCLOSED HERE. Run 25519960 (script 15843e52) measured all
+126 units and then raised ValueError('cannot round inf to one significant figure') in the
+inherited _leave_one_out, so it never graded. Cause, read from its stamped units, not inferred:
+field lig_vectors has max|ref| = 0 AND max|aminx - upstream| = 0 in all 63 pairs at both
+precisions (an exact match on an identically-zero field). The inherited _scale_ratio maps ANY zero
+scale to inf, so the floor was inf; main() guards _tol_from against that but _leave_one_out does
+not. The same latent crash exists in laser_score_scale_relative_floor.py; it never fired there
+because no laser_score field has zero scale. That module is left byte-identical.
+WHAT CHANGES: this script computes floor, leave-one-out and the analytic control over the
+NON-degenerate entries only, and reports the degenerate ones by name with their own max|err|
+(degenerate_fields, degenerate_field_names, degenerate_max_abs), so their exactness is a recorded
+number. WHAT DOES NOT CHANGE: the grader, its order, every threshold, the derivation rule, the
+control, the margin and every outcome condition. Because degenerate_fields is non-empty the grade
+will be scale_is_degenerate exactly as the crashed run should have graded, whose decision is "do
+NOT adopt the rule for the degenerate fields; report them by name". The non-degenerate band is
+supplied so the user can decide the remaining six fields, not adopted on the strength of this run.
+A self-test check is added that the floor path survives an exact zero-scale field.
+"""
+
+[provenance]
+note = "Lives in scripts/analysis/, outside _SCOPED_PREFIXES (tests/knob_gate/_coverage.py), so it stales no ledger row. Imports the graded instruments unchanged. Invocation: AMINX_LASER_ORACLE_DIR=<b3_laser_owned> JAX_PLATFORMS=cpu bth run --project-slug aminx -- uv run --no-sync python3 scripts/analysis/laser_encoder_scale_relative_floor.py --work-dir <dir> --out <json>."
+
+[resume]
+unit = "one (pair, precision) tuple"
+cache_key = "sha256 of THIS script's bytes, the wave, the pair and the precision"
+stamp_order = "body first, stamp second; an unstamped body is recomputed"
+invalidation = "the script hash is part of the key"
+max_attempts = 1

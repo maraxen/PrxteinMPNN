@@ -1,4 +1,10 @@
-"""The ``protonpotts_ph_objective_knobs`` wave: aminx block descent with ``global_weight`` / ``adjacent_repeat_weight`` / ``self_weight`` against upstream (P4m3).
+"""The ``protonpotts_ph_objective_knobs`` wave: aminx block descent with ``global_weight`` / ``adjacent_repeat_weight`` / ``self_weight`` and (P4m4, amendment 2) ``zscale_mode="single_mutation"`` against upstream.
+
+AMENDMENT 2 (261011, task 261011_zscale-sm; sidecar amended in the same commit, before any run): the oracle is the P4m4 dump
+(``dump_protonpotts_ph_objective_knobs_v4.py``: P4m3's eight configurations plus six ``block_zsm_*`` ones), 20 block calls per cell and
+precision, 160 in all (``N_CALLS_EXPECTED``, derived below from the configuration list). A call's ``zscale_mode`` is taken from the label
+(``ZSM_LABELS``), NOT from the record, and ``KNOBS_MUST_MATCH`` (which still contains ``zscale_mode``) checks it against the record. A sixth
+control, ``block_zscales``, runs the single_mutation calls with ``zscale_mode="block"``. No threshold changed.
 
 Pre-registered in ``protonpotts_ph_objective_knobs_parity.bth.toml`` (committed before the port and before this script). Per
 (cell, precision, block-descent call) the aminx side is given what upstream was given (sealed table and E_idx, native sequence, binder
@@ -15,13 +21,14 @@ band is applied to ``g``. The g oracle is upstream's recorded ``final_global_dH`
 
 Controls (float64, on every call of the configurations each applies to; rejected when the comparison fails on at least one call):
 ``ignore_global`` (global_weight 0), ``flip_global`` (weight negated), ``ignore_adjrep`` (adjacent_repeat_weight 0), ``ignore_self``
-(self_weight 1.0), ``shifted`` (uniforms shifted by one draw on a T > 0 call).
+(self_weight 1.0), ``shifted`` (uniforms shifted by one draw on a T > 0 call), ``block_zscales`` (zscale_mode "block" on the
+single_mutation calls).
 
 Run where aminx is importable::
 
     bth run --project-slug aminx -- uv run --no-sync python \\
         scripts/parity/protonpotts_ph_objective_knobs_parity.py \\
-        --encoder-dir <P4e out dir> --ph-dir <P4m3 out dir> --features-dir ~/projects/aminx-oracles-protonpotts
+        --encoder-dir <P4e out dir> --ph-dir <P4m4 out dir> --features-dir ~/projects/aminx-oracles-protonpotts
 
 ``--smoke`` runs the first cell, three calls, no controls, and does not grade (``clean`` is ``"smoke"``).
 """
@@ -66,15 +73,29 @@ from protonpotts_ph_knobs_parity import amended_f32_scores  # noqa: E402
 logger = logging.getLogger("protonpotts_ph_objective_knobs_parity")
 
 SENTINEL = 10**6
-N_CALLS_EXPECTED = 88
+# Block calls the P4m4 dump records per (cell, precision), derived from its configuration list (v4 ``CONFIGS``): T0 configurations draw
+# one sample, T05 configurations two. v3 (P4m3) had the first eight labels, 11 calls; the six block_zsm_* labels add 9.
+LABEL_CALLS = {
+  "block_glob_p1_T0": 1, "block_glob_p1_T05": 2, "block_glob_m1_T0": 1, "block_adjrep_T0": 1, "block_adjrep_T05": 2,
+  "block_self0_T0": 1, "block_self0_T05": 2, "block_self4_T0": 1,
+  "block_zsm_T0": 1, "block_zsm_T05": 2, "block_zsm_glob1_T0": 1, "block_zsm_glob1_T05": 2, "block_zsm_self4_T0": 1,
+  "block_zsm_self4_T05": 2,
+}  # fmt: skip
+ZSM_LABELS = frozenset(label for label in LABEL_CALLS if label.startswith("block_zsm_"))
+N_CALLS_EXPECTED = len(CELLS) * 2 * sum(LABEL_CALLS.values())  # 4 cells x 2 precisions x 20 = 160 (was 88 for the 8-label P4m3 dump)
 # Knob values the dump records per call that the production configuration must reproduce; the three objective knobs are the
 # ones under test and are taken FROM the record, so they are not listed. P4m3 runs everything at sweep_order "position".
 KNOBS_MUST_MATCH = ("block_size", "combined_lambda", "neighbour_k", "max_mutations", "zscale_mode")
 OBJECTIVE_KNOBS = ("global_weight", "adjacent_repeat_weight", "self_weight")
-CONTROLS = ("ignore_global", "flip_global", "ignore_adjrep", "ignore_self", "shifted")
+CONTROLS = ("ignore_global", "flip_global", "ignore_adjrep", "ignore_self", "shifted", "block_zscales")
 
 
-def config_for(base: PHDesignConfig, call: dict, **override: float) -> PHDesignConfig:
+def base_for(call: dict) -> PHDesignConfig:
+  """The production configuration whose ``zscale_mode`` is the one this call's LABEL asks for (not read from the record)."""
+  return PHDesignConfig(zscale_mode="single_mutation" if call["label"] in ZSM_LABELS else "block")
+
+
+def config_for(base: PHDesignConfig, call: dict, **override: object) -> PHDesignConfig:
   """The production configuration at the call's temperature with the call's recorded objective knobs (and any override)."""
   knobs = call["knobs"]
   if knobs["sweep_order"] != "position" or float(knobs["temperature"]) != float(call["temperature"]):
@@ -164,7 +185,7 @@ def f32_upstream_drift(cell: Cell, other: Cell, call: dict, verdict: dict) -> bo
   if verdict["ok"] or verdict["tokens_ok"] or not all(verdict[k] for k in checks):
     return False
   index = call["index"]
-  plan, _blocks, result, _visit, _s_in = run_call(cell, call, config_for(PHDesignConfig(), call))
+  plan, _blocks, result, _visit, _s_in = run_call(cell, call, config_for(base_for(call), call))
   aminx_f32 = np.asarray(result.seq)
   up_f32 = _to_aminx(cell.arrays[f"c{index}_S_out"])
   up_f64 = _to_aminx(other.arrays[f"c{index}_S_out"])
@@ -184,6 +205,8 @@ def control_config(base: PHDesignConfig, call: dict, name: str) -> tuple[PHDesig
     return (config_for(base, call, self_weight=1.0), False) if config.self_weight != 1.0 else None
   if name == "shifted":
     return (config, True) if config.temperature > 0 else None
+  if name == "block_zscales":  # a port that feeds block-mode z-scales where single_mutation is expected
+    return (config_for(base, call, zscale_mode="block"), False) if config.zscale_mode == "single_mutation" else None
   raise ValueError(f"unknown control {name!r}")
 
 
@@ -202,7 +225,6 @@ def main() -> int:
   manifest = json.loads((args.ph_dir / "ph_objective_knobs_manifest.json").read_text(encoding="utf-8"))
   flags = manifest["flags"]
   dump_flags_pass = flags.get("n_cells") == len(CELLS) and all(v is True for k, v in flags.items() if k != "n_cells")
-  base = PHDesignConfig()
   cell_names = CELLS[:1] if args.smoke else CELLS
 
   per_call: dict[str, dict] = {}
@@ -216,7 +238,7 @@ def main() -> int:
       other = cells["f32" if precision == "f64" else "f64"]
       calls = cell.block_calls()[:3] if args.smoke else cell.block_calls()
       for call in calls:
-        verdict = check_call(cell, other, call, config_for(base, call), f32=precision == "f32")
+        verdict = check_call(cell, other, call, config_for(base_for(call), call), f32=precision == "f32")
         verdict["f32_upstream_drift"] = precision == "f32" and f32_upstream_drift(cell, other, call, verdict)
         counts["drift"] += verdict["f32_upstream_drift"]
         per_call[f"{cell_name}/{precision}/{call['label']}/{call['index']}"] = verdict
@@ -238,7 +260,7 @@ def main() -> int:
     f64_cell = cells["f64"]
     for call in f64_cell.block_calls():
       for name in CONTROLS:
-        spec = control_config(base, call, name)
+        spec = control_config(base_for(call), call, name)
         if spec is None:
           continue
         config, shift = spec

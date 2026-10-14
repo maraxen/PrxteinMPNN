@@ -84,7 +84,7 @@ declare -A MUT=(
   [potts_energy_parity]="permute_etab_out_rows"
   [laser_score_parity]="permute_decoder_layer"
   [potts_ddg_megascale]="skip_transpose_merge_pair"
-  [protonpotts_parity]="features.backbone_threshold_0_5,features.atom_threshold_just_below_half,features.backbone_without_o,features.no_arginine_fix,features.no_keep_last_by_number,features.atom_threshold_0_8,features.r_idx_last_plus_one,features.s_first_token_changed,features.chain_labels_inverted,features.x_m_first_atom_flipped,features.x_nudged_by_1e-4,encoder.pair_order_not_permuted,encoder.pair_order_inverse_permutation,encoder.token_order_not_permuted,encoder.etab_not_permuted,encoder.etab_first_axis_only,encoder.output_nudged_1e-6_f64,encoder.output_nudged_4x_band_f32,energy.double_merge,energy.no_merge,energy.merge_without_transpose,energy.upstream_token_order,energy.energy_halved,energy.energy_nudged_just_outside_f64,energy.energy_nudged_4x_band_f32,driver.token_names_in_upstream_order,driver.candidate_rows_reversed,driver.energy_nudged_4x_band,ph_block.uniforms_shifted_by_one,ph_block.combined_lambda_0p4,ph_block.block_size_2,ph_block.forbidden_tokens_not_applied,ph_block.repetitive_window_off,ph_block.wrong_contrast_token,ph_block.zscale_nudged_outside_f64,ph_block.energy_nudged_outside_f64,ph_greedy.uniforms_shifted_by_one,ph_greedy.block_size_2,ph_greedy.forbidden_tokens_not_applied,ph_greedy.repetitive_window_off,ph_greedy.cdf_in_aminx_token_order,ph_greedy.energy_nudged_outside_f64,ph_driver.combined_lambda_0p6,ph_driver.block_size_2,ph_driver.forbidden_tokens_reduced_to_unk,ph_driver.repetitive_window_off,ph_driver.wrong_contrast_token,decoder.bias_ignored,decoder.scalar_temperature,decoder.x_not_zeroed,decoder.fixed_treated_as_designed,decoder.token_order_upstream,decoder.cms_uses_conditional_mask,decoder.uniforms_shifted_one_step,decoder.cdf_in_aminx_order,decoder.nudged_4x_band,ddg.ddg_sign_flipped,ddg.token_names_in_upstream_order,ddg.mutant_rows_reversed,ddg.energies_without_reference_subtracted,ddg.ddg_nudged_4x_band,sample.shared_order_across_rows,sample.uniforms_rows_swapped,sample.all_residues_designed,sample.cdf_in_aminx_order,sample.uniforms_shifted_one_step,sample.single_row_repeated,sample.temperature_one,sample.nudged_4x_band,ph_methods.cdf_in_aminx_order,ph_methods.uniforms_shifted_one,ph_methods.randints_shifted_one,ph_methods.permutations_reversed,ph_methods.field_untempered,ph_methods.zscales_sample_std,ph_methods.temperature_doubled,ph_methods.combined_lambda_wrong,ph_methods.two_phase_frac_wrong,ph_methods.selective_flipped,ph_methods.backend_swapped,ph_methods.selective_source_swapped,ph_methods.valid_mask_all_true,ph_methods.pin_contrast_wrong,ph_methods.centre_among_designable,ph_methods.scan_unmasked,ph_methods.scan_selective_formula,ph_methods.gibbs_outgoing_only,ph_methods.cv_cap_wrong,ph_methods.nudged_4x_band,ph_knobs.position_knn,ph_knobs.position_energy,ph_knobs.swapped,ph_knobs.shifted,ph_objective_knobs.ignore_global,ph_objective_knobs.flip_global,ph_objective_knobs.ignore_adjrep,ph_objective_knobs.ignore_self,ph_objective_knobs.shifted"
+  [protonpotts_parity]="features.backbone_threshold_0_5,features.atom_threshold_just_below_half,features.backbone_without_o,features.no_arginine_fix,features.no_keep_last_by_number,features.atom_threshold_0_8,features.r_idx_last_plus_one,features.s_first_token_changed,features.chain_labels_inverted,features.x_m_first_atom_flipped,features.x_nudged_by_1e-4,encoder.pair_order_not_permuted,encoder.pair_order_inverse_permutation,encoder.token_order_not_permuted,encoder.etab_not_permuted,encoder.etab_first_axis_only,encoder.output_nudged_1e-6_f64,encoder.output_nudged_4x_band_f32,energy.double_merge,energy.no_merge,energy.merge_without_transpose,energy.upstream_token_order,energy.energy_halved,energy.energy_nudged_just_outside_f64,energy.energy_nudged_4x_band_f32,driver.token_names_in_upstream_order,driver.candidate_rows_reversed,driver.energy_nudged_4x_band,ph_block.uniforms_shifted_by_one,ph_block.combined_lambda_0p4,ph_block.block_size_2,ph_block.forbidden_tokens_not_applied,ph_block.repetitive_window_off,ph_block.wrong_contrast_token,ph_block.zscale_nudged_outside_f64,ph_block.energy_nudged_outside_f64,ph_greedy.uniforms_shifted_by_one,ph_greedy.block_size_2,ph_greedy.forbidden_tokens_not_applied,ph_greedy.repetitive_window_off,ph_greedy.cdf_in_aminx_token_order,ph_greedy.energy_nudged_outside_f64,ph_driver.combined_lambda_0p6,ph_driver.block_size_2,ph_driver.forbidden_tokens_reduced_to_unk,ph_driver.repetitive_window_off,ph_driver.wrong_contrast_token,decoder.bias_ignored,decoder.scalar_temperature,decoder.x_not_zeroed,decoder.fixed_treated_as_designed,decoder.token_order_upstream,decoder.cms_uses_conditional_mask,decoder.uniforms_shifted_one_step,decoder.cdf_in_aminx_order,decoder.nudged_4x_band,ddg.ddg_sign_flipped,ddg.token_names_in_upstream_order,ddg.mutant_rows_reversed,ddg.energies_without_reference_subtracted,ddg.ddg_nudged_4x_band,sample.shared_order_across_rows,sample.uniforms_rows_swapped,sample.all_residues_designed,sample.cdf_in_aminx_order,sample.uniforms_shifted_one_step,sample.single_row_repeated,sample.temperature_one,sample.nudged_4x_band,ph_methods.cdf_in_aminx_order,ph_methods.uniforms_shifted_one,ph_methods.randints_shifted_one,ph_methods.permutations_reversed,ph_methods.field_untempered,ph_methods.zscales_sample_std,ph_methods.temperature_doubled,ph_methods.combined_lambda_wrong,ph_methods.two_phase_frac_wrong,ph_methods.selective_flipped,ph_methods.backend_swapped,ph_methods.selective_source_swapped,ph_methods.valid_mask_all_true,ph_methods.pin_contrast_wrong,ph_methods.centre_among_designable,ph_methods.scan_unmasked,ph_methods.scan_selective_formula,ph_methods.gibbs_outgoing_only,ph_methods.cv_cap_wrong,ph_methods.nudged_4x_band,ph_knobs.position_knn,ph_knobs.position_energy,ph_knobs.swapped,ph_knobs.shifted,ph_objective_knobs.ignore_global,ph_objective_knobs.flip_global,ph_objective_knobs.ignore_adjrep,ph_objective_knobs.ignore_self,ph_objective_knobs.shifted,ph_objective_knobs.block_zscales"
 )
 
 # Fail before burning hours, not after. Compares every string above to the
@@ -126,13 +126,60 @@ export AMINX_POTTS_ROOT=$HOME/repos/PottsMPNN
 export AMINX_PROTONPOTTS_ORACLES=$HOME/projects/aminx-oracles-protonpotts
 export AMINX_PROTONPOTTS_STATE=$HOME/scratch/v6_state.npz
 
+# BACKEND (R6, 261013). The aminx (JAX) side of every vehicle runs on a GPU by
+# default; the upstream oracles are torch in the CPU-only oracle venv and are
+# unaffected. Spike 261013: laser_proofread_parity's clean arm on GPU 3 took
+# 1052 s against 54 min on CPU, same inputs and code, and its 450 cell values
+# matched the CPU run to 3.2e-15 (both pass at ~5e-15 against upstream).
+# AMINX_WAVE_BACKEND=cpu restores the old JAX_PLATFORMS=cpu behaviour.
+# Each slug is pinned to one GPU by a hash of its name, so a rerun of a slug
+# lands on the same device. Preallocation is off so vehicles can share a GPU.
+WAVE_BACKEND=${AMINX_WAVE_BACKEND:-gpu}
+read -ra WAVE_GPUS <<< "${AMINX_WAVE_GPUS:-2 3}"
+if [ "$WAVE_BACKEND" = "gpu" ]; then
+  for g in "${WAVE_GPUS[@]}"; do
+    used=$(nvidia-smi --id="$g" --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null || echo missing)
+    # A GPU already holding >8 GB is someone else's (vLLM holds ~21.5 GB on 0/1).
+    if [ "$used" = "missing" ] || [ "$used" -gt 8000 ]; then
+      echo "REFUSING: GPU $g is unavailable or busy (${used} MiB); set AMINX_WAVE_GPUS or AMINX_WAVE_BACKEND=cpu" >&2
+      exit 1
+    fi
+  done
+elif [ "$WAVE_BACKEND" != "cpu" ]; then
+  echo "REFUSING: AMINX_WAVE_BACKEND must be gpu or cpu, got $WAVE_BACKEND" >&2
+  exit 2
+fi
+if [ "$WAVE_BACKEND" = "gpu" ]; then echo "backend: gpu (GPUs ${WAVE_GPUS[*]})"; else echo "backend: cpu"; fi
+
+# CPU-PINNED SLUGS (none). protonpotts_parity was pinned to CPU at ab6897a0 after its R6 GPU run (e2a185de, at
+# 31ded6de) failed f32 bands that had only been measured on CPU (f64 matched to 1e-15, 99 of 99 controls fired).
+# The pin is lifted (261013): the f32 bands of ph_block and ph_methods were then re-measured on both backends
+# (runs bcbd533d CPU, e6f508a6 GPU) and widened to the measured minimum; see those two sidecars' AMENDED paragraphs.
+CPU_PINNED=()
+
+backend_env () {
+  local v=$1
+  if [ "$WAVE_BACKEND" = "cpu" ] || [[ " ${CPU_PINNED[*]} " == *" $v "* ]]; then
+    echo "JAX_PLATFORMS=cpu"
+    return
+  fi
+  local idx=$(( $(printf '%s' "$v" | cksum | cut -d' ' -f1) % ${#WAVE_GPUS[@]} ))
+  # JAX_PLATFORMS=cuda, not merely unset: protonpotts_parity.py forwards
+  # JAX_PLATFORMS to its wave subprocesses with a default of "cpu", and an
+  # explicit cuda also makes a missing GPU an error instead of a silent CPU run.
+  echo "JAX_PLATFORMS=cuda CUDA_VISIBLE_DEVICES=${WAVE_GPUS[$idx]} XLA_PYTHON_CLIENT_PREALLOCATE=false"
+}
+
 launch () {
   local v=$1 m=${MUT[$1]}
   mkdir -p "$HOME/.aminx/sidecars/$v/$H"
+  local -a benv
+  read -ra benv <<< "$(backend_env "$v")"
+  echo "$v -> ${benv[*]}"
   # AMINX_CLOSURE_* switch on scripts/redsox/closure_hook, which records the repo
   # files this process really loads so verify_wave.py can check them against the
   # row's closure. It edits no vehicle (a vehicle is in its own closure).
-  nohup setsid env JAX_PLATFORMS=cpu \
+  nohup setsid env "${benv[@]}" \
     AMINX_CLOSURE_OUT="$HOME/.aminx/sidecars/$v/$H/loaded_files.json" \
     AMINX_CLOSURE_SCRIPT="$v.py" AMINX_CLOSURE_REPO="$REPO" \
     PYTHONPATH="$REPO/scripts/redsox/closure_hook${PYTHONPATH:+:$PYTHONPATH}" \
@@ -194,7 +241,8 @@ case "$GROUP" in
     # `fail` here is therefore the positive control succeeding, and an outcome
     # of `pass` would mean a no-op mutation changed the result. Read the
     # payloads under the work-dir, not the outcome column.
-    nohup setsid env JAX_PLATFORMS=cpu bth run --project-slug aminx \
+    read -ra benv <<< "$(backend_env laser_proofread_parity)"
+    nohup setsid env "${benv[@]}" bth run --project-slug aminx \
       -- uv run --no-sync python3 \
       scripts/parity/laser_proofread_parity.py \
       --mutants scalar_both_off --work-dir "/tmp/positive_$H" \

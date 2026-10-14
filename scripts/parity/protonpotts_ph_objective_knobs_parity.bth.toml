@@ -13,7 +13,7 @@ for the frozen sdH and the per-round stability score) -- reproduces the upstream
 (scripts/protonpotts/dump_protonpotts_ph_objective_knobs_v3.py, graded under its own sidecar; this wave is run only if that dump passed),
 for the four P4g cells (1BVC, 6m0j binder chain E, 1OLR, 1EL1), both precisions, and every block-descent call of the eight knob
 configurations (block_glob_p1_T0, block_glob_p1_T05, block_glob_m1_T0, block_adjrep_T0, block_adjrep_T05, block_self0_T0,
-block_self0_T05, block_self4_T0): 11 calls per cell and precision, 88 in total.
+block_self0_T05, block_self4_T0): 11 calls per cell and precision, 88 in total (P4m3; amendment 2 below: 20 and 160).
 
 Per call the aminx side is given only what upstream was given (sealed table and E_idx, native sequence, binder mask, the configuration with
 its knob values as recorded in the dump meta, the shim uniforms) and must, through the SHIPPED code path (ph_design._run_optimiser ->
@@ -52,6 +52,20 @@ Scope: the port touches src/aminx/families/protonpotts_mpnn/ (ph_descent.py and,
 src/aminx/run/options.py (the three fields already exist there) -- so only the protonpotts_parity ledger row goes stale, and the wave is
 folded into that vehicle with one vehicle run and the ledger updated last.
 
+AMENDMENT 2 (261011, task 261011_zscale-sm), written and committed before any run of it. The port gained zscale_mode="single_mutation"
+(ph_descent.single_mutation_zscales, aminx commit 928ec0ad; upstream _zscale 1995-2003, _block_mutation_tables 2006-2038, branch 2243-2255), and
+the oracle is now the P4m4 dump (scripts/protonpotts/dump_protonpotts_ph_objective_knobs_v4.py, graded under its own sidecar; this wave is
+run only if that dump passed): P4m3's eight configurations plus six zscale_mode="single_mutation" ones (alone, with global_weight 1.0, with
+self_weight 4.0, each at T 0 and T 0.05). Calls per cell and precision 11 -> 20; total 88 -> 160 (= 4 cells x 2 precisions x 20, derived in the
+script from the configuration list as sum(LABEL_CALLS) x 8, not from a run). Pass condition: every `88` becomes `160`, n_listed 5 -> 6.
+A call's zscale_mode comes from its LABEL (ZSM_LABELS in the script) and is checked against the dump's recorded value through
+KNOBS_MUST_MATCH (zscale_mode stays in it). A sixth control, block_zscales, runs the single_mutation calls with zscale_mode "block" (block
+z-scales fed where single_mutation is expected) and must be rejected; ignore_global / ignore_self / shifted also apply to the new calls.
+ALL THRESHOLDS ARE UNCHANGED (plan, tokens, draws exact; z-scales and scores f64 1e-9 relative; f32 the same amended band; amendment 1's
+f32_upstream_drift rule unchanged). The per-call comparison for single_mutation calls includes all three recorded z-scales: sdH (unweighted
+scorer), sdSel (1e-6 when no row varies), sdGlob (1.0 when off or no row varies). PREDICTION, stated before any run: all 160 calls pass
+and all six controls are rejected; main risk is the sdSel / sdGlob edge cases (all-zero fallback) and f32 summation order in the std.
+
 PREDICTION, stated before the run so it can be wrong: all 88 calls pass and all five controls are rejected. Risks: the global term's
 reference g0 (which sequence it is taken at) and sdGlob's sample set; the adjacent-repeat out-of-block unary at chain boundaries; the
 self_weight copy of the table used for both sdH and the per-round score; f32 summation order in g.
@@ -60,18 +74,18 @@ stage_name = "validation"
 novel = false
 
 [outcomes.pass]
-condition = "clean = 'pass' AND n_calls = 88 AND n_calls_ok + n_f32_upstream_drift = 88 AND n_tokens_exact + n_f32_upstream_drift = 88 AND n_draws_ok = 88 AND dump_flags_pass AND n_listed = 5 AND n_failed = n_listed"
+condition = "clean = 'pass' AND n_calls = 160 AND n_calls_ok + n_f32_upstream_drift = 160 AND n_tokens_exact + n_f32_upstream_drift = 160 AND n_draws_ok = 160 AND dump_flags_pass AND n_listed = 6 AND n_failed = n_listed"
 decision = "protonpotts_ph_objective_knobs is graded: global_weight, adjacent_repeat_weight and self_weight reproduce upstream's z-scales, designs and scores in both precisions, and each control is rejected."
 reasoning = "Every call matches on plan, z-scales, tokens, draws and scores; the dump passed; all five controls fail the same comparison."
 is_residual = false
-adversarial_check = "NOT (clean = 'pass' AND n_calls = 88 AND n_calls_ok + n_f32_upstream_drift = 88 AND n_tokens_exact + n_f32_upstream_drift = 88 AND n_draws_ok = 88 AND dump_flags_pass AND n_listed = 5 AND n_failed = n_listed)"
+adversarial_check = "NOT (clean = 'pass' AND n_calls = 160 AND n_calls_ok + n_f32_upstream_drift = 160 AND n_tokens_exact + n_f32_upstream_drift = 160 AND n_draws_ok = 160 AND dump_flags_pass AND n_listed = 6 AND n_failed = n_listed)"
 
 [outcomes.fail]
-condition = "NOT (clean = 'pass' AND n_calls = 88 AND n_calls_ok + n_f32_upstream_drift = 88 AND n_tokens_exact + n_f32_upstream_drift = 88 AND n_draws_ok = 88 AND dump_flags_pass AND n_listed = 5 AND n_failed = n_listed)"
+condition = "NOT (clean = 'pass' AND n_calls = 160 AND n_calls_ok + n_f32_upstream_drift = 160 AND n_tokens_exact + n_f32_upstream_drift = 160 AND n_draws_ok = 160 AND dump_flags_pass AND n_listed = 6 AND n_failed = n_listed)"
 decision = "Do not treat the objective knobs as graded. Read per_call: a z-scale miss names the scale term; a token miss with z-scales exact names the unary/pairwise term; an undetected control means the comparison cannot see that error."
 reasoning = "Some call differs from upstream, the dump did not pass, or a control was not rejected."
 is_residual = true
-adversarial_check = "clean = 'pass' AND n_calls = 88 AND n_calls_ok + n_f32_upstream_drift = 88 AND n_tokens_exact + n_f32_upstream_drift = 88 AND n_draws_ok = 88 AND dump_flags_pass AND n_listed = 5 AND n_failed = n_listed"
+adversarial_check = "clean = 'pass' AND n_calls = 160 AND n_calls_ok + n_f32_upstream_drift = 160 AND n_tokens_exact + n_f32_upstream_drift = 160 AND n_draws_ok = 160 AND dump_flags_pass AND n_listed = 6 AND n_failed = n_listed"
 
 [result_schema]
 clean = "str"
@@ -98,9 +112,9 @@ per_call = "dict"
 aminx_version = { type = "git_sha", required = true, doc = "aminx commit SHA" }
 
 [data]
-oracle = "P4m3 objective-knob dump (graded under scripts/protonpotts/dump_protonpotts_ph_objective_knobs_v3.bth.toml): upstream PottsMPNNPHEngine with global_weight +-1, adjacent_repeat_weight 1, self_weight 0 / 4 on the sealed P4e tables, injected-uniform shim, recorded z-scales and g"
+oracle = "P4m4 objective-knob + single_mutation dump (graded under scripts/protonpotts/dump_protonpotts_ph_objective_knobs_v4.bth.toml; P4m3 plus six zscale_mode=single_mutation configurations): upstream PottsMPNNPHEngine with global_weight +-1, adjacent_repeat_weight 1, self_weight 0 / 4 on the sealed P4e tables, injected-uniform shim, recorded z-scales and g"
 inputs = "sealed P4e merged tables and E_idx; sealed P4b/P4c/P4d native S; the dump's per-cell context arrays and call meta (knob values, z-scales, designs, g)"
 tolerances = "plan, tokens and draw count exact; z-scales and scores f64 1e-9 relative; f32 10x max(upstream, aminx) f32-vs-f64 spread, min 1e-6 (the protonpotts_ph_knobs amended band)"
 
 [provenance]
-note = "Pre-registered before the port (block_descent still refuses all three knobs) and before protonpotts_ph_objective_knobs_parity.py exists; written while the graded P4m3 dump is running, before its outcome is known. Graded invocation: bth run --project-slug aminx -- uv run --no-sync python scripts/parity/protonpotts_ph_objective_knobs_parity.py --encoder-dir <P4e out dir> --ph-dir <P4m3 out dir> --features-dir ~/projects/aminx-oracles-protonpotts, from a clean checkout."
+note = "Pre-registered before the port (block_descent still refuses all three knobs) and before protonpotts_ph_objective_knobs_parity.py exists; written while the graded P4m3 dump is running, before its outcome is known. Graded invocation: bth run --project-slug aminx -- uv run --no-sync python scripts/parity/protonpotts_ph_objective_knobs_parity.py --encoder-dir <P4e out dir> --ph-dir <P4m4 out dir> --features-dir ~/projects/aminx-oracles-protonpotts, from a clean checkout."

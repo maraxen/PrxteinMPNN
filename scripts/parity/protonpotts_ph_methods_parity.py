@@ -67,7 +67,8 @@ FEATURES = "features_v6/protonpotts_v6_features"
 CONTROL_CELL = "pkad_unlabelled"
 F64_TOL = 1e-9
 F32_FACTOR = 10.0
-F32_MIN_BAND = 1e-6
+# Amended 261013 from 1e-6 to 4e-4: 3x the worst GPU f32 probability difference over its floor-set band (1.21e-4), rounded up.
+F32_MIN_BAND = 4e-4
 FRAGILE_MARGIN = 1e-5
 V = 30
 TAKE = convert.token_permutation()  # TAKE[k] = the upstream index of the token at aminx index k

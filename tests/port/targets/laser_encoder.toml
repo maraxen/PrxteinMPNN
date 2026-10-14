@@ -2,8 +2,8 @@
 # oracle_id hashes tests/port/reference/laser_encoder/{algo.py,sealed.py}.
 # The npz files stay outside this tree; sealed.load checks oracle_manifest.toml.
 #
-# atol is the house pairing for the declared rtol (assert_close / potts_head style).
-# It is NOT a measured deviation. The orchestrator sets it from the graded run.
+# f64 atol is the house pairing for the declared rtol (assert_close / potts_head style),
+# NOT a measured deviation. f32 is scale-relative and measured: see [tolerance_basis].
 [port]
 wave_id = "laser_encoder"
 oracle_id = "ref:tests/port/reference/laser_encoder:v1:sha256:9d0d5ff3eff58efc78be552cfaae7f585b9710bc09382d2c64ad045c4183c473"
@@ -18,7 +18,7 @@ dynamic_shape = true
 ad_critical = false
 ad_critical_justification = ""
 tolerance_policy_f64 = "rtol=1e-8,atol=1e-11"
-tolerance_policy_f32 = "rtol=1e-4,atol=1e-7"
+tolerance_policy_f32 = "scale_rel=2e-4"
 max_traces = 1
 
 [access]
@@ -27,4 +27,31 @@ fixer_read_only_on_reference = true
 
 [tolerance_basis]
 f64_atol_basis = "house-paired and NOT measured"
-f32_atol_basis = "house-paired and NOT measured"
+f32_atol_basis = """
+MEASURED; FORM CHANGED TO SCALE-RELATIVE, chosen by the user 261013 (the laser_score
+option 3, decided for laser_score 261006). The key name is kept so this history stays
+at its original key; the f32 band is no longer an atol.
+
+Superseded: rtol=1e-4,atol=1e-7, "house-paired and NOT measured". With the oracle
+reachable it failed 63/63 at tier 3 (gate run 466053e2 at bf1d7b21, max |err| 2.56e-4)
+while f64 passed 63/63. Element-wise floor run 91dfbf20 graded
+noise_reaches_defect_scale (best atol 4e-3 = 0.246 of an injected 1e-2 defect), so no
+element-wise band could separate float32 noise from a 1% defect. Attribution run
+e993b929: aminx's f32 error is within 2x of upstream's own f32 rounding on 377 of 378
+entries (median ratio 0.62; one entry 2.26x, lig_pr_eattr).
+
+The rule is now a reduction per field per pair: max|got - ref| <= 2e-4 * max|ref|.
+Measured by graded run 86da517a (scripts/analysis/laser_encoder_scale_relative_floor.py
+@ b4389e58, completed, clean tree, pre-registered at c60d5342 with disclosed
+amendment 1 after crashed run 25519960):
+  floor_scale_relative 1.089e-5 (prot_vectors, nothing_heldout__111m_1)
+  proposed_tol         2e-4 = ceil_one_significant_figure(10 x floor)
+  leave-one-out        63/63 admitted, worst ratio 0.109
+  control              1e-2 defect rejected; band is 0.02 of it (50x; 10x required)
+Its verdict was scale_is_degenerate: lig_vectors is identically zero in reference AND
+aminx in all 63 pairs (max |err| exactly 0). The user chose to apply the rule to all
+seven fields anyway, because the test's _scale_relative scores 0/0 as 0 and any nonzero
+deviation on a zero scale as inf: lig_vectors is held to an exact match, stricter than
+any band. Do not move 2e-4 without a new pre-registered measurement that clears the
+10x margin.
+"""

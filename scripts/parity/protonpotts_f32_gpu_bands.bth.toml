@@ -1,0 +1,86 @@
+[metadata]
+title = "protonpotts f32 bands on GPU: measure the float32 differences of the ph_block and ph_methods replays on both backends"
+created = "261013"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = """
+Run e2a185de (R6, GPU) failed two protonpotts waves on float32 only: ph_block missed one score (energy_rel_diff 1.1e-7)
+and ph_methods' mcmc_potts energies were 2.46x over their band (2.5e-6 against 1e-6), with float64 matching to 1e-15 and
+all 99 controls firing. Their f32 bands are 10x an in-run spread with a 1e-6 floor, and the 1e-6 floor was never measured
+against a backend other than CPU. The user chose (261013) to re-measure the bands on GPU instead of pinning the vehicle
+to CPU.
+
+This script re-runs the SAME replay code the two waves use (imported from protonpotts_ph_block_parity.py and
+protonpotts_ph_methods_parity.py, unchanged) and records every graded float32 difference as a raw number, on one backend
+per run. It is a MEASUREMENT, not a grade of the port. Two runs are registered: JAX_PLATFORMS=cpu and JAX_PLATFORMS=cuda,
+each with AMINX_EXPECT_BACKEND set so a silent fallback is a failure.
+
+Recorded per f32 row: ph_block z-scale, energy and selective-gap differences, each relative to max(1, |value|); ph_methods
+probability, placement-score, z-scale and energy differences, plus the in-run floors the current bands use.
+
+DECISION RULE, fixed before either run: for each quantity class the new float32 minimum band is 3x the worst difference
+observed over BOTH backends' f32 rows, rounded UP to one significant figure, and never below the current minimum (1e-6),
+so the rule can only widen, and only to what was measured. ph_block takes F32_MIN_REL from its z-scale, energy and selective
+columns jointly (the largest governs); ph_methods takes F32_MIN_BAND from its probability, placement, z-scale and energy
+columns jointly. No control, mutant, f64 tolerance, token/draw/plan exactness criterion or threshold is touched: the
+controls of both waves run in float64, so a wider f32 minimum cannot change a control's power.
+
+PREDICTION, stated before the run so it can be wrong: the CPU rows reproduce the current record (every f32 row inside its
+current band); the GPU rows put the same two quantities outside; the worst GPU difference is below 1e-4. If a GPU row is
+far larger than that, or a plan, token or draw count differs (those are exact and not in this script's scope), the cause
+is not summation order and no band is chosen from this measurement.
+
+INSTRUMENT CHECKS: the float64 rows of every wave must stay inside their current f64 tolerances on both backends (the
+script replays the graded code, so a faithful replay reproduces the recorded f64 result), and the backend the process
+actually used must equal the backend requested.
+"""
+stage_name = "exploration"
+novel = false
+
+[outcomes.measured]
+condition = "n_block_rows = 24 AND n_methods_rows = 44 AND f64_arm_in_band AND backend_matches_request"
+decision = "Apply the pre-registered rule to the CPU and GPU records of this script and amend the ph_block and ph_methods sidecars and constants with the resulting minimum; then re-run protonpotts_parity on GPU."
+reasoning = "Every f32 row of both waves was replayed on the requested backend, and the float64 rows reproduced the graded record, so the f32 numbers come from the graded code on that backend."
+is_residual = false
+adversarial_check = "NOT (n_block_rows = 24 AND n_methods_rows = 44 AND f64_arm_in_band AND backend_matches_request)"
+
+[outcomes.instrument_unverified]
+condition = "NOT (n_block_rows = 24 AND n_methods_rows = 44 AND f64_arm_in_band AND backend_matches_request)"
+decision = "Do not choose a band. Either the backend was not the one requested, a wave did not replay in full, or a float64 row left its tolerance, so the f32 numbers cannot be trusted as the graded code's."
+reasoning = "A row count, the float64 reproduction, or the backend check failed."
+is_residual = true
+adversarial_check = "n_block_rows = 24 AND n_methods_rows = 44 AND f64_arm_in_band AND backend_matches_request"
+
+[result_schema]
+backend = "str"
+device = "str"
+expected_backend = "str"
+backend_matches_request = "bool"
+n_block_rows = "int"
+n_methods_rows = "int"
+f64_arm_in_band = "bool"
+n_f32_rows_outside_current_band = "int"
+block_f32_worst_z_rel = "float"
+block_f32_worst_e_rel = "float"
+block_f32_worst_s_rel = "float"
+methods_f32_worst_probs = "float"
+methods_f32_worst_placement = "float"
+methods_f32_worst_zscales = "float"
+methods_f32_worst_energies = "float"
+methods_f64_worst_energies = "float"
+block_f64_worst_e_rel = "float"
+block_rows = "list"
+methods_rows = "list"
+
+[dependencies]
+aminx_version = { type = "git_sha", required = true, doc = "aminx commit SHA" }
+
+[data]
+oracle = "P4g and P4j3 dumps (upstream PottsMPNN pH engine and host-loop methods), the same dumps the two waves grade against"
+inputs = "sealed P4e tables, P4j3 methods dump, converted checkpoint state, sealed features dump"
+backend = "run twice: JAX_PLATFORMS=cpu and JAX_PLATFORMS=cuda (CUDA_VISIBLE_DEVICES pinned to a free GPU), AMINX_EXPECT_BACKEND=cpu|gpu"
+tolerances = "none graded here; rows record raw differences. The outcome checks only row counts, the f64 arm against the waves' own f64 tolerances, and the backend actually used"
+
+[provenance]
+note = "Invocation: AMINX_EXPECT_BACKEND=<cpu|gpu> JAX_PLATFORMS=<cpu|cuda> bth run --project-slug aminx -- uv run --no-sync python scripts/parity/protonpotts_f32_gpu_bands.py, on titanix in a separate git worktree at the committed SHA (the shared checkout is in use by the R6b CPU run). Exploration stage: the numbers inform a band amendment, they are not themselves a parity claim."

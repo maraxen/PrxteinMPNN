@@ -19,7 +19,7 @@ Reviewer: Marielle Russo (to confirm). Nothing is uploaded until this is signed 
 |---|---|---|---|---|
 | PottsMPNN, <https://github.com/KeatingLab/PottsMPNN> | `0cb0a58874e373d664114f1735deab77614e4ab5` | MIT (`LICENSE`) | 2022 Justas Dauparas; 2026 Foster Birnbaum, Amy E. Keating | Weights ship in the repo under its MIT. The text says "Software and associated documentation files" and does not name weights. A Zenodo deposit also exists (DOI 10.5281/zenodo.18274667). |
 | LASErMPNN, <https://github.com/polizzilab/LASErMPNN> | `e70f2c6d765416f7e29d51bfd6d4e08496438878` | MIT text, no SPDX header (`LICENSE`) | 2025 Benjamin Fry, Nicholas Polizzi | Weights ship in `model_weights/` under the repo MIT. Not named in the text. |
-| ProtonPottsMPNN | none recorded (no `VENDOR_PIN.toml`) | MIT, scoped in `LICENSE` to include `checkpoints/`; `foundry/` is a verbatim IPD rc-foundry copy under BSD-3 | 2026 Christian P. Jacobsen | **Yes, explicitly** (`checkpoints/` is named). The v6 checkpoint is `checkpoints/potts_v6_afdb_edge_his0.3_acid0.06/epoch-0125.ckpt`. |
+| ProtonPottsMPNN | `09682abf` (the oracle pin in `scripts/parity/convert_protonpotts_checkpoint.py`; the local clone has no `VENDOR_PIN.toml`) | MIT, scoped in `LICENSE` to include `checkpoints/`; `foundry/` is a verbatim IPD rc-foundry copy under BSD-3 | 2026 Christian P. Jacobsen | **Yes, explicitly** (`checkpoints/` is named). The v6 checkpoint is `checkpoints/potts_v6_afdb_edge_his0.3_acid0.06/epoch-0125.ckpt`. |
 
 MIT permits redistribution and modification, so a `.pt`/`.ckpt` to `.eqx` conversion is permitted. The one
 condition is that the copyright and permission notice travel with the copies (`NOTICE-weights.md`, and the
@@ -57,7 +57,8 @@ the converted-file sha256s and the bathos run ids.
 1. Training-data terms (PDB, AFDB, ligand and protonated-PDB datasets for LASErMPNN; the pKa and AFDB data behind
    ProtonPottsMPNN v6). An MIT weights licence does not settle dataset terms.
 2. Potts and LASErMPNN rely on the repo-level MIT covering bundled weights (normal reading, not stated in the text).
-3. ProtonPottsMPNN has no pinned upstream commit locally; record the upstream URL and checkpoint sha256 at conversion time.
+3. ProtonPottsMPNN: the clone has no pin file; the converter records `09682abf`. Confirm that commit contains the
+   `LICENSE` read above and record the upstream URL and the checkpoint sha256 at conversion time.
 4. Courtesy, not a legal requirement: tell the three upstream groups and cite their papers on the model card.
 
 ## Decision

@@ -21,7 +21,7 @@ import jax
 from proxide.ops.dataset import create_protein_dataset
 
 from aminx.host.family_driver import FAMILY_DRIVERS, validate_model_family
-from aminx.io.weights import load_model
+from aminx.io.weights import family_checkpoints, load_model, resolve_family_checkpoint
 from aminx.run.resources import proxide_dataset_resource_kwargs
 
 
@@ -78,6 +78,23 @@ def _resolve_local_checkpoint_from_registry(spec: Specs) -> str | None:
       msg = f"Registry checksum mismatch for {artifact}: expected {found['sha256']}, got {digest}"
       raise ValueError(msg)
   return str(artifact)
+
+
+def _resolve_driver_checkpoint(spec: Specs, family: str) -> str | None:
+  """Artifact path for a family driver: the registry entry, else the pinned hub table.
+
+  Order after ``model_local_path`` (which the driver handles itself): a ``checkpoint_registry_path``
+  entry, then ``checkpoint_id`` looked up in the sha256-pinned family table
+  (:func:`aminx.io.weights.resolve_family_checkpoint`, which honours ``AMINX_WEIGHTS_DIR`` and the
+  ``HF_REVISION`` pin). ``None`` means neither applies and the driver raises its own error.
+  """
+  from_registry = _resolve_local_checkpoint_from_registry(spec)
+  if from_registry is not None:
+    return from_registry
+  checkpoint_id = spec.checkpoint_id
+  if isinstance(checkpoint_id, str) and checkpoint_id in family_checkpoints():
+    return resolve_family_checkpoint(checkpoint_id, family=family).path
+  return None
 
 
 def prep_protein_stream_and_model(

@@ -69,7 +69,7 @@ from aminx.families.protonpotts_mpnn.vocab import (
 )
 from aminx.host.bucketing import bucket_ladder
 from aminx.host.family_driver import FAMILY_DRIVERS, FamilyBatch, FamilyStages, SinkArraySpec
-from aminx.host.prep import _resolve_local_checkpoint_from_registry
+from aminx.host.prep import _resolve_driver_checkpoint
 from aminx.run.options import ProtonPottsOptions
 
 log = logging.getLogger(__name__)
@@ -301,10 +301,11 @@ class ProtonPottsDriver:
     """
     local = getattr(spec, "model_local_path", None)
     if local is None:
-      artifact = _resolve_local_checkpoint_from_registry(spec)
+      artifact = _resolve_driver_checkpoint(spec, "protonpottsmpnn")
       if artifact is None:
         msg = (
-          "ProtonPottsDriver requires model_local_path or a checkpoint registry entry with sha256"
+          "ProtonPottsDriver requires model_local_path, a checkpoint registry entry with sha256, "
+          "or a checkpoint_id in the pinned family table (aminx.io.weights.family_checkpoints)"
         )
         raise ValueError(msg)
       path = Path(artifact)

@@ -9,6 +9,8 @@ plausible sequences.
 from __future__ import annotations
 
 import dataclasses
+import json
+import logging
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any, NamedTuple, cast
@@ -33,7 +35,7 @@ from aminx.host.family_driver import (
   FamilyStages,
   SinkArraySpec,
 )
-from aminx.host.prep import _resolve_local_checkpoint_from_registry
+from aminx.host.prep import _resolve_driver_checkpoint
 from aminx.model.laser.decoder import LaserDecoder, score_structure
 from aminx.model.laser.encoders import LaserEncoder
 from aminx.model.laser.graphs import GraphStructure
@@ -845,8 +847,30 @@ def _is_sample(spec: Any) -> bool:  # noqa: ANN401
   return not hasattr(spec, "output_kind")
 
 
+_log = logging.getLogger(__name__)
+
+
+def _artifact_build_hydrogens(path: Path) -> bool:
+  """``build_hydrogens`` for a serialised artifact, read from its ``.json`` manifest.
+
+  ``build_hydrogens`` is a static field, so ``eqx.tree_serialise_leaves`` does not store it and a
+  default skeleton would silently turn it off. Every upstream LASErMPNN checkpoint sets it, so a
+  missing manifest is logged loudly rather than treated as a quiet ``False``.
+  """
+  manifest = path.with_suffix(".json")
+  if not manifest.is_file():
+    _log.warning(
+      "%s has no manifest next to it; loading LASErMPNN with build_hydrogens=False. Upstream "
+      "checkpoints set it True, so an artifact written without a manifest may run with the "
+      "wrong static field.",
+      path,
+    )
+    return False
+  return bool(json.loads(manifest.read_text(encoding="utf-8")).get("build_hydrogens", False))
+
+
 def _load_eqx(path: Path) -> LASErMPNN:
-  skeleton = LASErMPNN(key=jax.random.PRNGKey(0))
+  skeleton = LASErMPNN(key=jax.random.PRNGKey(0), build_hydrogens=_artifact_build_hydrogens(path))
   loaded = eqx.tree_deserialise_leaves(path, skeleton)
   return cast("LASErMPNN", loaded)
 
@@ -876,9 +900,12 @@ class LaserDriver:
       if path.suffix.lower() == ".pt":
         return _load_torch(path, strict=_strict(spec))
       return _load_eqx(path)
-    artifact = _resolve_local_checkpoint_from_registry(spec)
+    artifact = _resolve_driver_checkpoint(spec, "lasermpnn")
     if artifact is None:
-      msg = "LaserDriver requires model_local_path or a checkpoint registry entry with sha256"
+      msg = (
+        "LaserDriver requires model_local_path, a checkpoint registry entry with sha256, "
+        "or a checkpoint_id in the pinned family table (aminx.io.weights.family_checkpoints)"
+      )
       raise ValueError(msg)
     path = Path(artifact)
     if path.suffix.lower() == ".pt":

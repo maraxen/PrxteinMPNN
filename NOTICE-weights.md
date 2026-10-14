@@ -12,7 +12,7 @@ retrained. Parity of each checkpoint against its upstream is measured (see the p
 |---|---|---|
 | `pottsmpnn_vanilla_20`, `pottsmpnn_vanilla_30`, `pottsmpnn_sol_20`, `pottsmpnn_sol_30`, `pottsmpnn_ft` | PottsMPNN, <https://github.com/KeatingLab/PottsMPNN> @ `0cb0a58874e373d664114f1735deab77614e4ab5` | `vanilla_model_weights/pottsmpnn_{20,30}.pt`, `soluble_model_weights/sol_pottsmpnn_{20,30}.pt`, `ft_model_weights/potts_ft.pt` |
 | `lasermpnn_nothing_heldout`, `lasermpnn_noise_ligandmpnn_split`, `lasermpnn_soluble_65000` | LASErMPNN, <https://github.com/polizzilab/LASErMPNN> @ `e70f2c6d765416f7e29d51bfd6d4e08496438878` | `model_weights/laser_weights_0p1A_nothing_heldout.pt`, `..._noise_ligandmpnn_split.pt`, `soluble_weights_no_heldout_drop_clusters_optstep_65000.pt` |
-| `protonpottsmpnn_v6_30` | Proton-PottsMPNN (Jacobsen et al., 2026) | `checkpoints/potts_v6_afdb_edge_his0.3_acid0.06/epoch-0125.ckpt` |
+| `protonpottsmpnn_v6_30` | Proton-PottsMPNN (Jacobsen et al., 2026), oracle pin `09682abf` | `checkpoints/potts_v6_afdb_edge_his0.3_acid0.06/epoch-0125.ckpt` |
 
 The Proton-PottsMPNN licence states that its MIT grant covers the `checkpoints/` directory. Its bundled
 `foundry/` directory (IPD rc-foundry, BSD 3-Clause, Copyright (c) 2025 Institute for Protein Design,

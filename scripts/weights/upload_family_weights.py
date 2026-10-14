@@ -4,7 +4,8 @@
 Dry run by default: it verifies every file against ``src/aminx/io/family_weights.json``, builds the
 model-card section and prints what would be uploaded. ``--execute`` is the only path that touches the
 network, and it refuses unless the licence decision record has ``status: accepted`` (the reviewer's
-sign-off), every artifact hashes to its pinned value, and ``HF_TOKEN`` is set. The upload is a PR on the
+sign-off), every artifact hashes to its pinned value, and a Hugging Face credential exists (``HF_TOKEN`` or
+the CLI login). The upload is a PR on the
 HF repo (``create_pr=True``), so nothing reaches ``main`` until someone merges it there.
 
 After the PR is merged on the Hub, bump ``HF_REVISION`` in ``src/aminx/io/weights.py`` to the merge
@@ -17,7 +18,6 @@ import argparse
 import hashlib
 import json
 import logging
-import os
 import re
 import sys
 from pathlib import Path
@@ -123,13 +123,14 @@ def main(argv: list[str] | None = None) -> int:
   if status != "accepted":
     logger.error("refusing to upload: the licence decision record is %r, not 'accepted'", status)
     return 2
-  if not os.environ.get("HF_TOKEN"):
-    logger.error("refusing to upload: HF_TOKEN is not set")
+  from huggingface_hub import CommitOperationAdd, HfApi, get_token, hf_hub_download  # noqa: PLC0415
+
+  # ``get_token`` reads HF_TOKEN, else the login the ``hf`` / ``huggingface-cli`` CLI cached.
+  if not get_token():
+    logger.error("refusing to upload: no Hugging Face credential (set HF_TOKEN or run `hf auth login`)")
     return 2
-
-  from huggingface_hub import CommitOperationAdd, HfApi, hf_hub_download  # noqa: PLC0415
-
   api = HfApi()
+  logger.info("authenticated as %s", api.whoami()["name"])
   current = Path(hf_hub_download(repo_id=args.repo, filename="README.md", revision="main")).read_text(
     encoding="utf-8",
   )

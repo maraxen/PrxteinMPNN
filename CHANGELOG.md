@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Changed (breaking)
+
+- **`RunSpec.precision` renamed to `RunSpec.precision_config`.** xtrax >= 0.4.1b1 declares
+  `RunSpec.precision` as `str | None` and rejects any other type in `__check_init__`
+  (`xtrax/run/spec.py`), so constructing aminx's `RunSpec` with a `PrecisionConfig` raised
+  `RunSpec.precision must be a str or None`. The xtrax check is kept as-is. Update any
+  `spec.run_spec.precision.compute` reads to `spec.run_spec.precision_config.compute`, and any
+  `RunSpec(precision=...)` constructor call to `precision_config=...`. The portable JSON wire key
+  `"precision"` is unchanged.
+
 ## 0.2.1 (2026-10-14)
 
 **Family checkpoints resolve by id.** The nine PottsMPNN, LASErMPNN and ProtonPottsMPNN checkpoints that

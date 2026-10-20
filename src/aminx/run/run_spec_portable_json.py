@@ -93,7 +93,7 @@ def _placeholder_run_spec(
   *,
   multistate: MultistateConfig,
   resource: ResourceConfig,
-  precision: PrecisionConfig,
+  precision_config: PrecisionConfig,
   io: IOConfig | None = None,
 ) -> RunSpec:
   """Defaults mirror :func:`build_run_spec` for a bare ``RunSpecification``-like spec."""
@@ -134,7 +134,7 @@ def _placeholder_run_spec(
     multistate=multistate,
     ligand=ligand,
     grid=grid,
-    precision=precision,
+    precision_config=precision_config,
     plan=plan,
   )
 
@@ -177,7 +177,8 @@ def run_spec_portable_to_dict(run_spec: RunSpec) -> dict[str, Any]:
       "structure_batch_size": run_spec.resource.structure_batch_size,
       "max_buffer_size": run_spec.resource.max_buffer_size,
     },
-    "precision": {"compute": run_spec.precision.compute},
+    # Wire key stays "precision" (format v1/v2 unchanged); only the Python attribute was renamed.
+    "precision": {"compute": run_spec.precision_config.compute},
   }
 
 
@@ -233,7 +234,10 @@ def run_spec_portable_from_dict(data: Mapping[str, Any]) -> RunSpec:
   if compute not in ("fp32", "fp16", "bf16"):
     msg = f"[portable_run_spec] precision.compute: invalid {compute!r}"
     raise ValueError(msg)
-  precision = cast("PrecisionConfig", PrecisionConfig(compute=cast("_PrecisionLabel", compute)))
+  precision_config = cast(
+    "PrecisionConfig",
+    PrecisionConfig(compute=cast("_PrecisionLabel", compute)),
+  )
 
   io_cfg: IOConfig | None = None
   if wire_ver == PORTABLE_RUN_SPEC_VERSION:
@@ -258,6 +262,6 @@ def run_spec_portable_from_dict(data: Mapping[str, Any]) -> RunSpec:
   return _placeholder_run_spec(
     multistate=multistate,
     resource=resource,
-    precision=precision,
+    precision_config=precision_config,
     io=io_cfg,
   )

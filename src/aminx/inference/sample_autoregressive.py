@@ -19,6 +19,7 @@ if TYPE_CHECKING:
   from aminx.types.arrays import PRNGKeyArray
   from aminx.types.bundles import InferenceBundle, PackerResult
   from aminx.types.configs import InferenceConfig
+  from aminx.types.encodings import EncoderOutput
   from aminx.types.stages import StageSet
 
 
@@ -114,20 +115,56 @@ def kernel(
       default_batch_size=1 SafeMap-per-state convention).
 
   """
-  import jax
+  k_enc, k_dec = jax.random.split(prng_key)
+  enc = encode_for_sampling(model, bundle, k_enc, config)
+  return decode_sampling(
+    model,
+    k_dec,
+    enc,
+    bundle,
+    config,
+    stage_set,
+    state_strategy=state_strategy,
+    inference_only=inference_only,
+    gumbel_noise=gumbel_noise,
+  )
 
+
+def encode_for_sampling(
+  model: Aminx,
+  bundle: InferenceBundle,
+  k_enc: PRNGKeyArray,
+  config: InferenceConfig,
+) -> EncoderOutput:
+  """Run the structure encoder for autoregressive sampling (rolling state disabled).
+
+  Depends on ``k_enc`` only through ``fold_in(k_enc, 0)`` in the encoder, and on
+  ``backbone_noise`` through the coordinate noise draw. Callers that share one encode
+  across many decoding keys must pass the same ``k_enc`` and ``backbone_noise == 0``.
+  """
+  from aminx.inference.encode import make_encode_fn
+
+  encode_fn = make_encode_fn(model, use_rolling_state=False)
+  return encode_fn(bundle, k_enc, config)
+
+
+def decode_sampling(
+  model: Aminx,
+  k_dec: PRNGKeyArray,
+  enc: EncoderOutput,
+  bundle: InferenceBundle,
+  config: InferenceConfig,
+  stage_set: StageSet,
+  *,
+  state_strategy: AxisStrategy | None = None,
+  inference_only: bool = False,
+  gumbel_noise: Float[Array, "L 21"] | None = None,
+) -> SampleResult:
+  """Autoregressive decode of an existing encoder output (see ``encode_for_sampling``)."""
   from aminx.inference.decode.factory import make_decode_fn
   from aminx.inference.decode.mode import AutoregressiveConfig, AutoregressiveMode
-  from aminx.inference.encode import make_encode_fn
   from aminx.tiling.strategy import Vmap
 
-  k_enc, k_dec = jax.random.split(prng_key)
-
-  # Encode using make_encode_fn with rolling state disabled for AR
-  encode_fn = make_encode_fn(model, use_rolling_state=False)
-  enc = encode_fn(bundle, k_enc, config)
-
-  # Resolve autoregressive decode function and execute
   decode_fn = make_decode_fn(
     model=model,
     mode=AutoregressiveMode(),

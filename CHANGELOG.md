@@ -12,11 +12,13 @@
   `RunSpec(precision=...)` constructor call to `precision_config=...`. The portable JSON wire key
   `"precision"` is unchanged.
 
+### Added
+
 **Hoisted sampler: encode once per structure per call.** `make_hoisted_sampler` (`aminx.sampling`)
 runs the structure encoder once and maps only the decode over the PRNG keys, through
 `xtrax.inference.make_hoisted`. Its output equals `vmap(sample_sequences)` (sequences and decoding
-orders exactly, logits to `rtol=1e-5, atol=1e-6`). Callers that vmap the sampler over keys at
-`backbone_noise == 0`, callers of `make_hoisted_sampler` run the encoder once per call instead of once per key.
+orders exactly, logits to `rtol=1e-5, atol=1e-6`). Callers of `make_hoisted_sampler` run the encoder
+once per call instead of once per key.
 
 - Added `aminx.sampling.hoisted` (`make_hoisted_sampler`, `HoistedSampler`, `SAMPLER_AXIS`), exported
   from `aminx.sampling`. `backbone_noise`, `wave_schedule` and `use_rolling_state` are not supported.

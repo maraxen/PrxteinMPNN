@@ -6,8 +6,8 @@ structure for all three. The counter counts Python calls of the encode function 
 receives from make_encoding_conditional_logits_split_fn. The structure loader is stubbed with
 a one-structure batch and a tiny random-weight model.
 
-The test is marked xfail: InspectionSpecification construction fails under xtrax >= 0.4.1b1
-(RunSpec.precision type), until the aminx rename in fix/runspec-precision-config-261020 lands.
+Needs the RunSpec.precision_config rename (fix/runspec-precision-config-261020), which keeps
+InspectionSpecification constructible under xtrax >= 0.4.1b1.
 """
 
 from __future__ import annotations
@@ -55,12 +55,6 @@ def _batch() -> Any:
   )
 
 
-@pytest.mark.xfail(
-  reason=(
-    "needs aminx RunSpec.precision rename (fix/runspec-precision-config-261020) under xtrax>=0.4.1b1"
-  ),
-  strict=False,
-)
 def test_a6_inspect_encodes_once_per_structure(monkeypatch: pytest.MonkeyPatch) -> None:
   """A6: one encode call per structure; each feature equals its single-feature run."""
   model = _model()

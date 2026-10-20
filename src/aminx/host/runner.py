@@ -1645,8 +1645,8 @@ def inspect(  # noqa: PLR0915
   prng_key = jax.random.PRNGKey(spec.run_spec.sampling.random_seed)
 
   # decoded_node_features, encoded_node_features and edge_features share one encode per
-  # structure (same inputs, same subkey); build the split fn once per call (B5).
-  encode_fn, _ = make_encoding_conditional_logits_split_fn(model)
+  # structure (same inputs, same subkey). The split fn is built on first use, once per call (B5).
+  encode_fn = None
 
   for _batch_idx, batched_ensemble in enumerate(protein_iterator):
     batch_size = batched_ensemble.coordinates.shape[0]
@@ -1778,6 +1778,8 @@ def inspect(  # noqa: PLR0915
             raise ValueError(msg)
 
           if shared_encoding is None:
+            if encode_fn is None:
+              encode_fn, _ = make_encoding_conditional_logits_split_fn(model)
             shared_encoding = encode_fn(
               struct_coords,
               struct_mask,
@@ -1809,6 +1811,8 @@ def inspect(  # noqa: PLR0915
         elif feature_name in ("encoded_node_features", "edge_features"):
           # Use the split function to compute encoder output
           if shared_encoding is None:
+            if encode_fn is None:
+              encode_fn, _ = make_encoding_conditional_logits_split_fn(model)
             shared_encoding = encode_fn(
               struct_coords,
               struct_mask,

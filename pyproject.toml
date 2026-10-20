@@ -212,6 +212,9 @@ pylint.max-args = 15
 "src/aminx/families/potts_mpnn/**/*.py" = ["TID251"]
 "src/aminx/families/laser_mpnn/**/*.py" = ["TID251"]
 "src/aminx/host/family_driver.py" = ["TID251"]
+# hoisted.py uses make_stage_set (aminx.inference.logits), the same import sampling/sample.py
+# already makes; the banned-api entry targets PottsModel, not the MPNN sampler. Ignored for this file only.
+"src/aminx/sampling/hoisted.py" = ["TID251"]
 "src/aminx/model/potts_mpnn/**/*.py" = ["TID251"]
 "src/aminx/model/laser/**/*.py" = ["TID251"]
 "src/aminx/profiling/hlo_tools.py" = [

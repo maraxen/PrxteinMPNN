@@ -1,8 +1,9 @@
 """Tests for aminx.sampling.hoisted, the encode-once sampler (spec 261020_hoisted-sampler).
 
-A1 parity with the monolithic vmap, A2 encoder execution count, A3 varying-input refusal
-through SAMPLER_AXIS,
-A4 parity probe, A5 precomputed_* warning, A7 shared stage compiles once across Python-float temperatures.
+A1 parity with the monolithic vmap (single, multi-state, tied, bias, fixed positions,
+inference_only, chunked batch), A2 encoder execution count, A3 keys in shared args refused by the
+SAMPLER_AXIS declaration (via xtrax HoistedMap), A4 parity probe, A5 precomputed_* warning,
+A7 shared stage compiles once across Python-float temperatures.
 """
 
 from __future__ import annotations
@@ -31,9 +32,11 @@ _KEY = jax.random.PRNGKey(3)
 @pytest.fixture(scope="module")
 def small_model() -> Aminx:
   """Tiny random-weight model, dropout off."""
-  # dropout_rate=0: the encoder otherwise draws dropout masks keyed on the encode key, which
-  # would make the hoisted encode (fixed key) differ from the monolithic one for reasons
-  # unrelated to the hoist.
+  # dropout_rate=0 keeps the encoder deterministic in its key. With dropout on, a freshly
+  # constructed Aminx applies dropout inside the encoder even at inference (Aminx.__call__ does
+  # not forward `inference` to it). The hoisted encode (fixed key) and the monolithic encode
+  # (per-key) would then differ for reasons unrelated to the hoist. Pretrained checkpoints do not
+  # show this (see tests/sampling/test_decoding_order_mask_consistency.py).
   return Aminx(
     dropout_rate=0.0,
     node_features=E,
@@ -68,49 +71,84 @@ def _structure(num_states: int = 1) -> dict[str, Any]:
   }
 
 
-def _case_kwargs(case: str) -> dict[str, Any]:
-  if case == "single":
-    return {**_structure(1), "temperature": 0.5}
-  if case == "multistate":
-    return {
-      **_structure(2),
-      "temperature": 0.5,
-      "state_weights": jnp.array([0.5, 0.5], dtype=jnp.float32),
-    }
-  if case == "tied":
-    tie = jnp.arange(L, dtype=jnp.int32).at[1].set(0).at[2].set(0).at[6].set(5)
-    return {**_structure(1), "temperature": 0.5, "tie_group_map": tie}
-  raise ValueError(case)
+def _tie_map() -> jax.Array:
+  return jnp.arange(L, dtype=jnp.int32).at[1].set(0).at[2].set(0).at[6].set(5)
 
 
-def _num_groups(case: str) -> int | None:
-  if case == "tied":
-    tie = jnp.arange(L, dtype=jnp.int32).at[1].set(0).at[2].set(0).at[6].set(5)
-    return int(jnp.unique(tie).shape[0])
-  return None
+# case name -> (structure/conditioning kwargs, sampler options). Options are constructor-level
+# arguments of make_hoisted_sampler and static arguments of make_sample_sequences.
+CASES: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
 
 
-def _monolithic(model: Aminx, kwargs: dict[str, Any], keys: jax.Array, num_groups: int | None):
+def _register(name: str, kwargs: dict[str, Any], options: dict[str, Any] | None = None) -> None:
+  CASES[name] = (kwargs, options or {})
+
+
+_register("single", {**_structure(1), "temperature": 0.5})
+_register(
+  "multistate",
+  {**_structure(2), "temperature": 0.5, "state_weights": jnp.array([0.5, 0.5], jnp.float32)},
+)
+_register(
+  "multistate_product",
+  {**_structure(2), "temperature": 0.5, "state_weights": jnp.array([0.5, 0.5], jnp.float32)},
+  {"multi_state_strategy": "product"},
+)
+_register(
+  "multistate_geometric",
+  {**_structure(2), "temperature": 0.5, "state_weights": jnp.array([0.5, 0.5], jnp.float32)},
+  {"multi_state_strategy": "geometric_mean"},
+)
+_register(
+  "tied",
+  {**_structure(1), "temperature": 0.5, "tie_group_map": _tie_map()},
+  {"num_groups": 9},  # len(unique(_tie_map())): positions 1,2 -> 0 and 6 -> 5
+)
+_register(
+  "bias",
+  {
+    **_structure(1),
+    "temperature": 0.5,
+    "bias": jnp.asarray(np.random.default_rng(5).normal(size=(L, 21)).astype(np.float32)),
+  },
+)
+_register(
+  "fixed",
+  {
+    **_structure(1),
+    "temperature": 0.5,
+    "fixed_mask": (jnp.arange(L) % 3 == 0).astype(jnp.float32),
+    "fixed_tokens": (jnp.arange(L) % 20).astype(jnp.int32),
+  },
+)
+_register("inference_only", {**_structure(1), "temperature": 0.5}, {"inference_only": True})
+_register("chunked_batch2", {**_structure(1), "temperature": 0.5}, {"batch_size": 2})
+
+
+def _monolithic(model: Aminx, case: str, keys: jax.Array) -> Any:
+  kwargs, options = CASES[case]
   sampler = make_sample_sequences(model, sampling_strategy="temperature")
-  return jax.vmap(
-    lambda k: sampler(k, num_groups=num_groups, **kwargs),
-  )(keys)
+  passthrough = {k: options[k] for k in ("num_groups", "multi_state_strategy", "inference_only") if k in options}
+  return jax.vmap(lambda k: sampler(k, **passthrough, **kwargs))(keys)
 
 
 # --- A1: parity with the monolithic vmap --------------------------------------------------
 
 
-@pytest.mark.parametrize("case", ["single", "multistate", "tied"])
+@pytest.mark.parametrize("case", list(CASES))
 @pytest.mark.parametrize("n", [1, 5])
 def test_a1_matches_monolithic_vmap(small_model: Aminx, case: str, n: int) -> None:
-  """A1: hoisted sampler equals the monolithic vmap, sequences and orders exactly."""
-  kwargs = _case_kwargs(case)
-  num_groups = _num_groups(case)
+  """A1: hoisted sampler equals the monolithic vmap, sequences and orders exactly.
+
+  n=5 with batch_size=2 is a ragged chunked_map (2, 2, 1). Logits are compared to
+  rtol=1e-5, atol=1e-6.
+  """
+  kwargs, options = CASES[case]
   keys = jax.random.split(jax.random.PRNGKey(7), n)
 
-  sampler = make_hoisted_sampler(small_model, num_groups=num_groups)
+  sampler = make_hoisted_sampler(small_model, **options)
   seqs, logits, orders = sampler(keys, **kwargs)
-  want_seqs, want_logits, want_orders = _monolithic(small_model, kwargs, keys, num_groups)
+  want_seqs, want_logits, want_orders = _monolithic(small_model, case, keys)
 
   np.testing.assert_array_equal(np.asarray(seqs), np.asarray(want_seqs))
   np.testing.assert_array_equal(np.asarray(orders), np.asarray(want_orders))
@@ -155,7 +193,7 @@ def test_a2_encoder_executes_once_per_hoisted_call(
 ) -> None:
   """A2: monolithic vmap runs the encoder once per key; the hoisted sampler runs it once."""
   n = 5
-  kwargs = _case_kwargs("single")
+  kwargs = CASES["single"][0]
   keys = jax.random.split(jax.random.PRNGKey(7), n)
   counter = _encoder_execution_counter(monkeypatch)
 
@@ -188,7 +226,7 @@ def test_a2_negative_control_mutant_encodes_per_element(
       return super()._per_element((bundle, config, stage_set, enc), key)
 
   n = 5
-  kwargs = _case_kwargs("single")
+  kwargs = CASES["single"][0]
   keys = jax.random.split(jax.random.PRNGKey(7), n)
   counter = _encoder_execution_counter(monkeypatch)
   mutant = _EncodePerElement(
@@ -210,8 +248,12 @@ def test_a2_negative_control_mutant_encodes_per_element(
 # --- A3: varying-input refusal through the sampler axis -----------------------------------
 
 
-def test_a3_keys_in_shared_args_is_refused() -> None:
-  """A3: keys wired into shared args raise HoistVaryingInputError."""
+def test_a3_sampler_axis_refuses_keys_in_shared_args_via_xtrax_hoistedmap() -> None:
+  """A3: SAMPLER_AXIS (varying_inputs=keys) makes xtrax HoistedMap refuse keys in shared args.
+
+    HoistedSampler cannot wire keys into shared args, so this exercises the xtrax name check
+    directly with the same axis declaration the sampler uses.
+    """
   assert SAMPLER_AXIS.varying_inputs == ("keys",)
   keys = jax.random.split(jax.random.PRNGKey(0), 2)
   hoisted = make_hoisted(
@@ -228,7 +270,7 @@ def test_a3_keys_in_shared_args_is_refused() -> None:
 
 def test_a4_probe_passes_on_a1_inputs(small_model: Aminx) -> None:
   """A4: the parity probe passes on A1 inputs."""
-  kwargs = _case_kwargs("multistate")
+  kwargs = CASES["multistate"][0]
   keys = jax.random.split(jax.random.PRNGKey(7), 3)
   sampler = make_hoisted_sampler(small_model)
   seqs, logits, _ = sampler(keys, check_elements=2, **kwargs)
@@ -240,7 +282,7 @@ def test_a4_probe_raises_on_perturbed_reference(
   small_model: Aminx, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
   """A4: a reference perturbed by 1e-3 in logits raises HoistParityError."""
-  kwargs = _case_kwargs("single")
+  kwargs = CASES["single"][0]
   keys = jax.random.split(jax.random.PRNGKey(7), 3)
   sampler = make_hoisted_sampler(small_model)
   real_reference = sampler._reference
@@ -260,7 +302,7 @@ def test_a4_probe_raises_on_perturbed_reference(
 
 def test_a5_precomputed_kwargs_warn_and_are_ignored(small_model: Aminx) -> None:
   """A5: precomputed_* kwargs warn with FutureWarning and change nothing."""
-  kwargs = _case_kwargs("single")
+  kwargs = CASES["single"][0]
   key = jax.random.PRNGKey(7)
   sampler = make_sample_sequences(small_model, sampling_strategy="temperature")
   want = sampler(key, **kwargs)
@@ -271,6 +313,37 @@ def test_a5_precomputed_kwargs_warn_and_are_ignored(small_model: Aminx) -> None:
 
   np.testing.assert_array_equal(np.asarray(got[0]), np.asarray(want[0]))
   np.testing.assert_allclose(np.asarray(got[1]), np.asarray(want[1]), rtol=0, atol=0)
+
+
+def test_a5_guard_preserves_jitted_sampler_attributes(small_model: Aminx) -> None:
+  """A5 guard: the wrapped sampler still exposes the jitted object's attributes (.lower, ...)."""
+  sampler = make_sample_sequences(small_model, sampling_strategy="temperature")
+  assert callable(sampler.lower)
+  assert callable(sampler.eval_shape)
+  assert callable(sampler.__wrapped__)
+  kwargs = CASES["single"][0]
+  lowered = sampler.lower(jax.random.PRNGKey(0), **kwargs)
+  assert lowered is not None
+
+
+def test_a5_positional_precomputed_argument_warns(small_model: Aminx) -> None:
+  """A5 guard: a precomputed_* passed positionally is bound against the signature and warns."""
+  import inspect
+
+  sampler = make_sample_sequences(small_model, sampling_strategy="temperature")
+  names = list(inspect.signature(sampler).parameters)
+  idx = names.index("precomputed_node_features")
+  values: dict[str, Any] = {
+    "prng_key": jax.random.PRNGKey(7),
+    "temperature": 0.5,
+    **{k: v for k, v in CASES["single"][0].items() if k != "temperature"},
+  }
+  params = inspect.signature(sampler).parameters
+  args = [
+    values[name] if name in values else params[name].default for name in names[:idx]
+  ]
+  with pytest.warns(FutureWarning, match="precomputed_node_features"):
+    sampler(*args, jnp.zeros((L, E), dtype=jnp.float32))
 
 
 # --- A7: one shared-stage compile across Python-float temperatures --------------------------

@@ -29,7 +29,7 @@ if TYPE_CHECKING:
   from aminx.types.configs import InferenceConfig
   from aminx.types.encodings import EncoderOutput
   from aminx.types.protocols import ModelProtocol
-  from aminx.types.stages import StageSet
+  from aminx.types import StageSet
   from aminx.utils.decoding_order import DecodingOrderFn
 
 _Shared = tuple["InferenceBundle", "InferenceConfig", "StageSet", "EncoderOutput"]
@@ -48,6 +48,15 @@ _ENCODE_KEY_SEED = 0
 
 class HoistedSampler:
   """Callable returned by ``make_hoisted_sampler``; hold one instance across calls.
+
+  Validity. The hoist is valid only when the encoder output does not depend on the PRNG key at
+  ``backbone_noise == 0``. Tests cover this for Aminx protein models: A1 (parity with the
+  monolithic vmap, including bias, fixed positions, multi-state and tie groups) and A2 (one
+  encoder execution per call). Other model families are not verified. For a first use with any
+  other family, call with ``check_elements > 0`` and compare against the monolithic sampler.
+
+  Scope. Only the protein encode path is covered by tests. Ligand arguments (``ligand_coords``,
+  ``ligand_atom_types``, ``ligand_mask``) are forwarded but LigandMPNN is not verified.
 
   Not supported, each with a reason:
 
@@ -275,6 +284,10 @@ def make_hoisted_sampler(
   batch_size: int | None = None,
 ) -> HoistedSampler:
   """Build an encode-once temperature sampler over PRNG keys (see ``HoistedSampler``).
+
+  The hoist is valid only when the encoder output is key-independent at zero noise. This holds
+  for Aminx protein models (covered by tests A1 and A2). For other model families, run the
+  first call with ``check_elements > 0`` and compare with ``make_sample_sequences``.
 
   Args:
     model: Aminx model instance.

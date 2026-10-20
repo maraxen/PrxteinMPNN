@@ -10,6 +10,7 @@ from aminx.sampling.conditional_logits import (
   make_conditional_logits_fn,
   make_encoding_conditional_logits_split_fn,
 )
+from aminx.sampling.hoisted import HoistedSampler, make_hoisted_sampler
 from aminx.sampling.sample import make_sample_sequences
 from aminx.utils import ste
 
@@ -17,8 +18,10 @@ if TYPE_CHECKING:
   from aminx.model import Aminx
 
 __all__ = [
+  "HoistedSampler",
   "make_conditional_logits_fn",
   "make_encoding_conditional_logits_split_fn",
+  "make_hoisted_sampler",
   "make_sample_sequences",
   "sample",
   "ste",

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+**Hoisted sampler: encode once per structure per call.** `make_hoisted_sampler` (`aminx.sampling`)
+runs the structure encoder once and maps only the decode over the PRNG keys, through
+`xtrax.inference.make_hoisted`. Its output equals `vmap(sample_sequences)` (sequences and decoding
+orders exactly, logits to `rtol=1e-5, atol=1e-6`). Callers that vmap the sampler over keys at
+`backbone_noise == 0` no longer re-run the encoder per key.
+
+- Added `aminx.sampling.hoisted` (`make_hoisted_sampler`, `HoistedSampler`, `SAMPLER_AXIS`), exported
+  from `aminx.sampling`. `backbone_noise`, `wave_schedule` and `use_rolling_state` are not supported.
+- `sample_autoregressive.kernel` is split into `encode_for_sampling` and `decode_sampling`; behaviour
+  unchanged (`kernel` calls both).
+- `sample_sequences` warns with `FutureWarning` when a `precomputed_*` argument is passed. It was
+  already ignored; removal is a later change.
+- TODO before merge: pin `xtrax[io,export]` and `xtrax[onnx]` to `==0.4.1b2` once that release is on
+  PyPI. The hoisted sampler needs `xtrax>=0.4.1b2` (`xtrax.inference.make_hoisted`).
+
 ## 0.2.1 (2026-10-14)
 
 **Family checkpoints resolve by id.** The nine PottsMPNN, LASErMPNN and ProtonPottsMPNN checkpoints that

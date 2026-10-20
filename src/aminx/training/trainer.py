@@ -51,14 +51,14 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # See `.agents/TECHNICAL_DEBT.md` §1 (mixed-precision checkpoints), §5 (accum_steps validation).
-# Precision policy: read ``spec.run_spec.precision.compute`` (composed RunSpec). ``TrainingSpecification.precision``
+# Precision policy: read ``spec.run_spec.precision_config.compute`` (composed RunSpec). ``TrainingSpecification.precision``
 # remains the user-facing dataclass field and stays in sync when the spec is constructed; the trainer does not
 # consult it directly so RunSpec stays the single routing point for this PR.
 
 
 def _training_precision(spec: TrainingSpecification) -> str:
   """Resolve training compute-precision label from the composed :class:`~aminx.run.spec.RunSpec`."""
-  return spec.run_spec.precision.compute
+  return spec.run_spec.precision_config.compute
 
 
 def get_compute_dtype(precision: str) -> jnp.dtype:

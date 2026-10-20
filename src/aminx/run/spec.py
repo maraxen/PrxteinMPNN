@@ -149,7 +149,9 @@ class RunSpec(_XtraxRunSpec):
   multistate: MultistateConfig = field(default_factory=lambda: None)  # type: ignore
   ligand: LigandConfig = field(default_factory=lambda: None)  # type: ignore
   grid: GridLineageConfig = field(default_factory=lambda: None)  # type: ignore
-  precision: PrecisionConfig = field(default_factory=lambda: None)  # type: ignore
+  # Named ``precision_config``, not ``precision``: xtrax >= 0.4.1b1 declares ``RunSpec.precision``
+  # as ``str | None`` and rejects a PrecisionConfig there (xtrax run/spec.py __check_init__).
+  precision_config: PrecisionConfig = field(default_factory=lambda: None)  # type: ignore
   plan: PlannerTopology = field(default_factory=lambda: None)  # type: ignore
   sampling: SamplingConfig = field(default_factory=lambda: None)  # type: ignore
   potts_mpnn: PottsMPNNOptions | None = eqx.field(static=True, default=None)
@@ -468,7 +470,7 @@ def build_run_spec(spec: object) -> RunSpec:
     sample_count=getattr(spec, "sample_count", None),
   )
 
-  precision = PrecisionConfig(compute=_run_spec_precision_compute(spec))
+  precision_config = PrecisionConfig(compute=_run_spec_precision_compute(spec))
 
   plan = PlannerTopology(
     use_unified_driver=bool(getattr(spec, "use_unified_driver", True)),
@@ -533,7 +535,7 @@ def build_run_spec(spec: object) -> RunSpec:
     multistate=multistate,
     ligand=ligand,
     grid=grid,
-    precision=precision,
+    precision_config=precision_config,
     plan=plan,
     sampling=sampling,
     potts_mpnn=potts_mpnn,

@@ -107,7 +107,7 @@ class TrainingSpecification(RunSpecification):
   Effective batch size = batch_size (which must be divisible by accum_steps).
   """
 
-  # Precision (mirrors ``run_spec.precision.compute`` after :meth:`RunSpecification._sync_run_spec`)
+  # Precision (mirrors ``run_spec.precision_config.compute`` after :meth:`RunSpecification._sync_run_spec`)
   precision: Literal["fp32", "fp16", "bf16"] = "bf16"
 
   # Checkpointing

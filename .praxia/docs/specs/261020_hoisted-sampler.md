@@ -141,13 +141,17 @@ the PR. Until published, develop against xtrax main via an untracked `uv.toml`
   `jax.vmap(lambda k: sample_sequences(k, **s))(keys)`: sequences and decoding orders
   exactly; logits `allclose(rtol=1e-5, atol=1e-6)`. Cases: single-state protein;
   S=2 multi-state with `state_weights`; one case with tie groups.
-- A2 Encoder runs once (B4): pick a shape unique to the encoder output (node features
-  `(L, H)` with H the hidden width, or edge features `(L, K, E)`; choose fixture L, K so
-  the shape is not produced elsewhere, and assert it appears in the jaxpr). In the
-  hoisted call's jaxpr no value has shape `(N, *enc_shape)` or `(batch_size, *enc_shape)`;
-  in the monolithic vmap's jaxpr one does. Negative control: a mutant whose
-  `per_element` calls `encode_for_sampling` itself must show the replicated shape (the
-  mutant is built in the test, not shipped).
+- A2 Encoder runs once, counted at execution (B4, revised 261020 after the shape premise failed).
+  The original jaxpr-shape check assumed the `(L, K, E)` encoder output is produced only by the
+  encoder. That premise is false: the AR decode scan also produces per-key `(N, L, K, E)` values
+  (observed as `jit/scan` ops on `float32[4,12,8,32]`), so shape matching cannot isolate the
+  encoder. The check is now an execution counter. `encode_for_sampling` is wrapped (in
+  `aminx.inference.sample_autoregressive` and in `aminx.sampling.hoisted`, where it is imported by
+  name) by a wrapper that calls `jax.debug.callback` and then the real function. The callback adds
+  `size(neighbor_indices) // (L*K)`, so a batched call counts once per key. Assertions, after
+  `jax.effects_barrier()`: monolithic `jax.vmap(sample_sequences)` over N=5 keys counts N; the
+  hoisted sampler counts 1 per call; a mutant whose `per_element` calls `encode_for_sampling` counts
+  N+1 (one shared encode from the library stage plus N per-element encodes).
 - A3 `HoistVaryingInputError` surfaces through `HoistedSampler` construction/call when
   a caller wires keys into the shared args (this exercises xtrax's name check through
   aminx's axis declaration; stated as such).

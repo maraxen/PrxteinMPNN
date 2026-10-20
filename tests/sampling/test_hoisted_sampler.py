@@ -1,6 +1,7 @@
 """Tests for aminx.sampling.hoisted, the encode-once sampler (spec 261020_hoisted-sampler).
 
-A1 parity with the monolithic vmap, A3 varying-input refusal through SAMPLER_AXIS,
+A1 parity with the monolithic vmap, A2 encoder execution count, A3 varying-input refusal
+through SAMPLER_AXIS,
 A4 parity probe, A5 precomputed_* warning, A7 shared stage compiles once across Python-float temperatures.
 """
 
@@ -15,6 +16,7 @@ import pytest
 from xtrax.inference import make_hoisted
 from xtrax.inference.errors import HoistParityError, HoistVaryingInputError
 
+import aminx.inference.sample_autoregressive as sample_autoregressive
 import aminx.sampling.hoisted as hoisted_mod
 from aminx.model import Aminx
 from aminx.sampling import make_sample_sequences
@@ -116,6 +118,93 @@ def test_a1_matches_monolithic_vmap(small_model: Aminx, case: str, n: int) -> No
   assert seqs.dtype == jnp.int8
   assert seqs.shape == (n, L)
   assert logits.shape == (n, L, 21)
+
+
+# --- A2: the encoder executes once per call (execution counter, not jaxpr shapes) ---------
+#
+# A jaxpr shape check cannot isolate the encoder: the AR decode also produces per-key
+# (L, K, E) tensors. So the encoder is counted at execution time. The wrapper reports
+# through jax.debug.callback. Under vmap the callback runs once with the batched value, so
+# the count is the number of encoder outputs in the batch (one per key), and an unbatched
+# shared encode counts 1.
+
+
+def _encoder_execution_counter(
+  monkeypatch: pytest.MonkeyPatch,
+) -> list[int]:
+  """Patch encode_for_sampling in both modules to count encoder executions."""
+  counter = [0]
+  real = sample_autoregressive.encode_for_sampling
+
+  def counting(model: Aminx, bundle: Any, k_enc: Any, config: Any) -> Any:
+    enc = real(model, bundle, k_enc, config)
+
+    def bump(neighbor_indices: Any) -> None:
+      counter[0] += int(np.size(neighbor_indices)) // (L * K)
+
+    jax.debug.callback(bump, enc.neighbor_indices)
+    return enc
+
+  monkeypatch.setattr(sample_autoregressive, "encode_for_sampling", counting)
+  monkeypatch.setattr(hoisted_mod, "encode_for_sampling", counting)
+  return counter
+
+
+def test_a2_encoder_executes_once_per_hoisted_call(
+  small_model: Aminx, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """A2: monolithic vmap runs the encoder once per key; the hoisted sampler runs it once."""
+  n = 5
+  kwargs = _case_kwargs("single")
+  keys = jax.random.split(jax.random.PRNGKey(7), n)
+  counter = _encoder_execution_counter(monkeypatch)
+
+  mono = make_sample_sequences(small_model, sampling_strategy="temperature")
+  out = jax.vmap(lambda k: mono(k, **kwargs))(keys)
+  jax.block_until_ready(out)
+  jax.effects_barrier()
+  assert counter[0] == n
+
+  counter[0] = 0
+  sampler = make_hoisted_sampler(small_model)
+  out = sampler(keys, **kwargs)
+  jax.block_until_ready(out)
+  jax.effects_barrier()
+  assert counter[0] == 1
+
+
+def test_a2_negative_control_mutant_encodes_per_element(
+  small_model: Aminx, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """A2 control: a per-element encode fires once per key, on top of the shared encode."""
+
+  class _EncodePerElement(HoistedSampler):
+    """Mutant: each element re-encodes with a key derived from its own key."""
+
+    def _per_element(self, shared: Any, key: Any) -> Any:
+      bundle, config, stage_set, _ = shared
+      k_enc, _ = jax.random.split(jax.random.split(key)[1])
+      enc = hoisted_mod.encode_for_sampling(self._model, bundle, k_enc, config)
+      return super()._per_element((bundle, config, stage_set, enc), key)
+
+  n = 5
+  kwargs = _case_kwargs("single")
+  keys = jax.random.split(jax.random.PRNGKey(7), n)
+  counter = _encoder_execution_counter(monkeypatch)
+  mutant = _EncodePerElement(
+    small_model,
+    decoding_order_fn=hoisted_mod._DEFAULT_DECODING_ORDER_FN,
+    num_groups=None,
+    multi_state_strategy="arithmetic_mean",
+    multi_state_temperature=1.0,
+    inference_only=False,
+    batch_size=None,
+  )
+  out = mutant(keys, **kwargs)
+  jax.block_until_ready(out)
+  jax.effects_barrier()
+  # One shared encode (the mutant still runs the library shared stage) plus N per-element.
+  assert counter[0] == n + 1
 
 
 # --- A3: varying-input refusal through the sampler axis -----------------------------------

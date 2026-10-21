@@ -26,8 +26,8 @@ once per call instead of once per key.
   unchanged (`kernel` calls both).
 - `sample_sequences` warns with `FutureWarning` when a `precomputed_*` argument is passed. It was
   already ignored; removal is a later change.
-- TODO before merge: pin `xtrax[io,export]` and `xtrax[onnx]` to `==0.4.1b2` once that release is on
-  PyPI. The hoisted sampler needs `xtrax>=0.4.1b2` (`xtrax.inference.make_hoisted`).
+- xtrax pin bumped to `==0.4.1b2` (`xtrax[io,export]`, `xtrax[onnx]`); the hoisted sampler needs
+  `xtrax.inference.make_hoisted`.
 - `runner.inspect` runs the encoder once per structure for `decoded_node_features`,
   `encoded_node_features` and `edge_features` (they share the same encoder inputs). Outputs are unchanged.
 

@@ -1,5 +1,9 @@
 """Factory for creating sequence sampling functions for Aminx."""
 
+import functools
+import inspect
+import warnings
+from collections.abc import Callable
 from functools import partial
 from typing import Literal, cast
 
@@ -18,9 +22,49 @@ from aminx.utils.autoregression import decoding_order_from_wave
 from aminx.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
 _AMINO_ACID_VOCAB = 21
+_PRECOMPUTED_KWARGS = (
+  "precomputed_node_features",
+  "precomputed_edge_features",
+  "precomputed_neighbor_indices",
+)
 
 
 _DEFAULT_DECODING_ORDER_FN = cast("DecodingOrderFn", random_decoding_order)
+
+
+class _PrecomputedGuard:
+  """Forward to a jitted sampler, warning when an ignored ``precomputed_*`` argument is passed.
+
+  The warning is raised per call (not at trace time), so a cached compilation still warns.
+  Arguments are bound against the sampler's signature, so a positional ``precomputed_*`` is
+  caught too. Attribute access (``.lower``, ``.eval_shape``, ...) and ``__wrapped__`` are
+  forwarded to the jitted sampler.
+  """
+
+  def __init__(self, sampler: Callable[..., object]) -> None:
+    """Store the jitted sampler and its signature."""
+    self._sampler = sampler
+    self._signature = inspect.signature(sampler)
+    functools.update_wrapper(self, sampler)
+
+  def __call__(self, *args: object, **kwargs: object) -> object:
+    """Warn about ignored ``precomputed_*`` arguments, then call the sampler unchanged."""
+    bound = self._signature.bind_partial(*args, **kwargs)
+    ignored = sorted(name for name in _PRECOMPUTED_KWARGS if bound.arguments.get(name) is not None)
+    if ignored:
+      warnings.warn(
+        f"sample_sequences {', '.join(ignored)} is ignored; use make_hoisted_sampler "
+        "(aminx.sampling.hoisted), which encodes once per structure.",
+        FutureWarning,
+        stacklevel=2,
+      )
+    return self._sampler(*args, **kwargs)
+
+  def __getattr__(self, name: str) -> object:
+    """Forward attribute access to the jitted sampler."""
+    if name == "_sampler":
+      raise AttributeError(name)
+    return getattr(self._sampler, name)
 
 
 def make_sample_sequences(
@@ -80,7 +124,9 @@ def make_sample_sequences(
       tie_group_map: jax.Array | None = None,
       num_groups: int | None = None,
       multi_state_strategy: Literal[
-        "arithmetic_mean", "geometric_mean", "product",
+        "arithmetic_mean",
+        "geometric_mean",
+        "product",
       ] = "arithmetic_mean",
       multi_state_temperature: float = 1.0,
       state_weights: jax.Array | None = None,
@@ -152,7 +198,9 @@ def make_sample_sequences(
       tie_group_map: jax.Array | None = None,
       num_groups: int | None = None,
       multi_state_strategy: Literal[
-        "arithmetic_mean", "geometric_mean", "product",
+        "arithmetic_mean",
+        "geometric_mean",
+        "product",
       ] = "arithmetic_mean",
       multi_state_temperature: float = 1.0,
       state_weights: jax.Array | None = None,
@@ -216,7 +264,7 @@ def make_sample_sequences(
 
       return result.sequence.astype(jnp.int8), result.logits, decoding_order
 
-    return cast("SamplerFn", sample_sequences)
+    return cast("SamplerFn", _PrecomputedGuard(sample_sequences))
 
   msg = f"Unknown sampling strategy: {sampling_strategy}"
   raise ValueError(msg)

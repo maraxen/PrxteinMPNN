@@ -1644,6 +1644,10 @@ def inspect(  # noqa: PLR0915
   # Prepare random key
   prng_key = jax.random.PRNGKey(spec.run_spec.sampling.random_seed)
 
+  # decoded_node_features, encoded_node_features and edge_features share one encode per
+  # structure (same inputs, same subkey). The split fn is built on first use, once per call (B5).
+  encode_fn = None
+
   for _batch_idx, batched_ensemble in enumerate(protein_iterator):
     batch_size = batched_ensemble.coordinates.shape[0]
     batch_structure_ids = _structure_ids_for_batch(
@@ -1659,6 +1663,7 @@ def inspect(  # noqa: PLR0915
       struct_chain_index = batched_ensemble.chain_index[struct_idx]
 
       prng_key, subkey = jax.random.split(prng_key)
+      shared_encoding = None  # filled by the first encoder-sharing feature
 
       for feature_name in spec.inspection_features:
         if feature_name == "unconditional_logits":
@@ -1772,16 +1777,19 @@ def inspect(  # noqa: PLR0915
             msg = "Structure does not contain sequence information; cannot compute decoded_node_features"
             raise ValueError(msg)
 
-          encode_fn, _ = make_encoding_conditional_logits_split_fn(model)
-          encoding = encode_fn(
-            struct_coords,
-            struct_mask,
-            struct_residue_index,
-            struct_chain_index,
-            backbone_noise=0.0,
-            prng_key=subkey,
-            structure_mapping=None,
-          )
+          if shared_encoding is None:
+            if encode_fn is None:
+              encode_fn, _ = make_encoding_conditional_logits_split_fn(model)
+            shared_encoding = encode_fn(
+              struct_coords,
+              struct_mask,
+              struct_residue_index,
+              struct_chain_index,
+              backbone_noise=0.0,
+              prng_key=subkey,
+              structure_mapping=None,
+            )
+          encoding = shared_encoding
           one_hot = jax.nn.one_hot(native_seq, 21)
           length = one_hot.shape[0]
           # Full context minus self, NOT zeros (#4204). ar_mask[i, j] == 1 means i SEES j,
@@ -1802,16 +1810,19 @@ def inspect(  # noqa: PLR0915
 
         elif feature_name in ("encoded_node_features", "edge_features"):
           # Use the split function to compute encoder output
-          encode_fn, _ = make_encoding_conditional_logits_split_fn(model)
-          enc_output = encode_fn(
-            struct_coords,
-            struct_mask,
-            struct_residue_index,
-            struct_chain_index,
-            backbone_noise=0.0,
-            prng_key=subkey,
-            structure_mapping=None,
-          )
+          if shared_encoding is None:
+            if encode_fn is None:
+              encode_fn, _ = make_encoding_conditional_logits_split_fn(model)
+            shared_encoding = encode_fn(
+              struct_coords,
+              struct_mask,
+              struct_residue_index,
+              struct_chain_index,
+              backbone_noise=0.0,
+              prng_key=subkey,
+              structure_mapping=None,
+            )
+          enc_output = shared_encoding
 
           if feature_name == "encoded_node_features":
             results_per_feature[feature_name].append(enc_output.node_features)

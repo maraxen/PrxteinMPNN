@@ -64,6 +64,50 @@ def _potts_log_unnormalized(
   return _potts_field_energy(h, seq, mask) + _potts_pair_energy(j, w, seq, mask)
 
 
+def condition_on_fixed_sites(
+  h: Float[Array, "n q"],
+  j: Float[Array, "n n q q"],
+  w: Float[Array, "n n"],
+  seq: Int[Array, " n"],
+  fixed_mask: Float[Array, " n"],
+  mask: Float[Array, " n"] | None = None,
+) -> tuple[Float[Array, "n q"], Float[Array, " n"]]:
+  """Condition a Potts model on fixed residue identities by folding them into the local fields.
+
+  ``mask == 0`` in this module DELETES a site (its field and every pair term touching it vanish), which is not
+  conditioning. To sample the free sites given fixed identities ``seq[k]``, the pair terms between a free site
+  ``i`` and a fixed site ``k`` become an extra field on ``i``::
+
+      h'_i(a) = h_i(a) + Σ_{k fixed} w_ik J_ik(a, seq[k])
+
+  Sampling or scoring with ``(h', J, W, free_mask)`` then has the exact conditional ``p(s_free | s_fixed)`` of the
+  unmasked model. Requires the module's symmetric convention ``J[i,k,a,b] == J[k,i,b,a]`` and symmetric ``W``;
+  this is not checked here (it is not traceable) — see the tests for a concrete-array check.
+
+  Args:
+    h: Local fields (n, q).
+    j: Pair tables (n, n, q, q).
+    w: Adjacency / edge weights (n, n).
+    seq: Sequence (n,) whose entries at fixed sites give the identities to condition on.
+    fixed_mask: 1 where the identity is held fixed, 0 elsewhere.
+    mask: Optional site-activity mask; sites with ``mask == 0`` stay deleted (never contribute as fixed neighbours).
+
+  Returns:
+    ``(h_folded, free_mask)``: folded fields and the mask (1 only at free, active sites) to pass to the samplers.
+  """
+  n = int(h.shape[0])
+  active = jnp.ones((n,), dtype=h.dtype) if mask is None else mask.astype(h.dtype)
+  fixed = fixed_mask.astype(h.dtype) * active
+  free = active * (1.0 - fixed)
+  k_idx = jnp.arange(n, dtype=jnp.int32)
+
+  def from_fixed_site(k: Int[Array, ""]) -> Float[Array, "n q"]:
+    return fixed[k] * w[:, k, None] * j[:, k, :, seq[k]]
+
+  contribution = jnp.sum(jax.vmap(from_fixed_site)(k_idx), axis=0)
+  return h + contribution * free[:, None], free
+
+
 def _conditional_logits_site(
   h: Float[Array, "n q"],
   j: Float[Array, "n n q q"],

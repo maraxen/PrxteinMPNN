@@ -22,7 +22,12 @@ from aminx.potts.model import (
   PottsModel,
   PottsParams,
 )
-from aminx.potts.sampling import gibbs_sweep, log_energy, parallel_tempering
+from aminx.potts.sampling import (
+  condition_on_fixed_sites,
+  gibbs_sweep,
+  log_energy,
+  parallel_tempering,
+)
 from aminx.potts.spec import PottsRunSpec
 
 try:
@@ -44,6 +49,7 @@ __all__ = [
   "PottsParams",
   "PottsRunSpec",
   "PottsTRWRunSpec",
+  "condition_on_fixed_sites",
   "gibbs_sweep",
   "load_calibration",
   "log_energy",

@@ -82,7 +82,12 @@ def condition_on_fixed_sites(
 
   Sampling or scoring with ``(h', J, W, free_mask)`` then has the exact conditional ``p(s_free | s_fixed)`` of the
   unmasked model. Requires the module's symmetric convention ``J[i,k,a,b] == J[k,i,b,a]`` and symmetric ``W``;
-  this is not checked here (it is not traceable) — see the tests for a concrete-array check.
+  this is not checked here (it is not traceable) — see the tests for a concrete-array check. ``PottsModel`` builds
+  symmetric ``J`` and ``W``, so its tables satisfy this.
+
+  The folded term lives in ``h``, so ``neighbor_scale`` (which scales pair contributions only) no longer scales it:
+  do not combine this with ``neighbor_scale != 1``. ``inverse_temp`` tempering and parallel tempering (which use
+  ``neighbor_scale=1``) are unaffected.
 
   Args:
     h: Local fields (n, q).

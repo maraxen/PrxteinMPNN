@@ -51,6 +51,10 @@ class PottsResult:
       calibrated_marginals: Calibrated marginals (N, 21) after CalibrationModule
       n_backbones: Number of backbones in ensemble
       samples: Sampled sequences (n_samples, N) with dtype int32. None if n_samples=0.
+      W: Graph adjacency matrix (N, N) built from the k-NN edges. run_potts always
+          populates it; it is optional only so that existing direct constructions of
+          this dataclass keep working. Needed alongside h and J to score a sequence
+          with sampling.log_energy, which takes w as its contact weights.
   """
 
   marginals: Array
@@ -60,6 +64,7 @@ class PottsResult:
   calibrated_marginals: Array
   n_backbones: int
   samples: Array | None = None
+  W: Array | None = None
 
 
 def _load_potts_model(weights_path: str, spec: PottsRunSpec, key: PRNGKeyArray) -> PottsModel:
@@ -278,4 +283,5 @@ def run_potts(
     calibrated_marginals=calibrated_marginals,
     n_backbones=spec.n_backbones,
     samples=samples,
+    W=params.W,
   )

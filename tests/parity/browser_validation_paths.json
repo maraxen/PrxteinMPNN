@@ -618,6 +618,7 @@
   "src/aminx/potts/poe.py::PoeParams": "P22",
   "src/aminx/potts/runner.py::PottsResult": "P22",
   "src/aminx/potts/runner.py::run_potts": "P22",
+  "src/aminx/potts/sampling.py::condition_on_fixed_sites": "P22",
   "src/aminx/potts/sampling.py::dlmc_sweep": "P22",
   "src/aminx/potts/sampling.py::gibbs_empirical_marginals": "P22",
   "src/aminx/potts/sampling.py::gibbs_sweep": "P22",
